@@ -390,7 +390,8 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory) {
+    public <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(
+            FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory) {
         String subPhaseName = contextFactory.getName();
         if (subPhaseContexts.get(subPhaseName) == null) {
             subPhaseContexts.put(subPhaseName, contextFactory.newContextInstance());

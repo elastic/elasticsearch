@@ -957,8 +957,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         if (token != XContentParser.Token.START_OBJECT && (token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {
-            throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT + "] but found [" + token + "]",
-                    parser.getTokenLocation());
+            throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT +
+                    "] but found [" + token + "]", parser.getTokenLocation());
         }
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -1017,8 +1017,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         } else if (token.isValue()) {
                             indexBoost.put(currentFieldName, parser.floatValue());
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                                    parser.getTokenLocation());
+                            throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token +
+                                    " in [" + currentFieldName + "].", parser.getTokenLocation());
                         }
                     }
                 } else if (context.getParseFieldMatcher().match(currentFieldName, AGGREGATIONS_FIELD)
@@ -1051,8 +1051,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         if (token == XContentParser.Token.VALUE_STRING) {
                             docValueFields.add(parser.text());
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.VALUE_STRING + "] in ["
-                                    + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
+                            throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.VALUE_STRING +
+                                    "] in [" + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
                         }
                     }
                 } else if (context.getParseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
@@ -1068,8 +1068,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         if (token == XContentParser.Token.VALUE_STRING) {
                             stats.add(parser.text());
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.VALUE_STRING + "] in ["
-                                    + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
+                            throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.VALUE_STRING +
+                                    "] in [" + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
                         }
                     }
                 } else if (context.getParseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
@@ -1345,8 +1345,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     @Override
     public int hashCode() {
         return Objects.hash(aggregations, explain, fetchSourceContext, docValueFields, storedFieldsContext, from,
-                highlightBuilder, indexBoost, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields,
-                size, sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version, profile);
+                highlightBuilder, indexBoost, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size, sorts,
+                searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version, profile);
     }
 
     @Override

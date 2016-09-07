@@ -27,6 +27,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.rankeval.PrecisionAtN.Rating;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,7 +38,7 @@ import java.util.concurrent.ExecutionException;
 
 import static java.util.Collections.emptyList;
 
-public class PrecisionAtNTests extends XContentRoundtripTests<PrecisionAtN> {
+public class PrecisionAtNTests extends ESTestCase {
 
     public void testPrecisionAtFiveCalculation() throws IOException, InterruptedException, ExecutionException {
         List<RatedDocument> rated = new ArrayList<>();
@@ -141,7 +142,7 @@ public class PrecisionAtNTests extends XContentRoundtripTests<PrecisionAtN> {
 
     public void testXContentRoundtrip() throws IOException {
         PrecisionAtN testItem = createTestItem();
-        XContentParser itemParser = roundtrip(testItem);
+        XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
         itemParser.nextToken();
         itemParser.nextToken();
         PrecisionAtN parsedItem = PrecisionAtN.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);

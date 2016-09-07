@@ -30,15 +30,15 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class XContentRoundtripTests<T extends ToXContentToBytes> extends ESTestCase {
+public class XContentTestHelper {
 
-    public XContentParser roundtrip(T testItem) throws IOException { 
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        if (randomBoolean()) {
+    public static XContentParser roundtrip(ToXContentToBytes testItem) throws IOException { 
+        XContentBuilder builder = XContentFactory.contentBuilder(ESTestCase.randomFrom(XContentType.values()));
+        if (ESTestCase.randomBoolean()) {
             builder.prettyPrint();
         }
         testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentBuilder shuffled = shuffleXContent(builder);
+        XContentBuilder shuffled = ESTestCase.shuffleXContent(builder);
         XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
         return itemParser;
     }

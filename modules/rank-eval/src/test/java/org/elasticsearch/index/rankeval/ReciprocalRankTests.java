@@ -26,6 +26,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.rankeval.PrecisionAtN.Rating;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,7 +37,7 @@ import java.util.concurrent.ExecutionException;
 
 import static java.util.Collections.emptyList;
 
-public class ReciprocalRankTests extends XContentRoundtripTests<ReciprocalRank> {
+public class ReciprocalRankTests extends ESTestCase {
 
     public void testMaxAcceptableRank() {
         ReciprocalRank reciprocalRank = new ReciprocalRank();
@@ -154,7 +155,7 @@ public class ReciprocalRankTests extends XContentRoundtripTests<ReciprocalRank> 
         int position = randomIntBetween(0, 1000);
 
         ReciprocalRank testItem = new ReciprocalRank(position);
-        XContentParser itemParser = roundtrip(testItem);
+        XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
         itemParser.nextToken();
         itemParser.nextToken();
         ReciprocalRank parsedItem = ReciprocalRank.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);

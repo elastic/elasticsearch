@@ -33,3 +33,5 @@ include::migrate_6_0/mapping.asciidoc[]
 include::migrate_6_0/rest.asciidoc[]
 
 include::migrate_6_0/search.asciidoc[]
+
+include::migrate_6_0/docs.asciidoc[]

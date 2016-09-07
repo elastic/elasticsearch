@@ -222,7 +222,7 @@ public class TriggeredWatchStore extends AbstractComponent {
         }
     }
 
-    public void delete(Wid wid) throws Exception {
+    public void delete(Wid wid) {
         ensureStarted();
         accessLock.lock();
         try {

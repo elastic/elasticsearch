@@ -225,6 +225,6 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
     
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), position, normalize, unknownDocRating);
+        return Objects.hash(position, normalize, unknownDocRating);
     }
 }

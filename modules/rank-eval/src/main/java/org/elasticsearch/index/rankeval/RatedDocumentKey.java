@@ -139,6 +139,6 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable, Fr
     
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), index, type, docId);
+        return Objects.hash(index, type, docId);
     }
 }

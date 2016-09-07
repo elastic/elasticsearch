@@ -225,6 +225,6 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), specId, testRequest, indices.hashCode(), types.hashCode(), ratedDocs.hashCode());
+        return Objects.hash(specId, testRequest, indices.hashCode(), types.hashCode(), ratedDocs.hashCode());
     }
 }

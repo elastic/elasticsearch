@@ -169,6 +169,6 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), specId, ratedRequests, metric);
+        return Objects.hash(specId, ratedRequests, metric);
     }
 }

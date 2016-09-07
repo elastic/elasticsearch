@@ -197,6 +197,6 @@ public class PrecisionAtN extends RankedListQualityMetric {
     
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), n);
+        return Objects.hash(n);
     }
 }

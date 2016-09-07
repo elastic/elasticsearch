@@ -187,6 +187,6 @@ public class ReciprocalRank extends RankedListQualityMetric {
     
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), maxAcceptableRank);
+        return Objects.hash(maxAcceptableRank);
     }
 }

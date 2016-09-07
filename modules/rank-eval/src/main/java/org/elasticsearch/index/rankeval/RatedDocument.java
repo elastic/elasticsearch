@@ -136,6 +136,6 @@ public class RatedDocument extends ToXContentToBytes implements Writeable, FromX
     
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), key, rating);
+        return Objects.hash(key, rating);
     }
 }

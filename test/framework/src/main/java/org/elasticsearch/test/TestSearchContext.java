@@ -47,6 +47,7 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
@@ -259,6 +260,16 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext) {
+        return null;
+    }
+
+    @Override
+    public DocValueFieldsContext docValueFieldsContext() {
+        return null;
+    }
+
+    @Override
+    public SearchContext docValueFieldsContext(DocValueFieldsContext docValueFieldsContext) {
         return null;
     }
 

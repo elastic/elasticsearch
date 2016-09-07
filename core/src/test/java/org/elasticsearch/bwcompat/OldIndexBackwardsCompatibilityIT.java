@@ -24,6 +24,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
@@ -33,6 +34,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -47,6 +49,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.StringFieldMapperPositionIncrementGapTests;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -249,15 +252,43 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         Version actualVersionCreated = Version.indexCreated(getIndexResponse.getSettings().get(indexName));
         assertEquals(indexCreated, actualVersionCreated);
         ensureYellow(indexName);
-        IndicesSegmentResponse segmentsResponse = client().admin().indices().prepareSegments(indexName).get();
-        IndexSegments segments = segmentsResponse.getIndices().get(indexName);
-        for (IndexShardSegments indexShardSegments : segments) {
-            for (ShardSegments shardSegments : indexShardSegments) {
-                for (Segment segment : shardSegments) {
-                    assertEquals(indexCreated.luceneVersion, segment.version);
+        RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName)
+            .setDetailed(true).setActiveOnly(false).get();
+        boolean foundTranslog = false;
+        for (List<RecoveryState> states : recoveryResponse.shardRecoveryStates().values()) {
+            for (RecoveryState state : states) {
+                if (state.getStage() == RecoveryState.Stage.DONE
+                    && state.getPrimary()
+                    && state.getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
+                    assertFalse("more than one primary recoverd?", foundTranslog);
+                    assertNotEquals(0, state.getTranslog().recoveredOperations());
+                    foundTranslog = true;
                 }
             }
         }
+        assertTrue("expected translog but nothing was recovered", foundTranslog);
+        IndicesSegmentResponse segmentsResponse = client().admin().indices().prepareSegments(indexName).get();
+        IndexSegments segments = segmentsResponse.getIndices().get(indexName);
+        int numCurrent = 0;
+        int numBWC = 0;
+        for (IndexShardSegments indexShardSegments : segments) {
+            for (ShardSegments shardSegments : indexShardSegments) {
+                for (Segment segment : shardSegments) {
+                    if (indexCreated.luceneVersion.equals(segment.version)) {
+                        numBWC++;
+                        if (Version.CURRENT.luceneVersion.equals(segment.version)) {
+                            numCurrent++;
+                        }
+                    } else if (Version.CURRENT.luceneVersion.equals(segment.version)) {
+                        numCurrent++;
+                    } else {
+                        fail("unexpected version " + segment.version);
+                    }
+                }
+            }
+        }
+        assertNotEquals("expected at least 1 current segment after translog recovery", 0, numCurrent);
+        assertNotEquals("expected at least 1 old segment", 0, numBWC);
         SearchResponse test = client().prepareSearch(indexName).get();
         assertThat(test.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
     }

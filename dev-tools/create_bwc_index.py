@@ -72,6 +72,15 @@ def index_documents(es, index_name, type, num_docs):
   logging.info('Flushing index')
   es.indices.flush(index=index_name)
 
+def reindex_docs(es, index_name, type, num_docs):
+  logging.info('Re-indexing %s docs' % num_docs)
+  # reindex some docs after the flush such that we have something in the translog
+  for id in range(0, num_docs):
+    es.index(index=index_name, doc_type=type, id=id, body={'string': str(random.randint(0, 100)),
+                                                           'long_sort': random.randint(0, 100),
+                                                           'double_sort' : float(random.randint(0, 100)),
+                                                           'bool' : random.choice([True, False])})
+
 def delete_by_query(es, version, index_name, doc_type):
 
   logging.info('Deleting long_sort:[10..20] docs')
@@ -329,6 +338,7 @@ def generate_index(client, version, index_name):
   index_documents(client, index_name, 'doc', num_docs)
   logging.info('Running basic asserts on the data added')
   run_basic_asserts(client, index_name, 'doc', num_docs)
+  return num_docs
 
 def snapshot_index(client, version, repo_dir):
   persistent = {
@@ -438,7 +448,7 @@ def create_bwc_index(cfg, version):
     node = start_node(version, release_dir, data_dir, repo_dir, cfg.tcp_port, cfg.http_port)
     client = create_client(cfg.http_port)
     index_name = 'index-%s' % version.lower()
-    generate_index(client, version, index_name)
+    num_docs = generate_index(client, version, index_name)
     if snapshot_supported:
       snapshot_index(client, version, repo_dir)
 
@@ -447,6 +457,7 @@ def create_bwc_index(cfg, version):
     # will already have the deletions applied on upgrade.
     if version.startswith('0.') or version.startswith('1.'):
       delete_by_query(client, version, index_name, 'doc')
+    reindex_docs(client, index_name, 'doc', min(100, num_docs))
 
     shutdown_node(node)
     node = None
@@ -464,7 +475,7 @@ def create_bwc_index(cfg, version):
 
 def shutdown_node(node):
   logging.info('Shutting down node with pid %d', node.pid)
-  node.terminate()
+  node.kill() # don't use terminate otherwise we flush the translog
   node.wait()
 
 def parse_version(version):

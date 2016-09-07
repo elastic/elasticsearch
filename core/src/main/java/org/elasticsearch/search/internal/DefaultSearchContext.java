@@ -50,7 +50,6 @@ import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -59,8 +58,8 @@ import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseContext;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
@@ -81,9 +80,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class DefaultSearchContext extends SearchContext {
 
     private final long id;
@@ -390,15 +386,15 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(
-            FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory) {
-        String subPhaseName = contextFactory.getName();
-        if (subPhaseContexts.get(subPhaseName) == null) {
-            subPhaseContexts.put(subPhaseName, contextFactory.newContextInstance());
-        }
-        return (SubPhaseContext) subPhaseContexts.get(subPhaseName);
+    @SuppressWarnings("unchecked")
+    public <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(String name) {
+        return (SubPhaseContext) subPhaseContexts.get(name);
     }
 
+    @Override
+    public <SubPhaseContext extends FetchSubPhaseContext> void putFetchSubPhaseContext(String name, SubPhaseContext subPhaseContext) {
+        subPhaseContexts.put(name, subPhaseContext);
+    }
 
     @Override
     public SearchContextHighlight highlight() {

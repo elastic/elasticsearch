@@ -43,7 +43,6 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsFetchSubPhase;
@@ -78,12 +77,12 @@ public class FetchPhase implements SearchPhase {
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsFetchSubPhase(this);
     }
 
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        Map<String, SearchParseElement> parseElements = new HashMap<>();
+    public Map<String, ? extends FetchSubPhaseParser> parsers() {
+        Map<String, FetchSubPhaseParser> parsers = new HashMap<>();
         for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-            parseElements.putAll(fetchSubPhase.parseElements());
+            parsers.putAll(fetchSubPhase.parsers());
         }
-        return unmodifiableMap(parseElements);
+        return unmodifiableMap(parsers);
     }
 
     @Override

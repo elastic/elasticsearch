@@ -1,0 +1,68 @@
+---
+"Template request":
+  - do:
+     indices.create:
+         index: foo
+         body:
+           settings:
+             index:
+               number_of_shards: 1
+  - do:
+      index:
+        index:   foo
+        type:    bar
+        id:      doc1
+        body:    { "text": "berlin" }
+
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc2
+        body:   { "text": "amsterdam" }
+
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc3
+        body:   { "text": "amsterdam" }
+        
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc4
+        body:   { "text": "something about amsterdam and berlin" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      rank_eval_template:
+        body: {
+          "spec_id" : "cities_qa_queries",
+          "template": "{ \"query\": { \"match\" : {\"text\" : \"{{query_string}}\" }}}",
+          "requests" : [
+            {
+                "id": "amsterdam_query",
+                "params": { "query_string": "amsterdam_1" },
+                "ratings": [
+                    {"key": { "index": "foo", "type": "bar", "doc_id": "doc1"}, "rating": 0},
+                    {"key": { "index": "foo", "type": "bar", "doc_id": "doc2"}, "rating": 1},
+                    {"key": { "index": "foo", "type": "bar", "doc_id": "doc3"}, "rating": 1}]
+            },
+            {
+                "id" : "berlin_query",
+                "params": { "query_string": "berlin_1" },
+                "ratings": [{"key": {"index": "foo", "type": "bar", "doc_id": "doc1"}, "rating": 1}]
+            }
+          ],
+          "metric" : { "precisionatn": { "size": 10}}
+        }
+
+  - match: {rank_eval.spec_id: "cities_qa_queries"}
+  - match: {rank_eval.quality_level: 1}
+  - match: {rank_eval.unknown_docs.0.amsterdam_query:  [ {"index": "foo", "type": "bar", "doc_id": "doc4"}]}
+  - match: {rank_eval.unknown_docs.1.berlin_query:  [ {"index": "foo", "type": "bar", "doc_id": "doc4"}]}
+

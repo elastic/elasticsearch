@@ -25,6 +25,8 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,7 +34,10 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  * Defines a QA specification: All end user supplied query intents will be mapped to the search request specified in this search request
@@ -41,6 +46,7 @@ import java.util.List;
  * The resulting document lists can then be compared against what was specified in the set of rated documents as part of a QAQuery.
  * */
 public class QuerySpec extends ToXContentToBytes implements Writeable {
+    private static final ESLogger logger = Loggers.getLogger(QuerySpec.class);
 
     private String specId;
     private SearchSourceBuilder testRequest;
@@ -48,6 +54,8 @@ public class QuerySpec extends ToXContentToBytes implements Writeable {
     private List<String> types = new ArrayList<>();
     /** Collection of rated queries for this query QA specification.*/
     private List<RatedDocument> ratedDocs = new ArrayList<>();
+    /** Map of parameters to use for filling a query template, can be used instead of providing testRequest. */
+    private Map<String, Object> params = new HashMap<>();
 
     public QuerySpec() {
         // ctor that doesn't require all args to be present immediatly is easier to use with ObjectParser
@@ -81,6 +89,7 @@ public class QuerySpec extends ToXContentToBytes implements Writeable {
         for (int i = 0; i < intentSize; i++) {
             ratedDocs.add(new RatedDocument(in));
         }
+        this.params = in.readMap();
     }
 
     @Override
@@ -99,6 +108,7 @@ public class QuerySpec extends ToXContentToBytes implements Writeable {
         for (RatedDocument ratedDoc : ratedDocs) {
             ratedDoc.writeTo(out);
         }
+        out.writeMap(params);
     }
 
     public SearchSourceBuilder getTestRequest() {
@@ -144,21 +154,38 @@ public class QuerySpec extends ToXContentToBytes implements Writeable {
     public void setRatedDocs(List<RatedDocument> ratedDocs) {
         this.ratedDocs = ratedDocs;
     }
+    
+    public void setParams(Map<String, Object> params) {
+        this.params = params;
+    }
+    
+    public Map<String, Object> getParams() {
+        return this.params;
+    }
 
     private static final ParseField ID_FIELD = new ParseField("id");
     private static final ParseField REQUEST_FIELD = new ParseField("request");
     private static final ParseField RATINGS_FIELD = new ParseField("ratings");
+    private static final ParseField PARAMS_FIELD = new ParseField("params");
     private static final ObjectParser<QuerySpec, RankEvalContext> PARSER = new ObjectParser<>("requests", QuerySpec::new);
 
     static {
         PARSER.declareString(QuerySpec::setSpecId, ID_FIELD);
         PARSER.declareObject(QuerySpec::setTestRequest, (p, c) -> {
             try {
+                logger.error("Building search source builder");
                 return SearchSourceBuilder.fromXContent(c.getParseContext(), c.getAggs(),  c.getSuggesters());
             } catch (IOException ex) {
                 throw new ParsingException(p.getTokenLocation(), "error parsing request", ex);
             }
         } , REQUEST_FIELD);
+        PARSER.declareObject(QuerySpec::setParams, (p, c) -> {
+            try {
+                return p.map();
+            } catch (IOException ex) {
+                throw new ParsingException(p.getTokenLocation(), "error parsing ratings", ex);
+            }
+        }, PARAMS_FIELD);
         PARSER.declareObjectArray(QuerySpec::setRatedDocs, (p, c) -> {
             try {
                 return RatedDocument.fromXContent(p, c);
@@ -196,7 +223,13 @@ public class QuerySpec extends ToXContentToBytes implements Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ID_FIELD.getPreferredName(), this.specId);
-        builder.field(REQUEST_FIELD.getPreferredName(), this.testRequest);
+        if (testRequest != null)
+            builder.field(REQUEST_FIELD.getPreferredName(), this.testRequest);
+        builder.startArray(PARAMS_FIELD.getPreferredName());
+//        for (Entry<String, Object> entry : this.params.entrySet()) {
+//            builder.field(entry.getKey(), entry.getValue());
+//        }
+        builder.endArray();
         builder.startArray(RATINGS_FIELD.getPreferredName());
         for (RatedDocument doc : this.ratedDocs) {
             doc.toXContent(builder, params);

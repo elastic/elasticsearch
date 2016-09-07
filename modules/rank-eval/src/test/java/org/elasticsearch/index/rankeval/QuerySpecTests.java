@@ -86,7 +86,7 @@ public class QuerySpecTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(querySpecString).createParser(querySpecString);
         QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, parser, ParseFieldMatcher.STRICT);
         RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,
-                searchRequestParsers);
+                searchRequestParsers, null);
         QuerySpec specification = QuerySpec.fromXContent(parser, rankContext);
         assertEquals("my_qa_query", specification.getSpecId());
         assertNotNull(specification.getTestRequest());

@@ -23,6 +23,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
@@ -32,11 +33,14 @@ public class RankEvalContext implements ParseFieldMatcherSupplier {
     private final SearchRequestParsers searchRequestParsers;
     private final ParseFieldMatcher parseFieldMatcher;
     private final QueryParseContext parseContext;
+    private final ScriptService scriptService;
 
-    public RankEvalContext(ParseFieldMatcher parseFieldMatcher, QueryParseContext parseContext, SearchRequestParsers searchRequestParsers) {
+    public RankEvalContext(ParseFieldMatcher parseFieldMatcher, QueryParseContext parseContext, SearchRequestParsers searchRequestParsers,
+            ScriptService scriptService) {
         this.parseFieldMatcher = parseFieldMatcher;
         this.searchRequestParsers = searchRequestParsers;
         this.parseContext = parseContext;
+        this.scriptService = scriptService;
     }
 
     public Suggesters getSuggesters() {
@@ -45,6 +49,14 @@ public class RankEvalContext implements ParseFieldMatcherSupplier {
 
     public AggregatorParsers getAggs() {
         return searchRequestParsers.aggParsers;
+    }
+
+    public SearchRequestParsers getSearchRequestParsers() {
+        return searchRequestParsers;
+    }
+
+    public ScriptService getScriptService() {
+        return scriptService;
     }
 
     @Override

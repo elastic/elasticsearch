@@ -27,8 +27,8 @@ import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -86,6 +86,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
     public boolean hasIndex(String index) {
         return indicesRouting.containsKey(index);
+    }
+
+    public boolean hasIndex(Index index) {
+        IndexRoutingTable indexRouting = index(index.getName());
+        return indexRouting != null && indexRouting.getIndex().equals(index);
     }
 
     public IndexRoutingTable index(String index) {

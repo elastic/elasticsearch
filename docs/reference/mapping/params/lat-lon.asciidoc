@@ -31,6 +31,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
+// CONSOLE
 // TEST[warning:geo_point lat_lon parameter is deprecated and will be removed in the next major release]
 <1> Setting `lat_lon` to true indexes the geo-point in the `location.lat` and `location.lon` fields.
 

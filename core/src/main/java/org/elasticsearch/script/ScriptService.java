@@ -92,8 +92,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     public static final Setting<Integer> SCRIPT_MAX_COMPILATIONS_PER_MINUTE =
         Setting.intSetting("script.max_compilations_per_minute", 15, 0, Property.Dynamic, Property.NodeScope);
 
-    private final String defaultLang;
-
     private final Collection<ScriptEngineService> scriptEngines;
     private final Map<String, ScriptEngineService> scriptEnginesByLang;
     private final Map<String, ScriptEngineService> scriptEnginesByExt;
@@ -130,8 +128,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         this.scriptEngines = scriptEngineRegistry.getRegisteredLanguages().values();
         this.scriptContextRegistry = scriptContextRegistry;
         int cacheMaxSize = SCRIPT_CACHE_SIZE_SETTING.get(settings);
-
-        this.defaultLang = scriptSettings.getDefaultScriptLanguageSetting().get(settings);
 
         CacheBuilder<CacheKey, CompiledScript> cacheBuilder = CacheBuilder.builder();
         if (cacheMaxSize >= 0) {
@@ -222,11 +218,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
 
         String lang = script.getLang();
-
-        if (lang == null) {
-            lang = defaultLang;
-        }
-
         ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
         if (canExecuteScript(lang, script.getType(), scriptContext) == false) {
             throw new IllegalStateException("scripts of type [" + script.getType() + "], operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
@@ -285,7 +276,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             throw new IllegalArgumentException("The parameter script (Script) must not be null.");
         }
 
-        String lang = script.getLang() == null ? defaultLang : script.getLang();
+        String lang = script.getLang();
         ScriptType type = script.getType();
         //script.getScript() could return either a name or code for a script,
         //but we check for a file script name first and an indexed script name second
@@ -364,9 +355,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     }
 
     private String validateScriptLanguage(String scriptLang) {
-        if (scriptLang == null) {
-            scriptLang = defaultLang;
-        } else if (scriptEnginesByLang.containsKey(scriptLang) == false) {
+        Objects.requireNonNull(scriptLang);
+        if (scriptEnginesByLang.containsKey(scriptLang) == false) {
             throw new IllegalArgumentException("script_lang not supported [" + scriptLang + "]");
         }
         return scriptLang;

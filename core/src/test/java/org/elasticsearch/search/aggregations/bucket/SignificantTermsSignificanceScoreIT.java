@@ -20,12 +20,10 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.plugins.Plugin;
@@ -49,6 +47,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.search.aggregations.bucket.SharedSignificantTermsTestMethods;
 
@@ -172,7 +171,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         @Override
         public List<SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>> getSignificanceHeuristics() {
             return singletonList(new SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>(SimpleHeuristic.NAME,
-                    SimpleHeuristic::new, SimpleHeuristic::parse));
+                    SimpleHeuristic::new, (context) -> SimpleHeuristic.parse(context)));
         }
 
         @Override
@@ -239,9 +238,9 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             return subsetFreq / subsetSize > supersetFreq / supersetSize ? 2.0 : 1.0;
         }
 
-        public static SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher)
+        public static SignificanceHeuristic parse(XContentParseContext context)
                 throws IOException, QueryShardException {
-            parser.nextToken();
+            context.getParser().nextToken();
             return new SimpleHeuristic();
         }
     }

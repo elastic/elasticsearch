@@ -16,7 +16,6 @@ This plugin can be installed using the plugin manager:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin install repository-s3
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
@@ -31,7 +30,6 @@ The plugin can be removed with the following command:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin remove repository-s3
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The node must be stopped before removing the plugin.
 
@@ -303,6 +301,7 @@ IAM in conjunction with pre-existing S3 buckets. Here is an example policy which
   "Version": "2012-10-17"
 }
 ----
+// NOTCONSOLE
 
 You may further restrict the permissions by specifying a prefix within the bucket, in this example, named "foo".
 
@@ -346,6 +345,7 @@ You may further restrict the permissions by specifying a prefix within the bucke
   "Version": "2012-10-17"
 }
 ----
+// NOTCONSOLE
 
 The bucket needs to exist to register a repository for snapshots. If you did not create the bucket then the repository
 registration will fail. If you want elasticsearch to create the bucket instead, you can add the permission to create a
@@ -363,6 +363,7 @@ specific bucket like this:
    ]
 }
 ----
+// NOTCONSOLE
 
 [[repository-s3-endpoint]]
 ===== Using other S3 endpoint

@@ -551,10 +551,6 @@ public class Setting<T> extends ToXContentToBytes {
         return new Setting<>(key, defaultValueFn, Booleans::parseBooleanExact, properties);
     }
 
-    public static Setting<ByteSizeValue> byteSizeSetting(String key, String percentage, Property... properties) {
-        return new Setting<>(key, (s) -> percentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
-    }
-
     public static Setting<ByteSizeValue> byteSizeSetting(String key, ByteSizeValue value, Property... properties) {
         return byteSizeSetting(key, (s) -> value.toString(), properties);
     }
@@ -589,6 +585,49 @@ public class Setting<T> extends ToXContentToBytes {
             throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be <= " + maxValue);
         }
         return value;
+    }
+
+    /**
+     * Creates a setting which specifies a memory size. This can either be
+     * specified as an absolute bytes value or as a percentage of the heap
+     * memory.
+     * 
+     * @param key the key for the setting
+     * @param defaultValue the default value for this setting 
+     * @param properties properties properties for this setting like scope, filtering...
+     * @return the setting object
+     */
+    public static Setting<ByteSizeValue> memorySizeSetting(String key, ByteSizeValue defaultValue, Property... properties) {
+        return memorySizeSetting(key, (s) -> defaultValue.toString(), properties);
+    }
+
+
+    /**
+     * Creates a setting which specifies a memory size. This can either be
+     * specified as an absolute bytes value or as a percentage of the heap
+     * memory.
+     * 
+     * @param key the key for the setting
+     * @param defaultValue a function that supplies the default value for this setting 
+     * @param properties properties properties for this setting like scope, filtering...
+     * @return the setting object
+     */
+    public static Setting<ByteSizeValue> memorySizeSetting(String key, Function<Settings, String> defaultValue, Property... properties) {
+        return new Setting<>(key, defaultValue, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
+    }
+
+    /**
+     * Creates a setting which specifies a memory size. This can either be
+     * specified as an absolute bytes value or as a percentage of the heap
+     * memory.
+     * 
+     * @param key the key for the setting
+     * @param defaultPercentage the default value of this setting as a percentage of the heap memory
+     * @param properties properties properties for this setting like scope, filtering...
+     * @return the setting object
+     */
+    public static Setting<ByteSizeValue> memorySizeSetting(String key, String defaultPercentage, Property... properties) {
+        return new Setting<>(key, (s) -> defaultPercentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
     }
 
     public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, Property... properties) {

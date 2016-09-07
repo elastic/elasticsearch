@@ -61,14 +61,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class BulkWithUpdatesIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("script.default_lang", CustomScriptPlugin.NAME)
-                .build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(CustomScriptPlugin.class);
     }
@@ -557,6 +549,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                 "  \"script\" : {" +
                 "    \"inline\" : \"ctx._source.field2 = 'value2'\"" +
                 "  }," +
+                "  \"lang\" : \"" + CustomScriptPlugin.NAME + "\"," +
                 "  \"upsert\" : {" +
                 "    \"field1\" : \"value1'\"" +
                 "  }" +
@@ -589,7 +582,9 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems().length, equalTo(3));
         assertThat(bulkResponse.getItems()[0].isFailed(), equalTo(false));
         assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(false));
+        assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(true));
+        assertThat(bulkResponse.getItems()[2].getFailure().getCause().getCause().getMessage(),
+                equalTo("script_lang not supported [painless]"));
 
         client().admin().indices().prepareRefresh("test").get();
 

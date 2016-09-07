@@ -70,7 +70,6 @@ specifying a new temp directory, by starting Elasticsearch with:
 --------------
 ./bin/elasticsearch -Djava.io.tmpdir=/path/to/temp/dir
 --------------
-// NOTCONSOLE
 
 or using the `ES_JAVA_OPTS` environment variable:
 
@@ -79,7 +78,6 @@ or using the `ES_JAVA_OPTS` environment variable:
 export ES_JAVA_OPTS="$ES_JAVA_OPTS -Djava.io.tmpdir=/path/to/temp/dir"
 ./bin/elasticsearch
 --------------
-// NOTCONSOLE
 
 [[disable-swap-files]]
 ==== Disable all swap files

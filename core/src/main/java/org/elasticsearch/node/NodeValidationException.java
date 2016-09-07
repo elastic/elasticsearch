@@ -19,8 +19,24 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
+
+/**
+ * An exception thrown during node validation. Node validation runs immediately before a node
+ * begins accepting network requests in
+ * {@link Node#validateNodeBeforeAcceptingRequests(Settings, BoundTransportAddress)}. This
+ * exception is a checked exception that is declared as thrown from this method for the purpose
+ * of bubbling up to the user.
+ */
 public class NodeValidationException extends Exception {
 
+    /**
+     * Creates a node validation exception with the specified validation message to be displayed to
+     * the user.
+     *
+     * @param message the message to display to the user
+     */
     public NodeValidationException(final String message) {
         super(message);
     }

@@ -19,9 +19,24 @@
 
 package org.elasticsearch.bootstrap;
 
-public class BootstrapException extends Exception {
+import java.nio.file.Path;
+import java.util.Map;
 
-    public BootstrapException(final Exception cause) {
+/**
+ * Wrapper exception for checked exceptions thrown during the bootstrap process. Methods invoked
+ * during bootstrap should explicitly declare the checked exceptions that they can throw, rather
+ * than declaring the top-level checked exception {@link Exception}. This exception exists to wrap
+ * these checked exceptions so that {@link Bootstrap#init(boolean, Path, Map)} does not have to
+ * declare all of these checked exceptions.
+ */
+class BootstrapException extends Exception {
+
+    /**
+     * Wraps an existing exception.
+     *
+     * @param cause the underlying cause of bootstrap failing
+     */
+    BootstrapException(final Exception cause) {
         super(cause);
     }
 

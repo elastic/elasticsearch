@@ -108,7 +108,7 @@ public class WatcherUtilsTests extends ESTestCase {
             }
             String text = randomAsciiOfLengthBetween(1, 5);
             ScriptService.ScriptType scriptType = randomFrom(ScriptService.ScriptType.values());
-            expectedTemplate = new Script(text, scriptType, randomBoolean() ? null : "mustache", params);
+            expectedTemplate = new Script(text, scriptType, "mustache", params);
             request = new WatcherSearchTemplateRequest(expectedIndices, expectedTypes, expectedSearchType,
                     expectedIndicesOptions, expectedTemplate);
         } else {

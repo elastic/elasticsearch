@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -77,11 +78,10 @@ public class DiskThresholdDecider extends AllocationDecider {
      * Returns the size of all shards that are currently being relocated to
      * the node, but may not be finished transferring yet.
      *
-     * If subtractShardsMovingAway is set then the size of shards moving away is subtracted from the total size
-     * of all shards
+     * If subtractShardsMovingAway is true then the size of shards moving away is subtracted from the total size of all shards
      */
     static long sizeOfRelocatingShards(RoutingNode node, RoutingAllocation allocation,
-                                              boolean subtractShardsMovingAway, String dataPath) {
+                                       boolean subtractShardsMovingAway, String dataPath) {
         ClusterInfo clusterInfo = allocation.clusterInfo();
         long totalSize = 0;
         for (ShardRouting routing : node.shardsWithState(ShardRoutingState.RELOCATING, ShardRoutingState.INITIALIZING)) {
@@ -110,7 +110,9 @@ public class DiskThresholdDecider extends AllocationDecider {
         final double usedDiskThresholdLow = 100.0 - diskThresholdSettings.getFreeDiskThresholdLow();
         final double usedDiskThresholdHigh = 100.0 - diskThresholdSettings.getFreeDiskThresholdHigh();
 
-        DiskUsage usage = getDiskUsage(node, allocation, usages);
+        // subtractLeavingShards is passed as false here, because they still use disk space, and therefore should we should be extra careful
+        // and take the size into account
+        DiskUsage usage = getDiskUsage(node, allocation, usages, false);
         // First, check that the node currently over the low watermark
         double freeDiskPercentage = usage.getFreeDiskAsPercentage();
         // Cache the used disk percentage for displaying disk percentages consistent with documentation
@@ -120,14 +122,14 @@ public class DiskThresholdDecider extends AllocationDecider {
             logger.trace("node [{}] has {}% used disk", node.nodeId(), usedDiskPercentage);
         }
 
-        // a flag for whether the primary shard has been previously allocated
-        IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
-        boolean primaryHasBeenAllocated = shardRouting.primary() && shardRouting.allocatedPostIndexCreate(indexMetaData);
+        // flag that determines whether the low threshold checks below can be skipped. We use this for a primary shard that is freshly
+        // allocated and empty.
+        boolean skipLowTresholdChecks = shardRouting.primary() &&
+            shardRouting.active() == false && shardRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE;
 
         // checks for exact byte comparisons
         if (freeBytes < diskThresholdSettings.getFreeBytesThresholdLow().bytes()) {
-            // If the shard is a replica or has a primary that has already been allocated before, check the low threshold
-            if (!shardRouting.primary() || (shardRouting.primary() && primaryHasBeenAllocated)) {
+            if (skipLowTresholdChecks == false) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("less than the required {} free bytes threshold ({} bytes free) on node {}, preventing allocation",
                             diskThresholdSettings.getFreeBytesThresholdLow(), freeBytes, node.nodeId());
@@ -162,8 +164,8 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         // checks for percentage comparisons
         if (freeDiskPercentage < diskThresholdSettings.getFreeDiskThresholdLow()) {
-            // If the shard is a replica or has a primary that has already been allocated before, check the low threshold
-            if (!shardRouting.primary() || (shardRouting.primary() && primaryHasBeenAllocated)) {
+            // If the shard is a replica or is a non-empty primary, check the low threshold
+            if (skipLowTresholdChecks == false) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("more than the allowed {} used disk threshold ({} used) on node [{}], preventing allocation",
                             Strings.format1Decimals(usedDiskThresholdLow, "%"),
@@ -242,7 +244,9 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        final DiskUsage usage = getDiskUsage(node, allocation, usages);
+        // subtractLeavingShards is passed as true here, since this is only for shards remaining, we will *eventually* have enough disk
+        // since shards are moving away. No new shards will be incoming since in canAllocate we pass false for this check.
+        final DiskUsage usage = getDiskUsage(node, allocation, usages, true);
         final String dataPath = clusterInfo.getDataPath(shardRouting);
         // If this node is already above the high threshold, the shard cannot remain (get it off!)
         final double freeDiskPercentage = usage.getFreeDiskAsPercentage();
@@ -279,7 +283,8 @@ public class DiskThresholdDecider extends AllocationDecider {
                 "there is enough disk on this node for the shard to remain, free: [%s]", new ByteSizeValue(freeBytes));
     }
 
-    private DiskUsage getDiskUsage(RoutingNode node, RoutingAllocation allocation, ImmutableOpenMap<String, DiskUsage> usages) {
+    private DiskUsage getDiskUsage(RoutingNode node, RoutingAllocation allocation,
+                                   ImmutableOpenMap<String, DiskUsage> usages, boolean subtractLeavingShards) {
         DiskUsage usage = usages.get(node.nodeId());
         if (usage == null) {
             // If there is no usage, and we have other nodes in the cluster,
@@ -292,7 +297,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         if (diskThresholdSettings.includeRelocations()) {
-            long relocatingShardsSize = sizeOfRelocatingShards(node, allocation, true, usage.getPath());
+            long relocatingShardsSize = sizeOfRelocatingShards(node, allocation, subtractLeavingShards, usage.getPath());
             DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), node.node().getName(), usage.getPath(),
                     usage.getTotalBytes(), usage.getFreeBytes() - relocatingShardsSize);
             if (logger.isTraceEnabled()) {
@@ -378,12 +383,13 @@ public class DiskThresholdDecider extends AllocationDecider {
     public static long getExpectedShardSize(ShardRouting shard, RoutingAllocation allocation, long defaultValue) {
         final IndexMetaData metaData = allocation.metaData().getIndexSafe(shard.index());
         final ClusterInfo info = allocation.clusterInfo();
-        if (metaData.getMergeSourceIndex() != null && shard.allocatedPostIndexCreate(metaData) == false) {
+        if (metaData.getMergeSourceIndex() != null && shard.active() == false &&
+            shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
             // in the shrink index case we sum up the source index shards since we basically make a copy of the shard in
             // the worst case
             long targetShardSize = 0;
             final Index mergeSourceIndex = metaData.getMergeSourceIndex();
-            final IndexMetaData sourceIndexMeta = allocation.metaData().getIndexSafe(metaData.getMergeSourceIndex());
+            final IndexMetaData sourceIndexMeta = allocation.metaData().getIndexSafe(mergeSourceIndex);
             final Set<ShardId> shardIds = IndexMetaData.selectShrinkShards(shard.id(), sourceIndexMeta, metaData.getNumberOfShards());
             for (IndexShardRoutingTable shardRoutingTable : allocation.routingTable().index(mergeSourceIndex.getName())) {
                 if (shardIds.contains(shardRoutingTable.shardId())) {

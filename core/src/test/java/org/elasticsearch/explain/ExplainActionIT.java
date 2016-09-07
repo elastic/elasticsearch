@@ -114,7 +114,9 @@ public class ExplainActionIT extends ESIntegTestCase {
     }
 
     public void testExplainWithFields() throws Exception {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        assertAcked(prepareCreate("test")
+                .addMapping("test", "obj1.field1", "type=keyword,store=true", "obj1.field2", "type=keyword,store=true")
+                .addAlias(new Alias("alias")));
         ensureGreen("test");
 
         client().prepareIndex("test", "test", "1")

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
@@ -55,7 +56,9 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
-import org.elasticsearch.cluster.routing.RestoreSource;
+import org.elasticsearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -71,7 +74,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -98,6 +100,7 @@ import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogTests;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
@@ -133,6 +136,7 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -469,7 +473,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
     }
 
-    public static ShardStateMetaData load(ESLogger logger, Path... shardPaths) throws IOException {
+    public static ShardStateMetaData load(Logger logger, Path... shardPaths) throws IOException {
         return ShardStateMetaData.FORMAT.loadLatestState(logger, shardPaths);
     }
 
@@ -518,16 +522,14 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareFlush().get();
         ShardRouting routing = shard.routingEntry();
         test.removeShard(0, "b/c simon says so");
-        routing = ShardRoutingHelper.reinit(routing);
+        routing = routing.reinitializePrimaryShard();
         IndexShard newShard = test.createShard(routing);
-        newShard.updateRoutingEntry(routing);
         DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
 
         Store.MetadataSnapshot snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
 
-        newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode,
-            localNode));
+        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
 
         snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
@@ -579,6 +581,41 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             .add(client().prepareDelete("test", "bar", "3")).get());
         setDurability(shard, Translog.Durability.REQUEST);
         assertTrue(shard.getEngine().getTranslog().syncNeeded());
+    }
+
+    public void testAsyncFsync() throws InterruptedException {
+        createIndex("test");
+        ensureGreen();
+        client().prepareIndex("test", "bar", "1").setSource("{}").get();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService(resolveIndex("test"));
+        IndexShard shard = test.getShardOrNull(0);
+        Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
+        Thread[] thread = new Thread[randomIntBetween(3, 5)];
+        CountDownLatch latch = new CountDownLatch(thread.length);
+        for (int i = 0; i < thread.length; i++) {
+            thread[i] = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        latch.countDown();
+                        latch.await();
+                        for (int i = 0; i < 10000; i++) {
+                            semaphore.acquire();
+                            shard.sync(TranslogTests.randomTranslogLocation(), (ex) -> semaphore.release());
+                        }
+                    } catch (Exception ex) {
+                        throw new RuntimeException(ex);
+                    }
+                };
+            };
+            thread[i].start();
+        }
+
+        for (int i = 0; i < thread.length; i++) {
+            thread[i].join();
+        }
+        assertTrue(semaphore.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
     }
 
     private void setDurability(IndexShard shard, Translog.Durability durability) {
@@ -1115,11 +1152,11 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         }
         ShardRouting routing = shard.routingEntry();
         test.removeShard(0, "b/c simon says so");
-        routing = ShardRoutingHelper.reinit(routing);
+        routing = ShardRoutingHelper.reinitPrimary(routing);
         IndexShard newShard = test.createShard(routing);
         newShard.updateRoutingEntry(routing);
         DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
-        newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
+        newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
         assertTrue(newShard.recoverFromStore());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().recoveredOperations());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperations());
@@ -1142,12 +1179,11 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         }
         ShardRouting routing = shard.routingEntry();
         test.removeShard(0, "b/c simon says so");
-        routing = ShardRoutingHelper.reinit(routing, UnassignedInfo.Reason.INDEX_CREATED);
+        routing = ShardRoutingHelper.reinitPrimary(routing, UnassignedInfo.Reason.INDEX_CREATED, StoreRecoverySource.EMPTY_STORE_INSTANCE);
         IndexShard newShard = test.createShard(routing);
         newShard.updateRoutingEntry(routing);
         DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
-        newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode,
-            localNode));
+        newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
         assertTrue(newShard.recoverFromStore());
         assertEquals(0, newShard.recoveryState().getTranslog().recoveredOperations());
         assertEquals(0, newShard.recoveryState().getTranslog().totalOperations());
@@ -1177,10 +1213,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         test.removeShard(0, "b/c simon says so");
         cleanLuceneIndex(store.directory());
         store.decRef();
-        routing = ShardRoutingHelper.reinit(routing);
+        routing = ShardRoutingHelper.reinitPrimary(routing);
         IndexShard newShard = test.createShard(routing);
-        newShard.updateRoutingEntry(routing);
-        newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
+        newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
         try {
             newShard.recoverFromStore();
             fail("index not there!");
@@ -1192,15 +1227,15 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         routing = ShardRoutingHelper.initialize(routing, origRouting.currentNodeId());
         assertTrue("it's already recovering, we should ignore new ones", newShard.ignoreRecoveryAttempt());
         try {
-            newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
+            newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
             fail("we are already recovering, can't mark again");
         } catch (IllegalIndexShardStateException e) {
             // OK!
         }
         test.removeShard(0, "I broken it");
+        routing = routing.updateUnassigned(routing.unassignedInfo(), StoreRecoverySource.EMPTY_STORE_INSTANCE);
         newShard = test.createShard(routing);
-        newShard.updateRoutingEntry(routing);
-        newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
+        newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
         assertTrue("recover even if there is nothing to recover", newShard.recoverFromStore());
 
         newShard.updateRoutingEntry(getInitializingShardRouting(routing).moveToStarted());
@@ -1249,9 +1284,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertSearchHits(client().prepareSearch("test_target").get(), "1");
         client().admin().indices().prepareFlush("test").get(); // only flush test
         final ShardRouting origRouting = test_target.getShardOrNull(0).routingEntry();
-        ShardRouting routing = ShardRoutingHelper.reinit(origRouting);
+        ShardRouting routing = ShardRoutingHelper.reinitPrimary(origRouting);
         final Snapshot snapshot = new Snapshot("foo", new SnapshotId("bar", UUIDs.randomBase64UUID()));
-        routing = ShardRoutingHelper.newWithRestoreSource(routing, new RestoreSource(snapshot, Version.CURRENT, "test"));
+        routing = ShardRoutingHelper.newWithRestoreSource(routing, new SnapshotRecoverySource(snapshot, Version.CURRENT, "test"));
         test_target.removeShard(0, "just do it man!");
         final IndexShard test_target_shard = test_target.createShard(routing);
         Store sourceStore = test_shard.store();
@@ -1259,7 +1294,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
         test_target_shard.updateRoutingEntry(routing);
         DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
-        test_target_shard.markAsRecovering("store", new RecoveryState(routing.shardId(), routing.primary(), RecoveryState.Type.SNAPSHOT, routing.restoreSource(), localNode));
+        test_target_shard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
         assertTrue(test_target_shard.restoreFromRepository(new RestoreOnlyRepository("test") {
             @Override
             public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
@@ -1530,7 +1565,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
     public  static final IndexShard recoverShard(IndexShard newShard) throws IOException {
         DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
-        newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), newShard.routingEntry().primary(), RecoveryState.Type.STORE, localNode, localNode));
+        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(newShard.recoverFromStore());
         newShard.updateRoutingEntry(newShard.routingEntry().moveToStarted());
         return newShard;
@@ -1549,7 +1584,8 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(existingShardRouting.shardId(),
             existingShardRouting.currentNodeId(), null, existingShardRouting.primary(), ShardRoutingState.INITIALIZING,
             existingShardRouting.allocationId());
-        shardRouting = shardRouting.updateUnassignedInfo(new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "fake recovery"));
+        shardRouting = shardRouting.updateUnassigned(new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "fake recovery"),
+            StoreRecoverySource.EXISTING_STORE_INSTANCE);
         return shardRouting;
     }
 
@@ -1570,12 +1606,12 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         test.removeShard(0, "b/c britta says so");
         IndexShard newShard = test.createShard(routing);
         DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
-        newShard.markAsRecovering("for testing", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.REPLICA, localNode, localNode));
+        newShard.markAsRecovering("for testing", new RecoveryState(routing, localNode, null));
         List<Translog.Operation> operations = new ArrayList<>();
         operations.add(new Translog.Index("testtype", "1", BytesReference.toBytes(jsonBuilder().startObject().field("foo", "bar").endObject().bytes())));
         newShard.prepareForIndexRecovery();
         newShard.recoveryState().getTranslog().totalOperations(operations.size());
-        newShard.skipTranslogRecovery();
+        newShard.skipTranslogRecovery(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
         newShard.performBatchRecovery(operations);
         assertFalse(newShard.getTranslog().syncNeeded());
     }
@@ -1598,7 +1634,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndexShard newShard = test.createShard(routing);
         newShard.shardRouting = routing;
         DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
-        newShard.markAsRecovering("for testing", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.REPLICA, localNode, localNode));
+        newShard.markAsRecovering("for testing", new RecoveryState(routing, localNode, null));
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(newShard.isActive());
         newShard.prepareForIndexRecovery();
@@ -1626,13 +1662,13 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         test.removeShard(0, "b/c britta says so");
         IndexShard newShard = test.createShard(routing);
         DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
-        newShard.markAsRecovering("for testing", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.REPLICA, localNode, localNode));
+        newShard.markAsRecovering("for testing", new RecoveryState(routing, localNode, null));
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(newShard.isActive());
         List<Translog.Operation> operations = new ArrayList<>();
         operations.add(new Translog.Index("testtype", "1", BytesReference.toBytes(jsonBuilder().startObject().field("foo", "bar").endObject().bytes())));
         newShard.prepareForIndexRecovery();
-        newShard.skipTranslogRecovery();
+        newShard.skipTranslogRecovery(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(newShard.isActive());
         newShard.performBatchRecovery(operations);
@@ -1658,13 +1694,12 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("index_1"));
         IndexShard shard = test.getShardOrNull(0);
-        ShardRouting routing = ShardRoutingHelper.initWithSameId(shard.routingEntry());
+        ShardRouting routing = ShardRoutingHelper.initWithSameId(shard.routingEntry(), LocalShardsRecoverySource.INSTANCE);
         test.removeShard(0, "b/c simon says so");
         DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
         {
             final IndexShard newShard = test.createShard(routing);
-            newShard.updateRoutingEntry(routing);
-            newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.LOCAL_SHARDS, localNode, localNode));
+            newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
 
             BiConsumer<String, MappingMetaData> mappingConsumer = (type, mapping) -> {
                 try {
@@ -1702,9 +1737,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         {
             routing = shard.routingEntry();
             test.removeShard(0, "b/c simon says so");
-            routing = ShardRoutingHelper.reinit(routing);
+            routing = ShardRoutingHelper.reinitPrimary(routing);
             final IndexShard newShard = test.createShard(routing);
-            newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.LOCAL_SHARDS, localNode, localNode));
+            newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
             assertTrue(newShard.recoverFromStore());
             routing = ShardRoutingHelper.moveToStarted(routing);
             newShard.updateRoutingEntry(routing);
@@ -1784,5 +1819,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         }
         @Override
         public void verify(String verificationToken, DiscoveryNode localNode) {}
+    }
+
+    public static Engine getEngineFromShard(IndexShard shard) {
+        return shard.getEngineOrNull();
     }
 }

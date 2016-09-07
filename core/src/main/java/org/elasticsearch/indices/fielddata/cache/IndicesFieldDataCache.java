@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.fielddata.cache;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -31,7 +32,6 @@ import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -51,7 +51,7 @@ import java.util.function.ToLongBiFunction;
 public class IndicesFieldDataCache extends AbstractComponent implements RemovalListener<IndicesFieldDataCache.Key, Accountable>, Releasable{
 
     public static final Setting<ByteSizeValue> INDICES_FIELDDATA_CACHE_SIZE_KEY =
-        Setting.byteSizeSetting("indices.fielddata.cache.size", new ByteSizeValue(-1), Property.NodeScope);
+        Setting.memorySizeSetting("indices.fielddata.cache.size", new ByteSizeValue(-1), Property.NodeScope);
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
     private final Cache<Key, Accountable> cache;
 
@@ -108,13 +108,13 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
      * A specific cache instance for the relevant parameters of it (index, fieldNames, fieldType).
      */
     static class IndexFieldCache implements IndexFieldDataCache, SegmentReader.CoreClosedListener, IndexReader.ReaderClosedListener {
-        private final ESLogger logger;
+        private final Logger logger;
         final Index index;
         final String fieldName;
         private final Cache<Key, Accountable> cache;
         private final Listener[] listeners;
 
-        IndexFieldCache(ESLogger logger,final Cache<Key, Accountable> cache, Index index, String fieldName, Listener... listeners) {
+        IndexFieldCache(Logger logger,final Cache<Key, Accountable> cache, Index index, String fieldName, Listener... listeners) {
             this.logger = logger;
             this.listeners = listeners;
             this.index = index;

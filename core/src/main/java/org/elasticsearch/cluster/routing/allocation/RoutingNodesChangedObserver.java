@@ -38,8 +38,9 @@ public class RoutingNodesChangedObserver implements RoutingChangesObserver {
     }
 
     @Override
-    public void shardInitialized(ShardRouting unassignedShard) {
+    public void shardInitialized(ShardRouting unassignedShard, ShardRouting initializedShard) {
         assert unassignedShard.unassigned() : "expected unassigned shard " + unassignedShard;
+        assert initializedShard.initializing() : "expected initializing shard " + initializedShard;
         setChanged();
     }
 

@@ -20,10 +20,10 @@
 package org.elasticsearch.search.aggregations.metrics.geobounds;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -48,11 +48,11 @@ public class GeoBoundsParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
-            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+    protected boolean token(String aggregationName, String currentFieldName, Token token,
+                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
         if (token == XContentParser.Token.VALUE_BOOLEAN) {
-            if (parseFieldMatcher.match(currentFieldName, GeoBoundsAggregator.WRAP_LONGITUDE_FIELD)) {
-                otherOptions.put(GeoBoundsAggregator.WRAP_LONGITUDE_FIELD, parser.booleanValue());
+            if (context.matchField(currentFieldName, GeoBoundsAggregator.WRAP_LONGITUDE_FIELD)) {
+                otherOptions.put(GeoBoundsAggregator.WRAP_LONGITUDE_FIELD, context.getParser().booleanValue());
                 return true;
             }
         }

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -36,7 +37,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -52,7 +52,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 
 public class BalanceConfigurationTests extends ESAllocationTestCase {
 
-    private final ESLogger logger = Loggers.getLogger(BalanceConfigurationTests.class);
+    private final Logger logger = Loggers.getLogger(BalanceConfigurationTests.class);
     // TODO maybe we can randomize these numbers somehow
     final int numberOfNodes = 25;
     final int numberOfIndices = 12;
@@ -198,7 +198,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
     }
 
 
-    private void assertReplicaBalance(ESLogger logger, RoutingNodes nodes, int numberOfNodes, int numberOfIndices, int numberOfReplicas, int numberOfShards, float treshold) {
+    private void assertReplicaBalance(Logger logger, RoutingNodes nodes, int numberOfNodes, int numberOfIndices, int numberOfReplicas, int numberOfShards, float treshold) {
         final int numShards = numberOfIndices * numberOfShards * (numberOfReplicas + 1);
         final float avgNumShards = (float) (numShards) / (float) (numberOfNodes);
         final int minAvgNumberOfShards = Math.round(Math.round(Math.floor(avgNumShards - treshold)));

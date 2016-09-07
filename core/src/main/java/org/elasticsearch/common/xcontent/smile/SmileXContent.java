@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
+import java.util.Set;
 
 /**
  * A Smile based content implementation using Jackson.
@@ -71,8 +72,8 @@ public class SmileXContent implements XContent {
     }
 
     @Override
-    public XContentGenerator createGenerator(OutputStream os, String[] filters, boolean inclusive) throws IOException {
-        return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8), os, filters, inclusive);
+    public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
+        return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
     }
 
     @Override

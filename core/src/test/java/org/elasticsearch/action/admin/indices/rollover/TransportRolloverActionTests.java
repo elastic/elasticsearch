@@ -35,12 +35,13 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.hasSize;
 
 public class TransportRolloverActionTests extends ESTestCase {
 
@@ -97,19 +98,19 @@ public class TransportRolloverActionTests extends ESTestCase {
         final IndicesAliasesClusterStateUpdateRequest updateRequest =
             TransportRolloverAction.prepareRolloverAliasesUpdateRequest(sourceIndex, targetIndex, rolloverRequest);
 
-        final AliasAction[] actions = updateRequest.actions();
-        assertThat(actions.length, equalTo(2));
+        List<AliasAction> actions = updateRequest.actions();
+        assertThat(actions, hasSize(2));
         boolean foundAdd = false;
         boolean foundRemove = false;
         for (AliasAction action : actions) {
-            if (action.actionType() == AliasAction.Type.ADD) {
+            if (action.getIndex().equals(targetIndex)) {
+                assertEquals(sourceAlias, ((AliasAction.Add) action).getAlias());
                 foundAdd = true;
-                assertThat(action.index(), equalTo(targetIndex));
-                assertThat(action.alias(), equalTo(sourceAlias));
-            } else if (action.actionType() == AliasAction.Type.REMOVE) {
+            } else if (action.getIndex().equals(sourceIndex)) {
+                assertEquals(sourceAlias, ((AliasAction.Remove) action).getAlias());
                 foundRemove = true;
-                assertThat(action.index(), equalTo(sourceIndex));
-                assertThat(action.alias(), equalTo(sourceAlias));
+            } else {
+                throw new AssertionError("Unknow index [" + action.getIndex() + "]");
             }
         }
         assertTrue(foundAdd);

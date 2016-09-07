@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -92,7 +93,7 @@ public class FilterAllocationDecider extends AllocationDecider {
             // this is a setting that can only be set within the system!
             IndexMetaData indexMd = allocation.metaData().getIndexSafe(shardRouting.index());
             DiscoveryNodeFilters initialRecoveryFilters = indexMd.getInitialRecoveryFilters();
-            if (shardRouting.allocatedPostIndexCreate(indexMd) == false &&
+            if (shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE &&
                 initialRecoveryFilters != null &&
                 initialRecoveryFilters.match(node.node()) == false) {
                 return allocation.decision(Decision.NO, NAME, "node does not match index initial recovery filters [%s]",

@@ -38,7 +38,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.client.Requests.indexAliasesRequest;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -108,8 +107,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                         .startObject("text").field("type", "text").endObject()
                         .endObject().endObject().endObject()));
         logger.info("Creating aliases alias release");
-        client().admin().indices().aliases(indexAliasesRequest().addAlias("release", termQuery("text", "release"), "test")).actionGet();
-        client().admin().indices().aliases(indexAliasesRequest().addAlias("beta", termQuery("text", "beta"), "test")).actionGet();
+        client().admin().indices().prepareAliases()
+            .addAlias("test", "release", termQuery("text", "release"))
+            .addAlias("test", "beta", termQuery("text", "beta")).get();
 
         logger.info("Running Cluster Health");
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
@@ -155,8 +155,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .startObject("properties")
                 .endObject()
                 .endObject().endObject().string();
-        client().admin().indices().prepareCreate(indexName).addMapping(typeName, mapping).execute().actionGet();
-        client().admin().indices().aliases(indexAliasesRequest().addAlias(aliasName, indexName)).actionGet();
+        client().admin().indices().prepareCreate(indexName).addMapping(typeName, mapping).get();
+        client().admin().indices().prepareAliases().addAlias(indexName, aliasName).get();
 
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 

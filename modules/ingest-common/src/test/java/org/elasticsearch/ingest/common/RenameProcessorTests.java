@@ -171,4 +171,27 @@ public class RenameProcessorTests extends ESTestCase {
             assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(false));
         }
     }
+
+    public void testRenameLeafIntoBranch() throws Exception {
+        Map<String, Object> source = new HashMap<>();
+        source.put("foo", "bar");
+        IngestDocument ingestDocument = new IngestDocument(source, Collections.emptyMap());
+        Processor processor1 = new RenameProcessor(randomAsciiOfLength(10), "foo", "foo.bar");
+        processor1.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("foo", Map.class), equalTo(Collections.singletonMap("bar", "bar")));
+        assertThat(ingestDocument.getFieldValue("foo.bar", String.class), equalTo("bar"));
+
+        Processor processor2 = new RenameProcessor(randomAsciiOfLength(10), "foo.bar", "foo.bar.baz");
+        processor2.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("foo", Map.class), equalTo(Collections.singletonMap("bar",
+                Collections.singletonMap("baz", "bar"))));
+        assertThat(ingestDocument.getFieldValue("foo.bar", Map.class), equalTo(Collections.singletonMap("baz", "bar")));
+        assertThat(ingestDocument.getFieldValue("foo.bar.baz", String.class), equalTo("bar"));
+
+        // for fun lets try to restore it (which don't allow today)
+        Processor processor3 = new RenameProcessor(randomAsciiOfLength(10), "foo.bar.baz", "foo");
+        Exception e = expectThrows(IllegalArgumentException.class, () -> processor3.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("field [foo] already exists"));
+    }
+
 }

@@ -57,6 +57,23 @@ public class AbstractQueryTestCaseTests extends ESTestCase {
                 hasEntry("{\"bool\":{\"must\":[{\"newField\":{\"match\":{\"field\":\"value\"}}}]}}", true),
                 hasEntry("{\"bool\":{\"must\":[{\"match\":{\"newField\":{\"field\":\"value\"}}}]}}", true)
         ));
+
+        alterations = alterateQueries(singleton("{\"function_score\":" +
+                "{\"query\": {\"term\":{\"foo\": \"bar\"}}, \"script_score\": {\"script\":\"a + 1\", \"params\": {\"a\":0}}}}"), null);
+        assertAlterations(alterations, allOf(
+                hasEntry("{\"newField\":{\"function_score\":{\"query\":{\"term\":{\"foo\":\"bar\"}},\"script_score\":{\"script\":\"a + " +
+                        "1\",\"params\":{\"a\":0}}}}}", true),
+                hasEntry("{\"function_score\":{\"newField\":{\"query\":{\"term\":{\"foo\":\"bar\"}},\"script_score\":{\"script\":\"a + " +
+                        "1\",\"params\":{\"a\":0}}}}}", true),
+                hasEntry("{\"function_score\":{\"query\":{\"newField\":{\"term\":{\"foo\":\"bar\"}}},\"script_score\":{\"script\":\"a + " +
+                        "1\",\"params\":{\"a\":0}}}}", true),
+                hasEntry("{\"function_score\":{\"query\":{\"term\":{\"newField\":{\"foo\":\"bar\"}}},\"script_score\":{\"script\":\"a + " +
+                        "1\",\"params\":{\"a\":0}}}}", true),
+                hasEntry("{\"function_score\":{\"query\":{\"term\":{\"foo\":\"bar\"}},\"script_score\":{\"newField\":{\"script\":\"a + " +
+                        "1\",\"params\":{\"a\":0}}}}}", true),
+                hasEntry("{\"function_score\":{\"query\":{\"term\":{\"foo\":\"bar\"}},\"script_score\":{\"script\":\"a + 1\"," +
+                        "\"params\":{\"newField\":{\"a\":0}}}}}", true)
+        ));
     }
 
     public void testAlterateQueriesWithArbitraryContent() throws IOException {

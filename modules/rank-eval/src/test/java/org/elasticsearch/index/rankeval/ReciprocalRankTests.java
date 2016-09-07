@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Vector;
+import java.util.concurrent.ExecutionException;
 
 import static java.util.Collections.emptyList;
 
@@ -103,6 +104,29 @@ public class ReciprocalRankTests extends XContentRoundtripTests<ReciprocalRank> 
 
         EvalQueryQuality evaluation = reciprocalRank.evaluate(hits, ratedDocs);
         assertEquals(1.0 / (relevantAt + 1), evaluation.getQualityLevel(), Double.MIN_VALUE);
+    }
+
+    /**
+     * test that the relevant rating threshold can be set to something larger than 1.
+     * e.g. we set it to 2 here and expect dics 0-2 to be not relevant, so first relevant doc has
+     * third ranking position, so RR should be 1/3
+     */
+    public void testPrecisionAtFiveRelevanceThreshold() throws IOException, InterruptedException, ExecutionException {
+        List<RatedDocument> rated = new ArrayList<>();
+        rated.add(new RatedDocument(new RatedDocumentKey("test", "testtype", "0"), 0));
+        rated.add(new RatedDocument(new RatedDocumentKey("test", "testtype", "1"), 1));
+        rated.add(new RatedDocument(new RatedDocumentKey("test", "testtype", "2"), 2));
+        rated.add(new RatedDocument(new RatedDocumentKey("test", "testtype", "3"), 3));
+        rated.add(new RatedDocument(new RatedDocumentKey("test", "testtype", "4"), 4));
+        InternalSearchHit[] hits = new InternalSearchHit[5];
+        for (int i = 0; i < 5; i++) {
+            hits[i] = new InternalSearchHit(i, i+"", new Text("testtype"), Collections.emptyMap());
+            hits[i].shard(new SearchShardTarget("testnode", new Index("test", "uuid"), 0));
+        }
+
+        ReciprocalRank reciprocalRank = new ReciprocalRank();
+        reciprocalRank.setRelevantRatingThreshhold(2);
+        assertEquals((double) 1 / 3, reciprocalRank.evaluate(hits, rated).getQualityLevel(), 0.00001);
     }
 
     public void testCombine() {

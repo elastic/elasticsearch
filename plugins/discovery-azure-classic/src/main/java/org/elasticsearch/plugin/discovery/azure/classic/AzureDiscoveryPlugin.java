@@ -19,11 +19,11 @@
 
 package org.elasticsearch.plugin.discovery.azure.classic;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cloud.azure.classic.AzureDiscoveryModule;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -41,7 +41,7 @@ public class AzureDiscoveryPlugin extends Plugin {
 
     public static final String AZURE = "azure";
     private final Settings settings;
-    protected final ESLogger logger = Loggers.getLogger(AzureDiscoveryPlugin.class);
+    protected final Logger logger = Loggers.getLogger(AzureDiscoveryPlugin.class);
 
     public AzureDiscoveryPlugin(Settings settings) {
         this.settings = settings;

@@ -117,7 +117,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
 
             if (false == test.continued) {
                 current.println('---')
-                current.println("\"$test.start\":")
+                current.println("\"line_$test.start\":")
             }
             if (test.skipTest) {
                 current.println("  - skip:")
@@ -146,6 +146,9 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
         void emitDo(String method, String pathAndQuery, String body,
                 String catchPart, List warnings, boolean inSetup) {
             def (String path, String query) = pathAndQuery.tokenize('?')
+            if (path == null) {
+                path = '' // Catch requests to the root...
+            }
             current.println("  - do:")
             if (catchPart != null) {
                 current.println("      catch: $catchPart")

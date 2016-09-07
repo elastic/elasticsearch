@@ -23,10 +23,14 @@ import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.GroovyCodeSource;
 import groovy.lang.Script;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.codehaus.groovy.ast.ClassCodeExpressionTransformer;
 import org.codehaus.groovy.ast.ClassNode;
+import org.codehaus.groovy.ast.Parameter;
 import org.codehaus.groovy.ast.expr.ConstantExpression;
 import org.codehaus.groovy.ast.expr.Expression;
 import org.codehaus.groovy.classgen.GeneratorContext;
@@ -43,7 +47,6 @@ import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.CompiledScript;
@@ -93,6 +96,9 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     public GroovyScriptEngineService(Settings settings) {
         super(settings);
+
+        deprecationLogger.deprecated("[groovy] scripts are deprecated, use [painless] scripts instead");
+
         // Creates the classloader here in order to isolate Groovy-land code
         final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -179,6 +185,8 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     @Override
     public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
+        deprecationLogger.deprecated("[groovy] scripts are deprecated, use [painless] scripts instead");
+
         try {
             Map<String, Object> allVars = new HashMap<>();
             if (vars != null) {
@@ -192,6 +200,8 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     @Override
     public SearchScript search(final CompiledScript compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
+        deprecationLogger.deprecated("[groovy] scripts are deprecated, use [painless] scripts instead");
+
         return new SearchScript() {
 
             @Override
@@ -248,14 +258,14 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         private final Script script;
         private final LeafSearchLookup lookup;
         private final Map<String, Object> variables;
-        private final ESLogger logger;
+        private final Logger logger;
 
-        public GroovyScript(CompiledScript compiledScript, Script script, ESLogger logger) {
+        public GroovyScript(CompiledScript compiledScript, Script script, Logger logger) {
             this(compiledScript, script, null, logger);
         }
 
         @SuppressWarnings("unchecked")
-        public GroovyScript(CompiledScript compiledScript, Script script, @Nullable LeafSearchLookup lookup, ESLogger logger) {
+        public GroovyScript(CompiledScript compiledScript, Script script, @Nullable LeafSearchLookup lookup, Logger logger) {
             this.compiledScript = compiledScript;
             this.script = script;
             this.lookup = lookup;
@@ -299,7 +309,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 // resulting in the uncaughtExceptionHandler handling it.
                 final StackTraceElement[] elements = ae.getStackTrace();
                 if (elements.length > 0 && "org.codehaus.groovy.runtime.InvokerHelper".equals(elements[0].getClassName())) {
-                    logger.trace("failed to run {}", ae, compiledScript);
+                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to run {}", compiledScript), ae);
                     throw new ScriptException("Error evaluating " + compiledScript.name(),
                             ae, emptyList(), "", compiledScript.lang());
                 }

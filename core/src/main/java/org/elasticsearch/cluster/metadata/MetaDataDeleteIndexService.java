@@ -37,11 +37,13 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Set;
-import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toSet;
 
 /**
- *
+ * Deletes indices.
  */
 public class MetaDataDeleteIndexService extends AbstractComponent {
 
@@ -56,7 +58,8 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
         this.allocationService = allocationService;
     }
 
-    public void deleteIndices(final DeleteIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+    public void deleteIndices(final DeleteIndexClusterStateUpdateRequest request,
+            final ActionListener<ClusterStateUpdateResponse> listener) {
         if (request.indices() == null || request.indices().length == 0) {
             throw new IllegalArgumentException("Index name is required");
         }
@@ -71,37 +74,43 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
             @Override
             public ClusterState execute(final ClusterState currentState) {
-                final MetaData meta = currentState.metaData();
-                final Index[] indices = request.indices();
-                final Set<IndexMetaData> metaDatas = Arrays.asList(indices).stream().map(i -> meta.getIndexSafe(i)).collect(Collectors.toSet());
-                // Check if index deletion conflicts with any running snapshots
-                SnapshotsService.checkIndexDeletion(currentState, metaDatas);
-                RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
-                MetaData.Builder metaDataBuilder = MetaData.builder(meta);
-                ClusterBlocks.Builder clusterBlocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
-
-                final IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(metaDataBuilder.indexGraveyard());
-                final int previousGraveyardSize = graveyardBuilder.tombstones().size();
-                for (final Index index : indices) {
-                    String indexName = index.getName();
-                    logger.debug("[{}] deleting index", index);
-                    routingTableBuilder.remove(indexName);
-                    clusterBlocksBuilder.removeIndexBlocks(indexName);
-                    metaDataBuilder.remove(indexName);
-                }
-                // add tombstones to the cluster state for each deleted index
-                final IndexGraveyard currentGraveyard = graveyardBuilder.addTombstones(indices).build(settings);
-                metaDataBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata
-                logger.trace("{} tombstones purged from the cluster state. Previous tombstone size: {}. Current tombstone size: {}.",
-                    graveyardBuilder.getNumPurged(), previousGraveyardSize, currentGraveyard.getTombstones().size());
-
-                MetaData newMetaData = metaDataBuilder.build();
-                ClusterBlocks blocks = clusterBlocksBuilder.build();
-                RoutingAllocation.Result routingResult = allocationService.reroute(
-                        ClusterState.builder(currentState).routingTable(routingTableBuilder.build()).metaData(newMetaData).build(),
-                        "deleted indices [" + indices + "]");
-                return ClusterState.builder(currentState).routingResult(routingResult).metaData(newMetaData).blocks(blocks).build();
+                return deleteIndices(currentState, Arrays.asList(request.indices()));
             }
         });
+    }
+
+    /**
+     * Delete some indices from the cluster state.
+     */
+    public ClusterState deleteIndices(ClusterState currentState, Collection<Index> indices) {
+        final MetaData meta = currentState.metaData();
+        final Set<IndexMetaData> metaDatas = indices.stream().map(i -> meta.getIndexSafe(i)).collect(toSet());
+        // Check if index deletion conflicts with any running snapshots
+        SnapshotsService.checkIndexDeletion(currentState, metaDatas);
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
+        MetaData.Builder metaDataBuilder = MetaData.builder(meta);
+        ClusterBlocks.Builder clusterBlocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
+
+        final IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(metaDataBuilder.indexGraveyard());
+        final int previousGraveyardSize = graveyardBuilder.tombstones().size();
+        for (final Index index : indices) {
+            String indexName = index.getName();
+            logger.debug("[{}] deleting index", index);
+            routingTableBuilder.remove(indexName);
+            clusterBlocksBuilder.removeIndexBlocks(indexName);
+            metaDataBuilder.remove(indexName);
+        }
+        // add tombstones to the cluster state for each deleted index
+        final IndexGraveyard currentGraveyard = graveyardBuilder.addTombstones(indices).build(settings);
+        metaDataBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata
+        logger.trace("{} tombstones purged from the cluster state. Previous tombstone size: {}. Current tombstone size: {}.",
+            graveyardBuilder.getNumPurged(), previousGraveyardSize, currentGraveyard.getTombstones().size());
+
+        MetaData newMetaData = metaDataBuilder.build();
+        ClusterBlocks blocks = clusterBlocksBuilder.build();
+        RoutingAllocation.Result routingResult = allocationService.reroute(
+                ClusterState.builder(currentState).routingTable(routingTableBuilder.build()).metaData(newMetaData).build(),
+                "deleted indices [" + indices + "]");
+        return ClusterState.builder(currentState).routingResult(routingResult).metaData(newMetaData).blocks(blocks).build();
     }
 }

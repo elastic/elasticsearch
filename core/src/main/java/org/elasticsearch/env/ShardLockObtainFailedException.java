@@ -39,7 +39,7 @@ public class ShardLockObtainFailedException extends Exception {
 
     @Override
     public String getMessage() {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         sb.append(shardId.toString());
         sb.append(": ");
         sb.append(super.getMessage());

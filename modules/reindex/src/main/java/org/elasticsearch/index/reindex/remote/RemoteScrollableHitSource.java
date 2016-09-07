@@ -21,6 +21,9 @@ package org.elasticsearch.index.reindex.remote;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
@@ -34,7 +37,6 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -70,7 +72,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     private final SearchRequest searchRequest;
     Version remoteVersion;
 
-    public RemoteScrollableHitSource(ESLogger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
+    public RemoteScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
             Consumer<Exception> fail, RestClient client, BytesReference query, SearchRequest searchRequest) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, fail);
         this.query = query;
@@ -98,7 +100,6 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
     void lookupRemoteVersion(Consumer<Version> onVersion) {
         execute("GET", "", emptyMap(), null, MAIN_ACTION_PARSER, onVersion);
-        
     }
 
     private void onStartResponse(Consumer<? super Response> onResponse, Response response) {
@@ -119,7 +120,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     @Override
     protected void clearScroll(String scrollId) {
         // Need to throw out response....
-        client.performRequest("DELETE", scrollPath(), emptyMap(), scrollEntity(scrollId), new ResponseListener() {
+        client.performRequestAsync("DELETE", scrollPath(), emptyMap(), scrollEntity(scrollId), new ResponseListener() {
             @Override
             public void onSuccess(org.elasticsearch.client.Response response) {
                 logger.debug("Successfully cleared [{}]", scrollId);
@@ -127,7 +128,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
             @Override
             public void onFailure(Exception t) {
-                logger.warn("Failed to clear scroll [{}]", t, scrollId);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to clear scroll [{}]", scrollId), t);
             }
         });
     }
@@ -141,7 +142,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
             @Override
             protected void doRun() throws Exception {
-                client.performRequest(method, uri, params, entity, new ResponseListener() {
+                client.performRequestAsync(method, uri, params, entity, new ResponseListener() {
                     @Override
                     public void onSuccess(org.elasticsearch.client.Response response) {
                         // Restore the thread context to get the precious headers
@@ -174,7 +175,8 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                             if (RestStatus.TOO_MANY_REQUESTS.getStatus() == re.getResponse().getStatusLine().getStatusCode()) {
                                 if (retries.hasNext()) {
                                     TimeValue delay = retries.next();
-                                    logger.trace("retrying rejected search after [{}]", e, delay);
+                                    logger.trace(
+                                        (Supplier<?>) () -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
                                     countSearchRetry.run();
                                     threadPool.schedule(delay, ThreadPool.Names.SAME, RetryHelper.this);
                                     return;

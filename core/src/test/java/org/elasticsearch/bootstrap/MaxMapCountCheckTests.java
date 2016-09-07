@@ -19,20 +19,25 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.TestLoggers;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.function.Predicate;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
@@ -47,8 +52,7 @@ public class MaxMapCountCheckTests extends ESTestCase {
         }
     }
 
-    @SuppressLoggerChecks(reason = "mock usage")
-    public void testGetMaxMapCount() throws IOException {
+    public void testGetMaxMapCount() throws IOException, IllegalAccessException {
         final long procSysVmMaxMapCount = randomIntBetween(1, Integer.MAX_VALUE);
         final BufferedReader reader = mock(BufferedReader.class);
         when(reader.readLine()).thenReturn(Long.toString(procSysVmMaxMapCount));
@@ -64,20 +68,92 @@ public class MaxMapCountCheckTests extends ESTestCase {
         assertThat(check.getMaxMapCount(), equalTo(procSysVmMaxMapCount));
         verify(reader).close();
 
-        reset(reader);
-        final IOException ioException = new IOException("fatal");
-        when(reader.readLine()).thenThrow(ioException);
-        final ESLogger logger = mock(ESLogger.class);
-        assertThat(check.getMaxMapCount(logger), equalTo(-1L));
-        verify(logger).warn("I/O exception while trying to read [{}]", ioException, procSysVmMaxMapCountPath);
-        verify(reader).close();
+        {
+            reset(reader);
+            final IOException ioException = new IOException("fatal");
+            when(reader.readLine()).thenThrow(ioException);
+            final Logger logger = ESLoggerFactory.getLogger("testGetMaxMapCountIOException");
+            final MockLogAppender appender = new MockLogAppender();
+            appender.addExpectation(
+                    new ParameterizedMessageLoggingExpectation(
+                            "expected logged I/O exception",
+                            "testGetMaxMapCountIOException",
+                            Level.WARN,
+                            "I/O exception while trying to read [{}]",
+                            new Object[] { procSysVmMaxMapCountPath },
+                            e -> ioException == e));
+            TestLoggers.addAppender(logger, appender);
+            assertThat(check.getMaxMapCount(logger), equalTo(-1L));
+            appender.assertAllExpectationsMatched();
+            verify(reader).close();
+            TestLoggers.removeAppender(logger, appender);
+        }
 
-        reset(reader);
-        reset(logger);
-        when(reader.readLine()).thenReturn("eof");
-        assertThat(check.getMaxMapCount(logger), equalTo(-1L));
-        verify(logger).warn(eq("unable to parse vm.max_map_count [{}]"), any(NumberFormatException.class), eq("eof"));
-        verify(reader).close();
+        {
+            reset(reader);
+            when(reader.readLine()).thenReturn("eof");
+            final Logger logger = ESLoggerFactory.getLogger("testGetMaxMapCountNumberFormatException");
+            final MockLogAppender appender = new MockLogAppender();
+            appender.addExpectation(
+                    new ParameterizedMessageLoggingExpectation(
+                            "expected logged number format exception",
+                            "testGetMaxMapCountNumberFormatException",
+                            Level.WARN,
+                            "unable to parse vm.max_map_count [{}]",
+                            new Object[] { "eof" },
+                            e -> e instanceof NumberFormatException && e.getMessage().equals("For input string: \"eof\"")));
+            TestLoggers.addAppender(logger, appender);
+            assertThat(check.getMaxMapCount(logger), equalTo(-1L));
+            appender.assertAllExpectationsMatched();
+            verify(reader).close();
+            TestLoggers.removeAppender(logger, appender);
+        }
+
+    }
+
+    private static class ParameterizedMessageLoggingExpectation implements MockLogAppender.LoggingExpectation {
+
+        private boolean saw = false;
+
+        private final String name;
+        private final String loggerName;
+        private final Level level;
+        private final String messagePattern;
+        private final Object[] arguments;
+        private final Predicate<Throwable> throwablePredicate;
+
+        private ParameterizedMessageLoggingExpectation(
+                final String name,
+                final String loggerName,
+                final Level level,
+                final String messagePattern,
+                final Object[] arguments,
+                final Predicate<Throwable> throwablePredicate) {
+            this.name = name;
+            this.loggerName = loggerName;
+            this.level = level;
+            this.messagePattern = messagePattern;
+            this.arguments = arguments;
+            this.throwablePredicate = throwablePredicate;
+        }
+
+        @Override
+        public void match(LogEvent event) {
+            if (event.getLevel().equals(level) &&
+                    event.getLoggerName().equals(loggerName) &&
+                    event.getMessage() instanceof ParameterizedMessage) {
+                final ParameterizedMessage message = (ParameterizedMessage)event.getMessage();
+                saw = message.getFormat().equals(messagePattern) &&
+                        Arrays.deepEquals(arguments, message.getParameters()) &&
+                        throwablePredicate.test(event.getThrown());
+            }
+        }
+
+        @Override
+        public void assertMatched() {
+            assertTrue(name, saw);
+        }
+
     }
 
     public void testMaxMapCountCheckRead() throws IOException {

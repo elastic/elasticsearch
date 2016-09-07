@@ -35,8 +35,9 @@ request:
 
 [source,sh]
 --------------
-curl 'http://localhost:9200/_nodes?pretty&filter_path=**.mlockall'
+GET _nodes?filter_path=**.mlockall
 --------------
+// CONSOLE
 
 If you see that `mlockall` is `false`, then it means that the `mlockall`
 request has failed.  You will also see a line with more information in the
@@ -100,4 +101,3 @@ The second option available on Linux systems is to ensure that the sysctl value
 `vm.swappiness` is set to `1`. This reduces the kernel's tendency to swap and
 should not lead to swapping under normal circumstances, while still allowing
 the whole system to swap in emergency conditions.
-

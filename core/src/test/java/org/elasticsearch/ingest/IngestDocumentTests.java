@@ -239,6 +239,15 @@ public class IngestDocumentTests extends ESTestCase {
         assertFalse(ingestDocument.hasField("list.10"));
     }
 
+    public void testListHasFieldIndexOutOfBounds_fail() {
+        assertTrue(ingestDocument.hasField("list.0", true));
+        assertTrue(ingestDocument.hasField("list.1", true));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ingestDocument.hasField("list.2", true));
+        assertThat(e.getMessage(), equalTo("[2] is out of bounds for array with length [2] as part of path [list.2]"));
+        e = expectThrows(IllegalArgumentException.class, () -> ingestDocument.hasField("list.10", true));
+        assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list.10]"));
+    }
+
     public void testListHasFieldIndexNotNumeric() {
         assertFalse(ingestDocument.hasField("list.test"));
     }

@@ -27,7 +27,11 @@ import org.elasticsearch.common.SuppressForbidden;
 import java.io.Closeable;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public abstract class AbstractBenchmark<T extends Closeable> {
     private static final int SEARCH_BENCHMARK_ITERATIONS = 10_000;
@@ -40,51 +44,110 @@ public abstract class AbstractBenchmark<T extends Closeable> {
 
     @SuppressForbidden(reason = "system out is ok for a command line tool")
     public final void run(String[] args) throws Exception {
-        if (args.length < 6) {
-            System.err.println(
-                "usage: benchmarkTargetHostIp indexFilePath indexName typeName numberOfDocuments bulkSize [search request body]");
+        if (args.length < 1) {
+            System.err.println("usage: [search|bulk]");
             System.exit(1);
         }
-        String benchmarkTargetHost = args[0];
-        String indexFilePath = args[1];
-        String indexName = args[2];
-        String typeName = args[3];
-        int totalDocs = Integer.valueOf(args[4]);
-        int bulkSize = Integer.valueOf(args[5]);
+        switch (args[0]) {
+            case "search":
+                runSearchBenchmark(args);
+                break;
+            case "bulk":
+                runBulkIndexBenchmark(args);
+                break;
+            default:
+                System.err.println("Unknown benchmark type [" + args[0] + "]");
+                System.exit(1);
+
+        }
+
+    }
+
+    @SuppressForbidden(reason = "system out is ok for a command line tool")
+    private void runBulkIndexBenchmark(String[] args) throws Exception {
+        if (args.length != 7) {
+            System.err.println(
+                "usage: 'bulk' benchmarkTargetHostIp indexFilePath indexName typeName numberOfDocuments bulkSize");
+            System.exit(1);
+        }
+        String benchmarkTargetHost = args[1];
+        String indexFilePath = args[2];
+        String indexName = args[3];
+        String typeName = args[4];
+        int totalDocs = Integer.valueOf(args[5]);
+        int bulkSize = Integer.valueOf(args[6]);
 
         int totalIterationCount = (int) Math.floor(totalDocs / bulkSize);
         // consider 40% of all iterations as warmup iterations
         int warmupIterations = (int) (0.4d * totalIterationCount);
         int iterations = totalIterationCount - warmupIterations;
-        String searchBody = (args.length == 7) ? args[6] : null;
 
         T client = client(benchmarkTargetHost);
 
         BenchmarkRunner benchmark = new BenchmarkRunner(warmupIterations, iterations,
             new BulkBenchmarkTask(
-                bulkRequestExecutor(client, indexName, typeName), indexFilePath, warmupIterations + iterations, bulkSize));
+                bulkRequestExecutor(client, indexName, typeName), indexFilePath, warmupIterations, iterations, bulkSize));
 
         try {
-            benchmark.run();
-            if (searchBody != null) {
-                for (int run = 1; run <= 5; run++) {
-                    System.out.println("=============");
-                    System.out.println(" Trial run " + run);
-                    System.out.println("=============");
-
-                    for (int throughput = 100; throughput <= 100_000; throughput *= 10) {
-                        //GC between trials to reduce the likelihood of a GC occurring in the middle of a trial.
-                        runGc();
-                        BenchmarkRunner searchBenchmark = new BenchmarkRunner(SEARCH_BENCHMARK_ITERATIONS, SEARCH_BENCHMARK_ITERATIONS,
-                            new SearchBenchmarkTask(
-                                searchRequestExecutor(client, indexName), searchBody, 2 * SEARCH_BENCHMARK_ITERATIONS, throughput));
-                        System.out.printf("Target throughput = %d ops / s%n", throughput);
-                        searchBenchmark.run();
-                    }
-                }
-            }
+            runTrials(() -> {
+                runGc();
+                benchmark.run();
+            });
         } finally {
             client.close();
+        }
+
+    }
+
+    @SuppressForbidden(reason = "system out is ok for a command line tool")
+    private void runSearchBenchmark(String[] args) throws Exception {
+        if (args.length != 5) {
+            System.err.println(
+                "usage: 'search' benchmarkTargetHostIp indexName searchRequestBody throughputRates");
+            System.exit(1);
+        }
+        String benchmarkTargetHost = args[1];
+        String indexName = args[2];
+        String searchBody = args[3];
+        List<Integer> throughputRates = Arrays.asList(args[4].split(",")).stream().map(Integer::valueOf).collect(Collectors.toList());
+
+        T client = client(benchmarkTargetHost);
+
+        try {
+            runTrials(() -> {
+                for (int throughput : throughputRates) {
+                    //GC between trials to reduce the likelihood of a GC occurring in the middle of a trial.
+                    runGc();
+                    BenchmarkRunner benchmark = new BenchmarkRunner(SEARCH_BENCHMARK_ITERATIONS, SEARCH_BENCHMARK_ITERATIONS,
+                        new SearchBenchmarkTask(
+                            searchRequestExecutor(client, indexName), searchBody, SEARCH_BENCHMARK_ITERATIONS,
+                            SEARCH_BENCHMARK_ITERATIONS, throughput));
+                    System.out.printf("Target throughput = %d ops / s%n", throughput);
+                    benchmark.run();
+                }
+            });
+        } finally {
+            client.close();
+        }
+    }
+
+    @SuppressForbidden(reason = "system out is ok for a command line tool")
+    private void runTrials(Runnable runner) {
+        int totalWarmupTrialRuns = 1;
+        for (int run = 1; run <= totalWarmupTrialRuns; run++) {
+            System.out.println("======================");
+            System.out.println(" Warmup trial run " + run + "/" + totalWarmupTrialRuns);
+            System.out.println("======================");
+            runner.run();
+        }
+
+        int totalTrialRuns = 5;
+        for (int run = 1; run <= totalTrialRuns; run++) {
+            System.out.println("================");
+            System.out.println(" Trial run " + run + "/" + totalTrialRuns);
+            System.out.println("================");
+
+            runner.run();
         }
     }
 

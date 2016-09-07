@@ -61,7 +61,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
-import org.elasticsearch.indices.recovery.RecoveryTargetService;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -176,7 +176,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ClusterHealthResponse health = client().admin().cluster()
             .health(Requests.clusterHealthRequest("test").waitForGreenStatus()
                 .timeout("5m") // sometimes due to cluster rebalacing and random settings default timeout is just not enough.
-                .waitForRelocatingShards(0)).actionGet();
+                .waitForNoRelocatingShards(true)).actionGet();
         if (health.isTimedOut()) {
             logger.info("cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
             assertThat("timed out waiting for green state", health.isTimedOut(), equalTo(false));
@@ -347,7 +347,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
                 @Override
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
-                    if (corrupt.get() && action.equals(RecoveryTargetService.Actions.FILE_CHUNK)) {
+                    if (corrupt.get() && action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                         RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
                         byte[] array = BytesRef.deepCopyOf(req.content().toBytesRef()).bytes;
                         int i = randomIntBetween(0, req.content().length() - 1);
@@ -419,7 +419,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
                 @Override
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
-                    if (action.equals(RecoveryTargetService.Actions.FILE_CHUNK)) {
+                    if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                         RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
                         if (truncate && req.length() > 1) {
                             BytesRef bytesRef = req.content().toBytesRef();

@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -34,7 +37,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -348,13 +350,13 @@ public class NodeJoinController extends AbstractComponent {
 
     static class JoinTaskListener implements ClusterStateTaskListener {
         final List<MembershipAction.JoinCallback> callbacks;
-        private final ESLogger logger;
+        private final Logger logger;
 
-        JoinTaskListener(MembershipAction.JoinCallback callback, ESLogger logger) {
+        JoinTaskListener(MembershipAction.JoinCallback callback, Logger logger) {
             this(Collections.singletonList(callback), logger);
         }
 
-        JoinTaskListener(List<MembershipAction.JoinCallback> callbacks, ESLogger logger) {
+        JoinTaskListener(List<MembershipAction.JoinCallback> callbacks, Logger logger) {
             this.callbacks = callbacks;
             this.logger = logger;
         }
@@ -365,7 +367,7 @@ public class NodeJoinController extends AbstractComponent {
                 try {
                     callback.onFailure(e);
                 } catch (Exception inner) {
-                    logger.error("error handling task failure [{}]", inner, e);
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("error handling task failure [{}]", e), inner);
                 }
             }
         }
@@ -376,7 +378,7 @@ public class NodeJoinController extends AbstractComponent {
                 try {
                     callback.onSuccess();
                 } catch (Exception e) {
-                    logger.error("unexpected error during [{}]", e, source);
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected error during [{}]", source), e);
                 }
             }
         }

@@ -19,9 +19,10 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOError;
@@ -76,14 +77,17 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
 
     // visible for testing
     void onFatalUncaught(final String threadName, final Throwable t) {
-        final ESLogger logger = Loggers.getLogger(ElasticsearchUncaughtExceptionHandler.class, loggingPrefixSupplier.get());
-        logger.error("fatal error in thread [{}], exiting", t, threadName);
+        final Logger logger = Loggers.getLogger(ElasticsearchUncaughtExceptionHandler.class, loggingPrefixSupplier.get());
+        logger.error(
+            (org.apache.logging.log4j.util.Supplier<?>)
+                () -> new ParameterizedMessage("fatal error in thread [{}], exiting", threadName), t);
     }
 
     // visible for testing
     void onNonFatalUncaught(final String threadName, final Throwable t) {
-        final ESLogger logger = Loggers.getLogger(ElasticsearchUncaughtExceptionHandler.class, loggingPrefixSupplier.get());
-        logger.warn("uncaught exception in thread [{}]", t, threadName);
+        final Logger logger = Loggers.getLogger(ElasticsearchUncaughtExceptionHandler.class, loggingPrefixSupplier.get());
+        logger.warn((org.apache.logging.log4j.util.Supplier<?>)
+            () -> new ParameterizedMessage("uncaught exception in thread [{}]", threadName), t);
     }
 
     // visible for testing

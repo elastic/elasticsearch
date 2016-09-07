@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -120,8 +120,7 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
                 "allocating an empty primary for [" + index + "][" + shardId + "] can result in data loss. Please confirm by setting the accept_data_loss parameter to true");
         }
 
-        final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
-        if (shardRouting.allocatedPostIndexCreate(indexMetaData) == false) {
+        if (shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE) {
             return explainOrThrowRejectedCommand(explain, allocation,
                 "trying to allocate an existing primary shard [" + index + "][" + shardId + "], while no such shard has ever been active");
         }

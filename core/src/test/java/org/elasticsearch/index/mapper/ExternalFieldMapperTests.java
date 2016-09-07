@@ -19,19 +19,15 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -149,13 +145,21 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoPointField.encodeLatLon(42.0, 51.0)));
         }
 
-        assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
+        IndexableField shape = doc.rootDoc().getField("field.shape");
+        assertThat(shape, notNullValue());
 
-        assertThat(doc.rootDoc().getField("field.field"), notNullValue());
-        assertThat(doc.rootDoc().getField("field.field").stringValue(), is("foo"));
+        IndexableField field = doc.rootDoc().getField("field.field");
+        assertThat(field, notNullValue());
+        assertThat(field.stringValue(), is("foo"));
 
-        assertThat(doc.rootDoc().getField("field.field.raw"), notNullValue());
-        assertThat(doc.rootDoc().getField("field.field.raw").stringValue(), is("foo"));
+        IndexableField raw = doc.rootDoc().getField("field.field.raw");
+
+        assertThat(raw, notNullValue());
+        if (version.before(Version.V_5_0_0_alpha1)) {
+            assertThat(raw.stringValue(), is("foo"));
+        } else {
+            assertThat(raw.binaryValue(), is(new BytesRef("foo")));
+        }
     }
 
     public void testExternalValuesWithMultifieldTwoLevels() throws Exception {

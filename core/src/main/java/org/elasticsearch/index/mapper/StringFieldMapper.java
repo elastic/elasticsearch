@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
@@ -26,7 +27,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -187,7 +187,7 @@ public class StringFieldMapper extends FieldMapper {
         private final DeprecationLogger deprecationLogger;
 
         public TypeParser() {
-            ESLogger logger = Loggers.getLogger(getClass());
+            Logger logger = Loggers.getLogger(getClass());
             this.deprecationLogger = new DeprecationLogger(logger);
         }
 

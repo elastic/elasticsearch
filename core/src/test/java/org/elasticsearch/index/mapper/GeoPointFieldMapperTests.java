@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -47,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.lang.NumberFormatException;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -112,7 +114,11 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
-        assertThat(doc.rootDoc().get("point.geohash"), equalTo(stringEncode(1.3, 1.2)));
+        if (version.onOrAfter(Version.V_5_0_0_alpha1)) {
+            assertThat(doc.rootDoc().getBinaryValue("point.geohash"), equalTo(new BytesRef(stringEncode(1.3, 1.2))));
+        } else {
+            assertThat(doc.rootDoc().get("point.geohash"), equalTo(stringEncode(1.3, 1.2)));
+        }
     }
 
     public void testLatLonInOneValueWithGeohash() throws Exception {
@@ -132,7 +138,11 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
-        assertThat(doc.rootDoc().get("point.geohash"), equalTo(stringEncode(1.3, 1.2)));
+        if (version.onOrAfter(Version.V_5_0_0_alpha1)) {
+            assertThat(doc.rootDoc().getBinaryValue("point.geohash"), equalTo(new BytesRef(stringEncode(1.3, 1.2))));
+        } else {
+            assertThat(doc.rootDoc().get("point.geohash"), equalTo(stringEncode(1.3, 1.2)));
+        }
     }
 
     public void testGeoHashIndexValue() throws Exception {
@@ -152,7 +162,11 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
-        assertThat(doc.rootDoc().get("point.geohash"), equalTo(stringEncode(1.3, 1.2)));
+        if (version.onOrAfter(Version.V_5_0_0_alpha1)) {
+            assertThat(doc.rootDoc().getBinaryValue("point.geohash"), equalTo(new BytesRef(stringEncode(1.3, 1.2))));
+        } else {
+            assertThat(doc.rootDoc().get("point.geohash"), equalTo(stringEncode(1.3, 1.2)));
+        }
     }
 
     public void testGeoHashValue() throws Exception {
@@ -879,5 +893,30 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         // query by latlon subfield
         searchResponse = client().prepareSearch().addStoredField("location.latlon").setQuery(matchAllQuery()).execute().actionGet();
         assertEquals(numDocs, searchResponse.getHits().totalHits());
+    }
+
+
+    public void testEmptyName() throws Exception {
+        // after 5.x
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
+            .endObject().endObject().string();
+
+        Version version = Version.CURRENT;
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapperParser parser = createIndex("test", settings).mapperService().documentMapperParser();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parser.parse("type", new CompressedXContent(mapping))
+        );
+        assertThat(e.getMessage(), containsString("name cannot be empty string"));
+
+        // before 5.x
+        Version oldVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_2_0_0, Version.V_2_3_5);
+        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, oldVersion).build();
+        DocumentMapperParser parser2x = createIndex("test_old", oldIndexSettings).mapperService().documentMapperParser();
+
+        DocumentMapper defaultMapper = parser2x.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, defaultMapper.mappingSource().string());
     }
 }

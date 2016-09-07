@@ -24,6 +24,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,10 +33,14 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
 /**
@@ -44,6 +49,12 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 public final class KeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "keyword";
+
+    private static final List<String> SUPPORTED_PARAMETERS_FOR_AUTO_DOWNGRADE_TO_STRING = unmodifiableList(Arrays.asList(
+            "type",
+            // common keyword parameters, for which the upgrade is straightforward
+            "index", "store", "doc_values", "omit_norms", "norms", "boost", "fields", "copy_to",
+            "include_in_all", "ignore_above", "index_options", "similarity"));
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new KeywordFieldType();
@@ -103,6 +114,29 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1)) {
+                // Downgrade "keyword" to "string" in indexes created in 2.x so you can use modern syntax against old indexes
+                Set<String> unsupportedParameters = new HashSet<>(node.keySet());
+                unsupportedParameters.removeAll(SUPPORTED_PARAMETERS_FOR_AUTO_DOWNGRADE_TO_STRING);
+                if (false == SUPPORTED_PARAMETERS_FOR_AUTO_DOWNGRADE_TO_STRING.containsAll(node.keySet())) {
+                    throw new IllegalArgumentException("Automatic downgrade from [keyword] to [string] failed because parameters "
+                            + unsupportedParameters + " are not supported for automatic downgrades.");
+                }
+                {   // Downgrade "index"
+                    Object index = node.get("index");
+                    if (index == null || Boolean.TRUE.equals(index)) {
+                        index = "not_analyzed";
+                    } else if (Boolean.FALSE.equals(index)) {
+                        index = "no";
+                    } else {
+                        throw new IllegalArgumentException(
+                                "Can't parse [index] value [" + index + "] for field [" + name + "], expected [true] or [false]");
+                    }
+                    node.put("index", index);
+                }
+                
+                return new StringFieldMapper.TypeParser().parse(name, node, parserContext);
+            }
             KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder(name);
             parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -160,6 +194,16 @@ public final class KeywordFieldMapper extends FieldMapper {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder();
         }
+
+        @Override
+        public Object valueForSearch(Object value) {
+            if (value == null) {
+                return null;
+            }
+            // keywords are internally stored as utf8 bytes
+            BytesRef binaryValue = (BytesRef) value;
+            return binaryValue.utf8ToString();
+        }
     }
 
     private Boolean includeInAll;
@@ -212,12 +256,14 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.allEntries().addText(fieldType().name(), value, fieldType().boost());
         }
 
+        // convert to utf8 only once before feeding postings/dv/stored fields
+        final BytesRef binaryValue = new BytesRef(value);
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            Field field = new Field(fieldType().name(), value, fieldType());
+            Field field = new Field(fieldType().name(), binaryValue, fieldType());
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(value)));
+            fields.add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
         }
     }
 

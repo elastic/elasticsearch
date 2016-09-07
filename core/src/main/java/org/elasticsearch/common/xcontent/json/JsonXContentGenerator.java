@@ -27,10 +27,10 @@ import com.fasterxml.jackson.core.io.SerializedString;
 import com.fasterxml.jackson.core.json.JsonWriteContext;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
+import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
@@ -43,6 +43,9 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Collections;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  *
@@ -72,23 +75,38 @@ public class JsonXContentGenerator implements XContentGenerator {
     private static final DefaultPrettyPrinter.Indenter INDENTER = new DefaultIndenter("  ", LF.getValue());
     private boolean prettyPrint = false;
 
-    public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, String[] filters, boolean inclusive) {
+    public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os) {
+        this(jsonGenerator, os, Collections.emptySet(), Collections.emptySet());
+    }
+
+    public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, Set<String> includes, Set<String> excludes) {
+        Objects.requireNonNull(includes, "Including filters must not be null");
+        Objects.requireNonNull(excludes, "Excluding filters must not be null");
+        this.os = os;
         if (jsonGenerator instanceof GeneratorBase) {
             this.base = (GeneratorBase) jsonGenerator;
         } else {
             this.base = null;
         }
 
-        if (CollectionUtils.isEmpty(filters)) {
-            this.generator = jsonGenerator;
-            this.filter = null;
-        } else {
-            this.filter = new FilteringGeneratorDelegate(jsonGenerator,
-                    new FilterPathBasedFilter(filters, inclusive), true, true);
-            this.generator = this.filter;
+        JsonGenerator generator = jsonGenerator;
+
+        boolean hasExcludes = excludes.isEmpty() == false;
+        if (hasExcludes) {
+            generator = new FilteringGeneratorDelegate(generator, new FilterPathBasedFilter(excludes, false), true, true);
         }
 
-        this.os = os;
+        boolean hasIncludes = includes.isEmpty() == false;
+        if (hasIncludes) {
+            generator = new FilteringGeneratorDelegate(generator, new FilterPathBasedFilter(includes, true), true, true);
+        }
+
+        if (hasExcludes || hasIncludes) {
+            this.filter = (FilteringGeneratorDelegate) generator;
+        } else {
+            this.filter = null;
+        }
+        this.generator = generator;
     }
 
     @Override
@@ -122,23 +140,34 @@ public class JsonXContentGenerator implements XContentGenerator {
         generator.writeEndArray();
     }
 
-    protected boolean isFiltered() {
+    private boolean isFiltered() {
         return filter != null;
     }
 
-    protected boolean inRoot() {
+    private JsonGenerator getLowLevelGenerator() {
         if (isFiltered()) {
-            JsonStreamContext context = filter.getFilterContext();
-            return ((context != null) && (context.inRoot() && context.getCurrentName() == null));
+            JsonGenerator delegate = filter.getDelegate();
+            if (delegate instanceof JsonGeneratorDelegate) {
+                // In case of combined inclusion and exclusion filters, we have one and only one another delegating level
+                delegate = ((JsonGeneratorDelegate) delegate).getDelegate();
+                assert delegate instanceof JsonGeneratorDelegate == false;
+            }
+            return delegate;
         }
-        return false;
+        return generator;
+    }
+
+    private boolean inRoot() {
+        JsonStreamContext context = generator.getOutputContext();
+        return ((context != null) && (context.inRoot() && context.getCurrentName() == null));
     }
 
     @Override
     public void writeStartObject() throws IOException {
-        if (isFiltered() && inRoot()) {
-            // Bypass generator to always write the root start object
-            filter.getDelegate().writeStartObject();
+        if (inRoot()) {
+            // Use the low level generator to write the startObject so that the root
+            // start object is always written even if a filtered generator is used
+            getLowLevelGenerator().writeStartObject();
             return;
         }
         generator.writeStartObject();
@@ -146,9 +175,10 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     @Override
     public void writeEndObject() throws IOException {
-        if (isFiltered() && inRoot()) {
-            // Bypass generator to always write the root end object
-            filter.getDelegate().writeEndObject();
+        if (inRoot()) {
+            // Use the low level generator to write the startObject so that the root
+            // start object is always written even if a filtered generator is used
+            getLowLevelGenerator().writeEndObject();
             return;
         }
         generator.writeEndObject();
@@ -390,7 +420,8 @@ public class JsonXContentGenerator implements XContentGenerator {
         }
         if (writeLineFeedAtEnd) {
             flush();
-            generator.writeRaw(LF);
+            // Bypass generator to always write the line feed
+            getLowLevelGenerator().writeRaw(LF);
         }
         generator.close();
     }

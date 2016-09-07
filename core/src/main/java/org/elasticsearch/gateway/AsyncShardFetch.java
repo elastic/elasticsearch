@@ -19,6 +19,9 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -30,7 +33,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
@@ -63,7 +65,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         void list(ShardId shardId, DiscoveryNode[] nodes, ActionListener<NodesResponse> listener);
     }
 
-    protected final ESLogger logger;
+    protected final Logger logger;
     protected final String type;
     private final ShardId shardId;
     private final Lister<BaseNodesResponse<T>, T> action;
@@ -72,7 +74,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     private boolean closed;
 
     @SuppressWarnings("unchecked")
-    protected AsyncShardFetch(ESLogger logger, String type, ShardId shardId, Lister<? extends BaseNodesResponse<T>, T> action) {
+    protected AsyncShardFetch(Logger logger, String type, ShardId shardId, Lister<? extends BaseNodesResponse<T>, T> action) {
         this.logger = logger;
         this.type = type;
         this.shardId = shardId;
@@ -200,7 +202,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                     if (unwrappedCause instanceof EsRejectedExecutionException || unwrappedCause instanceof ReceiveTimeoutTransportException || unwrappedCause instanceof ElasticsearchTimeoutException) {
                         nodeEntry.restartFetching();
                     } else {
-                        logger.warn("{}: failed to list shard for {} on node [{}]", failure, shardId, type, failure.nodeId());
+                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("{}: failed to list shard for {} on node [{}]", shardId, type, failure.nodeId()), failure);
                         nodeEntry.doneFetching(failure.getCause());
                     }
                 }

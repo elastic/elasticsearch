@@ -19,6 +19,9 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -31,7 +34,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.Callback;
@@ -62,7 +64,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class RecoveryTarget extends AbstractRefCounted implements RecoveryTargetHandler {
 
-    private final ESLogger logger;
+    private final Logger logger;
 
     private static final AtomicLong idGenerator = new AtomicLong();
 
@@ -74,7 +76,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final DiscoveryNode sourceNode;
     private final String tempFilePrefix;
     private final Store store;
-    private final RecoveryTargetService.RecoveryListener listener;
+    private final PeerRecoveryTargetService.RecoveryListener listener;
     private final Callback<Long> ensureClusterStateVersionCallback;
 
     private final AtomicBoolean finished = new AtomicBoolean();
@@ -92,7 +94,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             copyFrom.ensureClusterStateVersionCallback);
     }
 
-    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryTargetService.RecoveryListener listener,
+    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
                           Callback<Long> ensureClusterStateVersionCallback) {
         this(indexShard, sourceNode, listener, new CancellableThreads(), idGenerator.incrementAndGet(), ensureClusterStateVersionCallback);
     }
@@ -106,7 +108,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      *                                          version. Necessary for primary relocation so that new primary knows about all other ongoing
      *                                          replica recoveries when replicating documents (see {@link RecoverySourceHandler}).
      */
-    private RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryTargetService.RecoveryListener listener,
+    private RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
                            CancellableThreads cancellableThreads, long recoveryId, Callback<Long> ensureClusterStateVersionCallback) {
         super("recovery_status");
         this.cancellableThreads = cancellableThreads;
@@ -293,7 +295,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 try {
                     entry.getValue().close();
                 } catch (Exception e) {
-                    logger.debug("error while closing recovery output [{}]", e, entry.getValue());
+                    logger.debug(
+                        (Supplier<?>) () -> new ParameterizedMessage("error while closing recovery output [{}]", entry.getValue()), e);
                 }
                 iterator.remove();
             }
@@ -324,9 +327,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /*** Implementation of {@link RecoveryTargetHandler } */
 
     @Override
-    public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
+    public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
-        indexShard().skipTranslogRecovery();
+        indexShard().skipTranslogRecovery(maxUnsafeAutoIdTimestamp);
     }
 
     @Override

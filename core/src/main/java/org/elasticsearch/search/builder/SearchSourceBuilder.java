@@ -20,13 +20,13 @@
 package org.elasticsearch.search.builder;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -63,6 +63,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.common.collect.Tuple.tuple;
 
 /**
  * A search source builder allowing to easily build search source. Simple
@@ -188,11 +192,10 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
         from = in.readVInt();
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
-        boolean hasIndexBoost = in.readBoolean();
-        if (hasIndexBoost) {
-            int size = in.readVInt();
-            indexBoost = new ObjectFloatHashMap<>(size);
-            for (int i = 0; i < size; i++) {
+        int indexBoostSize = in.readVInt();
+        if (indexBoostSize > 0) {
+            indexBoost = new ObjectFloatHashMap<>(indexBoostSize);
+            for (int i = 0; i < indexBoostSize; i++) {
                 indexBoost.put(in.readString(), in.readFloat());
             }
         }
@@ -248,14 +251,10 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         out.writeOptionalWriteable(storedFieldsContext);
         out.writeVInt(from);
         out.writeOptionalWriteable(highlightBuilder);
-        boolean hasIndexBoost = indexBoost != null;
-        out.writeBoolean(hasIndexBoost);
-        if (hasIndexBoost) {
-            out.writeVInt(indexBoost.size());
-            for (ObjectCursor<String> key : indexBoost.keys()) {
-                out.writeString(key.value);
-                out.writeFloat(indexBoost.get(key.value));
-            }
+        int indexBoostSize = indexBoost == null ? 0 : indexBoost.size();
+        out.writeVInt(indexBoostSize);
+        if (indexBoostSize > 0) {
+            writeIndexBoost(out);
         }
         out.writeOptionalFloat(minScore);
         out.writeOptionalNamedWriteable(postQueryBuilder);
@@ -302,6 +301,17 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         out.writeBoolean(profile);
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeOptionalWriteable(sliceBuilder);
+    }
+
+    private void writeIndexBoost(StreamOutput out) throws IOException {
+        List<Tuple<String, Float>> ibs = StreamSupport
+            .stream(indexBoost.spliterator(), false)
+            .map(i -> tuple(i.key, i.value)).sorted((o1, o2) -> o1.v1().compareTo(o2.v1()))
+            .collect(Collectors.toList());
+        for (Tuple<String, Float> ib : ibs) {
+            out.writeString(ib.v1());
+            out.writeFloat(ib.v2());
+        }
     }
 
     /**
@@ -1263,7 +1273,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         currentFieldName = parser.currentName();
                     } else if (token.isValue()) {
                         if (context.getParseFieldMatcher().match(currentFieldName, SCRIPT_FIELD)) {
-                            script = Script.parse(parser, context.getParseFieldMatcher());
+                            script = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                         } else if (context.getParseFieldMatcher().match(currentFieldName, IGNORE_FAILURE_FIELD)) {
                             ignoreFailure = parser.booleanValue();
                         } else {
@@ -1272,7 +1282,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         }
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if (context.getParseFieldMatcher().match(currentFieldName, SCRIPT_FIELD)) {
-                            script = Script.parse(parser, context.getParseFieldMatcher());
+                            script = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName
                                     + "].", parser.getTokenLocation());

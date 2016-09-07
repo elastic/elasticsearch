@@ -23,20 +23,25 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-public class ByteSizeValue implements Streamable {
+public class ByteSizeValue implements Writeable {
 
-    private long size;
+    private final long size;
+    private final ByteSizeUnit sizeUnit;
 
-    private ByteSizeUnit sizeUnit;
+    public ByteSizeValue(StreamInput in) throws IOException {
+        size = in.readVLong();
+        sizeUnit = ByteSizeUnit.BYTES;
+    }
 
-    private ByteSizeValue() {
-
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(bytes());
     }
 
     public ByteSizeValue(long bytes) {
@@ -172,7 +177,8 @@ public class ByteSizeValue implements Streamable {
         return parseBytesSizeValue(sValue, null, settingName);
     }
 
-    public static ByteSizeValue parseBytesSizeValue(String sValue, ByteSizeValue defaultValue, String settingName) throws ElasticsearchParseException {
+    public static ByteSizeValue parseBytesSizeValue(String sValue, ByteSizeValue defaultValue, String settingName)
+            throws ElasticsearchParseException {
         settingName = Objects.requireNonNull(settingName);
         if (sValue == null) {
             return defaultValue;
@@ -210,29 +216,14 @@ public class ByteSizeValue implements Streamable {
                 bytes = 0;
             } else {
                 // Missing units:
-                throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}] as a size in bytes: unit is missing or unrecognized", settingName, sValue);
+                throw new ElasticsearchParseException(
+                        "failed to parse setting [{}] with value [{}] as a size in bytes: unit is missing or unrecognized",
+                        settingName, sValue);
             }
         } catch (NumberFormatException e) {
             throw new ElasticsearchParseException("failed to parse [{}]", e, sValue);
         }
         return new ByteSizeValue(bytes, ByteSizeUnit.BYTES);
-    }
-
-    public static ByteSizeValue readBytesSizeValue(StreamInput in) throws IOException {
-        ByteSizeValue sizeValue = new ByteSizeValue();
-        sizeValue.readFrom(in);
-        return sizeValue;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        size = in.readVLong();
-        sizeUnit = ByteSizeUnit.BYTES;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(bytes());
     }
 
     @Override

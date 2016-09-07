@@ -96,6 +96,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
             if (name.contains(nodeThreadNamePart)) {
                 if (thread.isAlive() && nodeThreads.add(thread)) {
                     stopped = true;
+                    logger.trace("stopping thread [{}]", name);
                     thread.suspend();
                     // double check the thread is not in a shared resource like logging. If so, let it go and come back..
                     boolean safe = true;
@@ -110,6 +111,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
                         }
                     }
                     if (!safe) {
+                        logger.trace("resuming thread [{}] as it is in a critical section", name);
                         thread.resume();
                         nodeThreads.remove(thread);
                     }

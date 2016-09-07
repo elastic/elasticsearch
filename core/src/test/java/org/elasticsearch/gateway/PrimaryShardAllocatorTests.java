@@ -29,8 +29,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -431,12 +431,12 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         Version version = hasActiveAllocation ? Version.CURRENT : Version.V_2_0_0;
         MetaData metaData = MetaData.builder()
             .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(version)).numberOfShards(1).numberOfReplicas(0)
-                .putActiveAllocationIds(0, hasActiveAllocation ? Sets.newHashSet("allocId") : Collections.emptySet()))
+                .putInSyncAllocationIds(0, hasActiveAllocation ? Sets.newHashSet("allocId") : Collections.emptySet()))
             .build();
 
         final Snapshot snapshot = new Snapshot("test", new SnapshotId("test", UUIDs.randomBase64UUID()));
         RoutingTable routingTable = RoutingTable.builder()
-            .addAsRestore(metaData.index(shardId.getIndex()), new RestoreSource(snapshot, version, shardId.getIndexName()))
+            .addAsRestore(metaData.index(shardId.getIndex()), new SnapshotRecoverySource(snapshot, version, shardId.getIndexName()))
             .build();
         ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metaData(metaData)
@@ -515,11 +515,11 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(version)
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .put(IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, true))
-                .numberOfShards(1).numberOfReplicas(0).putActiveAllocationIds(0, hasActiveAllocation ? Sets.newHashSet("allocId") : Collections.emptySet()))
+                .numberOfShards(1).numberOfReplicas(0).putInSyncAllocationIds(0, hasActiveAllocation ? Sets.newHashSet("allocId") : Collections.emptySet()))
             .build();
 
         RoutingTable routingTable = RoutingTable.builder()
-            .addAsRestore(metaData.index(shardId.getIndex()), new RestoreSource(new Snapshot("test", new SnapshotId("test", UUIDs.randomBase64UUID())), Version.CURRENT, shardId.getIndexName()))
+            .addAsRestore(metaData.index(shardId.getIndex()), new SnapshotRecoverySource(new Snapshot("test", new SnapshotId("test", UUIDs.randomBase64UUID())), Version.CURRENT, shardId.getIndexName()))
             .build();
         ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metaData(metaData)
@@ -620,7 +620,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                                                                         String... activeAllocationIds) {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(version))
-                    .numberOfShards(1).numberOfReplicas(0).putActiveAllocationIds(shardId.id(), Sets.newHashSet(activeAllocationIds)))
+                    .numberOfShards(1).numberOfReplicas(0).putInSyncAllocationIds(shardId.id(), Sets.newHashSet(activeAllocationIds)))
                 .build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         if (asNew) {

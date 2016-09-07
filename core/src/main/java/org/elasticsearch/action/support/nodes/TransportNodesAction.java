@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.nodes;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
@@ -31,13 +32,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -238,7 +239,9 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
 
         private void onFailure(int idx, String nodeId, Throwable t) {
             if (logger.isDebugEnabled() && !(t instanceof NodeShouldNotConnectException)) {
-                logger.debug("failed to execute on node [{}]", t, nodeId);
+                logger.debug(
+                    (org.apache.logging.log4j.util.Supplier<?>)
+                        () -> new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
             }
             if (accumulateExceptions()) {
                 responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));

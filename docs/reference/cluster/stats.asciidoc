@@ -116,7 +116,17 @@ Will return, for example:
                "name": "Mac OS X",
                "count": 1
             }
-         ]
+         ],
+         "mem" : {
+            "total" : "16gb",
+            "total_in_bytes" : 17179869184,
+            "free" : "78.1mb",
+            "free_in_bytes" : 81960960,
+            "used" : "15.9gb",
+            "used_in_bytes" : 17097908224,
+            "free_percent" : 0,
+            "used_percent" : 100
+         }
       },
       "process": {
          "cpu": {

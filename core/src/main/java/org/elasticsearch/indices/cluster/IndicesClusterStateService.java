@@ -19,6 +19,9 @@
 
 package org.elasticsearch.indices.cluster;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,6 +31,8 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.Type;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -35,7 +40,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -59,10 +63,10 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.flush.SyncedFlushService;
+import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
-import org.elasticsearch.indices.recovery.RecoverySource;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.RestoreService;
@@ -85,7 +89,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     final AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>> indicesService;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
-    private final RecoveryTargetService recoveryTargetService;
+    private final PeerRecoveryTargetService recoveryTargetService;
     private final ShardStateAction shardStateAction;
     private final NodeMappingRefreshAction nodeMappingRefreshAction;
     private final NodeServicesProvider nodeServicesProvider;
@@ -106,15 +110,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     @Inject
     public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
-                                      ThreadPool threadPool, RecoveryTargetService recoveryTargetService,
+                                      ThreadPool threadPool, PeerRecoveryTargetService recoveryTargetService,
                                       ShardStateAction shardStateAction,
                                       NodeMappingRefreshAction nodeMappingRefreshAction,
                                       RepositoriesService repositoriesService, RestoreService restoreService,
                                       SearchService searchService, SyncedFlushService syncedFlushService,
-                                      RecoverySource recoverySource, NodeServicesProvider nodeServicesProvider) {
+                                      PeerRecoverySourceService peerRecoverySourceService, NodeServicesProvider nodeServicesProvider) {
         this(settings, (AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>>) indicesService,
             clusterService, threadPool, recoveryTargetService, shardStateAction,
-            nodeMappingRefreshAction, repositoriesService, restoreService, searchService, syncedFlushService, recoverySource,
+            nodeMappingRefreshAction, repositoriesService, restoreService, searchService, syncedFlushService, peerRecoverySourceService,
             nodeServicesProvider);
     }
 
@@ -122,14 +126,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     IndicesClusterStateService(Settings settings,
                                AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>> indicesService,
                                ClusterService clusterService,
-                               ThreadPool threadPool, RecoveryTargetService recoveryTargetService,
+                               ThreadPool threadPool, PeerRecoveryTargetService recoveryTargetService,
                                ShardStateAction shardStateAction,
                                NodeMappingRefreshAction nodeMappingRefreshAction,
                                RepositoriesService repositoriesService, RestoreService restoreService,
                                SearchService searchService, SyncedFlushService syncedFlushService,
-                               RecoverySource recoverySource, NodeServicesProvider nodeServicesProvider) {
+                               PeerRecoverySourceService peerRecoverySourceService, NodeServicesProvider nodeServicesProvider) {
         super(settings);
-        this.buildInIndexListener = Arrays.asList(recoverySource, recoveryTargetService, searchService, syncedFlushService);
+        this.buildInIndexListener = Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, syncedFlushService);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -267,7 +271,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn("[{}] failed to complete pending deletion for index", e, index);
+                        logger.warn(
+                            (Supplier<?>) () -> new ParameterizedMessage("[{}] failed to complete pending deletion for index", index), e);
                     }
 
                     @Override
@@ -372,7 +377,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     indexService.removeShard(shardId.id(), "removing shard (not allocated)");
                 } else {
                     // remove shards where recovery source has changed. This re-initializes shards later in createOrUpdateShards
-                    if (newShardRouting.isPeerRecovery()) {
+                    if (newShardRouting.recoverySource() != null && newShardRouting.recoverySource().getType() == Type.PEER) {
                         RecoveryState recoveryState = shard.recoveryState();
                         final DiscoveryNode sourceNode = findSourceNodeForPeerRecovery(logger, routingTable, nodes, newShardRouting);
                         if (recoveryState.getSourceNode().equals(sourceNode) == false) {
@@ -488,7 +493,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 Shard shard = indexService.getShardOrNull(shardId.id());
                 if (shard == null) {
                     assert shardRouting.initializing() : shardRouting + " should have been removed by failMissingShards";
-                    createShard(nodes, routingTable, shardRouting, indexService);
+                    createShard(nodes, routingTable, shardRouting);
                 } else {
                     updateShard(nodes, shardRouting, shard);
                 }
@@ -496,12 +501,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
-    private void createShard(DiscoveryNodes nodes, RoutingTable routingTable, ShardRouting shardRouting,
-                             AllocatedIndex<? extends Shard> indexService) {
+    private void createShard(DiscoveryNodes nodes, RoutingTable routingTable, ShardRouting shardRouting) {
         assert shardRouting.initializing() : "only allow shard creation for initializing shard but was " + shardRouting;
 
         DiscoveryNode sourceNode = null;
-        if (shardRouting.isPeerRecovery()) {
+        if (shardRouting.recoverySource().getType() == Type.PEER)  {
             sourceNode = findSourceNodeForPeerRecovery(logger, routingTable, nodes, shardRouting);
             if (sourceNode == null) {
                 logger.trace("ignoring initializing shard {} - no source node can be found.", shardRouting.shardId());
@@ -511,8 +515,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         try {
             logger.debug("{} creating shard", shardRouting.shardId());
-            RecoveryState recoveryState = recoveryState(nodes.getLocalNode(), sourceNode, shardRouting,
-                indexService.getIndexSettings().getIndexMetaData());
+            RecoveryState recoveryState = new RecoveryState(shardRouting, nodes.getLocalNode(), sourceNode);
             indicesService.createShard(shardRouting, recoveryState, recoveryTargetService, new RecoveryListener(shardRouting),
                 repositoriesService, nodeServicesProvider, failedShardHandler);
         } catch (IndexShardAlreadyExistsException e) {
@@ -556,10 +559,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     /**
      * Finds the routing source node for peer recovery, return null if its not found. Note, this method expects the shard
-     * routing to *require* peer recovery, use {@link ShardRouting#isPeerRecovery()} to
+     * routing to *require* peer recovery, use {@link ShardRouting#recoverySource()} to
      * check if its needed or not.
      */
-    private static DiscoveryNode findSourceNodeForPeerRecovery(ESLogger logger, RoutingTable routingTable, DiscoveryNodes nodes,
+    private static DiscoveryNode findSourceNodeForPeerRecovery(Logger logger, RoutingTable routingTable, DiscoveryNodes nodes,
                                                                ShardRouting shardRouting) {
         DiscoveryNode sourceNode = null;
         if (!shardRouting.primary()) {
@@ -586,7 +589,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         return sourceNode;
     }
 
-    private class RecoveryListener implements RecoveryTargetService.RecoveryListener {
+    private class RecoveryListener implements PeerRecoveryTargetService.RecoveryListener {
 
         private final ShardRouting shardRouting;
 
@@ -596,29 +599,20 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         @Override
         public void onRecoveryDone(RecoveryState state) {
-            if (state.getType() == RecoveryState.Type.SNAPSHOT) {
-                restoreService.indexShardRestoreCompleted(state.getRestoreSource().snapshot(), shardRouting.shardId());
+            if (state.getRecoverySource().getType() == Type.SNAPSHOT) {
+                SnapshotRecoverySource snapshotRecoverySource = (SnapshotRecoverySource) state.getRecoverySource();
+                restoreService.indexShardRestoreCompleted(snapshotRecoverySource.snapshot(), shardRouting.shardId());
             }
-            shardStateAction.shardStarted(shardRouting, message(state), SHARD_STATE_ACTION_LISTENER);
-        }
-
-        private String message(RecoveryState state) {
-            switch (state.getType()) {
-                case SNAPSHOT: return "after recovery from repository";
-                case STORE: return "after recovery from store";
-                case PRIMARY_RELOCATION: return "after recovery (primary relocation) from node [" + state.getSourceNode() + "]";
-                case REPLICA: return "after recovery (replica) from node [" + state.getSourceNode() + "]";
-                case LOCAL_SHARDS: return "after recovery from local shards";
-                default: throw new IllegalArgumentException("Unknown recovery type: " + state.getType().name());
-            }
+            shardStateAction.shardStarted(shardRouting, "after " + state.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
         }
 
         @Override
         public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
-            if (state.getType() == RecoveryState.Type.SNAPSHOT) {
+            if (state.getRecoverySource().getType() == Type.SNAPSHOT) {
                 try {
                     if (Lucene.isCorruptionException(e.getCause())) {
-                        restoreService.failRestore(state.getRestoreSource().snapshot(), shardRouting.shardId());
+                        SnapshotRecoverySource snapshotRecoverySource = (SnapshotRecoverySource) state.getRecoverySource();
+                        restoreService.failRestore(snapshotRecoverySource.snapshot(), shardRouting.shardId());
                     }
                 } catch (Exception inner) {
                     e.addSuppressed(inner);
@@ -628,27 +622,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             } else {
                 handleRecoveryFailure(shardRouting, sendShardFailure, e);
             }
-        }
-    }
-
-    private RecoveryState recoveryState(DiscoveryNode localNode, DiscoveryNode sourceNode, ShardRouting shardRouting,
-                                              IndexMetaData indexMetaData) {
-        assert shardRouting.initializing() : "only allow initializing shard routing to be recovered: " + shardRouting;
-        if (shardRouting.isPeerRecovery()) {
-            assert sourceNode != null : "peer recovery started but sourceNode is null for " + shardRouting;
-            RecoveryState.Type type = shardRouting.primary() ? RecoveryState.Type.PRIMARY_RELOCATION : RecoveryState.Type.REPLICA;
-            return new RecoveryState(shardRouting.shardId(), shardRouting.primary(), type, sourceNode, localNode);
-        } else if (shardRouting.restoreSource() == null) {
-            // recover from filesystem store
-            Index mergeSourceIndex = indexMetaData.getMergeSourceIndex();
-            final boolean recoverFromLocalShards = mergeSourceIndex != null && shardRouting.allocatedPostIndexCreate(indexMetaData) == false
-                && shardRouting.primary();
-            return new RecoveryState(shardRouting.shardId(), shardRouting.primary(),
-                recoverFromLocalShards ? RecoveryState.Type.LOCAL_SHARDS : RecoveryState.Type.STORE, localNode, localNode);
-        } else {
-            // recover from a snapshot
-            return new RecoveryState(shardRouting.shardId(), shardRouting.primary(),
-                RecoveryState.Type.SNAPSHOT, shardRouting.restoreSource(), localNode);
         }
     }
 
@@ -667,11 +640,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         } catch (Exception inner) {
             inner.addSuppressed(failure);
             logger.warn(
-                "[{}][{}] failed to remove shard after failure ([{}])",
-                inner,
-                shardRouting.getIndexName(),
-                shardRouting.getId(),
-                message);
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "[{}][{}] failed to remove shard after failure ([{}])",
+                    shardRouting.getIndexName(),
+                    shardRouting.getId(),
+                    message),
+                inner);
         }
         if (sendShardFailure) {
             sendFailShard(shardRouting, message, failure);
@@ -680,17 +654,20 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private void sendFailShard(ShardRouting shardRouting, String message, @Nullable Exception failure) {
         try {
-            logger.warn("[{}] marking and sending shard failed due to [{}]", failure, shardRouting.shardId(), message);
+            logger.warn(
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "[{}] marking and sending shard failed due to [{}]", shardRouting.shardId(), message), failure);
             failedShardsCache.put(shardRouting.shardId(), shardRouting);
             shardStateAction.localShardFailed(shardRouting, message, failure, SHARD_STATE_ACTION_LISTENER);
         } catch (Exception inner) {
             if (failure != null) inner.addSuppressed(failure);
             logger.warn(
+                (Supplier<?>) () -> new ParameterizedMessage(
                     "[{}][{}] failed to mark shard as failed (because of [{}])",
-                    inner,
                     shardRouting.getIndexName(),
                     shardRouting.getId(),
-                    message);
+                    message),
+                inner);
         }
     }
 
@@ -821,8 +798,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /**
          * Creates shard for the specified shard routing and starts recovery,
          */
-        T createShard(ShardRouting shardRouting, RecoveryState recoveryState, RecoveryTargetService recoveryTargetService,
-                      RecoveryTargetService.RecoveryListener recoveryListener, RepositoriesService repositoriesService,
+        T createShard(ShardRouting shardRouting, RecoveryState recoveryState, PeerRecoveryTargetService recoveryTargetService,
+                      PeerRecoveryTargetService.RecoveryListener recoveryListener, RepositoriesService repositoriesService,
                       NodeServicesProvider nodeServicesProvider, Callback<IndexShard.ShardFailure> onShardFailure) throws IOException;
 
         /**

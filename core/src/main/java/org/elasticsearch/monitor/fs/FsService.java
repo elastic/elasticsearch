@@ -19,8 +19,8 @@
 
 package org.elasticsearch.monitor.fs;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -55,7 +55,7 @@ public class FsService extends AbstractComponent {
         return cache.getOrRefresh();
     }
 
-    private static FsInfo stats(FsProbe probe, FsInfo initialValue, ESLogger logger) {
+    private static FsInfo stats(FsProbe probe, FsInfo initialValue, Logger logger) {
         try {
             return probe.stats(initialValue);
         } catch (IOException e) {

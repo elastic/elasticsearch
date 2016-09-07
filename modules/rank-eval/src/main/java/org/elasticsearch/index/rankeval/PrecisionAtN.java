@@ -39,15 +39,29 @@ import javax.naming.directory.SearchResult;
 
 /**
  * Evaluate Precision at N, N being the number of search results to consider for precision calculation.
- *
  * Documents of unkonwn quality are ignored in the precision at n computation and returned by document id.
+ * By default documents with a rating equal or bigger than 1 are considered to be "relevant" for the precision
+ * calculation. This value can be changes using the "relevant_rating_threshold" parameter.
  * */
 public class PrecisionAtN extends RankedListQualityMetric<PrecisionAtN> {
 
     /** Number of results to check against a given set of relevant results. */
     private int n;
 
+    /** ratings equal or above this value will be considered relevant. */
+    private int relevantRatingThreshhold = 1;
+
     public static final String NAME = "precisionatn";
+
+    private static final ParseField SIZE_FIELD = new ParseField("size");
+    private static final ParseField RELEVANT_RATING_FIELD = new ParseField("relevant_rating_threshold");
+    private static final ConstructingObjectParser<PrecisionAtN, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+            "precision_at", a -> new PrecisionAtN((Integer) a[0]));
+
+    static {
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), SIZE_FIELD);
+        PARSER.declareInt(PrecisionAtN::setRelevantRatingThreshhold, RELEVANT_RATING_FIELD);
+    }
 
     public PrecisionAtN(StreamInput in) throws IOException {
         n = in.readInt();
@@ -84,12 +98,19 @@ public class PrecisionAtN extends RankedListQualityMetric<PrecisionAtN> {
         return n;
     }
 
-    private static final ParseField SIZE_FIELD = new ParseField("size");
-    private static final ConstructingObjectParser<PrecisionAtN, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
-            "precision_at", a -> new PrecisionAtN((Integer) a[0]));
+    /**
+     * Sets the rating threshold above which ratings are considered to be "relevant" for this metric.
+     * */
+    public void setRelevantRatingThreshhold(int threshold) {
+        this.relevantRatingThreshhold = threshold;
+    }
 
-    static {
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), SIZE_FIELD);
+    /**
+     * Return the rating threshold above which ratings are considered to be "relevant" for this metric.
+     * Defaults to 1.
+     * */
+    public int getRelevantRatingThreshold() {
+        return relevantRatingThreshhold ;
     }
 
     @Override
@@ -116,9 +137,9 @@ public class PrecisionAtN extends RankedListQualityMetric<PrecisionAtN> {
         Collection<RatedDocumentKey> relevantDocIds = new ArrayList<>();
         Collection<RatedDocumentKey> irrelevantDocIds = new ArrayList<>();
         for (RatedDocument doc : ratedDocs) {
-            if (Rating.RELEVANT.equals(RatingMapping.mapTo(doc.getRating()))) {
+            if (doc.getRating() >= this.relevantRatingThreshhold) {
                 relevantDocIds.add(doc.getKey());
-            } else if (Rating.IRRELEVANT.equals(RatingMapping.mapTo(doc.getRating()))) {
+            } else {
                 irrelevantDocIds.add(doc.getKey());
             }
         }

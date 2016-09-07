@@ -19,6 +19,8 @@
 
 package org.elasticsearch.discovery.local;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -144,7 +146,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
 
                     @Override
                     public void onFailure(String source, Exception e) {
-                        logger.error("unexpected failure during [{}]", e, source);
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
                     }
                 });
             } else if (firstMaster != null) {
@@ -173,7 +175,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
 
                     @Override
                     public void onFailure(String source, Exception e) {
-                        logger.error("unexpected failure during [{}]", e, source);
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
                     }
 
                 });
@@ -238,7 +240,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
 
                     @Override
                     public void onFailure(String source, Exception e) {
-                        logger.error("unexpected failure during [{}]", e, source);
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
                     }
                 });
             }
@@ -329,7 +331,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                             newNodeSpecificClusterState = discovery.lastProcessedClusterState.readDiffFrom(StreamInput.wrap(clusterStateDiffBytes)).apply(discovery.lastProcessedClusterState);
                             logger.trace("sending diff cluster state version [{}] with size {} to [{}]", clusterState.version(), clusterStateDiffBytes.length, discovery.localNode().getName());
                         } catch (IncompatibleClusterStateVersionException ex) {
-                            logger.warn("incompatible cluster state version [{}] - resending complete cluster state", ex, clusterState.version());
+                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("incompatible cluster state version [{}] - resending complete cluster state", clusterState.version()), ex);
                         }
                     }
                     if (newNodeSpecificClusterState == null) {
@@ -380,7 +382,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
 
                         @Override
                         public void onFailure(String source, Exception e) {
-                            logger.error("unexpected failure during [{}]", e, source);
+                            logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
                             publishResponseHandler.onFailure(discovery.localNode(), e);
                         }
 

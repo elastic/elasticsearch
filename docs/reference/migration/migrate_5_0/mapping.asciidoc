@@ -262,3 +262,7 @@ IMPORTANT: Keep in mind that deleting documents from an index is very expensive
 compared to deleting whole indexes. That is why time based indexes are
 recommended over this sort of thing and why `_ttl` was deprecated in the first
 place.
+
+==== Blank field names is not supported
+
+Blank field names in mappings is not allowed after 5.0.

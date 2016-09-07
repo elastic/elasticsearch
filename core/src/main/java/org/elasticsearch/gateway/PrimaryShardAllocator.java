@@ -19,20 +19,21 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -105,11 +106,8 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 continue;
             }
 
-            final IndexMetaData indexMetaData = metaData.getIndexSafe(shard.index());
-            // don't go wild here and create a new IndexSetting object for every shard this could cause a lot of garbage
-            // on cluster restart if we allocate a boat load of shards
-            if (shard.allocatedPostIndexCreate(indexMetaData) == false) {
-                // when we create a fresh index
+            if (shard.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE &&
+                shard.recoverySource().getType() != RecoverySource.Type.SNAPSHOT) {
                 continue;
             }
 
@@ -121,14 +119,17 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 continue;
             }
 
-            final Set<String> lastActiveAllocationIds = indexMetaData.activeAllocationIds(shard.id());
-            final boolean snapshotRestore = shard.restoreSource() != null;
+            // don't create a new IndexSetting object for every shard as this could cause a lot of garbage
+            // on cluster restart if we allocate a boat load of shards
+            final IndexMetaData indexMetaData = metaData.getIndexSafe(shard.index());
+            final Set<String> inSyncAllocationIds = indexMetaData.inSyncAllocationIds(shard.id());
+            final boolean snapshotRestore = shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT;
             final boolean recoverOnAnyNode = recoverOnAnyNode(indexMetaData);
 
             final NodeShardsResult nodeShardsResult;
             final boolean enoughAllocationsFound;
 
-            if (lastActiveAllocationIds.isEmpty()) {
+            if (inSyncAllocationIds.isEmpty()) {
                 assert Version.indexCreated(indexMetaData.getSettings()).before(Version.V_5_0_0_alpha1) : "trying to allocated a primary with an empty allocation id set, but index is new";
                 // when we load an old index (after upgrading cluster) or restore a snapshot of an old index
                 // fall back to old version-based allocation mode
@@ -141,18 +142,18 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 }
                 logger.debug("[{}][{}]: version-based allocation for pre-{} index found {} allocations of {}", shard.index(), shard.id(), Version.V_5_0_0_alpha1, nodeShardsResult.allocationsFound, shard);
             } else {
-                assert lastActiveAllocationIds.isEmpty() == false;
+                assert inSyncAllocationIds.isEmpty() == false;
                 // use allocation ids to select nodes
                 nodeShardsResult = buildAllocationIdBasedNodeShardsResult(shard, snapshotRestore || recoverOnAnyNode,
-                        allocation.getIgnoreNodes(shard.shardId()), lastActiveAllocationIds, shardState);
+                        allocation.getIgnoreNodes(shard.shardId()), inSyncAllocationIds, shardState);
                 enoughAllocationsFound = nodeShardsResult.orderedAllocationCandidates.size() > 0;
-                logger.debug("[{}][{}]: found {} allocation candidates of {} based on allocation ids: [{}]", shard.index(), shard.id(), nodeShardsResult.orderedAllocationCandidates.size(), shard, lastActiveAllocationIds);
+                logger.debug("[{}][{}]: found {} allocation candidates of {} based on allocation ids: [{}]", shard.index(), shard.id(), nodeShardsResult.orderedAllocationCandidates.size(), shard, inSyncAllocationIds);
             }
 
             if (enoughAllocationsFound == false){
                 if (snapshotRestore) {
                     // let BalancedShardsAllocator take care of allocating this shard
-                    logger.debug("[{}][{}]: missing local data, will restore from [{}]", shard.index(), shard.id(), shard.restoreSource());
+                    logger.debug("[{}][{}]: missing local data, will restore from [{}]", shard.index(), shard.id(), shard.recoverySource());
                 } else if (recoverOnAnyNode) {
                     // let BalancedShardsAllocator take care of allocating this shard
                     logger.debug("[{}][{}]: missing local data, recover from any node", shard.index(), shard.id());
@@ -227,7 +228,8 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                     logger.trace("[{}] on node [{}] has no allocation id, out-dated shard (shard state version: [{}])", shard, nodeShardState.getNode(), nodeShardState.legacyVersion());
                 }
             } else {
-                logger.trace("[{}] on node [{}] has allocation id [{}] but the store can not be opened, treating as no allocation id", nodeShardState.storeException(), shard, nodeShardState.getNode(), allocationId);
+                final String finalAllocationId = allocationId;
+                logger.trace((Supplier<?>) () -> new ParameterizedMessage("[{}] on node [{}] has allocation id [{}] but the store can not be opened, treating as no allocation id", shard, nodeShardState.getNode(), finalAllocationId), nodeShardState.storeException());
                 allocationId = null;
             }
 
@@ -351,8 +353,9 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                     logger.trace("[{}] on node [{}] has allocation id [{}]", shard, nodeShardState.getNode(), nodeShardState.allocationId());
                 }
             } else {
+                final long finalVerison = version;
                 // when there is an store exception, we disregard the reported version and assign it as no version (same as shard does not exist)
-                logger.trace("[{}] on node [{}] has version [{}] but the store can not be opened, treating no version", nodeShardState.storeException(), shard, nodeShardState.getNode(), version);
+                logger.trace((Supplier<?>) () -> new ParameterizedMessage("[{}] on node [{}] has version [{}] but the store can not be opened, treating no version", shard, nodeShardState.getNode(), finalVerison), nodeShardState.storeException());
                 version = ShardStateMetaData.NO_VERSION;
             }
 

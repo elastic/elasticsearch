@@ -350,8 +350,9 @@ public class InnerHitBuilderTests extends ESTestCase {
                 if (instance.getStoredFieldsContext() == null || randomBoolean()) {
                     List<String> previous = instance.getStoredFieldsContext() == null ?
                         Collections.emptyList() : instance.getStoredFieldsContext().fieldNames();
-                    instance.setStoredFieldNames(randomValueOtherThan(previous,
-                        () -> randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16))));
+                    List<String> newValues = randomValueOtherThan(previous,
+                            () -> randomListStuff(1, 16, () -> randomAsciiOfLengthBetween(1, 16)));
+                    instance.setStoredFieldNames(newValues);
                 } else {
                     instance.getStoredFieldsContext().addFieldName(randomAsciiOfLengthBetween(1, 16));
                 }
@@ -377,7 +378,11 @@ public class InnerHitBuilderTests extends ESTestCase {
     }
 
     static <T> List<T> randomListStuff(int maxSize, Supplier<T> valueSupplier) {
-        int size = randomIntBetween(0, maxSize);
+        return randomListStuff(0, maxSize, valueSupplier);
+    }
+
+    static <T> List<T> randomListStuff(int minSize, int maxSize, Supplier<T> valueSupplier) {
+        int size = randomIntBetween(minSize, maxSize);
         List<T> list = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             list.add(valueSupplier.get());

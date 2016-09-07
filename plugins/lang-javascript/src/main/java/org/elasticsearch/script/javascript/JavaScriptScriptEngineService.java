@@ -25,6 +25,7 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.CompiledScript;
@@ -138,6 +139,8 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     public JavaScriptScriptEngineService(Settings settings) {
         super(settings);
 
+        deprecationLogger.deprecated("[javascript] scripts are deprecated, use [painless] scripts instead");
+
         Context ctx = Context.enter();
         try {
             globalScope = ctx.initStandardObjects(null, true);
@@ -173,6 +176,8 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
 
     @Override
     public ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
+        deprecationLogger.deprecated("[javascript] scripts are deprecated, use [painless] scripts instead");
+
         Context ctx = Context.enter();
         try {
             Scriptable scope = ctx.newObject(globalScope);
@@ -192,6 +197,8 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
 
     @Override
     public SearchScript search(final CompiledScript compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
+        deprecationLogger.deprecated("[javascript] scripts are deprecated, use [painless] scripts instead");
+
         Context ctx = Context.enter();
         try {
             final Scriptable scope = ctx.newObject(globalScope);

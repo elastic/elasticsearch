@@ -25,16 +25,14 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.metrics.CounterMetric;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 @ChannelHandler.Sharable
 public class Netty4OpenChannelsHandler extends ChannelInboundHandlerAdapter implements Releasable {
@@ -43,9 +41,9 @@ public class Netty4OpenChannelsHandler extends ChannelInboundHandlerAdapter impl
     final CounterMetric openChannelsMetric = new CounterMetric();
     final CounterMetric totalChannelsMetric = new CounterMetric();
 
-    final ESLogger logger;
+    final Logger logger;
 
-    public Netty4OpenChannelsHandler(ESLogger logger) {
+    public Netty4OpenChannelsHandler(Logger logger) {
         this.logger = logger;
     }
 

@@ -116,7 +116,9 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -130,7 +132,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
@@ -400,25 +401,22 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             int mutation = 0;
 
             while (true) {
-                boolean expectedException = true;
+                boolean expectException = true;
+
                 BytesStreamOutput out = new BytesStreamOutput();
                 try (
                         XContentGenerator generator = XContentType.JSON.xContent().createGenerator(out);
                         XContentParser parser = XContentHelper.createParser(new BytesArray(query));
                 ) {
-                    // Parse the valid query and inserts a new object level called "newField"
                     int objectIndex = -1;
+                    Deque<String> levels = new LinkedList<>();
 
+                    // Parse the valid query and inserts a new object level called "newField"
                     XContentParser.Token token;
                     while ((token = parser.nextToken()) != null) {
                         if (token == XContentParser.Token.START_OBJECT) {
                             objectIndex++;
-
-                            if (hasArbitraryContent) {
-                                // The query has one or more fields that hold arbitrary content. If the current
-                                // field is one of those, no exception is expected when parsing the mutated query.
-                                expectedException = arbitraryMarkers.contains(parser.currentName()) == false;
-                            }
+                            levels.addLast(parser.currentName());
 
                             if (objectIndex == mutation) {
                                 // We reached the place in the object tree where we want to insert a new object level
@@ -427,27 +425,38 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                                 XContentHelper.copyCurrentStructure(generator, parser);
                                 generator.writeEndObject();
 
+                                if (hasArbitraryContent) {
+                                    // The query has one or more fields that hold arbitrary content. If the current
+                                    // field is one (or a child) of those, no exception is expected when parsing the mutated query.
+                                    for (String marker : arbitraryMarkers) {
+                                        if (levels.contains(marker)) {
+                                            expectException = false;
+                                            break;
+                                        }
+                                    }
+                                }
+
                                 // Jump to next token
                                 continue;
                             }
+                        } else if (token == XContentParser.Token.END_OBJECT) {
+                            levels.removeLast();
                         }
 
                         // We are walking through the object tree, so we can safely copy the current node
                         XContentHelper.copyCurrentEvent(generator, parser);
                     }
 
-                    // Check that the parser consumed all the tokens
-                    assertThat(token, nullValue());
-
-                    if (objectIndex == mutation) {
-                        // We reached the expected insertion point, so next time we'll try one level deeper
-                        mutation++;
-                    } else {
-                        // We did not reached the insertion point, there's no more mutation to try
+                    if (objectIndex < mutation) {
+                        // We did not reach the insertion point, there's no more mutations to try
                         break;
+                    } else {
+                        // We reached the expected insertion point, so next time we'll try one step further
+                        mutation++;
                     }
                 }
-                results.add(new Tuple<>(out.bytes().utf8ToString(), expectedException));
+
+                results.add(new Tuple<>(out.bytes().utf8ToString(), expectException));
             }
         }
         return results;

@@ -59,8 +59,14 @@
 # use our provided JNA always versus the system one
 -Djna.nosys=true
 
-# flag to explicitly tell Netty to not use unsafe
+# flags to keep Netty from being unsafe
 -Dio.netty.noUnsafe=true
+-Dio.netty.noKeySetOptimization=true
+
+# log4j 2
+-Dlog4j.shutdownHookEnabled=false
+-Dlog4j2.disable.jmx=true
+-Dlog4j.skipJansi=true
 
 ## heap dumps
 

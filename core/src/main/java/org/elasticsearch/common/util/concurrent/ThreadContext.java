@@ -269,7 +269,7 @@ public final class ThreadContext implements Closeable, Writeable {
             }
 
             this.requestHeaders = requestHeaders;
-            this.responseHeaders = in.readMapOfLists();
+            this.responseHeaders = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
             this.transientHeaders = Collections.emptyMap();
         }
 
@@ -370,7 +370,7 @@ public final class ThreadContext implements Closeable, Writeable {
                 out.writeString(entry.getValue());
             }
 
-            out.writeMapOfLists(responseHeaders);
+            out.writeMapOfLists(responseHeaders, StreamOutput::writeString, StreamOutput::writeString);
         }
     }
 

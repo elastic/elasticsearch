@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -38,7 +39,6 @@ import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -758,7 +758,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
     /** As of 2.0 we require units for time and byte-sized settings.  This methods adds default units to any cluster settings that don't
      *  specify a unit. */
-    public static MetaData addDefaultUnitsIfNeeded(ESLogger logger, MetaData metaData) {
+    public static MetaData addDefaultUnitsIfNeeded(Logger logger, MetaData metaData) {
         Settings.Builder newPersistentSettings = null;
         for(Map.Entry<String,String> ent : metaData.persistentSettings().getAsMap().entrySet()) {
             String settingName = ent.getKey();

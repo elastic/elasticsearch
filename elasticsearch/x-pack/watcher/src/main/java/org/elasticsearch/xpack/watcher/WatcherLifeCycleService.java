@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ack.AckedRequest;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.watcher.watch.WatchStore;
 
 import java.util.concurrent.CountDownLatch;
 
@@ -119,34 +121,33 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         }
 
         if (!event.localNodeMaster()) {
-            if (watcherService.state() != WatcherState.STARTED) {
-                // to avoid unnecessary forking of threads...
-                return;
+            if (watcherService.state() == WatcherState.STARTED) {
+                // We're no longer the master so we need to stop the watcher.
+                // Stopping the watcher may take a while since it will wait on the scheduler to complete shutdown,
+                // so we fork here so that we don't wait too long. Other events may need to be processed and
+                // other cluster state listeners may need to be executed as well for this event.
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> stop(false));
             }
-
-            // We're no longer the master so we need to stop the watcher.
-            // Stopping the watcher may take a while since it will wait on the scheduler to complete shutdown,
-            // so we fork here so that we don't wait too long. Other events may need to be processed and
-            // other cluster state listeners may need to be executed as well for this event.
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                @Override
-                public void run() {
-                    stop(false);
-                }
-            });
         } else {
-            if (watcherService.state() != WatcherState.STOPPED) {
-                // to avoid unnecessary forking of threads...
-                return;
-            }
+            if (watcherService.state() == WatcherState.STOPPED) {
+                final ClusterState state = event.state();
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> start(state, false));
+            } else {
+                boolean isWatchIndexDeleted = event.indicesDeleted().stream()
+                        .filter(index -> WatchStore.INDEX.equals(index.getName()))
+                        .findAny()
+                        .isPresent();
 
-            final ClusterState state = event.state();
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                @Override
-                public void run() {
-                    start(state, false);
+                boolean isWatchIndexOpenInPreviousClusterState = event.previousState().metaData().hasIndex(WatchStore.INDEX) &&
+                        event.previousState().metaData().index(WatchStore.INDEX).getState() == IndexMetaData.State.OPEN;
+                boolean isWatchIndexClosedInCurrentClusterState = event.state().metaData().hasIndex(WatchStore.INDEX) &&
+                        event.state().metaData().index(WatchStore.INDEX).getState() == IndexMetaData.State.CLOSE;
+                boolean hasWatcherIndexBeenClosed = isWatchIndexOpenInPreviousClusterState && isWatchIndexClosedInCurrentClusterState;
+
+                if (isWatchIndexDeleted || hasWatcherIndexBeenClosed) {
+                    threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> watcherService.watchIndexDeletedOrClosed());
                 }
-            });
+            }
         }
     }
 

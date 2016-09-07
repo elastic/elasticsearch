@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -361,14 +360,14 @@ public class FileRolesStoreTests extends ESTestCase {
 
         assertThat(roles, hasKey("admin"));
 
-        List<String> events = CapturingLogger.output(logger.getName(), Level.WARN);
+        List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
         assertThat(events, notNullValue());
         assertThat(events, hasSize(4));
         // the system role will always be checked first
-        assertThat(events.get(0), containsString("role [_system] is reserved"));
-        assertThat(events.get(1), containsString("role [superuser] is reserved"));
-        assertThat(events.get(2), containsString("role [kibana] is reserved"));
-        assertThat(events.get(3), containsString("role [transport_client] is reserved"));
+        assertThat(events.get(0), containsString("Role [_system] is reserved"));
+        assertThat(events.get(1), containsString("Role [superuser] is reserved"));
+        assertThat(events.get(2), containsString("Role [kibana] is reserved"));
+        assertThat(events.get(3), containsString("Role [transport_client] is reserved"));
     }
 
     public void testUsageStats() throws Exception {

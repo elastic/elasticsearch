@@ -5,11 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
@@ -25,7 +21,6 @@ public abstract class Exporter implements AutoCloseable {
     public static final String EXPORT_PIPELINE_NAME = "xpack_monitoring_" + MonitoringTemplateUtils.TEMPLATE_VERSION;
 
     public static final String INDEX_NAME_TIME_FORMAT_SETTING = "index.name.time_format";
-    public static final String BULK_TIMEOUT_SETTING = "bulk.timeout";
     /**
      * Every {@code Exporter} adds the ingest pipeline to bulk requests, but they should, at the exporter level, allow that to be disabled.
      * <p>
@@ -34,16 +29,11 @@ public abstract class Exporter implements AutoCloseable {
     public static final String USE_INGEST_PIPELINE_SETTING = "use_ingest";
 
     protected final Config config;
-    protected final Logger logger;
-
-    @Nullable protected final TimeValue bulkTimeout;
 
     private AtomicBoolean closed = new AtomicBoolean(false);
 
     public Exporter(Config config) {
         this.config = config;
-        this.logger = config.logger(getClass());
-        this.bulkTimeout = config.settings().getAsTime(BULK_TIMEOUT_SETTING, null);
     }
 
     public String name() {
@@ -82,7 +72,11 @@ public abstract class Exporter implements AutoCloseable {
 
     protected abstract void doClose();
 
-    protected String settingFQN(String setting) {
+    protected static String settingFQN(final Config config) {
+        return MonitoringSettings.EXPORTERS_SETTINGS.getKey() + config.name;
+    }
+
+    protected static String settingFQN(final Config config, final String setting) {
         return MonitoringSettings.EXPORTERS_SETTINGS.getKey() + config.name + "." + setting;
     }
 
@@ -119,13 +113,11 @@ public abstract class Exporter implements AutoCloseable {
         private final String name;
         private final String type;
         private final boolean enabled;
-        private final Settings globalSettings;
         private final Settings settings;
 
-        public Config(String name, String type, Settings globalSettings, Settings settings) {
+        public Config(String name, String type, Settings settings) {
             this.name = name;
             this.type = type;
-            this.globalSettings = globalSettings;
             this.settings = settings;
             this.enabled = settings.getAsBoolean("enabled", true);
         }
@@ -146,9 +138,6 @@ public abstract class Exporter implements AutoCloseable {
             return settings;
         }
 
-        public Logger logger(Class clazz) {
-            return Loggers.getLogger(clazz, globalSettings, name);
-        }
     }
 
     /** A factory for constructing {@link Exporter} instances.*/

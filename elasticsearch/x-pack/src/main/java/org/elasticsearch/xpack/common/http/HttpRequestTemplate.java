@@ -15,11 +15,12 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.common.http.auth.HttpAuth;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
+import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
-import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 
 import java.io.IOException;
@@ -32,8 +33,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 
-/**
- */
 public class HttpRequestTemplate implements ToXContent {
 
     private final Scheme scheme;
@@ -193,10 +192,12 @@ public class HttpRequestTemplate implements ToXContent {
             builder.field(HttpRequest.Field.BODY.getPreferredName(), body, params);
         }
         if (connectionTimeout != null) {
-            builder.field(HttpRequest.Field.CONNECTION_TIMEOUT.getPreferredName(), connectionTimeout);
+            builder.timeValueField(HttpRequest.Field.CONNECTION_TIMEOUT.getPreferredName(),
+                    HttpRequest.Field.CONNECTION_TIMEOUT_HUMAN.getPreferredName(), connectionTimeout);
         }
         if (readTimeout != null) {
-            builder.field(HttpRequest.Field.READ_TIMEOUT.getPreferredName(), readTimeout);
+            builder.timeValueField(HttpRequest.Field.READ_TIMEOUT.getPreferredName(),
+                    HttpRequest.Field.READ_TIMEOUT_HUMAN.getPreferredName(), readTimeout);
         }
         if (proxy != null) {
             proxy.toXContent(builder, params);
@@ -242,6 +243,11 @@ public class HttpRequestTemplate implements ToXContent {
         return result;
     }
 
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
     public static Builder builder(String host, int port) {
         return new Builder(host, port);
     }
@@ -280,6 +286,9 @@ public class HttpRequestTemplate implements ToXContent {
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.URL)) {
                     builder.fromUrl(parser.text());
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.CONNECTION_TIMEOUT)) {
+                    builder.connectionTimeout(TimeValue.timeValueMillis(parser.longValue()));
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.CONNECTION_TIMEOUT_HUMAN)) {
+                    // Users and 2.x specify the timeout this way
                     try {
                         builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser,
                                 HttpRequest.Field.CONNECTION_TIMEOUT.toString()));
@@ -288,6 +297,9 @@ public class HttpRequestTemplate implements ToXContent {
                                 pe, currentFieldName);
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.READ_TIMEOUT)) {
+                    builder.readTimeout(TimeValue.timeValueMillis(parser.longValue()));
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.READ_TIMEOUT_HUMAN)) {
+                    // Users and 2.x specify the timeout this way
                     try {
                         builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, HttpRequest.Field.READ_TIMEOUT.toString()));
                     } catch (ElasticsearchParseException pe) {
@@ -396,11 +408,7 @@ public class HttpRequestTemplate implements ToXContent {
         }
 
         public Builder path(String path) {
-            return path(TextTemplate.inline(path));
-        }
-
-        public Builder path(TextTemplate.Builder path) {
-            return path(path.build());
+            return path(new TextTemplate(path));
         }
 
         public Builder path(TextTemplate path) {
@@ -413,10 +421,6 @@ public class HttpRequestTemplate implements ToXContent {
             return this;
         }
 
-        public Builder putParam(String key, TextTemplate.Builder value) {
-            return putParam(key, value.build());
-        }
-
         public Builder putParam(String key, TextTemplate value) {
             this.params.put(key, value);
             return this;
@@ -425,10 +429,6 @@ public class HttpRequestTemplate implements ToXContent {
         public Builder putHeaders(Map<String, TextTemplate> headers) {
             this.headers.putAll(headers);
             return this;
-        }
-
-        public Builder putHeader(String key, TextTemplate.Builder value) {
-            return putHeader(key, value.build());
         }
 
         public Builder putHeader(String key, TextTemplate value) {
@@ -442,11 +442,7 @@ public class HttpRequestTemplate implements ToXContent {
         }
 
         public Builder body(String body) {
-            return body(TextTemplate.inline(body));
-        }
-
-        public Builder body(TextTemplate.Builder body) {
-            return body(body.build());
+            return body(new TextTemplate(body));
         }
 
         public Builder body(TextTemplate body) {
@@ -454,8 +450,8 @@ public class HttpRequestTemplate implements ToXContent {
             return this;
         }
 
-        public Builder body(XContentBuilder content) {
-            return body(TextTemplate.inline(content));
+        public Builder body(XContentBuilder content) throws IOException {
+            return body(new TextTemplate(content.string(), content.contentType(), ScriptService.ScriptType.INLINE, null));
         }
 
         public Builder connectionTimeout(TimeValue timeout) {
@@ -492,7 +488,7 @@ public class HttpRequestTemplate implements ToXContent {
                 port = uri.getPort() > 0 ? uri.getPort() : scheme.defaultPort();
                 host = uri.getHost();
                 if (Strings.hasLength(uri.getPath())) {
-                    path = TextTemplate.inline(uri.getPath()).build();
+                    path = new TextTemplate(uri.getPath());
                 }
 
                 String rawQuery = uri.getRawQuery();
@@ -500,7 +496,7 @@ public class HttpRequestTemplate implements ToXContent {
                     Map<String, String> stringParams = new HashMap<>();
                     RestUtils.decodeQueryString(rawQuery, 0, stringParams);
                     for (Map.Entry<String, String> entry : stringParams.entrySet()) {
-                        params.put(entry.getKey(), TextTemplate.inline(entry.getValue()).build());
+                        params.put(entry.getKey(), new TextTemplate(entry.getValue()));
                     }
                 }
             } catch (URISyntaxException e) {

@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.ioException;
@@ -183,11 +184,8 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             builder.field(Field.TRANSFORM.getPreferredName()).startObject().field(transform.type(), transform, params).endObject();
         }
         if (throttlePeriod != null) {
-            if (builder.humanReadable()) {
-                builder.field(Field.THROTTLE_PERIOD.getPreferredName(), throttlePeriod.format(PeriodType.seconds()));
-            } else {
-                builder.field(Field.THROTTLE_PERIOD.getPreferredName(), throttlePeriod);
-            }
+            builder.timeValueField(Field.THROTTLE_PERIOD.getPreferredName(),
+                    Field.THROTTLE_PERIOD_HUMAN.getPreferredName(), throttlePeriod);
         }
         builder.field(Field.ACTIONS.getPreferredName(), actions, params);
         if (metadata != null) {
@@ -307,8 +305,11 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TRANSFORM)) {
                     transform = transformRegistry.parse(id, parser);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.THROTTLE_PERIOD)) {
+                    throttlePeriod = timeValueMillis(parser.longValue());
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.THROTTLE_PERIOD_HUMAN)) {
+                    // Parser for human specified and 2.x backwards compatible throttle period
                     try {
-                        throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, Field.THROTTLE_PERIOD.toString());
+                        throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, Field.THROTTLE_PERIOD_HUMAN.toString());
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse watch [{}]. failed to parse time value for field [{}]",
                                 pe, id, currentFieldName);
@@ -360,7 +361,8 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         ParseField CONDITION = new ParseField("condition");
         ParseField ACTIONS = new ParseField("actions");
         ParseField TRANSFORM = new ParseField("transform");
-        ParseField THROTTLE_PERIOD = new ParseField("throttle_period");
+        ParseField THROTTLE_PERIOD = new ParseField("throttle_period_in_millis");
+        ParseField THROTTLE_PERIOD_HUMAN = new ParseField("throttle_period");
         ParseField METADATA = new ParseField("metadata");
         ParseField STATUS = new ParseField("_status");
     }

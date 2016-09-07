@@ -9,11 +9,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.xpack.notification.hipchat.HipChatAccount;
 import org.elasticsearch.xpack.notification.hipchat.HipChatMessage;
 import org.elasticsearch.xpack.notification.hipchat.HipChatService;
 import org.elasticsearch.xpack.notification.hipchat.SentMessages;
+import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
@@ -56,7 +56,7 @@ public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
 
                 // this is for the Watcher Test account in HipChat
                 .put("xpack.notification.hipchat.account.user_account.profile", "user")
-                .put("xpack.notification.hipchat.account.user_account.auth_token", "FYVx16oDH78ZW9r13wtXbcszyoyA7oX5tiMWg9X0")
+                .put("xpack.notification.hipchat.account.user_account.auth_token", "12rNQUuQ0wObfRVeoVD8OeoAnosCT8tSTV5UjsII")
 
                 // this is for the `test-watcher-v1` notification token
                 .put("xpack.notification.hipchat.account.v1_account.profile", "v1")
@@ -99,7 +99,6 @@ public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
         assertSentMessagesAreValid(1, messages);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/3162")
     public void testSendMessageUserAccount() throws Exception {
         HipChatService service = getInstanceFromMaster(HipChatService.class);
         HipChatMessage.Color color = randomFrom(HipChatMessage.Color.values());
@@ -118,7 +117,6 @@ public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
         assertSentMessagesAreValid(3, messages);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/3162")
     public void testWatchWithHipChatAction() throws Exception {
         HipChatAccount.Profile profile = randomFrom(HipChatAccount.Profile.values());
         HipChatMessage.Color color = randomFrom(HipChatMessage.Color.values());
@@ -180,7 +178,6 @@ public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
         assertThat(response.getHits().getTotalHits(), is(1L));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/3162")
     public void testDefaultValuesForColorAndFormatWorks() {
         HipChatService service = getInstanceFromMaster(HipChatService.class);
         HipChatMessage hipChatMessage = new HipChatMessage(

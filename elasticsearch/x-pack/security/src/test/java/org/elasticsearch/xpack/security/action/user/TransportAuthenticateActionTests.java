@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.security.user.XPackUser;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -31,9 +32,9 @@ import static org.mockito.Mockito.when;
 
 public class TransportAuthenticateActionTests extends ESTestCase {
 
-    public void testSystemUser() {
+    public void testInternalUser() {
         SecurityContext securityContext = mock(SecurityContext.class);
-        when(securityContext.getUser()).thenReturn(SystemUser.INSTANCE);
+        when(securityContext.getUser()).thenReturn(randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE));
         TransportAuthenticateAction action = new TransportAuthenticateAction(Settings.EMPTY, mock(ThreadPool.class),
                 mock(TransportService.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
                 securityContext);
@@ -83,7 +84,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
     }
 
     public void testValidUser() {
-        final User user = randomFrom(ElasticUser.INSTANCE, KibanaUser.INSTANCE, new User("joe"));
+        final User user = randomFrom(new ElasticUser(true), new KibanaUser(true), new User("joe"));
         SecurityContext securityContext = mock(SecurityContext.class);
         when(securityContext.getUser()).thenReturn(user);
         TransportAuthenticateAction action = new TransportAuthenticateAction(Settings.EMPTY, mock(ThreadPool.class),

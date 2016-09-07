@@ -17,7 +17,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.security.action.user.DeleteUserRequestBuilder;
 import org.elasticsearch.xpack.security.action.user.DeleteUserResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 
@@ -42,20 +41,16 @@ public class RestDeleteUserAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(RestRequest request, final RestChannel channel, NodeClient client) throws Exception {
-        String username = request.param("username");
-
-        DeleteUserRequestBuilder requestBuilder = new SecurityClient(client).prepareDeleteUser(username);
-        if (request.hasParam("refresh")) {
-            requestBuilder.refresh(request.paramAsBoolean("refresh", true));
-        }
-        requestBuilder.execute(new RestBuilderListener<DeleteUserResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(DeleteUserResponse response, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(response.found() ? RestStatus.OK : RestStatus.NOT_FOUND,
-                        builder.startObject()
-                                .field("found", response.found())
-                                .endObject());
-            }
-        });
+        new SecurityClient(client).prepareDeleteUser(request.param("username"))
+                .setRefreshPolicy(request.param("refresh"))
+                .execute(new RestBuilderListener<DeleteUserResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(DeleteUserResponse response, XContentBuilder builder) throws Exception {
+                        return new BytesRestResponse(response.found() ? RestStatus.OK : RestStatus.NOT_FOUND,
+                                builder.startObject()
+                                        .field("found", response.found())
+                                        .endObject());
+                    }
+                });
     }
 }

@@ -10,6 +10,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
@@ -54,6 +55,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -170,7 +172,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Set<String> excludeTemplates() {
-        return monitoringTemplates().keySet();
+        return monitoringTemplateNames();
     }
 
     @Before
@@ -278,9 +280,17 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    protected Map<String, String> monitoringTemplates() {
+    protected List<Tuple<String, String>> monitoringTemplates() {
         return StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
-                .collect(Collectors.toMap(MonitoringIndexNameResolver::templateName, MonitoringIndexNameResolver::template, (a, b) -> a));
+                .map((resolver) -> new Tuple<>(resolver.templateName(), resolver.template()))
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    protected Set<String> monitoringTemplateNames() {
+        return StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
+                .map(MonitoringIndexNameResolver::templateName)
+                .collect(Collectors.toSet());
     }
 
     protected void assertTemplateInstalled(String name) {
@@ -303,7 +313,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     protected void waitForMonitoringTemplates() throws Exception {
-        assertBusy(() -> monitoringTemplates().keySet().forEach(this::assertTemplateInstalled), 30, TimeUnit.SECONDS);
+        assertBusy(() -> monitoringTemplateNames().forEach(this::assertTemplateInstalled), 30, TimeUnit.SECONDS);
     }
 
     protected void waitForMonitoringIndices() throws Exception {
@@ -519,9 +529,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                 "\n" +
                 "admin:\n" +
                 "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n" +
-                "transport_client:\n" +
-                "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n" +
-                "\n" +
                 "monitor:\n" +
                 "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n"
                 ;

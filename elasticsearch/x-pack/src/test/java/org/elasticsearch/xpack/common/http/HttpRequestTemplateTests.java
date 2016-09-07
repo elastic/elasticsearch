@@ -31,9 +31,6 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-/**
- *
- */
 public class HttpRequestTemplateTests extends ESTestCase {
 
     public void testBodyWithXContent() throws Exception {
@@ -64,10 +61,10 @@ public class HttpRequestTemplateTests extends ESTestCase {
 
     public void testRender() {
         HttpRequestTemplate template = HttpRequestTemplate.builder("_host", 1234)
-                .body(TextTemplate.inline("_body"))
-                .path(TextTemplate.inline("_path"))
-                .putParam("_key1", TextTemplate.inline("_value1"))
-                .putHeader("_key2", TextTemplate.inline("_value2"))
+                .body(new TextTemplate("_body"))
+                .path(new TextTemplate("_path"))
+                .putParam("_key1", new TextTemplate("_value1"))
+                .putHeader("_key2", new TextTemplate("_value2"))
                 .build();
 
         HttpRequest result = template.render(new MockTextTemplateEngine(), Collections.emptyMap());
@@ -117,16 +114,16 @@ public class HttpRequestTemplateTests extends ESTestCase {
             builder.auth(new BasicAuth("_username", "_password".toCharArray()));
         }
         if (randomBoolean()) {
-            builder.putParam("_key", TextTemplate.inline("_value"));
+            builder.putParam("_key", new TextTemplate("_value"));
         }
         if (randomBoolean()) {
-            builder.putHeader("_key", TextTemplate.inline("_value"));
+            builder.putHeader("_key", new TextTemplate("_value"));
         }
-        long connectionTimeout = randomBoolean() ? 0 : randomIntBetween(5, 10);
+        long connectionTimeout = randomBoolean() ? 0 : randomIntBetween(5, 100000);
         if (connectionTimeout > 0) {
             builder.connectionTimeout(TimeValue.timeValueSeconds(connectionTimeout));
         }
-        long readTimeout = randomBoolean() ? 0 : randomIntBetween(5, 10);
+        long readTimeout = randomBoolean() ? 0 : randomIntBetween(5, 100000);
         if (readTimeout > 0) {
             builder.readTimeout(TimeValue.timeValueSeconds(readTimeout));
         }
@@ -146,13 +143,13 @@ public class HttpRequestTemplateTests extends ESTestCase {
         xContentParser.nextToken();
         HttpRequestTemplate parsed = parser.parse(xContentParser);
 
-        assertThat(parsed, equalTo(template));
+        assertEquals(template, parsed);
     }
 
     public void testParsingFromUrl() throws Exception {
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("www.example.org", 1234);
         builder.path("/foo/bar/org");
-        builder.putParam("param", TextTemplate.inline("test"));
+        builder.putParam("param", new TextTemplate("test"));
         builder.scheme(Scheme.HTTPS);
         assertThatManualBuilderEqualsParsingFromUrl("https://www.example.org:1234/foo/bar/org?param=test", builder);
 
@@ -165,7 +162,7 @@ public class HttpRequestTemplateTests extends ESTestCase {
         assertThatManualBuilderEqualsParsingFromUrl("http://www.example.org", builder);
 
         // encoded values
-        builder = HttpRequestTemplate.builder("www.example.org", 80).putParam("foo", TextTemplate.inline(" white space"));
+        builder = HttpRequestTemplate.builder("www.example.org", 80).putParam("foo", new TextTemplate(" white space"));
         assertThatManualBuilderEqualsParsingFromUrl("http://www.example.org?foo=%20white%20space", builder);
     }
 

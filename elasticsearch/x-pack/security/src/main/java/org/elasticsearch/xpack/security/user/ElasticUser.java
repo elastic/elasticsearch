@@ -6,37 +6,18 @@
 package org.elasticsearch.xpack.security.user;
 
 import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
-import org.elasticsearch.xpack.security.user.User.ReservedUser;
+import org.elasticsearch.xpack.security.support.MetadataUtils;
 
 /**
- * The reserved {@code elastic} superuser. As full permission/access to the cluster/indices and can
+ * The reserved {@code elastic} superuser. Has full permission/access to the cluster/indices and can
  * run as any other user.
  */
-public class ElasticUser extends ReservedUser {
+public class ElasticUser extends User {
 
     public static final String NAME = "elastic";
     public static final String ROLE_NAME = SuperuserRole.NAME;
-    public static final ElasticUser INSTANCE = new ElasticUser();
 
-    private ElasticUser() {
-        super(NAME, ROLE_NAME);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        return INSTANCE == o;
-    }
-
-    @Override
-    public int hashCode() {
-        return System.identityHashCode(this);
-    }
-
-    public static boolean is(User user) {
-        return INSTANCE.equals(user);
-    }
-
-    public static boolean is(String principal) {
-        return NAME.equals(principal);
+    public ElasticUser(boolean enabled) {
+        super(NAME, new String[] { ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);
     }
 }

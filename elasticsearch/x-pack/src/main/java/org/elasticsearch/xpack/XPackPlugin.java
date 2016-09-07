@@ -170,7 +170,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
         this.licensing = new Licensing(settings);
         this.security = new Security(settings, env, licenseState, sslService);
-        this.monitoring = new Monitoring(settings, env, licenseState);
+        this.monitoring = new Monitoring(settings, licenseState);
         this.watcher = new Watcher(settings);
         this.graph = new Graph(settings);
         // Check if the node is a transport client.

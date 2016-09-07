@@ -155,7 +155,7 @@ public class IncidentEvent implements ToXContent {
         return builder.endObject();
     }
     public static Template.Builder templateBuilder(String description) {
-        return templateBuilder(TextTemplate.inline(description).build());
+        return templateBuilder(new TextTemplate(description));
     }
 
     public static Template.Builder templateBuilder(TextTemplate description) {

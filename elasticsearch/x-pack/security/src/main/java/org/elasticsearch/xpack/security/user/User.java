@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.support.MetadataUtils;
 
 
@@ -31,40 +30,41 @@ public class User implements ToXContent {
     private final String[] roles;
     private final User runAs;
     private final Map<String, Object> metadata;
+    private final boolean enabled;
 
     @Nullable private final String fullName;
     @Nullable private final String email;
 
     public User(String username, String... roles) {
-        this(username, roles, null, null, null);
+        this(username, roles, null, null, null, true);
     }
 
     public User(String username, String[] roles, User runAs) {
-        this(username, roles, null, null, null, runAs);
+        this(username, roles, null, null, null, true, runAs);
     }
 
-    public User(String username, String[] roles, String fullName, String email, Map<String, Object> metadata) {
+    public User(String username, String[] roles, String fullName, String email, Map<String, Object> metadata, boolean enabled) {
         this.username = username;
         this.roles = roles == null ? Strings.EMPTY_ARRAY : roles;
         this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
         this.fullName = fullName;
         this.email = email;
+        this.enabled = enabled;
         this.runAs = null;
-        verifyNoReservedMetadata(this.metadata);
     }
 
-    public User(String username, String[] roles, String fullName, String email, Map<String, Object> metadata, User runAs) {
+    public User(String username, String[] roles, String fullName, String email, Map<String, Object> metadata, boolean enabled, User runAs) {
         this.username = username;
         this.roles = roles == null ? Strings.EMPTY_ARRAY : roles;
         this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
         this.fullName = fullName;
         this.email = email;
+        this.enabled = enabled;
         assert (runAs == null || runAs.runAs() == null) : "the run_as user should not be a user that can run as";
         if (runAs == SystemUser.INSTANCE) {
             throw new ElasticsearchSecurityException("invalid run_as user");
         }
         this.runAs = runAs;
-        verifyNoReservedMetadata(this.metadata);
     }
 
     /**
@@ -106,6 +106,13 @@ public class User implements ToXContent {
     }
 
     /**
+     * @return whether the user is enabled or not
+     */
+    public boolean enabled() {
+        return enabled;
+    }
+
+    /**
      * @return The user that will be used for run as functionality. If run as
      *         functionality is not being used, then <code>null</code> will be
      *         returned
@@ -133,7 +140,7 @@ public class User implements ToXContent {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o instanceof User == false) return false;
 
         User user = (User) o;
 
@@ -166,46 +173,28 @@ public class User implements ToXContent {
         builder.field(Fields.FULL_NAME.getPreferredName(), fullName());
         builder.field(Fields.EMAIL.getPreferredName(), email());
         builder.field(Fields.METADATA.getPreferredName(), metadata());
+        builder.field(Fields.ENABLED.getPreferredName(), enabled());
         return builder.endObject();
     }
 
-    void verifyNoReservedMetadata(Map<String, Object> metadata) {
-        if (this instanceof ReservedUser) {
-            return;
-        }
-
-        MetadataUtils.verifyNoReservedMetadata(metadata);
-    }
-
     public static User readFrom(StreamInput input) throws IOException {
-        if (input.readBoolean()) {
-            String name = input.readString();
-            if (SystemUser.is(name)) {
+        final boolean isInternalUser = input.readBoolean();
+        final String username = input.readString();
+        if (isInternalUser) {
+            if (SystemUser.is(username)) {
                 return SystemUser.INSTANCE;
-            } else if (XPackUser.is(name)) {
+            } else if (XPackUser.is(username)) {
                 return XPackUser.INSTANCE;
             }
-            User user = ReservedRealm.getUser(name);
-            if (user == null) {
-                throw new IllegalStateException("invalid reserved user");
-            }
-            return user;
+            throw new IllegalStateException("user [" + username + "] is not an internal user");
         }
-        String username = input.readString();
         String[] roles = input.readStringArray();
         Map<String, Object> metadata = input.readMap();
         String fullName = input.readOptionalString();
         String email = input.readOptionalString();
-        if (input.readBoolean()) {
-            String runAsUsername = input.readString();
-            String[] runAsRoles = input.readStringArray();
-            Map<String, Object> runAsMetadata = input.readMap();
-            String runAsFullName = input.readOptionalString();
-            String runAsEmail = input.readOptionalString();
-            User runAs = new User(runAsUsername, runAsRoles, runAsFullName, runAsEmail, runAsMetadata);
-            return new User(username, roles, fullName, email, metadata, runAs);
-        }
-        return new User(username, roles, fullName, email, metadata);
+        boolean enabled = input.readBoolean();
+        User runAs = input.readBoolean() ? readFrom(input) : null;
+        return new User(username, roles, fullName, email, metadata, enabled, runAs);
     }
 
     public static void writeTo(User user, StreamOutput output) throws IOException {
@@ -215,9 +204,6 @@ public class User implements ToXContent {
         } else if (XPackUser.is(user)) {
             output.writeBoolean(true);
             output.writeString(XPackUser.NAME);
-        } else if (ReservedRealm.isReserved(user.principal())) {
-            output.writeBoolean(true);
-            output.writeString(user.principal());
         } else {
             output.writeBoolean(false);
             output.writeString(user.username);
@@ -225,23 +211,13 @@ public class User implements ToXContent {
             output.writeMap(user.metadata);
             output.writeOptionalString(user.fullName);
             output.writeOptionalString(user.email);
+            output.writeBoolean(user.enabled);
             if (user.runAs == null) {
                 output.writeBoolean(false);
             } else {
                 output.writeBoolean(true);
-                output.writeString(user.runAs.username);
-                output.writeStringArray(user.runAs.roles);
-                output.writeMap(user.runAs.metadata);
-                output.writeOptionalString(user.runAs.fullName);
-                output.writeOptionalString(user.runAs.email);
+                writeTo(user.runAs, output);
             }
-        }
-    }
-
-    abstract static class ReservedUser extends User {
-
-        ReservedUser(String username, String... roles) {
-            super(username, roles, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA);
         }
     }
 
@@ -253,5 +229,6 @@ public class User implements ToXContent {
         ParseField FULL_NAME = new ParseField("full_name");
         ParseField EMAIL = new ParseField("email");
         ParseField METADATA = new ParseField("metadata");
+        ParseField ENABLED = new ParseField("enabled");
     }
 }

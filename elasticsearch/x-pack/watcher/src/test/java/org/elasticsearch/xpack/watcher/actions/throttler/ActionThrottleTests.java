@@ -399,8 +399,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         LOGGING {
             @Override
             public Action.Builder action() throws Exception {
-                TextTemplate.Builder templateBuilder = new TextTemplate.Builder.Inline("_logging");
-                return LoggingAction.builder(templateBuilder.build());
+                return LoggingAction.builder(new TextTemplate("_logging"));
             }
 
             @Override

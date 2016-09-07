@@ -12,14 +12,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackInfoResponse;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
-import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.license.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
-import org.junit.After;
-import org.junit.Before;
 
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -39,22 +36,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransportXPackInfoActionTests extends ESTestCase {
-
-    private boolean anonymousEnabled;
-
-    @Before
-    public void maybeEnableAnonymous() {
-        anonymousEnabled = randomBoolean();
-        if (anonymousEnabled) {
-            Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "superuser").build();
-            AnonymousUser.initialize(settings);
-        }
-    }
-
-    @After
-    public void resetAnonymous() {
-        AnonymousUser.initialize(Settings.EMPTY);
-    }
 
     public void testDoExecute() throws Exception {
 

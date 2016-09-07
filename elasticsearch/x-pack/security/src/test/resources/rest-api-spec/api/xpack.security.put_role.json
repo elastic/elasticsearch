@@ -14,8 +14,9 @@
       },
       "params": {
         "refresh": {
-          "type" : "boolean",
-          "description" : "Refresh the index after performing the operation"
+          "type" : "enum",
+          "options": ["true", "false", "wait_for"],
+          "description" : "If `true` (the default) then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
         }
       }
     },

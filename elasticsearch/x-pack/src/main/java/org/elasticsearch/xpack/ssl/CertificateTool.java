@@ -67,6 +67,7 @@ public class CertificateTool extends SettingCommand {
     private static final String DESCRIPTION = "Simplifies certificate creation for use with the Elastic Stack";
     private static final String DEFAULT_CSR_FILE = "csr-bundle.zip";
     private static final String DEFAULT_CERT_FILE = "certificate-bundle.zip";
+    private static final int DEFAULT_DAYS = 3 * 365;
     private static final int FILE_EXTENSION_LENGTH = 4;
     static final int MAX_FILENAME_LENGTH = 255 - FILE_EXTENSION_LENGTH;
     private static final Pattern ALLOWED_FILENAME_CHAR_PATTERN =
@@ -95,6 +96,7 @@ public class CertificateTool extends SettingCommand {
     private final OptionSpec<String> caDnSpec;
     private final OptionSpec<Integer> keysizeSpec;
     private final OptionSpec<String> inputFileSpec;
+    private final OptionSpec<Integer> daysSpec;
 
     CertificateTool() {
         super(DESCRIPTION);
@@ -114,6 +116,8 @@ public class CertificateTool extends SettingCommand {
                 .withRequiredArg();
         keysizeSpec = parser.accepts("keysize", "size in bits of RSA keys").withRequiredArg().ofType(Integer.class);
         inputFileSpec = parser.accepts("in", "file containing details of the instances in yaml format").withRequiredArg();
+        daysSpec =
+                parser.accepts("days", "number of days that the generated certificates are valid").withRequiredArg().ofType(Integer.class);
     }
 
     public static void main(String[] args) throws Exception {
@@ -135,10 +139,11 @@ public class CertificateTool extends SettingCommand {
             final String dn = options.has(caDnSpec) ? caDnSpec.value(options) : AUTO_GEN_CA_DN;
             final boolean prompt = options.has(caPasswordSpec);
             final char[] keyPass = options.hasArgument(caPasswordSpec) ? caPasswordSpec.value(options).toCharArray() : null;
-            CAInfo caInfo =
-                    getCAInfo(terminal, dn, caCertPathSpec.value(options), caKeyPathSpec.value(options), keyPass, prompt, env, keysize);
+            final int days = options.hasArgument(daysSpec) ? daysSpec.value(options) : DEFAULT_DAYS;
+            CAInfo caInfo = getCAInfo(terminal, dn, caCertPathSpec.value(options), caKeyPathSpec.value(options), keyPass, prompt, env,
+                    keysize, days);
             Collection<CertificateInformation> certificateInformations = getCertificateInformationList(terminal, inputFile, env);
-            generateAndWriteSignedCertificates(outputFile, certificateInformations, caInfo, keysize);
+            generateAndWriteSignedCertificates(outputFile, certificateInformations, caInfo, keysize, days);
         }
         printConclusion(terminal, csrOnly, outputFile);
     }
@@ -281,12 +286,15 @@ public class CertificateTool extends SettingCommand {
      * @param dn the distinguished name to use for the CA
      * @param caCertPath the path to the CA certificate or {@code null} if not provided
      * @param caKeyPath the path to the CA private key or {@code null} if not provided
+     * @param prompt whether we should prompt the user for a password
      * @param keyPass the password to the private key. If not present and the key is encrypted the user will be prompted
      * @param env the environment for this tool to resolve files with
+     * @param keysize the size of the key in bits
+     * @param days the number of days that the certificate should be valid for
      * @return CA cert and private key
      */
     static CAInfo getCAInfo(Terminal terminal, String dn, String caCertPath, String caKeyPath, char[] keyPass, boolean prompt,
-                            Environment env, int keysize) throws Exception {
+                            Environment env, int keysize, int days) throws Exception {
         if (caCertPath != null) {
             assert caKeyPath != null;
             Certificate[] certificates = CertUtils.readCertificates(Collections.singletonList(caCertPath), env);
@@ -302,7 +310,7 @@ public class CertificateTool extends SettingCommand {
         // generate the CA keys and cert
         X500Principal x500Principal = new X500Principal(dn);
         KeyPair keyPair = CertUtils.generateKeyPair(keysize);
-        Certificate caCert = CertUtils.generateCACertificate(x500Principal, keyPair);
+        Certificate caCert = CertUtils.generateCACertificate(x500Principal, keyPair, days);
         final char[] password;
         if (prompt) {
             password = terminal.readSecret("Enter password for CA private key: ");
@@ -317,9 +325,11 @@ public class CertificateTool extends SettingCommand {
      * @param outputFile the file that the certificates will be written to. This file must not exist
      * @param certificateInformations details for creation of the certificates
      * @param caInfo the CA information to sign the certificates with
+     * @param keysize the size of the key in bits
+     * @param days the number of days that the certificate should be valid for
      */
     static void generateAndWriteSignedCertificates(Path outputFile, Collection<CertificateInformation> certificateInformations,
-                                                   CAInfo caInfo, int keysize) throws Exception {
+                                                   CAInfo caInfo, int keysize, int days) throws Exception {
         fullyWriteFile(outputFile, (outputStream, pemWriter) -> {
             // write out the CA info first if it was generated
             writeCAInfoIfGenerated(outputStream, pemWriter, caInfo);
@@ -328,7 +338,7 @@ public class CertificateTool extends SettingCommand {
                 KeyPair keyPair = CertUtils.generateKeyPair(keysize);
                 Certificate certificate = CertUtils.generateSignedCertificate(certificateInformation.name.x500Principal,
                         getSubjectAlternativeNamesValue(certificateInformation.ipAddresses, certificateInformation.dnsNames),
-                        keyPair, caInfo.caCert, caInfo.privateKey);
+                        keyPair, caInfo.caCert, caInfo.privateKey, days);
 
                 final String dirName = certificateInformation.name.filename + "/";
                 ZipEntry zipEntry = new ZipEntry(dirName);

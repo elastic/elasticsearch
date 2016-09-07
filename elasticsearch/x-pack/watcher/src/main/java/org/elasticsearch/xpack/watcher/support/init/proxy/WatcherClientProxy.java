@@ -24,11 +24,10 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.common.init.proxy.ClientProxy;
+import org.elasticsearch.xpack.security.InternalClient;
 
 /**
  * A lazily initialized proxy to an elasticsearch {@link Client}. Inject this proxy whenever a client
@@ -107,8 +106,8 @@ public class WatcherClientProxy extends ClientProxy {
         return client.admin().indices().refresh(preProcess(request)).actionGet(defaultSearchTimeout);
     }
 
-    public PutIndexTemplateResponse putTemplate(PutIndexTemplateRequest request) {
+    public void putTemplate(PutIndexTemplateRequest request, ActionListener<PutIndexTemplateResponse> listener) {
         preProcess(request);
-        return client.admin().indices().putTemplate(request).actionGet(defaultIndexTimeout);
+        client.admin().indices().putTemplate(request, listener);
     }
 }

@@ -25,7 +25,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
     public void testProcessor() throws Exception {
         User user = new User("_username", new String[]{"role1", "role2"}, "firstname lastname", "_email",
-                Collections.singletonMap("key", "value"));
+                Collections.singletonMap("key", "value"), true);
         Authentication.RealmRef realmRef = new Authentication.RealmRef("_name", "_type", "_node_name");
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.putTransient(Authentication.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
@@ -100,7 +100,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
     public void testFullNameProperties() throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        User user = new User(null, null, "_full_name", null, null);
+        User user = new User(null, null, "_full_name", null, null, true);
         Authentication.RealmRef realmRef = new Authentication.RealmRef("_name", "_type", "_node_name");
         threadContext.putTransient(Authentication.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
 
@@ -116,7 +116,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
     public void testEmailProperties() throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        User user = new User(null, null, null, "_email", null);
+        User user = new User(null, null, null, "_email", null, true);
         Authentication.RealmRef realmRef = new Authentication.RealmRef("_name", "_type", "_node_name");
         threadContext.putTransient(Authentication.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
 
@@ -132,7 +132,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
     public void testMetadataProperties() throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        User user = new User(null, null, null, null, Collections.singletonMap("key", "value"));
+        User user = new User(null, null, null, null, Collections.singletonMap("key", "value"), true);
         Authentication.RealmRef realmRef = new Authentication.RealmRef("_name", "_type", "_node_name");
         threadContext.putTransient(Authentication.AUTHENTICATION_KEY, new Authentication(user, realmRef, null));
 

@@ -17,11 +17,11 @@ public class MockTextTemplateEngine extends TextTemplateEngine {
     }
 
     @Override
-    public String render(TextTemplate template, Map<String, Object> model) {
-        if (template == null ) {
+    public String render(TextTemplate textTemplate, Map<String, Object> model) {
+        if (textTemplate == null ) {
             return null;
         }
 
-        return template.getTemplate();
+        return textTemplate.getTemplate();
     }
 }

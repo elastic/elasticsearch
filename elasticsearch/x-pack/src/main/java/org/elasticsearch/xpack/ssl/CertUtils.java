@@ -264,16 +264,16 @@ public class CertUtils {
     /**
      * Generates a CA certificate
      */
-    static X509Certificate generateCACertificate(X500Principal x500Principal, KeyPair keyPair) throws Exception {
-        return generateSignedCertificate(x500Principal, null, keyPair, null, null, true);
+    static X509Certificate generateCACertificate(X500Principal x500Principal, KeyPair keyPair, int days) throws Exception {
+        return generateSignedCertificate(x500Principal, null, keyPair, null, null, true, days);
     }
 
     /**
      * Generates a signed certificate using the provided CA private key and information from the CA certificate
      */
     static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
-                                                     X509Certificate caCert, PrivateKey caPrivKey) throws Exception {
-        return generateSignedCertificate(principal, subjectAltNames, keyPair, caCert, caPrivKey, false);
+                                                     X509Certificate caCert, PrivateKey caPrivKey, int days) throws Exception {
+        return generateSignedCertificate(principal, subjectAltNames, keyPair, caCert, caPrivKey, false, days);
     }
 
     /**
@@ -289,9 +289,15 @@ public class CertUtils {
      * @throws Exception if an error occurs during the certificate creation
      */
     private static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
-                                                     X509Certificate caCert, PrivateKey caPrivKey, boolean isCa) throws Exception {
+                                                     X509Certificate caCert, PrivateKey caPrivKey, boolean isCa
+
+            , int days) throws
+            Exception {
         final DateTime notBefore = new DateTime(DateTimeZone.UTC);
-        final DateTime notAfter = notBefore.plusYears(1);
+        if (days < 1) {
+            throw new IllegalArgumentException("the certificate must be valid for at least one day");
+        }
+        final DateTime notAfter = notBefore.plusDays(days);
         final BigInteger serial = CertUtils.getSerial();
         JcaX509ExtensionUtils extUtils = new JcaX509ExtensionUtils();
 

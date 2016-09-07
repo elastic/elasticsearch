@@ -13,10 +13,13 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.XPackFeatureSet;
+import org.elasticsearch.xpack.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.collector.AbstractCollector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
@@ -60,25 +63,17 @@ public class ClusterStatsCollector extends AbstractCollector {
 
     @Override
     protected Collection<MonitoringDoc> doCollect() throws Exception {
-        List<MonitoringDoc> results = new ArrayList<>(1);
+        final Supplier<ClusterStatsResponse> clusterStatsSupplier =
+                () -> client.admin().cluster().prepareClusterStats().get(monitoringSettings.clusterStatsTimeout());
+        final Supplier<List<XPackFeatureSet.Usage>> usageSupplier = () -> new XPackUsageRequestBuilder(client).get().getUsages();
 
-        // Retrieves cluster stats
-        ClusterStatsResponse clusterStats = null;
-        try {
-            clusterStats = client.admin().cluster().prepareClusterStats().get(monitoringSettings.clusterStatsTimeout());
-        } catch (ElasticsearchSecurityException e) {
-            if (LicenseUtils.isLicenseExpiredException(e)) {
-                logger.trace(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                                "collector [{}] - unable to collect data because of expired license", name()), e);
-            } else {
-                throw e;
-            }
-        }
+        final ClusterStatsResponse clusterStats = clusterStatsSupplier.get();
 
-        long timestamp = System.currentTimeMillis();
-        String clusterUUID = clusterUUID();
-        DiscoveryNode sourceNode = localNode();
+        final long timestamp = System.currentTimeMillis();
+        final String clusterUUID = clusterUUID();
+        final DiscoveryNode sourceNode = localNode();
+
+        final List<MonitoringDoc> results = new ArrayList<>(1);
 
         // Adds a cluster info document
         ClusterInfoMonitoringDoc clusterInfoDoc = new ClusterInfoMonitoringDoc(monitoringId(), monitoringVersion());
@@ -89,6 +84,7 @@ public class ClusterStatsCollector extends AbstractCollector {
         clusterInfoDoc.setVersion(Version.CURRENT.toString());
         clusterInfoDoc.setLicense(licenseService.getLicense());
         clusterInfoDoc.setClusterStats(clusterStats);
+        clusterInfoDoc.setUsage(collect(usageSupplier));
         results.add(clusterInfoDoc);
 
         // Adds a cluster stats document
@@ -103,4 +99,21 @@ public class ClusterStatsCollector extends AbstractCollector {
 
         return Collections.unmodifiableCollection(results);
     }
+
+    @Nullable
+    private <T> T collect(final Supplier<T> supplier) {
+        try {
+            return supplier.get();
+        } catch (ElasticsearchSecurityException e) {
+            if (LicenseUtils.isLicenseExpiredException(e)) {
+                logger.trace((Supplier<?>) () -> new ParameterizedMessage(
+                                "collector [{}] - unable to collect data because of expired license", name()), e);
+            } else {
+                throw e;
+            }
+        }
+
+        return null;
+    }
+
 }

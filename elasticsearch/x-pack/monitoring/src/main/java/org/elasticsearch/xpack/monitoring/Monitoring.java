@@ -12,7 +12,6 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,15 +62,13 @@ public class Monitoring implements ActionPlugin {
     public static final String NAME = "monitoring";
 
     private final Settings settings;
-    private final Environment env;
     private final XPackLicenseState licenseState;
     private final boolean enabled;
     private final boolean transportClientMode;
     private final boolean tribeNode;
 
-    public Monitoring(Settings settings, Environment env, XPackLicenseState licenseState) {
+    public Monitoring(Settings settings, XPackLicenseState licenseState) {
         this.settings = settings;
-        this.env = env;
         this.licenseState = licenseState;
         this.enabled = XPackSettings.MONITORING_ENABLED.get(settings);
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
@@ -107,10 +104,10 @@ public class Monitoring implements ActionPlugin {
         final MonitoringSettings monitoringSettings = new MonitoringSettings(settings, clusterSettings);
         final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool, licenseState);
 
-        // TODO do exporters and their ssl config really need to be dynamic? https://github.com/elastic/x-plugins/issues/3117
+        // TODO: https://github.com/elastic/x-plugins/issues/3117 (remove dynamic need with static exporters)
         final SSLService dynamicSSLService = sslService.createDynamicSSLService();
         Map<String, Exporter.Factory> exporterFactories = new HashMap<>();
-        exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, env, dynamicSSLService));
+        exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, dynamicSSLService));
         exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, clusterService, cleanerService));
         final Exporters exporters = new Exporters(settings, exporterFactories, clusterService);
 

@@ -175,7 +175,7 @@ public class UsersToolTests extends CommandTestCase {
 
     public void testParseInvalidUsername() throws Exception {
         UserException e = expectThrows(UserException.class, () -> {
-            UsersTool.parseUsername(Collections.singletonList("$34dkl"));
+            UsersTool.parseUsername(Collections.singletonList("$34dkl"), Settings.EMPTY);
         });
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("Invalid username"));
@@ -183,7 +183,7 @@ public class UsersToolTests extends CommandTestCase {
 
     public void testParseUsernameMissing() throws Exception {
         UserException e = expectThrows(UserException.class, () -> {
-           UsersTool.parseUsername(Collections.emptyList());
+           UsersTool.parseUsername(Collections.emptyList(), Settings.EMPTY);
         });
         assertEquals(ExitCodes.USAGE, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("Missing username argument"));
@@ -191,7 +191,7 @@ public class UsersToolTests extends CommandTestCase {
 
     public void testParseUsernameExtraArgs() throws Exception {
         UserException e = expectThrows(UserException.class, () -> {
-            UsersTool.parseUsername(Arrays.asList("username", "extra"));
+            UsersTool.parseUsername(Arrays.asList("username", "extra"), Settings.EMPTY);
         });
         assertEquals(ExitCodes.USAGE, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("Expected a single username argument"));

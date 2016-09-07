@@ -16,7 +16,7 @@
 # Creates indices with old versions of elasticsearch. These indices are used by x-pack plugins like security
 # to test if the import of metadata that is stored in elasticsearch indexes works correctly.
 # This tool will start a node on port 9200/9300. If a node is already running on that port then the script will fail.
-# Currently this script can only deal with versions >=2.3X and < 5.0. Needs more work for versions before or after.
+# Currently this script can only deal with versions >=2.0.0 and < 5.0. Needs more work for versions before or after.
 #
 # Run from x-plugins root directory like so:
 # python3 ./elasticsearch/x-dev-tools/create_bwc_indexes.py 2.3.4
@@ -50,6 +50,7 @@ try:
   from elasticsearch import Elasticsearch
   from elasticsearch.exceptions import ConnectionError
   from elasticsearch.exceptions import TransportError
+  from elasticsearch.exceptions import NotFoundError
   from elasticsearch.client import IndicesClient
 except ImportError as e:
   print('Can\'t import elasticsearch please install `sudo pip3 install elasticsearch`')
@@ -80,7 +81,10 @@ def start_node(version, release_dir, data_dir):
   return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 def install_plugin(version, release_dir, plugin_name):
-  run_plugin(version, release_dir, 'install', [plugin_name])
+  args = [plugin_name]
+  if parse_version(version) >= parse_version('2.2.0'):
+    args = [plugin_name, '--batch']
+  run_plugin(version, release_dir, 'install', args)
 
 def remove_plugin(version, release_dir, plugin_name):
   run_plugin(version, release_dir, 'remove', [plugin_name])
@@ -96,9 +100,8 @@ def create_client():
       client = Elasticsearch([{'host': 'localhost', 'port': 9200, 'http_auth':'es_admin:0123456789'}])
       health = client.cluster.health(wait_for_nodes=1)
       return client
-    except Exception as e:
-      logging.info('got exception while waiting for cluster' + str(e))
-      pass
+    except ConnectionError:
+      logging.info('Not started yet...')
     time.sleep(1)
   assert False, 'Timed out waiting for node for %s seconds' % timeout
 
@@ -113,10 +116,16 @@ def generate_security_index(client, version):
            "roles" : [ "bwc_test_role" ]
          }
 
-  response = requests.put('http://localhost:9200/_shield/user/bwc_test_user', auth=('es_admin', '0123456789'), data=json.dumps(body))
-  logging.info('put user reponse: ' + response.text)
-  if (response.status_code != 200) :
+  while True:
+    response = requests.put('http://localhost:9200/_shield/user/bwc_test_user', auth=('es_admin', '0123456789'), data=json.dumps(body))
+    logging.info('put user reponse: ' + response.text)
+    if response.status_code == 200:
+      break
+    else:
+      if 'service has not been started' in response.text:
+        continue
       raise Exception('PUT http://localhost:9200/_shield/role/bwc_test_role did not succeed!')
+
 
   # add a role
   body = {
@@ -153,6 +162,154 @@ def generate_security_index(client, version):
   logging.info('Waiting for yellow')
   health = client.cluster.health(wait_for_status='yellow', wait_for_relocating_shards=0, index='.security')
   assert health['timed_out'] == False, 'cluster health timed out %s' % health
+
+# this adds a couple of watches and waits for the the watch_history to accumulate some results
+def generate_watcher_index(client, version):
+  logging.info('Adding a watch')
+  body = {
+    "trigger" : {
+      "schedule": {
+        "interval": "1s"
+      }
+    },
+    "input" : {
+      "search" : {
+        "timeout": "100s",
+        "request" : {
+          "indices" : [ ".watches" ],
+          "body" : {
+            "query" : { "match_all" : {}},
+            "size": 1
+          },
+        }
+      }
+    },
+    "condition" : {
+      "always" : {}
+    },
+    "throttle_period": "1s",
+    "actions" : {
+      "index_payload" : {
+        "transform" : {
+          "search" : {
+            "request" : {
+              "body" : { "size": 1, "query" : { "match_all" : {} }}
+            },
+            "timeout": "100s"
+          }
+        },
+        "index" : {
+          "index" : "bwc_watch_index",
+          "doc_type" : "bwc_watch_type",
+          "timeout": "100s"
+        }
+      }
+    }
+  }
+  response = requests.put('http://localhost:9200/_watcher/watch/bwc_watch', auth=('es_admin', '0123456789'), data=json.dumps(body))
+  logging.info('PUT watch response: ' + response.text)
+  if (response.status_code != 201) :
+      raise Exception('PUT http://localhost:9200/_watcher/watch/bwc_watch did not succeed!')
+
+  logging.info('Adding a watch with "fun" throttle periods')
+  body = {
+    "trigger" : {
+      "schedule": {
+        "interval": "1s"
+      }
+    },
+    "condition" : {
+      "never" : {}
+    },
+    "throttle_period": "100s",
+    "actions" : {
+      "index_payload" : {
+        "throttle_period": "100s",
+        "transform" : {
+          "search" : {
+            "request" : {
+              "body" : { "size": 1, "query" : { "match_all" : {} }}
+            }
+          }
+        },
+        "index" : {
+          "index" : "bwc_watch_index",
+          "doc_type" : "bwc_watch_type"
+        }
+      }
+    }
+  }
+  response = requests.put('http://localhost:9200/_watcher/watch/bwc_throttle_period', auth=('es_admin', '0123456789'), data=json.dumps(body))
+  logging.info('PUT watch response: ' + response.text)
+  if (response.status_code != 201) :
+      raise Exception('PUT http://localhost:9200/_watcher/watch/bwc_throttle_period did not succeed!')
+
+  if parse_version(version) < parse_version('2.3.0'):
+    logging.info('Skipping watch with a funny read timeout because email attachement is not supported by this version')
+  else:
+    logging.info('Adding a watch with a funny read timeout')
+    body = {
+      "trigger" : {
+        "schedule": {
+          "interval": "100s"
+        }
+      },
+      "condition": {
+        "never": {}
+      },
+      "actions": {
+        "work": {
+          "email": {
+            "to": "email@domain.com",
+            "subject": "Test Kibana PDF report",
+            "attachments": {
+              "test_report.pdf": {
+                "http": {
+                  "content_type": "application/pdf",
+                  "request": {
+                    "read_timeout": "100s",
+                    "scheme": "https",
+                    "host": "example.com",
+                    "path":"{{ctx.metadata.report_url}}",
+                    "port": 8443,
+                    "auth": {
+                      "basic": {
+                        "username": "Aladdin",
+                        "password": "open sesame"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    response = requests.put('http://localhost:9200/_watcher/watch/bwc_funny_timeout', auth=('es_admin', '0123456789'), data=json.dumps(body))
+    logging.info('PUT watch response: ' + response.text)
+    if (response.status_code != 201) :
+        raise Exception('PUT http://localhost:9200/_watcher/watch/bwc_funny_timeout did not succeed!')
+
+  # wait to accumulate some watches
+  logging.info('Waiting for watch results index to fill up...')
+  for attempt in range(1, 31):
+    try:
+      response = client.search(index="bwc_watch_index", body={"query": {"match_all": {}}})
+      logging.info('(' + str(attempt) + ') Got ' + str(response['hits']['total']) + ' hits and want 10...')
+      if response['hits']['total'] >= 10:
+        break
+    except NotFoundError:
+      logging.info('(' + str(attempt) + ') Not found, retrying')
+    time.sleep(1)
+
+  health = client.cluster.health(wait_for_status='yellow', wait_for_relocating_shards=0, index='.watches')
+  assert health['timed_out'] == False, 'cluster health timed out %s' % health
+  health = client.cluster.health(wait_for_status='yellow', wait_for_relocating_shards=0, index='.watch_history*')
+  assert health['timed_out'] == False, 'cluster health timed out %s' % health
+  health = client.cluster.health(wait_for_status='yellow', wait_for_relocating_shards=0, index='bwc_watch_index')
+  assert health['timed_out'] == False, 'cluster health timed out %s' % health
+
 
 def compress_index(version, tmp_dir, output_dir):
   compress(tmp_dir, output_dir, 'x-pack-%s.zip' % version, 'data')
@@ -232,50 +389,52 @@ def main():
   logging.getLogger('urllib3').setLevel(logging.WARN)
   cfg = parse_config()
   for version in cfg.versions:
-    if parse_version(version) < parse_version('2.3.0'):
-      logging.info('version is ' + version + ' but shield supports native realm oly from 2.3.0 on. nothing to do.')
-      continue
-    else:
-      logging.info('--> Creating x-pack index for %s' % version)
+    logging.info('--> Creating x-pack index for %s' % version)
 
-      # setup for starting nodes
-      release_dir = os.path.join(cfg.releases_dir, 'elasticsearch-%s' % version)
-      if not os.path.exists(release_dir):
-        raise RuntimeError('ES version %s does not exist in %s' % (version, cfg.releases_dir))
-      tmp_dir = tempfile.mkdtemp()
-      data_dir = os.path.join(tmp_dir, 'data')
-      logging.info('Temp data dir: %s' % data_dir)
-      node = None
+    # setup for starting nodes
+    release_dir = os.path.join(cfg.releases_dir, 'elasticsearch-%s' % version)
+    if not os.path.exists(release_dir):
+      raise RuntimeError('ES version %s does not exist in %s' % (version, cfg.releases_dir))
+    tmp_dir = tempfile.mkdtemp()
+    data_dir = os.path.join(tmp_dir, 'data')
+    logging.info('Temp data dir: %s' % data_dir)
+    node = None
 
-      try:
+    try:
 
-        # install plugins
-        remove_plugin(version, release_dir, 'license')
-        remove_plugin(version, release_dir, 'shield')
-        # remove the shield config too before fresh install
-        run('rm -rf %s' %(os.path.join(release_dir, 'config/shield')))
-        install_plugin(version, release_dir, 'license')
-        install_plugin(version, release_dir, 'shield')
-        # here we could also install watcher etc
+      # install plugins
+      remove_plugin(version, release_dir, 'license')
+      remove_plugin(version, release_dir, 'shield')
+      remove_plugin(version, release_dir, 'watcher')
+      # remove the shield config too before fresh install
+      run('rm -rf %s' %(os.path.join(release_dir, 'config/shield')))
+      install_plugin(version, release_dir, 'license')
+      install_plugin(version, release_dir, 'shield')
+      install_plugin(version, release_dir, 'watcher')
+      # here we could also install watcher etc
 
-        # create admin
-        run('%s  useradd es_admin -r admin -p 0123456789' %(os.path.join(release_dir, 'bin/shield/esusers')))
-        node = start_node(version, release_dir, data_dir)
+      # create admin
+      run('%s  useradd es_admin -r admin -p 0123456789' %(os.path.join(release_dir, 'bin/shield/esusers')))
+      node = start_node(version, release_dir, data_dir)
 
-        # create a client that authenticates as es_admin
-        client = create_client()
+      # create a client that authenticates as es_admin
+      client = create_client()
+      if parse_version(version) < parse_version('2.3.0'):
+        logging.info('Version is ' + version + ' but shield supports native realm oly from 2.3.0 on. Nothing to do for Shield.')
+      else:
         generate_security_index(client, version)
-        # here we could also add watches, monitoring etc
+      generate_watcher_index(client, version)
+      # here we could also add watches, monitoring etc
 
+      shutdown_node(node)
+      node = None
+      compress_index(version, tmp_dir, cfg.output_dir)
+    finally:
+
+      if node is not None:
+        # This only happens if we've hit an exception:
         shutdown_node(node)
-        node = None
-        compress_index(version, tmp_dir, cfg.output_dir)
-      finally:
-
-        if node is not None:
-          # This only happens if we've hit an exception:
-          shutdown_node(node)
-        shutil.rmtree(tmp_dir)
+      shutil.rmtree(tmp_dir)
 
 if __name__ == '__main__':
   try:

@@ -5,9 +5,17 @@
  */
 package org.elasticsearch.xpack.ssl;
 
+import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.concurrent.FutureCallback;
+import org.apache.http.conn.ssl.DefaultHostnameVerifier;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -15,10 +23,14 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackSettings;
+
+import org.mockito.ArgumentCaptor;
 import org.junit.Before;
 
+import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import java.nio.file.Path;
@@ -30,11 +42,16 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SSLServiceTests extends ESTestCase {
 
@@ -283,6 +300,43 @@ public class SSLServiceTests extends ESTestCase {
         }
     }
 
+    public void testSSLStrategy() {
+        // this just exhaustively verifies that the right things are called and that it uses the right parameters
+        Settings settings = Settings.builder().build();
+        SSLService sslService = mock(SSLService.class);
+        SSLConfiguration sslConfig = mock(SSLConfiguration.class);
+        SSLParameters sslParameters = mock(SSLParameters.class);
+        SSLContext sslContext = mock(SSLContext.class);
+        String[] protocols = new String[] { "protocols" };
+        String[] ciphers = new String[] { "ciphers!!!" };
+        String[] supportedCiphers = new String[] { "supported ciphers" };
+        List<String> requestedCiphers = new ArrayList<>(0);
+        VerificationMode mode = randomFrom(VerificationMode.values());
+        ArgumentCaptor<HostnameVerifier> verifier = ArgumentCaptor.forClass(HostnameVerifier.class);
+        SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
+
+        when(sslService.sslConfiguration(settings)).thenReturn(sslConfig);
+        when(sslService.sslContext(sslConfig)).thenReturn(sslContext);
+        when(sslService.supportedCiphers(supportedCiphers, requestedCiphers, false)).thenReturn(ciphers);
+        when(sslService.sslParameters(sslContext)).thenReturn(sslParameters);
+        when(sslParameters.getCipherSuites()).thenReturn(supportedCiphers);
+        when(sslConfig.supportedProtocols()).thenReturn(Arrays.asList(protocols));
+        when(sslConfig.cipherSuites()).thenReturn(requestedCiphers);
+        when(sslConfig.verificationMode()).thenReturn(mode);
+        when(sslService.sslIOSessionStrategy(eq(sslContext), eq(protocols), eq(ciphers), verifier.capture())).thenReturn(sslStrategy);
+
+        // ensure it actually goes through and calls the real method
+        when(sslService.sslIOSessionStrategy(settings)).thenCallRealMethod();
+
+        assertThat(sslService.sslIOSessionStrategy(settings), sameInstance(sslStrategy));
+
+        if (mode.isHostnameVerificationEnabled()) {
+            assertThat(verifier.getValue(), instanceOf(DefaultHostnameVerifier.class));
+        } else {
+            assertThat(verifier.getValue(), sameInstance(NoopHostnameVerifier.INSTANCE));
+        }
+    }
+
     @Network
     public void testThatSSLContextWithoutSettingsWorks() throws Exception {
         SSLService sslService = new SSLService(Settings.EMPTY, env);
@@ -291,7 +345,7 @@ public class SSLServiceTests extends ESTestCase {
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
             // This will result in a SSLHandshakeException if the SSLContext does not trust the CA, but the default
             // truststore trusts all common public CAs so the handshake will succeed
-            client.execute(new HttpGet("https://www.elastic.co/"));
+            client.execute(new HttpGet("https://www.elastic.co/")).close();
         }
     }
 
@@ -308,4 +362,55 @@ public class SSLServiceTests extends ESTestCase {
             client.execute(new HttpGet("https://www.elastic.co/")).close();
         }
     }
+
+    @Network
+    public void testThatSSLIOSessionStrategyWithoutSettingsWorks() throws Exception {
+        SSLService sslService = new SSLService(Settings.EMPTY, env);
+        SSLIOSessionStrategy sslStrategy = sslService.sslIOSessionStrategy(Settings.EMPTY);
+        try (CloseableHttpAsyncClient client = HttpAsyncClientBuilder.create().setSSLStrategy(sslStrategy).build()) {
+            client.start();
+
+            // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
+            // This will result in a SSLHandshakeException if the SSLContext does not trust the CA, but the default
+            // truststore trusts all common public CAs so the handshake will succeed
+            client.execute(new HttpHost("elastic.co", 80, "https"), new HttpGet("/"), new AssertionCallback());
+        }
+    }
+
+    @Network
+    public void testThatSSLIOSessionStrategytTrustsJDKTrustedCAs() throws Exception {
+        Settings settings = Settings.builder()
+                .put("xpack.ssl.keystore.path", testclientStore)
+                .put("xpack.ssl.keystore.password", "testclient")
+                .build();
+        SSLIOSessionStrategy sslStrategy = new SSLService(settings, env).sslIOSessionStrategy(Settings.EMPTY);
+        try (CloseableHttpAsyncClient client = HttpAsyncClientBuilder.create().setSSLStrategy(sslStrategy).build()) {
+            client.start();
+
+            // Execute a GET on a site known to have a valid certificate signed by a trusted public CA which will succeed because the JDK
+            // certs are trusted by default
+            client.execute(new HttpHost("elastic.co", 80, "https"), new HttpGet("/"), new AssertionCallback());
+        }
+    }
+
+    class AssertionCallback implements FutureCallback<HttpResponse> {
+
+        @Override
+        public void completed(HttpResponse result) {
+            assertThat(result.getStatusLine().getStatusCode(), lessThan(300));
+        }
+
+        @Override
+        public void failed(Exception ex) {
+            logger.error(ex);
+
+            fail(ex.toString());
+        }
+
+        @Override
+        public void cancelled() {
+            fail("The request was cancelled for some reason");
+        }
+    }
+
 }

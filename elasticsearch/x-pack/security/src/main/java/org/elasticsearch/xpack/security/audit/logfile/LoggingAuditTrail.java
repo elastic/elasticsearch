@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authz.privilege.SystemPrivilege;
@@ -32,11 +33,27 @@ import org.elasticsearch.xpack.security.user.XPackUser;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_DENIED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_GRANTED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.ANONYMOUS_ACCESS_DENIED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.AUTHENTICATION_FAILED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.REALM_AUTHENTICATION_FAILED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.CONNECTION_DENIED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.CONNECTION_GRANTED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.RUN_AS_DENIED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.RUN_AS_GRANTED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.SYSTEM_ACCESS_GRANTED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.TAMPERED_REQUEST;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.indices;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestContent;
 
@@ -52,10 +69,28 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail {
             Setting.boolSetting(setting("audit.logfile.prefix.emit_node_host_name"), false, Property.NodeScope);
     public static final Setting<Boolean> NODE_NAME_SETTING =
             Setting.boolSetting(setting("audit.logfile.prefix.emit_node_name"), true, Property.NodeScope);
+    private static final List<String> DEFAULT_EVENT_INCLUDES = Arrays.asList(
+            ACCESS_DENIED.toString(),
+            ACCESS_GRANTED.toString(),
+            ANONYMOUS_ACCESS_DENIED.toString(),
+            AUTHENTICATION_FAILED.toString(),
+            CONNECTION_DENIED.toString(),
+            TAMPERED_REQUEST.toString(),
+            RUN_AS_DENIED.toString(),
+            RUN_AS_GRANTED.toString()
+    );
+    private static final Setting<List<String>> INCLUDE_EVENT_SETTINGS =
+            Setting.listSetting(setting("audit.logfile.events.include"), DEFAULT_EVENT_INCLUDES, Function.identity(), Property.NodeScope);
+    private static final Setting<List<String>> EXCLUDE_EVENT_SETTINGS =
+            Setting.listSetting(setting("audit.logfile.events.exclude"), Collections.emptyList(), Function.identity(), Property.NodeScope);
+    private static final Setting<Boolean> INCLUDE_REQUEST_BODY =
+            Setting.boolSetting(setting("audit.logfile.events.emit_request_body"), false, Property.NodeScope);
 
     private final Logger logger;
     private final ClusterService clusterService;
     private final ThreadContext threadContext;
+    private final EnumSet<AuditLevel> events;
+    private final boolean includeRequestBody;
 
     private String prefix;
 
@@ -73,6 +108,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail {
         this.logger = logger;
         this.clusterService = clusterService;
         this.threadContext = threadContext;
+        this.events = parse(INCLUDE_EVENT_SETTINGS.get(settings), EXCLUDE_EVENT_SETTINGS.get(settings));
+        this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);
     }
 
     private String getPrefix() {
@@ -84,300 +121,240 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail {
 
     @Override
     public void anonymousAccessDenied(String action, TransportMessage message) {
-        String indices = indicesString(message);
-        if (indices != null) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [anonymous_access_denied]\t{}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), action, indices,
+        if (events.contains(ANONYMOUS_ACCESS_DENIED)) {
+            String indices = indicesString(message);
+            if (indices != null) {
+                logger.info("{}[transport] [anonymous_access_denied]\t{}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
+                        originAttributes(message, clusterService.localNode(), threadContext), action, indices,
                         message.getClass().getSimpleName());
             } else {
-                logger.warn("{}[transport] [anonymous_access_denied]\t{}, action=[{}], indices=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), action, indices);
-            }
-        } else {
-            if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [anonymous_access_denied]\t{}, action=[{}], request=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), action, message.getClass().getSimpleName());
-            } else {
-                logger.warn("{}[transport] [anonymous_access_denied]\t{}, action=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), action);
+                logger.info("{}[transport] [anonymous_access_denied]\t{}, action=[{}], request=[{}]", getPrefix(),
+                        originAttributes(message, clusterService.localNode(), threadContext), action, message.getClass().getSimpleName());
             }
         }
     }
 
     @Override
     public void anonymousAccessDenied(RestRequest request) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("{}[rest] [anonymous_access_denied]\t{}, uri=[{}], request_body=[{}]", getPrefix(),
-                hostAttributes(request), request.uri(), restRequestContent(request));
-        } else {
-            logger.warn("{}[rest] [anonymous_access_denied]\t{}, uri=[{}]", getPrefix(), hostAttributes(request), request.uri());
+        if (events.contains(ANONYMOUS_ACCESS_DENIED)) {
+            if (includeRequestBody) {
+                logger.info("{}[rest] [anonymous_access_denied]\t{}, uri=[{}], request_body=[{}]", getPrefix(),
+                        hostAttributes(request), request.uri(), restRequestContent(request));
+            } else {
+                logger.info("{}[rest] [anonymous_access_denied]\t{}, uri=[{}]", getPrefix(), hostAttributes(request), request.uri());
+            }
         }
     }
 
     @Override
     public void authenticationFailed(AuthenticationToken token, String action, TransportMessage message) {
-        String indices = indicesString(message);
-        if (indices != null) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], indices=[{}], request=[{}]",
+        if (events.contains(AUTHENTICATION_FAILED)) {
+            String indices = indicesString(message);
+            if (indices != null) {
+                logger.info("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], indices=[{}], request=[{}]",
                         getPrefix(), originAttributes(message, clusterService.localNode(), threadContext), token.principal(),
-                                                 action, indices, message.getClass().getSimpleName());
+                        action, indices, message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], indices=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), token.principal(), action, indices);
-            }
-        } else {
-            if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], request=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), token.principal(), action,
+                logger.info("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], request=[{}]", getPrefix(),
+                        originAttributes(message, clusterService.localNode(), threadContext), token.principal(), action,
                         message.getClass().getSimpleName());
-            } else {
-                logger.error("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), token.principal(), action);
             }
+
         }
     }
 
     @Override
     public void authenticationFailed(RestRequest request) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("{}[rest] [authentication_failed]\t{}, uri=[{}], request_body=[{}]", getPrefix(), hostAttributes(request),
-                request.uri(), restRequestContent(request));
-        } else {
-            logger.error("{}[rest] [authentication_failed]\t{}, uri=[{}]", getPrefix(), hostAttributes(request), request.uri());
+        if (events.contains(AUTHENTICATION_FAILED)) {
+            if (includeRequestBody) {
+                logger.info("{}[rest] [authentication_failed]\t{}, uri=[{}], request_body=[{}]", getPrefix(), hostAttributes(request),
+                        request.uri(), restRequestContent(request));
+            } else {
+                logger.info("{}[rest] [authentication_failed]\t{}, uri=[{}]", getPrefix(), hostAttributes(request), request.uri());
+            }
         }
     }
 
     @Override
     public void authenticationFailed(String action, TransportMessage message) {
-        String indices = indicesString(message);
-        if (indices != null) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [authentication_failed]\t{}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), action, indices,
+        if (events.contains(AUTHENTICATION_FAILED)) {
+            String indices = indicesString(message);
+            if (indices != null) {
+                logger.info("{}[transport] [authentication_failed]\t{}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
+                        originAttributes(message, clusterService.localNode(), threadContext), action, indices,
                         message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [authentication_failed]\t{}, action=[{}], indices=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), action, indices);
-            }
-        } else {
-            if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [authentication_failed]\t{}, action=[{}], request=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), action, message.getClass().getSimpleName());
-            } else {
-                logger.error("{}[transport] [authentication_failed]\t{}, action=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), action);
+                logger.info("{}[transport] [authentication_failed]\t{}, action=[{}], request=[{}]", getPrefix(),
+                        originAttributes(message, clusterService.localNode(), threadContext), action, message.getClass().getSimpleName());
             }
         }
     }
 
     @Override
     public void authenticationFailed(AuthenticationToken token, RestRequest request) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("{}[rest] [authentication_failed]\t{}, principal=[{}], uri=[{}], request_body=[{}]", getPrefix(),
-                hostAttributes(request), token.principal(), request.uri(), restRequestContent(request));
-        } else {
-            logger.error("{}[rest] [authentication_failed]\t{}, principal=[{}], uri=[{}]", getPrefix(), hostAttributes(request),
-                token.principal(), request.uri());
+        if (events.contains(AUTHENTICATION_FAILED)) {
+            if (includeRequestBody) {
+                logger.info("{}[rest] [authentication_failed]\t{}, principal=[{}], uri=[{}], request_body=[{}]", getPrefix(),
+                        hostAttributes(request), token.principal(), request.uri(), restRequestContent(request));
+            } else {
+                logger.info("{}[rest] [authentication_failed]\t{}, principal=[{}], uri=[{}]", getPrefix(), hostAttributes(request),
+                        token.principal(), request.uri());
+            }
         }
     }
 
     @Override
     public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage message) {
-        if (logger.isTraceEnabled()) {
+        if (events.contains(REALM_AUTHENTICATION_FAILED)) {
             String indices = indicesString(message);
             if (indices != null) {
-                logger.trace("{}[transport] [authentication_failed]\trealm=[{}], {}, principal=[{}], action=[{}], indices=[{}], " +
-                    "request=[{}]", getPrefix(), realm, originAttributes(message, clusterService.localNode(), threadContext),
-                    token.principal(), action, indices, message.getClass().getSimpleName());
+                logger.info("{}[transport] [realm_authentication_failed]\trealm=[{}], {}, principal=[{}], action=[{}], indices=[{}], " +
+                                "request=[{}]", getPrefix(), realm, originAttributes(message, clusterService.localNode(), threadContext),
+                        token.principal(), action, indices, message.getClass().getSimpleName());
             } else {
-                logger.trace("{}[transport] [authentication_failed]\trealm=[{}], {}, principal=[{}], action=[{}], request=[{}]",
-                    getPrefix(), realm, originAttributes(message, clusterService.localNode(), threadContext), token.principal(),
-                    action, message.getClass().getSimpleName());
+                logger.info("{}[transport] [realm_authentication_failed]\trealm=[{}], {}, principal=[{}], action=[{}], request=[{}]",
+                        getPrefix(), realm, originAttributes(message, clusterService.localNode(), threadContext), token.principal(),
+                        action, message.getClass().getSimpleName());
             }
         }
     }
 
     @Override
     public void authenticationFailed(String realm, AuthenticationToken token, RestRequest request) {
-        if (logger.isTraceEnabled()) {
-            logger.trace("{}[rest] [authentication_failed]\trealm=[{}], {}, principal=[{}], uri=[{}], request_body=[{}]", getPrefix(),
-                realm, hostAttributes(request), token.principal(), request.uri(), restRequestContent(request));
+        if (events.contains(REALM_AUTHENTICATION_FAILED)) {
+            if (includeRequestBody) {
+                logger.info("{}[rest] [realm_authentication_failed]\trealm=[{}], {}, principal=[{}], uri=[{}], request_body=[{}]",
+                        getPrefix(), realm, hostAttributes(request), token.principal(), request.uri(), restRequestContent(request));
+            } else {
+                logger.info("{}[rest] [realm_authentication_failed]\trealm=[{}], {}, principal=[{}], uri=[{}]", getPrefix(),
+                        realm, hostAttributes(request), token.principal(), request.uri());
+            }
         }
     }
 
     @Override
     public void accessGranted(User user, String action, TransportMessage message) {
-        String indices = indicesString(message);
-
-        // special treatment for internal system actions - only log on trace
-        if ((SystemUser.is(user) && SystemPrivilege.INSTANCE.predicate().test(action)) || XPackUser.is(user)) {
-            if (logger.isTraceEnabled()) {
-                if (indices != null) {
-                    logger.trace("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
+        final boolean isSystem = (SystemUser.is(user) && SystemPrivilege.INSTANCE.predicate().test(action)) || XPackUser.is(user);
+        final boolean logSystemAccessGranted = isSystem && events.contains(SYSTEM_ACCESS_GRANTED);
+        final boolean shouldLog = logSystemAccessGranted || (isSystem == false && events.contains(ACCESS_GRANTED));
+        if (shouldLog) {
+            String indices = indicesString(message);
+            if (indices != null) {
+                logger.info("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
                         originAttributes(message, clusterService.localNode(), threadContext), principal(user), action, indices,
-                            message.getClass().getSimpleName());
-                } else {
-                    logger.trace("{}[transport] [access_granted]\t{}, {}, action=[{}], request=[{}]", getPrefix(),
+                        message.getClass().getSimpleName());
+            } else {
+                logger.info("{}[transport] [access_granted]\t{}, {}, action=[{}], request=[{}]", getPrefix(),
                         originAttributes(message, clusterService.localNode(), threadContext), principal(user), action,
-                            message.getClass().getSimpleName());
-                }
-            }
-            return;
-        }
-
-        if (indices != null) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), principal(user), action, indices,
                         message.getClass().getSimpleName());
-            } else {
-                logger.info("{}[transport] [access_granted]\t{}, {}, action=[{}], indices=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), principal(user), action, indices);
-            }
-        } else {
-            if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [access_granted]\t{}, {}, action=[{}], request=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), principal(user), action,
-                        message.getClass().getSimpleName());
-            } else {
-                logger.info("{}[transport] [access_granted]\t{}, {}, action=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), principal(user), action);
             }
         }
     }
 
     @Override
     public void accessDenied(User user, String action, TransportMessage message) {
-        String indices = indicesString(message);
-        if (indices != null) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [access_denied]\t{}, {}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), principal(user), action, indices,
+        if (events.contains(ACCESS_DENIED)) {
+            String indices = indicesString(message);
+            if (indices != null) {
+                logger.info("{}[transport] [access_denied]\t{}, {}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
+                        originAttributes(message, clusterService.localNode(), threadContext), principal(user), action, indices,
                         message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [access_denied]\t{}, {}, action=[{}], indices=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), principal(user), action, indices);
-            }
-        } else {
-            if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [access_denied]\t{}, {}, action=[{}], request=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), principal(user), action,
+                logger.info("{}[transport] [access_denied]\t{}, {}, action=[{}], request=[{}]", getPrefix(),
+                        originAttributes(message, clusterService.localNode(), threadContext), principal(user), action,
                         message.getClass().getSimpleName());
-            } else {
-                logger.error("{}[transport] [access_denied]\t{}, {}, action=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), principal(user), action);
             }
         }
     }
 
     @Override
     public void tamperedRequest(RestRequest request) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("{}[rest] [tampered_request]\t{}, uri=[{}], request_body=[{}]", getPrefix(), hostAttributes(request),
-                request.uri(), restRequestContent(request));
-        } else {
-            logger.error("{}[rest] [tampered_request]\t{}, uri=[{}]", getPrefix(), hostAttributes(request), request.uri());
+        if (events.contains(TAMPERED_REQUEST)) {
+            if (includeRequestBody) {
+                logger.info("{}[rest] [tampered_request]\t{}, uri=[{}], request_body=[{}]", getPrefix(), hostAttributes(request),
+                        request.uri(), restRequestContent(request));
+            } else {
+                logger.info("{}[rest] [tampered_request]\t{}, uri=[{}]", getPrefix(), hostAttributes(request), request.uri());
+            }
         }
     }
 
     @Override
     public void tamperedRequest(String action, TransportMessage message) {
-        String indices = indicesString(message);
-        if (indices != null) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [tampered_request]\t{}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), action, indices,
+        if (events.contains(TAMPERED_REQUEST)) {
+            String indices = indicesString(message);
+            if (indices != null) {
+                logger.info("{}[transport] [tampered_request]\t{}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
+                        originAttributes(message, clusterService.localNode(), threadContext), action, indices,
                         message.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [tampered_request]\t{}, action=[{}], indices=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), action, indices);
-            }
-        } else {
-            if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [tampered_request]\t{}, action=[{}], request=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), action,
+                logger.info("{}[transport] [tampered_request]\t{}, action=[{}], request=[{}]", getPrefix(),
+                        originAttributes(message, clusterService.localNode(), threadContext), action,
                         message.getClass().getSimpleName());
-            } else {
-                logger.error("{}[transport] [tampered_request]\t{}, action=[{}]", getPrefix(),
-                    originAttributes(message, clusterService.localNode(), threadContext), action);
             }
         }
     }
 
     @Override
     public void tamperedRequest(User user, String action, TransportMessage request) {
-        String indices = indicesString(request);
-        if (indices != null) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [tampered_request]\t{}, {}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
-                    originAttributes(request, clusterService.localNode(), threadContext), principal(user), action, indices,
+        if (events.contains(TAMPERED_REQUEST)) {
+            String indices = indicesString(request);
+            if (indices != null) {
+                logger.info("{}[transport] [tampered_request]\t{}, {}, action=[{}], indices=[{}], request=[{}]", getPrefix(),
+                        originAttributes(request, clusterService.localNode(), threadContext), principal(user), action, indices,
                         request.getClass().getSimpleName());
             } else {
-                logger.error("{}[transport] [tampered_request]\t{}, {}, action=[{}], indices=[{}]", getPrefix(),
-                    originAttributes(request, clusterService.localNode(), threadContext), principal(user), action, indices);
-            }
-        } else {
-            if (logger.isDebugEnabled()) {
-                logger.debug("{}[transport] [tampered_request]\t{}, {}, action=[{}], request=[{}]", getPrefix(),
-                    originAttributes(request, clusterService.localNode(), threadContext), principal(user), action,
+                logger.info("{}[transport] [tampered_request]\t{}, {}, action=[{}], request=[{}]", getPrefix(),
+                        originAttributes(request, clusterService.localNode(), threadContext), principal(user), action,
                         request.getClass().getSimpleName());
-            } else {
-                logger.error("{}[transport] [tampered_request]\t{}, {}, action=[{}]", getPrefix(),
-                    originAttributes(request, clusterService.localNode(), threadContext), principal(user), action);
             }
         }
     }
 
     @Override
     public void connectionGranted(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {
-        if (logger.isTraceEnabled()) {
-            logger.trace("{}[ip_filter] [connection_granted]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", getPrefix(),
+        if (events.contains(CONNECTION_GRANTED)) {
+            logger.info("{}[ip_filter] [connection_granted]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", getPrefix(),
                     NetworkAddress.format(inetAddress), profile, rule);
         }
     }
 
     @Override
     public void connectionDenied(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {
-        logger.error("{}[ip_filter] [connection_denied]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", getPrefix(),
-                NetworkAddress.format(inetAddress), profile, rule);
+        if (events.contains(CONNECTION_DENIED)) {
+            logger.info("{}[ip_filter] [connection_denied]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", getPrefix(),
+                    NetworkAddress.format(inetAddress), profile, rule);
+        }
     }
 
     @Override
     public void runAsGranted(User user, String action, TransportMessage message) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("{}[transport] [run_as_granted]\t{}, principal=[{}], run_as_principal=[{}], action=[{}], request=[{}]",
+        if (events.contains(RUN_AS_GRANTED)) {
+            logger.info("{}[transport] [run_as_granted]\t{}, principal=[{}], run_as_principal=[{}], action=[{}], request=[{}]",
                 getPrefix(), originAttributes(message, clusterService.localNode(), threadContext), user.principal(),
                     user.runAs().principal(), action, message.getClass().getSimpleName());
-        } else {
-            logger.info("{}[transport] [run_as_granted]\t{}, principal=[{}], run_as_principal=[{}], action=[{}]", getPrefix(),
-                originAttributes(message, clusterService.localNode(), threadContext), user.principal(),
-                    user.runAs().principal(), action);
         }
     }
 
     @Override
     public void runAsDenied(User user, String action, TransportMessage message) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("{}[transport] [run_as_denied]\t{}, principal=[{}], run_as_principal=[{}], action=[{}], request=[{}]",
+        if (events.contains(RUN_AS_DENIED)) {
+            logger.info("{}[transport] [run_as_denied]\t{}, principal=[{}], run_as_principal=[{}], action=[{}], request=[{}]",
                 getPrefix(), originAttributes(message, clusterService.localNode(), threadContext), user.principal(),
                     user.runAs().principal(), action, message.getClass().getSimpleName());
-        } else {
-            logger.info("{}[transport] [run_as_denied]\t{}, principal=[{}], run_as_principal=[{}], action=[{}]", getPrefix(),
-                originAttributes(message, clusterService.localNode(), threadContext), user.principal(),
-                    user.runAs().principal(), action);
         }
     }
 
     @Override
     public void runAsDenied(User user, RestRequest request) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("{}[rest] [run_as_denied]\t{}, principal=[{}], uri=[{}], request_body=[{}]", getPrefix(),
+        if (events.contains(RUN_AS_DENIED)) {
+            if (includeRequestBody) {
+                logger.info("{}[rest] [run_as_denied]\t{}, principal=[{}], uri=[{}], request_body=[{}]", getPrefix(),
                     hostAttributes(request), user.principal(), request.uri(), restRequestContent(request));
-        } else {
-            logger.info("{}[transport] [run_as_denied]\t{}, principal=[{}], uri=[{}]", getPrefix(),
-                    hostAttributes(request), user.principal(), request.uri());
+            } else {
+                logger.info("{}[rest] [run_as_denied]\t{}, principal=[{}], uri=[{}]", getPrefix(),
+                        hostAttributes(request), user.principal(), request.uri());
+            }
         }
     }
 
@@ -465,5 +442,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail {
         settings.add(HOST_ADDRESS_SETTING);
         settings.add(HOST_NAME_SETTING);
         settings.add(NODE_NAME_SETTING);
+        settings.add(INCLUDE_EVENT_SETTINGS);
+        settings.add(EXCLUDE_EVENT_SETTINGS);
+        settings.add(INCLUDE_REQUEST_BODY);
     }
 }

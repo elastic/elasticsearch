@@ -32,9 +32,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 public class UserAccountTests extends ESTestCase {
 
     public void testSettings() throws Exception {
@@ -258,8 +255,8 @@ public class UserAccountTests extends ESTestCase {
                 .build();
         UserAccount userAccount = createUserAccount(settings);
 
-        TextTemplate body = TextTemplate.inline("body").build();
-        TextTemplate[] rooms = new TextTemplate[] { TextTemplate.inline("room").build() };
+        TextTemplate body = new TextTemplate("body");
+        TextTemplate[] rooms = new TextTemplate[] { new TextTemplate("room")};
         HipChatMessage.Template template = new HipChatMessage.Template(body, rooms, null, "sender", HipChatMessage.Format.TEXT, null, true);
 
         HipChatMessage message = userAccount.render("watchId", "actionId", new MockTextTemplateEngine(), template, new HashMap<>());
@@ -273,10 +270,10 @@ public class UserAccountTests extends ESTestCase {
                 .build();
         UserAccount userAccount = createUserAccount(settings);
 
-        TextTemplate body = TextTemplate.inline("body").build();
-        TextTemplate[] rooms = new TextTemplate[] { TextTemplate.inline("room").build() };
+        TextTemplate body = new TextTemplate("body");
+        TextTemplate[] rooms = new TextTemplate[] { new TextTemplate("room") };
         HipChatMessage.Template template = new HipChatMessage.Template(body, rooms, null, "sender", null,
-                TextTemplate.inline("yellow").build(), true);
+                new TextTemplate("yellow"), true);
 
         HipChatMessage message = userAccount.render("watchId", "actionId", new MockTextTemplateEngine(), template, new HashMap<>());
         assertThat(message.format, is(nullValue()));

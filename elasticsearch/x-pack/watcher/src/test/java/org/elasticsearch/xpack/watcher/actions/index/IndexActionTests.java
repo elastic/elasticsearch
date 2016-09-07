@@ -18,7 +18,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.common.init.proxy.ClientProxy;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.Action.Result.Status;
@@ -49,8 +48,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.joda.time.DateTimeZone.UTC;
 
-/**
- */
 public class IndexActionTests extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -191,7 +188,7 @@ public class IndexActionTests extends ESIntegTestCase {
         }
         TimeValue writeTimeout = randomBoolean() ? TimeValue.timeValueSeconds(randomInt(10)) : null;
         if (writeTimeout != null) {
-            builder.field(IndexAction.Field.TIMEOUT.getPreferredName(), writeTimeout);
+            builder.field(IndexAction.Field.TIMEOUT.getPreferredName(), writeTimeout.millis());
         }
         builder.endObject();
         Client client = client();

@@ -24,7 +24,6 @@ import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -74,7 +73,7 @@ import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.SecurityTemplateService.securityIndexMappingAndTemplateUpToDate;
 
 /**
- * ESNativeRolesStore is a {@code RolesStore} that, instead of reading from a
+ * NativeRolesStore is a {@code RolesStore} that, instead of reading from a
  * file, reads from an Elasticsearch index instead. Unlike the file-based roles
  * store, ESNativeRolesStore can be used to add a role to the store by inserting
  * the document into the administrative index.
@@ -264,7 +263,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
         try {
             DeleteRequest request = client.prepareDelete(SecurityTemplateService.SECURITY_INDEX_NAME,
                     ROLE_DOC_TYPE, deleteRoleRequest.name()).request();
-            request.setRefreshPolicy(deleteRoleRequest.refresh() ? RefreshPolicy.IMMEDIATE : RefreshPolicy.WAIT_UNTIL);
+            request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
             client.delete(request, new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {

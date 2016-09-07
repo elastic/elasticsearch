@@ -69,10 +69,6 @@ public interface FetchSubPhase {
             return searcher.getIndexReader();
         }
 
-        public IndexSearcher topLevelSearcher() {
-            return searcher;
-        }
-
         public Map<String, Object> cache() {
             if (cache == null) {
                 cache = new HashMap<>();

@@ -22,9 +22,7 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Counter;
-import org.apache.lucene.util.RefCount;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -43,7 +41,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -54,6 +51,8 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseContext;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
@@ -225,6 +224,10 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract FetchSourceContext fetchSourceContext();
 
     public abstract SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext);
+
+    public abstract DocValueFieldsContext docValueFieldsContext();
+
+    public abstract SearchContext docValueFieldsContext(DocValueFieldsContext docValueFieldsContext);
 
     public abstract ContextIndexSearcher searcher();
 

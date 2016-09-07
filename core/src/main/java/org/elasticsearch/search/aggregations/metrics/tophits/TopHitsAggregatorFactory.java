@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
-import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -29,9 +28,8 @@ import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.DocValueField;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SubSearchContext;
@@ -98,12 +96,7 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
             subSearchContext.storedFieldsContext(storedFieldsContext);
         }
         if (docValueFields != null) {
-            DocValueFieldsContext docValueFieldsContext = subSearchContext
-                    .getFetchSubPhaseContext(DocValueFieldsFetchSubPhase.CONTEXT_FACTORY);
-            for (String field : docValueFields) {
-                docValueFieldsContext.add(new DocValueField(field));
-            }
-            docValueFieldsContext.setHitExecutionNeeded(true);
+            subSearchContext.docValueFieldsContext(new DocValueFieldsContext(docValueFields));
         }
         if (scriptFields != null) {
             for (ScriptField field : scriptFields) {

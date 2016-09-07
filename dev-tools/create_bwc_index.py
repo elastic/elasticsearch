@@ -60,11 +60,16 @@ def assert_sort(hits):
 # and randomly runs refresh, optimize and flush commands
 def index_documents(es, index_name, type, num_docs, supports_dots_in_field_names):
   logging.info('Indexing %s docs' % num_docs)
+  index(es, index_name, type, num_docs, supports_dots_in_field_names, True)
+  logging.info('Flushing index')
+  es.indices.flush(index=index_name)
+
+def index(es, index_name, type, num_docs, supports_dots_in_field_names, flush=False):
   for id in range(0, num_docs):
     body = {'string': str(random.randint(0, 100)),
-          'long_sort': random.randint(0, 100),
-          'double_sort' : float(random.randint(0, 100)),
-          'bool' : random.choice([True, False])}
+            'long_sort': random.randint(0, 100),
+            'double_sort' : float(random.randint(0, 100)),
+            'bool' : random.choice([True, False])}
     if supports_dots_in_field_names:
       body['field.with.dots'] = str(random.randint(0, 100))
 
@@ -72,10 +77,13 @@ def index_documents(es, index_name, type, num_docs, supports_dots_in_field_names
 
     if rarely():
       es.indices.refresh(index=index_name)
-    if rarely():
+    if rarely() and flush:
       es.indices.flush(index=index_name, force=frequently())
-  logging.info('Flushing index')
-  es.indices.flush(index=index_name)
+
+def reindex_docs(es, index_name, type, num_docs, supports_dots_in_field_names):
+  logging.info('Re-indexing %s docs' % num_docs)
+  # reindex some docs after the flush such that we have something in the translog
+  index(es, index_name, type, num_docs, supports_dots_in_field_names)
 
 def delete_by_query(es, version, index_name, doc_type):
 
@@ -343,6 +351,7 @@ def generate_index(client, version, index_name):
   index_documents(client, index_name, 'doc', num_docs, supports_dots_in_field_names)
   logging.info('Running basic asserts on the data added')
   run_basic_asserts(client, index_name, 'doc', num_docs)
+  return num_docs, supports_dots_in_field_names
 
 def snapshot_index(client, version, repo_dir):
   persistent = {
@@ -452,7 +461,7 @@ def create_bwc_index(cfg, version):
     node = start_node(version, release_dir, data_dir, repo_dir, cfg.tcp_port, cfg.http_port)
     client = create_client(cfg.http_port)
     index_name = 'index-%s' % version.lower()
-    generate_index(client, version, index_name)
+    num_docs, supports_dots_in_field_names = generate_index(client, version, index_name)
     if snapshot_supported:
       snapshot_index(client, version, repo_dir)
 
@@ -461,6 +470,7 @@ def create_bwc_index(cfg, version):
     # will already have the deletions applied on upgrade.
     if version.startswith('0.') or version.startswith('1.'):
       delete_by_query(client, version, index_name, 'doc')
+    reindex_docs(client, index_name, 'doc', min(100, num_docs), supports_dots_in_field_names)
 
     shutdown_node(node)
     node = None
@@ -478,7 +488,7 @@ def create_bwc_index(cfg, version):
 
 def shutdown_node(node):
   logging.info('Shutting down node with pid %d', node.pid)
-  node.terminate()
+  node.kill() # don't use terminate otherwise we flush the translog
   node.wait()
 
 def parse_version(version):

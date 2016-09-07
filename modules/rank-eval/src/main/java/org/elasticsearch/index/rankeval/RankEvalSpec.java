@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
@@ -27,7 +28,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -52,7 +52,7 @@ import java.util.Map;
  * */
 
 public class RankEvalSpec extends ToXContentToBytes implements Writeable {
-    private static final ESLogger logger = Loggers.getLogger(RankEvalSpec.class);
+    private static final Logger logger = Loggers.getLogger(ExceptionsHelper.class);
 
     /** Collection of query specifications, that is e.g. search request templates to use for query translation. */
     private Collection<QuerySpec> specifications = new ArrayList<>();
@@ -165,7 +165,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     public static RankEvalSpec parse(XContentParser parser, RankEvalContext context, boolean templated) throws IOException {
         RankEvalSpec spec = PARSER.parse(parser, context);
 
-        logger.error("{}", spec.toString());
+        logger.trace("request received: {}", spec.toString());
         if (templated) {
             String template = spec.getTemplate();
             for (QuerySpec query_spec : spec.getSpecifications()) {
@@ -186,19 +186,12 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
                     if (resolvedRequest != null) {
                         SearchSourceBuilder templateResult = 
                                 SearchSourceBuilder.fromXContent(parseContext, context.getAggs(), context.getSuggesters());
-                        if (templateResult == null) {
-                            throw new ParsingException(42, 42, "something else wrong " + template, null);// TODO
-                        }
                         query_spec.setTestRequest(templateResult);
-                    } else {
-                        throw new ParsingException(42, 42, "something went wrong " + template, null); // TODO
                     }
-                } catch (Exception ex) {
-                    throw new ParsingException(42, 42, "something yet went wrong " + template, ex);// TODO
                 }
             }
         }
-        logger.error("{}", spec.toString());
+        logger.trace("request received after parsing and potentially applying template: {}", spec.toString());
         return spec; 
     }
 

@@ -19,13 +19,14 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,7 +38,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 
 /**
  * Defines a QA specification: All end user supplied query intents will be mapped to the search request specified in this search request
@@ -46,7 +46,7 @@ import java.util.Map.Entry;
  * The resulting document lists can then be compared against what was specified in the set of rated documents as part of a QAQuery.
  * */
 public class QuerySpec extends ToXContentToBytes implements Writeable {
-    private static final ESLogger logger = Loggers.getLogger(QuerySpec.class);
+    private static final Logger logger = Loggers.getLogger(ExceptionsHelper.class);
 
     private String specId;
     private SearchSourceBuilder testRequest;

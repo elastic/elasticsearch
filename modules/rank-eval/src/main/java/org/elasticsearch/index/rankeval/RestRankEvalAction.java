@@ -19,11 +19,12 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -162,7 +163,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
  * */
 public class RestRankEvalAction extends BaseRestHandler {
-    private static final ESLogger logger = Loggers.getLogger(RestRankEvalAction.class);
+    private static final Logger logger = Loggers.getLogger(ExceptionsHelper.class);
 
     private SearchRequestParsers searchRequestParsers;
     private ScriptService scriptService;
@@ -213,10 +214,13 @@ public class RestRankEvalAction extends BaseRestHandler {
         List<String> indices = Arrays.asList(Strings.splitStringByCommaToArray(request.param("index")));
         List<String> types = Arrays.asList(Strings.splitStringByCommaToArray(request.param("type")));
         RankEvalSpec spec = null;
-        logger.error("received rank eval request");
-        if (request.hasParam("template")) {
+        logger.trace("received rank eval request");
+        logger.trace(request.path());
+        if (request.path().contains("template")) {
+            logger.trace("rank eval request is templated");
             spec = RankEvalSpec.parse(context.parser(), context, true);
         } else {
+            logger.trace("rank eval request is not templated");
             spec = RankEvalSpec.parse(context.parser(), context, false);
         }
         for (QuerySpec specification : spec.getSpecifications()) {

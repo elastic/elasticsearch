@@ -30,6 +30,7 @@ import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -166,7 +167,7 @@ public class HttpRequest implements ToXContent {
                     HttpRequest.Field.READ_TIMEOUT_HUMAN.getPreferredName(), readTimeout);
         }
         if (proxy != null) {
-            builder.field(Field.PROXY.getPreferredName(), proxy);
+            proxy.toXContent(builder, params);
         }
         return builder.endObject();
     }
@@ -195,19 +196,7 @@ public class HttpRequest implements ToXContent {
 
     @Override
     public int hashCode() {
-        int result = host.hashCode();
-        result = 31 * result + port;
-        result = 31 * result + scheme.hashCode();
-        result = 31 * result + method.hashCode();
-        result = 31 * result + (path != null ? path.hashCode() : 0);
-        result = 31 * result + params.hashCode();
-        result = 31 * result + headers.hashCode();
-        result = 31 * result + (auth != null ? auth.hashCode() : 0);
-        result = 31 * result + (connectionTimeout != null ? connectionTimeout.hashCode() : 0);
-        result = 31 * result + (readTimeout != null ? readTimeout.hashCode() : 0);
-        result = 31 * result + (body != null ? body.hashCode() : 0);
-        result = 31 * result + (proxy != null ? proxy.hashCode() : 0);
-        return result;
+        return Objects.hash(host, port, scheme, method, path, params, headers, auth, connectionTimeout, readTimeout, body, proxy);
     }
 
     @Override

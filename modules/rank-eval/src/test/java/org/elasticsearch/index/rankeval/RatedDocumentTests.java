@@ -39,7 +39,7 @@ public class RatedDocumentTests extends ESTestCase {
     public void testXContentParsing() throws IOException {
         RatedDocument testItem = createTestItem();
         XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
-        RatedDocument parsedItem = testItem.fromXContent(itemParser, ParseFieldMatcher.STRICT);
+        RatedDocument parsedItem = RatedDocument.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());

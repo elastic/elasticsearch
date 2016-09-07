@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authz.permission;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.Privilege.Name;
+import org.elasticsearch.xpack.security.support.MetadataUtils;
 
 /**
  * Role for users that should be allowed to use the Add Data/Ingest features in the UI
@@ -18,7 +19,8 @@ public class IngestAdminRole extends Role {
     private static final RoleDescriptor.IndicesPrivileges[] INDICES_PRIVILEGES = new RoleDescriptor.IndicesPrivileges[0];
 
     public static final String NAME = "ingest_admin";
-    public static final RoleDescriptor DESCRIPTOR = new RoleDescriptor(NAME, CLUSTER_PRIVILEGES, INDICES_PRIVILEGES, null);
+    public static final RoleDescriptor DESCRIPTOR =
+            new RoleDescriptor(NAME, CLUSTER_PRIVILEGES, INDICES_PRIVILEGES, null, MetadataUtils.DEFAULT_RESERVED_METADATA);
     public static final IngestAdminRole INSTANCE = new IngestAdminRole();
 
     private IngestAdminRole() {

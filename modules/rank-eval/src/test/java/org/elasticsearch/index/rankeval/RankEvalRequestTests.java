@@ -35,7 +35,6 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class RankEvalRequestTests  extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
@@ -72,11 +71,11 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
         List<String> types = Arrays.asList(new String[] { "testtype" });
 
         String specId = randomAsciiOfLength(10);
-        List<QuerySpec> specifications = new ArrayList<>();
+        List<RatedRequest> specifications = new ArrayList<>();
         SearchSourceBuilder testQuery = new SearchSourceBuilder();
         testQuery.query(new MatchAllQueryBuilder());
-        specifications.add(new QuerySpec("amsterdam_query", testQuery, indices, types, createRelevant("2", "3", "4", "5")));
-        specifications.add(new QuerySpec("berlin_query", testQuery, indices, types, createRelevant("1")));
+        specifications.add(new RatedRequest("amsterdam_query", testQuery, indices, types, createRelevant("2", "3", "4", "5")));
+        specifications.add(new RatedRequest("berlin_query", testQuery, indices, types, createRelevant("1")));
 
         RankEvalSpec task = new RankEvalSpec(specId, specifications, new PrecisionAtN(10));
 
@@ -106,14 +105,14 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
         List<String> types = Arrays.asList(new String[] { "testtype" });
 
         String specId = randomAsciiOfLength(10);
-        List<QuerySpec> specifications = new ArrayList<>();
+        List<RatedRequest> specifications = new ArrayList<>();
         SearchSourceBuilder amsterdamQuery = new SearchSourceBuilder();
         amsterdamQuery.query(new MatchAllQueryBuilder());
-        specifications.add(new QuerySpec("amsterdam_query", amsterdamQuery, indices, types, createRelevant("2", "3", "4", "5")));
+        specifications.add(new RatedRequest("amsterdam_query", amsterdamQuery, indices, types, createRelevant("2", "3", "4", "5")));
         SearchSourceBuilder brokenQuery = new SearchSourceBuilder();
         RangeQueryBuilder brokenRangeQuery = new RangeQueryBuilder("text").timeZone("CET");
         brokenQuery.query(brokenRangeQuery);
-        specifications.add(new QuerySpec("broken_query", brokenQuery, indices, types, createRelevant("1")));
+        specifications.add(new RatedRequest("broken_query", brokenQuery, indices, types, createRelevant("1")));
 
         RankEvalSpec task = new RankEvalSpec(specId, specifications, new PrecisionAtN(10));
 

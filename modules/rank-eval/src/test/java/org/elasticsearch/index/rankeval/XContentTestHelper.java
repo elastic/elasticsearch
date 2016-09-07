@@ -19,29 +19,27 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class RatedDocumentTests extends ESTestCase {
+public class XContentTestHelper {
 
-    public static RatedDocument createTestItem() {
-        String index = randomAsciiOfLength(10);
-        String type = randomAsciiOfLength(10);
-        String docId = randomAsciiOfLength(10);
-        int rating = randomInt();
-
-        return new RatedDocument(new RatedDocumentKey(index, type, docId), rating);
-    }
-
-    public void testXContentParsing() throws IOException {
-        RatedDocument testItem = createTestItem();
-        XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
-        RatedDocument parsedItem = RatedDocument.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
-        assertNotSame(testItem, parsedItem);
-        assertEquals(testItem, parsedItem);
-        assertEquals(testItem.hashCode(), parsedItem.hashCode());
+    public static XContentParser roundtrip(ToXContentToBytes testItem) throws IOException { 
+        XContentBuilder builder = XContentFactory.contentBuilder(ESTestCase.randomFrom(XContentType.values()));
+        if (ESTestCase.randomBoolean()) {
+            builder.prettyPrint();
+        }
+        testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        XContentBuilder shuffled = ESTestCase.shuffleXContent(builder);
+        XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
+        return itemParser;
     }
 }

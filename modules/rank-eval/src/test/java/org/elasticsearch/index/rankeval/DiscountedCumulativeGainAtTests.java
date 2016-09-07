@@ -121,4 +121,22 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
         assertEquals(8, dcgAt.getPosition());
         assertEquals(true, dcgAt.getNormalize());
     }
+    
+    public static DiscountedCumulativeGainAt createTestItem() {
+        int position = randomIntBetween(0, 1000);
+        boolean normalize = randomBoolean();
+        Integer unknownDocRating = new Integer(randomIntBetween(0, 1000));
+
+        return new DiscountedCumulativeGainAt(position, normalize, unknownDocRating);
+    }
+    public void testXContentRoundtrip() throws IOException {
+        DiscountedCumulativeGainAt testItem = createTestItem();
+        XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
+        itemParser.nextToken();
+        itemParser.nextToken();
+        DiscountedCumulativeGainAt parsedItem = DiscountedCumulativeGainAt.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
+        assertNotSame(testItem, parsedItem);
+        assertEquals(testItem, parsedItem);
+        assertEquals(testItem.hashCode(), parsedItem.hashCode());
+    }
 }

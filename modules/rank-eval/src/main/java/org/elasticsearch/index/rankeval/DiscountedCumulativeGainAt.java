@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
 
@@ -47,24 +48,6 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
 
     public static final String NAME = "dcg_at_n";
     private static final double LOG2 = Math.log(2.0);
-
-    public DiscountedCumulativeGainAt(StreamInput in) throws IOException {
-        position = in.readInt();
-        normalize = in.readBoolean();
-        unknownDocRating = in.readOptionalVInt();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(position);
-        out.writeBoolean(normalize);
-        out.writeOptionalVInt(unknownDocRating);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
-    }
 
     /**
      * Initialises position with 10
@@ -81,6 +64,36 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
             throw new IllegalArgumentException("number of results to check needs to be positive but was " + position);
         }
         this.position = position;
+    }
+
+    /**
+     * @param position number of top results to check against a given set of relevant results. Must be positive.
+     * @param normalize If set to true, dcg will be normalized (ndcg)
+     * See https://en.wikipedia.org/wiki/Discounted_cumulative_gain
+     * @param unknownDocRating the rating for docs the user hasn't supplied an explicit rating for
+     * */
+    public DiscountedCumulativeGainAt(int position, boolean normalize, Integer unknownDocRating) {
+        this(position);
+        this.normalize = normalize;
+        this.unknownDocRating = unknownDocRating;
+    }
+
+    public DiscountedCumulativeGainAt(StreamInput in) throws IOException {
+        this(in.readInt());
+        normalize = in.readBoolean();
+        unknownDocRating = in.readOptionalVInt();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeInt(position);
+        out.writeBoolean(normalize);
+        out.writeOptionalVInt(unknownDocRating);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 
     /**
@@ -184,6 +197,7 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startObject(NAME);
         builder.field(SIZE_FIELD.getPreferredName(), this.position);
         builder.field(NORMALIZE_FIELD.getPreferredName(), this.normalize);
@@ -191,6 +205,26 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
             builder.field(UNKNOWN_DOC_RATING_FIELD.getPreferredName(), this.unknownDocRating);
         }
         builder.endObject();
+        builder.endObject();
         return builder;
+    }
+    
+    @Override
+    public final boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        DiscountedCumulativeGainAt other = (DiscountedCumulativeGainAt) obj;
+        return Objects.equals(position, other.position) &&
+                Objects.equals(normalize, other.normalize) &&
+                Objects.equals(unknownDocRating, other.unknownDocRating);
+    }
+    
+    @Override
+    public final int hashCode() {
+        return Objects.hash(position, normalize, unknownDocRating);
     }
 }

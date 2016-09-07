@@ -21,6 +21,7 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,7 +41,8 @@ public class RatedDocument extends ToXContentToBytes implements Writeable {
     public static final ParseField RATING_FIELD = new ParseField("rating");
     public static final ParseField KEY_FIELD = new ParseField("key");
 
-    private static final ConstructingObjectParser<RatedDocument, RankEvalContext> PARSER = new ConstructingObjectParser<>("rated_document", 
+    private static final ConstructingObjectParser<RatedDocument, ParseFieldMatcherSupplier> PARSER =
+            new ConstructingObjectParser<>("rated_document", 
             a -> new RatedDocument((RatedDocumentKey) a[0], (Integer) a[1])); 
             
     static {
@@ -93,8 +95,8 @@ public class RatedDocument extends ToXContentToBytes implements Writeable {
         out.writeVInt(rating);
     }
 
-    public static RatedDocument fromXContent(XContentParser parser, RankEvalContext context) throws IOException {
-        return PARSER.apply(parser, context);
+    public static RatedDocument fromXContent(XContentParser parser, ParseFieldMatcherSupplier supplier) throws IOException {
+        return PARSER.apply(parser, supplier);
     }
     
     @Override
@@ -121,6 +123,6 @@ public class RatedDocument extends ToXContentToBytes implements Writeable {
     
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), key, rating);
+        return Objects.hash(key, rating);
     }
 }

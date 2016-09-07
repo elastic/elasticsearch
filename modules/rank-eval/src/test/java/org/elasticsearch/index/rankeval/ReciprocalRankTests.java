@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.rankeval.PrecisionAtN.Rating;
 import org.elasticsearch.search.SearchShardTarget;
@@ -148,4 +150,18 @@ public class ReciprocalRankTests extends ESTestCase {
         EvalQueryQuality evaluation = reciprocalRank.evaluate(hits, ratedDocs);
         assertEquals(0.0, evaluation.getQualityLevel(), Double.MIN_VALUE);
     }
+
+    public void testXContentRoundtrip() throws IOException {
+        int position = randomIntBetween(0, 1000);
+
+        ReciprocalRank testItem = new ReciprocalRank(position);
+        XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
+        itemParser.nextToken();
+        itemParser.nextToken();
+        ReciprocalRank parsedItem = ReciprocalRank.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
+        assertNotSame(testItem, parsedItem);
+        assertEquals(testItem, parsedItem);
+        assertEquals(testItem.hashCode(), parsedItem.hashCode());
+    }
+
 }

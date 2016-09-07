@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 import javax.naming.directory.SearchResult;
 
@@ -182,4 +183,20 @@ public class PrecisionAtN extends RankedListQualityMetric {
         return builder;
     }
 
+    @Override
+    public final boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        PrecisionAtN other = (PrecisionAtN) obj;
+        return Objects.equals(n, other.n);
+    }
+    
+    @Override
+    public final int hashCode() {
+        return Objects.hash(n);
+    }
 }

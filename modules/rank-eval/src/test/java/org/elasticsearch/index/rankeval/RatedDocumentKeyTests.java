@@ -25,21 +25,16 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class RatedDocumentTests extends ESTestCase {
+public class RatedDocumentKeyTests extends ESTestCase {
 
-    public static RatedDocument createTestItem() {
-        String index = randomAsciiOfLength(10);
-        String type = randomAsciiOfLength(10);
-        String docId = randomAsciiOfLength(10);
-        int rating = randomInt();
+    public void testXContentRoundtrip() throws IOException {
+        String index = randomAsciiOfLengthBetween(0, 10);
+        String type = randomAsciiOfLengthBetween(0, 10);
+        String docId = randomAsciiOfLengthBetween(0, 10);
 
-        return new RatedDocument(new RatedDocumentKey(index, type, docId), rating);
-    }
-
-    public void testXContentParsing() throws IOException {
-        RatedDocument testItem = createTestItem();
+        RatedDocumentKey testItem = new RatedDocumentKey(index, type, docId);
         XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
-        RatedDocument parsedItem = RatedDocument.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
+        RatedDocumentKey parsedItem = RatedDocumentKey.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());

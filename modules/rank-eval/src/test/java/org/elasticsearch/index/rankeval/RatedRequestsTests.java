@@ -24,22 +24,25 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 
-public class QuerySpecTests extends ESTestCase {
+public class RatedRequestsTests extends ESTestCase {
 
     private static SearchModule searchModule;
     private static SearchRequestParsers searchRequestParsers;
@@ -63,7 +66,51 @@ public class QuerySpecTests extends ESTestCase {
         searchRequestParsers = null;
     }
 
-    // TODO add some sort of roundtrip testing like we have now for queries?
+    public static RatedRequest createTestItem(List<String> indices, List<String> types) {
+        String specId = randomAsciiOfLength(50);
+
+        SearchSourceBuilder testRequest = new SearchSourceBuilder();
+        testRequest.size(randomInt());
+        testRequest.query(new MatchAllQueryBuilder());
+
+        List<RatedDocument> ratedDocs = new ArrayList<>();
+        int size = randomIntBetween(0, 2);
+        for (int i = 0; i < size; i++) {
+            ratedDocs.add(RatedDocumentTests.createTestItem());
+        }
+        
+        return new RatedRequest(specId, testRequest, indices, types, ratedDocs);
+    }
+
+    public void testXContentRoundtrip() throws IOException {
+        List<String> indices = new ArrayList<>();
+        int size = randomIntBetween(0, 20);
+        for (int i = 0; i < size; i++) {
+            indices.add(randomAsciiOfLengthBetween(0, 50));
+        }
+
+        List<String> types = new ArrayList<>();
+        size = randomIntBetween(0, 20);
+        for (int i = 0; i < size; i++) {
+            types.add(randomAsciiOfLengthBetween(0, 50));
+        }
+
+        RatedRequest testItem = createTestItem(indices, types);
+        XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
+        itemParser.nextToken();
+
+        QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, itemParser, ParseFieldMatcher.STRICT);
+        RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,
+                searchRequestParsers);
+
+        RatedRequest parsedItem = RatedRequest.fromXContent(itemParser, rankContext);
+        parsedItem.setIndices(indices); // IRL these come from URL parameters - see RestRankEvalAction
+        parsedItem.setTypes(types); // IRL these come from URL parameters - see RestRankEvalAction
+        assertNotSame(testItem, parsedItem);
+        assertEquals(testItem, parsedItem);
+        assertEquals(testItem.hashCode(), parsedItem.hashCode());
+    }
+
     public void testParseFromXContent() throws IOException {
         String querySpecString = " {\n"
          + "   \"id\": \"my_qa_query\",\n"
@@ -87,7 +134,7 @@ public class QuerySpecTests extends ESTestCase {
         QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, parser, ParseFieldMatcher.STRICT);
         RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,
                 searchRequestParsers);
-        QuerySpec specification = QuerySpec.fromXContent(parser, rankContext);
+        RatedRequest specification = RatedRequest.fromXContent(parser, rankContext);
         assertEquals("my_qa_query", specification.getSpecId());
         assertNotNull(specification.getTestRequest());
         List<RatedDocument> ratedDocs = specification.getRatedDocs();
@@ -99,4 +146,6 @@ public class QuerySpecTests extends ESTestCase {
         assertEquals("3", ratedDocs.get(2).getKey().getDocID());
         assertEquals(1, ratedDocs.get(2).getRating());
     }
+    
+    
 }

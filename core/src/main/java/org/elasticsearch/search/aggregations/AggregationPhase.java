@@ -40,7 +40,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- *
+ * Aggregation phase of a search request, used to collect aggregations
  */
 public class AggregationPhase implements SearchPhase {
 

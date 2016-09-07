@@ -63,7 +63,6 @@ import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 import org.elasticsearch.search.fetch.FetchSubPhaseParser;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
@@ -774,8 +773,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                             throw new SearchParseException(context, "Unknown element [" + currentFieldName + "] in [ext]",
                                     extParser.getTokenLocation());
                         } else {
-                            FetchSubPhaseContext fetchSubPhaseContext = fetchSubPhaseParser.parse(extParser);
-                            context.putFetchSubPhaseContext(currentFieldName, fetchSubPhaseContext);
+                            Object fetchSubPhaseBuilder = fetchSubPhaseParser.parse(extParser);
+                            context.putFetchSubPhaseBuilder(currentFieldName, fetchSubPhaseBuilder);
                         }
                     }
                 }

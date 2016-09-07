@@ -44,7 +44,6 @@ import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -90,7 +89,7 @@ public class TestSearchContext extends SearchContext {
     private SearchContextAggregations aggregations;
 
     private final long originNanoTime = System.nanoTime();
-    private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
+    private final Map<String, Object> subPhaseContexts = new HashMap<>();
 
     public TestSearchContext(ThreadPool threadPool, BigArrays bigArrays, ScriptService scriptService, IndexService indexService) {
         super(ParseFieldMatcher.STRICT);
@@ -197,14 +196,13 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(String name) {
-        return (SubPhaseContext) subPhaseContexts.get(name);
+    public void putFetchSubPhaseBuilder(String name, Object fetchSubPhaseBuilder) {
+        subPhaseContexts.put(name, fetchSubPhaseBuilder);
     }
 
     @Override
-    public <SubPhaseContext extends FetchSubPhaseContext> void putFetchSubPhaseContext(String name, SubPhaseContext subPhaseContext) {
-        subPhaseContexts.put(name, subPhaseContext);
+    public Object getFetchSubPhaseBuilder(String name) {
+        return subPhaseContexts.get(name);
     }
 
     @Override

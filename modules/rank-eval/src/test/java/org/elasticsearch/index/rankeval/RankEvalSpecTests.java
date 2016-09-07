@@ -86,7 +86,6 @@ public class RankEvalSpecTests extends ESTestCase {
         }
 
         String specId = randomAsciiOfLengthBetween(1, 10); // TODO we should reject zero length ids ...
-        @SuppressWarnings("rawtypes")
         RankedListQualityMetric metric;
         if (randomBoolean()) {
             metric = PrecisionAtNTests.createTestItem();

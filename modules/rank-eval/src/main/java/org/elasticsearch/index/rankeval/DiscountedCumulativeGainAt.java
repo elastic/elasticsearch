@@ -20,7 +20,6 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,7 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class DiscountedCumulativeGainAt extends RankedListQualityMetric<DiscountedCumulativeGainAt> {
+public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
 
     /** rank position up to which to check results. */
     private int position;
@@ -190,11 +189,6 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric<Discount
         PARSER.declareInt(DiscountedCumulativeGainAt::setPosition, SIZE_FIELD);
         PARSER.declareBoolean(DiscountedCumulativeGainAt::setNormalize, NORMALIZE_FIELD);
         PARSER.declareInt(DiscountedCumulativeGainAt::setUnknownDocRating, UNKNOWN_DOC_RATING_FIELD);
-    }
-
-    @Override
-    public DiscountedCumulativeGainAt fromXContent(XContentParser parser, ParseFieldMatcher matcher) {
-        return DiscountedCumulativeGainAt.fromXContent(parser, () -> matcher);
     }
 
     public static DiscountedCumulativeGainAt fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {

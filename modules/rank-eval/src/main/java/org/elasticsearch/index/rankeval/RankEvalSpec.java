@@ -46,7 +46,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     /** Collection of query specifications, that is e.g. search request templates to use for query translation. */
     private Collection<RatedRequest> ratedRequests = new ArrayList<>();
     /** Definition of the quality metric, e.g. precision at N */
-    private RankedListQualityMetric<?> metric;
+    private RankedListQualityMetric metric;
     /** a unique id for the whole QA task */
     private String specId;
 
@@ -54,7 +54,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
         // TODO think if no args ctor is okay
     }
 
-    public RankEvalSpec(String specId, Collection<RatedRequest> specs, RankedListQualityMetric<?> metric) {
+    public RankEvalSpec(String specId, Collection<RatedRequest> specs, RankedListQualityMetric metric) {
         this.specId = specId;
         this.ratedRequests = specs;
         this.metric = metric;
@@ -80,7 +80,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
         out.writeString(specId);
     }
 
-    public void setEval(RankedListQualityMetric<?> eval) {
+    public void setEval(RankedListQualityMetric eval) {
         this.metric = eval;
     }
 
@@ -93,12 +93,12 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     }
 
     /** Returns the precision at n configuration (containing level of n to consider).*/
-    public RankedListQualityMetric<?> getEvaluator() {
+    public RankedListQualityMetric getEvaluator() {
         return metric;
     }
 
     /** Sets the precision at n configuration (containing level of n to consider).*/
-    public void setEvaluator(RankedListQualityMetric<?> config) {
+    public void setEvaluator(RankedListQualityMetric config) {
         this.metric = config;
     }
 

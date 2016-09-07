@@ -20,7 +20,6 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,7 +43,7 @@ import javax.naming.directory.SearchResult;
  * By default documents with a rating equal or bigger than 1 are considered to be "relevant" for the reciprocal rank
  * calculation. This value can be changes using the "relevant_rating_threshold" parameter.
  * */
-public class ReciprocalRank extends RankedListQualityMetric<ReciprocalRank> {
+public class ReciprocalRank extends RankedListQualityMetric {
 
     public static final String NAME = "reciprocal_rank";
     public static final int DEFAULT_MAX_ACCEPTABLE_RANK = 10;
@@ -158,17 +157,6 @@ public class ReciprocalRank extends RankedListQualityMetric<ReciprocalRank> {
     static {
         PARSER.declareInt(ReciprocalRank::setMaxAcceptableRank, MAX_RANK_FIELD);
         PARSER.declareInt(ReciprocalRank::setRelevantRatingThreshhold, RELEVANT_RATING_FIELD);
-    }
-
-    @Override
-    public ReciprocalRank fromXContent(XContentParser parser, ParseFieldMatcher matcher) {
-        return ReciprocalRank.fromXContent(parser, new ParseFieldMatcherSupplier() {
-            
-            @Override
-            public ParseFieldMatcher getParseFieldMatcher() {
-                return matcher;
-            }
-        });
     }
 
     public static ReciprocalRank fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {

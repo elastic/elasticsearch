@@ -20,7 +20,6 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
-import org.elasticsearch.common.xcontent.FromXContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -31,7 +30,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class XContentRoundtripTests<T extends ToXContentToBytes & FromXContentBuilder<T>> extends ESTestCase {
+public class XContentRoundtripTests<T extends ToXContentToBytes> extends ESTestCase {
 
     public XContentParser roundtrip(T testItem) throws IOException { 
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));

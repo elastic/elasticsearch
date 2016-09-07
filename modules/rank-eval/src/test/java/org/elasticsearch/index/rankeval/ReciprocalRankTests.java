@@ -157,7 +157,7 @@ public class ReciprocalRankTests extends XContentRoundtripTests<ReciprocalRank> 
         XContentParser itemParser = roundtrip(testItem);
         itemParser.nextToken();
         itemParser.nextToken();
-        ReciprocalRank parsedItem = testItem.fromXContent(itemParser, ParseFieldMatcher.STRICT);
+        ReciprocalRank parsedItem = ReciprocalRank.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());

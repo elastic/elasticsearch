@@ -133,7 +133,7 @@ public class DiscountedCumulativeGainAtTests extends XContentRoundtripTests<Disc
         XContentParser itemParser = roundtrip(testItem);
         itemParser.nextToken();
         itemParser.nextToken();
-        DiscountedCumulativeGainAt parsedItem = testItem.fromXContent(itemParser, ParseFieldMatcher.STRICT);
+        DiscountedCumulativeGainAt parsedItem = DiscountedCumulativeGainAt.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());

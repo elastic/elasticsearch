@@ -144,7 +144,7 @@ public class PrecisionAtNTests extends XContentRoundtripTests<PrecisionAtN> {
         XContentParser itemParser = roundtrip(testItem);
         itemParser.nextToken();
         itemParser.nextToken();
-        PrecisionAtN parsedItem = testItem.fromXContent(itemParser, ParseFieldMatcher.STRICT);
+        PrecisionAtN parsedItem = PrecisionAtN.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());

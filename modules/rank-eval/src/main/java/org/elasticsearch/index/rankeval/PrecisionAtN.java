@@ -20,7 +20,6 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,7 +42,7 @@ import javax.naming.directory.SearchResult;
  * By default documents with a rating equal or bigger than 1 are considered to be "relevant" for the precision
  * calculation. This value can be changes using the "relevant_rating_threshold" parameter.
  * */
-public class PrecisionAtN extends RankedListQualityMetric<PrecisionAtN> {
+public class PrecisionAtN extends RankedListQualityMetric {
 
     /** Number of results to check against a given set of relevant results. */
     private int n;
@@ -111,17 +110,6 @@ public class PrecisionAtN extends RankedListQualityMetric<PrecisionAtN> {
      * */
     public int getRelevantRatingThreshold() {
         return relevantRatingThreshhold ;
-    }
-
-    @Override
-    public PrecisionAtN fromXContent(XContentParser parser, ParseFieldMatcher matcher) {
-        return PrecisionAtN.fromXContent(parser, new ParseFieldMatcherSupplier() {
-            
-            @Override
-            public ParseFieldMatcher getParseFieldMatcher() {
-                return matcher;
-            }
-        });
     }
 
     public static PrecisionAtN fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {

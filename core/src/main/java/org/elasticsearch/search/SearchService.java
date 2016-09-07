@@ -459,7 +459,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 throw ExceptionsHelper.convertToRuntime(e);
             }
             operationListener.onFetchPhase(context, System.nanoTime() - time2);
-            return new ScrollQueryFetchSearchResult(new QueryFetchSearchResult(context.queryResult(), context.fetchResult()), context.shardTarget());
+            return new ScrollQueryFetchSearchResult(new QueryFetchSearchResult(context.queryResult(), context.fetchResult()),
+                    context.shardTarget());
         } catch (Exception e) {
             logger.trace("Fetch phase failed", e);
             processFailure(context, e);
@@ -904,7 +905,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     continue;
                 }
                 if ((time - lastAccessTime > context.keepAlive())) {
-                    logger.debug("freeing search context [{}], time [{}], lastAccessTime [{}], keepAlive [{}]", context.id(), time, lastAccessTime, context.keepAlive());
+                    logger.debug("freeing search context [{}], time [{}], lastAccessTime [{}], keepAlive [{}]", context.id(), time,
+                            lastAccessTime, context.keepAlive());
                     freeContext(context.id());
                 }
             }

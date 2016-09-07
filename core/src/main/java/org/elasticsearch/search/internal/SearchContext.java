@@ -186,7 +186,8 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract SearchContext aggregations(SearchContextAggregations aggregations);
 
-    public abstract  <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory);
+    public abstract  <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(
+            FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory);
 
     public abstract SearchContextHighlight highlight();
 

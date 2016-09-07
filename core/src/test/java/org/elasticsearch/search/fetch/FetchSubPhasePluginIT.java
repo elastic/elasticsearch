@@ -89,7 +89,8 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 .endObject();
          SearchResponse response = client().prepareSearch().setSource(new SearchSourceBuilder().ext(extSource)).get();
         assertSearchResponse(response);
-        assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("i"), equalTo(2));
+        assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("i"),
+                equalTo(2));
         assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("am"),
                 equalTo(2));
         assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("sam"),

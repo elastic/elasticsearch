@@ -20,7 +20,10 @@
 package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -57,6 +60,13 @@ public class EvilLoggerTests extends ESTestCase {
 
         testLogger = ESLoggerFactory.getLogger("test");
         deprecationLogger = ESLoggerFactory.getDeprecationLogger("test");
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        LoggerContext context = (LoggerContext) LogManager.getContext(false);
+        Configurator.shutdown(context);
+        super.tearDown();
     }
 
     public void testLocationInfoTest() throws IOException {

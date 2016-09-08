@@ -39,6 +39,13 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class EvilLoggerConfigurationTests extends ESTestCase {
 
+    @Override
+    public void tearDown() throws Exception {
+        LoggerContext context = (LoggerContext) LogManager.getContext(false);
+        Configurator.shutdown(context);
+        super.tearDown();
+    }
+
     public void testResolveMultipleConfigs() throws Exception {
         final Level level = ESLoggerFactory.getLogger("test").getLevel();
         try {
@@ -89,13 +96,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         final Environment environment = new Environment(settings);
         LogConfigurator.configure(environment, true);
 
-        final String loggerName;
-        if (LogManager.getContext(false).hasLogger("org.elasticsearch.test", new PrefixMessageFactory())) {
-            loggerName = "org.elasticsearch.test";
-        } else {
-            assertTrue(LogManager.getContext(false).hasLogger("test", new PrefixMessageFactory()));
-            loggerName = "test";
-        }
+        final String loggerName = Loggers.commonPrefix + "test";
         final Logger logger = ESLoggerFactory.getLogger(loggerName);
         assertThat(logger.getLevel().toString(), equalTo(level));
     }
@@ -112,13 +113,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         LogConfigurator.configure(environment, true);
 
         // args should overwrite whatever is in the config
-        final String loggerName;
-        if (LogManager.getContext(false).hasLogger("org.elasticsearch.test_resolve_order", new PrefixMessageFactory())) {
-            loggerName = "org.elasticsearch.test_resolve_order";
-        } else {
-            assertTrue(LogManager.getContext(false).hasLogger("test_resolve_order", new PrefixMessageFactory()));
-            loggerName = "test_resolve_order";
-        }
+        final String loggerName = Loggers.commonPrefix + "test_resolve_order";
         final Logger logger = ESLoggerFactory.getLogger(loggerName);
         assertTrue(logger.isTraceEnabled());
     }

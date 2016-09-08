@@ -411,6 +411,12 @@ public class Setting<T> extends ToXContentToBytes {
 
             @Override
             public void apply(Tuple<A, B> value, Settings current, Settings previous) {
+                if (aSettingUpdater.hasChanged(current, previous)) {
+                    logger.info("updating [{}] from [{}] to [{}]", aSetting.key, aSetting.getRaw(previous), aSetting.getRaw(current));
+                }
+                if (bSettingUpdater.hasChanged(current, previous)) {
+                    logger.info("updating [{}] from [{}] to [{}]", bSetting.key, bSetting.getRaw(previous), bSetting.getRaw(current));
+                }
                 consumer.accept(value.v1(), value.v2());
             }
 
@@ -591,9 +597,9 @@ public class Setting<T> extends ToXContentToBytes {
      * Creates a setting which specifies a memory size. This can either be
      * specified as an absolute bytes value or as a percentage of the heap
      * memory.
-     * 
+     *
      * @param key the key for the setting
-     * @param defaultValue the default value for this setting 
+     * @param defaultValue the default value for this setting
      * @param properties properties properties for this setting like scope, filtering...
      * @return the setting object
      */
@@ -606,9 +612,9 @@ public class Setting<T> extends ToXContentToBytes {
      * Creates a setting which specifies a memory size. This can either be
      * specified as an absolute bytes value or as a percentage of the heap
      * memory.
-     * 
+     *
      * @param key the key for the setting
-     * @param defaultValue a function that supplies the default value for this setting 
+     * @param defaultValue a function that supplies the default value for this setting
      * @param properties properties properties for this setting like scope, filtering...
      * @return the setting object
      */
@@ -620,7 +626,7 @@ public class Setting<T> extends ToXContentToBytes {
      * Creates a setting which specifies a memory size. This can either be
      * specified as an absolute bytes value or as a percentage of the heap
      * memory.
-     * 
+     *
      * @param key the key for the setting
      * @param defaultPercentage the default value of this setting as a percentage of the heap memory
      * @param properties properties properties for this setting like scope, filtering...

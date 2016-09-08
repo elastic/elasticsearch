@@ -43,7 +43,7 @@ import static org.elasticsearch.common.util.CollectionUtils.asArrayList;
  */
 public class Loggers {
 
-    private static final String commonPrefix = System.getProperty("es.logger.prefix", "org.elasticsearch.");
+    static final String commonPrefix = System.getProperty("es.logger.prefix", "org.elasticsearch.");
 
     public static final String SPACE = " ";
 

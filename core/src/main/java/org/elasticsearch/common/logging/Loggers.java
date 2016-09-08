@@ -20,7 +20,9 @@
 package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.Configurator;
@@ -169,6 +171,31 @@ public class Loggers {
             name = name.substring("org.elasticsearch.".length());
         }
         return commonPrefix + name;
+    }
+
+    public static void addAppender(final Logger logger, final Appender appender) {
+        final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+        final Configuration config = ctx.getConfiguration();
+        config.addAppender(appender);
+        LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
+        if (!logger.getName().equals(loggerConfig.getName())) {
+            loggerConfig = new LoggerConfig(logger.getName(), logger.getLevel(), true);
+            config.addLogger(logger.getName(), loggerConfig);
+        }
+        loggerConfig.addAppender(appender, null, null);
+        ctx.updateLoggers();
+    }
+
+    public static void removeAppender(final Logger logger, final Appender appender) {
+        final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+        final Configuration config = ctx.getConfiguration();
+        LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
+        if (!logger.getName().equals(loggerConfig.getName())) {
+            loggerConfig = new LoggerConfig(logger.getName(), logger.getLevel(), true);
+            config.addLogger(logger.getName(), loggerConfig);
+        }
+        loggerConfig.removeAppender(appender.getName());
+        ctx.updateLoggers();
     }
 
 }

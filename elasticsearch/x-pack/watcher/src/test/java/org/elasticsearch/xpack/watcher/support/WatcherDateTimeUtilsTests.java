@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.support;
 
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -22,6 +23,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.parseTimeValueSupportingFractional;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.xContentParser;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.either;
@@ -121,5 +123,57 @@ public class WatcherDateTimeUtilsTests extends ESTestCase {
 
         TimeValue parsed = WatcherDateTimeUtils.parseTimeValue(parser, "test");
         assertThat(parsed, nullValue());
+    }
+
+    public void testParseTimeValueWithFractional() {
+        assertEquals("This function exists so 5.x can be compatible with 2.x indices. It should be removed with 6.x", 5,
+                Version.CURRENT.major);
+
+        // This code is lifted strait from 2.x's TimeValueTests.java
+        assertEquals(new TimeValue(10, TimeUnit.MILLISECONDS), parseTimeValueSupportingFractional("10 ms", "test"));
+        assertEquals(new TimeValue(10, TimeUnit.MILLISECONDS), parseTimeValueSupportingFractional("10ms", "test"));
+        assertEquals(new TimeValue(10, TimeUnit.MILLISECONDS), parseTimeValueSupportingFractional("10 MS", "test"));
+        assertEquals(new TimeValue(10, TimeUnit.MILLISECONDS), parseTimeValueSupportingFractional("10MS", "test"));
+
+        assertEquals(new TimeValue(10, TimeUnit.SECONDS), parseTimeValueSupportingFractional("10 s", "test"));
+        assertEquals(new TimeValue(10, TimeUnit.SECONDS), parseTimeValueSupportingFractional("10s", "test"));
+        assertEquals(new TimeValue(10, TimeUnit.SECONDS), parseTimeValueSupportingFractional("10 S", "test"));
+        assertEquals(new TimeValue(10, TimeUnit.SECONDS), parseTimeValueSupportingFractional("10S", "test"));
+
+        assertEquals(new TimeValue(100, TimeUnit.MILLISECONDS), parseTimeValueSupportingFractional("0.1s", "test"));
+
+        assertEquals(new TimeValue(10, TimeUnit.MINUTES), parseTimeValueSupportingFractional("10 m", "test"));
+        assertEquals(new TimeValue(10, TimeUnit.MINUTES), parseTimeValueSupportingFractional("10m", "test"));
+        assertEquals(new TimeValue(10, TimeUnit.MINUTES), parseTimeValueSupportingFractional("10 M", "test"));
+        assertEquals(new TimeValue(10, TimeUnit.MINUTES), parseTimeValueSupportingFractional("10M", "test"));
+
+        assertEquals(new TimeValue(10, TimeUnit.HOURS), parseTimeValueSupportingFractional("10 h", "test"));
+        assertEquals(new TimeValue(10, TimeUnit.HOURS), parseTimeValueSupportingFractional("10h", "test"));
+        assertEquals(new TimeValue(10, TimeUnit.HOURS), parseTimeValueSupportingFractional("10 H", "test"));
+        assertEquals(new TimeValue(10, TimeUnit.HOURS), parseTimeValueSupportingFractional("10H", "test"));
+
+        assertEquals(new TimeValue(10, TimeUnit.DAYS), parseTimeValueSupportingFractional("10 d", "test"));
+        assertEquals(new TimeValue(10, TimeUnit.DAYS), parseTimeValueSupportingFractional("10d", "test"));
+        assertEquals(new TimeValue(10, TimeUnit.DAYS), parseTimeValueSupportingFractional("10 D", "test"));
+        assertEquals(new TimeValue(10, TimeUnit.DAYS), parseTimeValueSupportingFractional("10D", "test"));
+
+        assertEquals(new TimeValue(70, TimeUnit.DAYS), parseTimeValueSupportingFractional("10 w", "test"));
+        assertEquals(new TimeValue(70, TimeUnit.DAYS), parseTimeValueSupportingFractional("10w", "test"));
+        assertEquals(new TimeValue(70, TimeUnit.DAYS), parseTimeValueSupportingFractional("10 W", "test"));
+        assertEquals(new TimeValue(70, TimeUnit.DAYS), parseTimeValueSupportingFractional("10W", "test"));
+
+        // Extra fractional tests just because that is the point
+        assertEquals(new TimeValue(100, TimeUnit.MILLISECONDS), parseTimeValueSupportingFractional("0.1s", "test"));
+        assertEquals(new TimeValue(6, TimeUnit.SECONDS), parseTimeValueSupportingFractional("0.1m", "test"));
+        assertEquals(new TimeValue(6, TimeUnit.MINUTES), parseTimeValueSupportingFractional("0.1h", "test"));
+        assertEquals(new TimeValue(144, TimeUnit.MINUTES), parseTimeValueSupportingFractional("0.1d", "test"));
+        assertEquals(new TimeValue(1008, TimeUnit.MINUTES), parseTimeValueSupportingFractional("0.1w", "test"));
+
+        // And some crazy fractions just for fun
+        assertEquals(new TimeValue(1700, TimeUnit.MILLISECONDS), parseTimeValueSupportingFractional("1.7s", "test"));
+        assertEquals(new TimeValue(162, TimeUnit.SECONDS), parseTimeValueSupportingFractional("2.7m", "test"));
+        assertEquals(new TimeValue(5988, TimeUnit.MINUTES), parseTimeValueSupportingFractional("99.8h", "test"));
+        assertEquals(new TimeValue(1057968, TimeUnit.SECONDS), parseTimeValueSupportingFractional("12.245d", "test"));
+        assertEquals(new TimeValue(7258204799L, TimeUnit.MILLISECONDS), parseTimeValueSupportingFractional("12.001w", "test"));
     }
 }

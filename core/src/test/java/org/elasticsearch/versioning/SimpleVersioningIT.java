@@ -72,6 +72,36 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThat(indexResponse.getVersion(), equalTo(18L));
     }
 
+    public void testForce() throws Exception {
+        createIndex("test");
+        ensureGreen("test"); // we are testing force here which doesn't work if we are recovering at the same time - zzzzz...
+        IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(12).setVersionType(VersionType.FORCE).get();
+        assertThat(indexResponse.getVersion(), equalTo(12L));
+
+        indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").setVersion(12).setVersionType(VersionType.FORCE).get();
+        assertThat(indexResponse.getVersion(), equalTo(12L));
+
+        indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").setVersion(14).setVersionType(VersionType.FORCE).get();
+        assertThat(indexResponse.getVersion(), equalTo(14L));
+
+        indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(13).setVersionType(VersionType.FORCE).get();
+        assertThat(indexResponse.getVersion(), equalTo(13L));
+
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        if (randomBoolean()) {
+            refresh();
+        }
+        for (int i = 0; i < 10; i++) {
+            assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(13L));
+        }
+
+        // deleting with a lower version works.
+        long v = randomIntBetween(12, 14);
+        DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1").setVersion(v).setVersionType(VersionType.FORCE).get();
+        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+        assertThat(deleteResponse.getVersion(), equalTo(v));
+    }
+
     public void testExternalGTE() throws Exception {
         createIndex("test");
 

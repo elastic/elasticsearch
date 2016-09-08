@@ -106,9 +106,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             validationException = addValidationError("id is missing", validationException);
         }
 
-        if (versionType != VersionType.INTERNAL) {
-            validationException = addValidationError("version type [" + versionType + "] is not supported by the update API",
-                    validationException);
+        if (!(versionType == VersionType.INTERNAL || versionType == VersionType.FORCE)) {
+            validationException = addValidationError("version type [" + versionType + "] is not supported by the update API", validationException);
         } else {
 
             if (version != Versions.MATCH_ANY && retryOnConflict > 0) {

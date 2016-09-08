@@ -55,7 +55,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private final Map<String, Setting<?>> keySettings;
     private final Setting.Property scope;
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
-    private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
+    private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w\\*]+[.])+$");
 
     protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Property scope) {
         super(settings);
@@ -182,7 +182,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      *                  This is useful to add additional validation to settings at runtime compared to at startup time.
      */
     public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer, Consumer<T> validator) {
-        if (setting != get(setting.getKey())) {
+        if (setting.equals(get(setting.getKey())) == false) {
             throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
         }
         addSettingsUpdater(setting.newUpdater(consumer, logger, validator));

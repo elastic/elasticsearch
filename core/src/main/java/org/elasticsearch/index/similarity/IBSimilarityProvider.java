@@ -27,7 +27,8 @@ import org.apache.lucene.search.similarities.Lambda;
 import org.apache.lucene.search.similarities.LambdaDF;
 import org.apache.lucene.search.similarities.LambdaTTF;
 import org.apache.lucene.search.similarities.Normalization;
-import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.HashMap;
@@ -46,8 +47,7 @@ import static java.util.Collections.unmodifiableMap;
  * </ul>
  * @see IBSimilarity For more information about configuration
  */
-public class IBSimilarityProvider extends AbstractSimilarityProvider {
-
+public class IBSimilarityProvider extends BaseSimilarityProvider {
     private static final Map<String, Distribution> DISTRIBUTIONS;
     private static final Map<String, Lambda> LAMBDAS;
 
@@ -63,51 +63,66 @@ public class IBSimilarityProvider extends AbstractSimilarityProvider {
         LAMBDAS = unmodifiableMap(lamdas);
     }
 
-    private final IBSimilarity similarity;
+    public static final Setting<Distribution> DISTRIBUTION_SETTING =
+        Setting.affixKeySetting("index.similarity.", ".distribution",
+            (s) -> "ll",
+            (name) -> {
+                Distribution distrib = DISTRIBUTIONS.get(name);
+                if (distrib == null) {
+                    throw new IllegalArgumentException("Unsupported Distribution [" + name + "]");
+                }
+                return distrib;
+            },
+            Setting.Property.IndexScope, Setting.Property.Dynamic);
+
+    public static final Setting<Lambda> COLLECTION_MODEL_SETTING =
+        Setting.affixKeySetting("index.similarity.", ".collection_model",
+            (s) -> "df",
+            (name) -> {
+                Lambda lambda = LAMBDAS.get(name);
+                if (lambda == null) {
+                    throw new IllegalArgumentException("Unsupported CollectionModel [" + name + "]");
+                }
+                return lambda;
+            },
+            Setting.Property.IndexScope, Setting.Property.Dynamic);
+
+    private final boolean discountOverlaps;
+    private volatile Normalization normalization;
+    private volatile Distribution distribution;
+    private volatile Lambda lambda;
 
     public IBSimilarityProvider(String name, Settings settings) {
         super(name);
-        Distribution distribution = parseDistribution(settings);
-        Lambda lambda = parseLambda(settings);
-        Normalization normalization = parseNormalization(settings);
-        this.similarity = new IBSimilarity(distribution, lambda, normalization);
+        this.discountOverlaps = getConcreteSetting(DISCOUNT_OVERLAPS_SETTING).get(settings);
+        this.distribution = getConcreteSetting(DISTRIBUTION_SETTING).get(settings);
+        this.lambda = getConcreteSetting(COLLECTION_MODEL_SETTING).get(settings);
+        this.normalization =  parseNormalization(getConcreteSetting(NORMALIZATION_SETTING).get(settings));
     }
 
-    /**
-     * Parses the given Settings and creates the appropriate {@link Distribution}
-     *
-     * @param settings Settings to parse
-     * @return {@link Normalization} referred to in the Settings
-     */
-    protected Distribution parseDistribution(Settings settings) {
-        String rawDistribution = settings.get("distribution");
-        Distribution distribution = DISTRIBUTIONS.get(rawDistribution);
-        if (distribution == null) {
-            throw new IllegalArgumentException("Unsupported Distribution [" + rawDistribution + "]");
-        }
-        return distribution;
-    }
-
-    /**
-     * Parses the given Settings and creates the appropriate {@link Lambda}
-     *
-     * @param settings Settings to parse
-     * @return {@link Normalization} referred to in the Settings
-     */
-    protected Lambda parseLambda(Settings settings) {
-        String rawLambda = settings.get("lambda");
-        Lambda lambda = LAMBDAS.get(rawLambda);
-        if (lambda == null) {
-            throw new IllegalArgumentException("Unsupported Lambda [" + rawLambda + "]");
-        }
-        return lambda;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public Similarity get() {
-        return similarity;
+    public void addSettingsUpdateConsumer(IndexScopedSettings scopedSettings) {
+        scopedSettings.addSettingsUpdateConsumer(getConcreteSetting(DISTRIBUTION_SETTING), this::setDistribution);
+        scopedSettings.addSettingsUpdateConsumer(getConcreteSetting(COLLECTION_MODEL_SETTING), this::setCollectionModel);
+        scopedSettings.addSettingsUpdateConsumer(getConcreteSetting(NORMALIZATION_SETTING), this::setNormalization);
+    }
+
+    private void setDistribution(Distribution distribution) {
+        this.distribution = distribution;
+    }
+
+    private void setCollectionModel(Lambda lambda) {
+        this.lambda = lambda;
+    }
+
+    private void setNormalization(Settings settings) {
+        this.normalization = parseNormalization(settings);
+    }
+
+    @Override
+    public IBSimilarity get() {
+        IBSimilarity sim = new IBSimilarity(distribution, lambda, normalization);
+        sim.setDiscountOverlaps(discountOverlaps);
+        return sim;
     }
 }

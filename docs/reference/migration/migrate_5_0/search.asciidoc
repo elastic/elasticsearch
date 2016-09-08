@@ -210,3 +210,7 @@ also supports specifying multiple nodes.
 ==== Default similarity
 
 The default similarity has been changed to `BM25`.
+
+==== IB Similarity
+
+The parameter `lambda` has been renamed to `collection_model`.

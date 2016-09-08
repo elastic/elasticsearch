@@ -24,12 +24,20 @@ import org.apache.lucene.search.similarities.NormalizationH1;
 import org.apache.lucene.search.similarities.NormalizationH2;
 import org.apache.lucene.search.similarities.NormalizationH3;
 import org.apache.lucene.search.similarities.NormalizationZ;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
 /**
  * Abstract implementation of {@link SimilarityProvider} providing common behaviour
  */
-public abstract class AbstractSimilarityProvider implements SimilarityProvider {
+public abstract class BaseSimilarityProvider extends SimilarityProvider {
+    public static final Setting<Boolean> DISCOUNT_OVERLAPS_SETTING =
+        Setting.affixKeySetting("index.similarity.", ".discount_overlaps", "true", Boolean::parseBoolean,
+            Setting.Property.IndexScope);
+
+    public static final Setting<Settings> NORMALIZATION_SETTING =
+        Setting.affixKeyGroupSetting("index.similarity.", ".normalization",
+            Setting.Property.IndexScope, Setting.Property.Dynamic);
 
     protected static final Normalization NO_NORMALIZATION = new Normalization.NoNormalization();
 
@@ -40,7 +48,7 @@ public abstract class AbstractSimilarityProvider implements SimilarityProvider {
      *
      * @param name Name of the Provider
      */
-    protected AbstractSimilarityProvider(String name) {
+    protected BaseSimilarityProvider(String name) {
         this.name = name;
     }
 
@@ -55,28 +63,42 @@ public abstract class AbstractSimilarityProvider implements SimilarityProvider {
     /**
      * Parses the given Settings and creates the appropriate {@link Normalization}
      *
-     * @param settings Settings to parse
+     * @param innerSettings Settings to parse
      * @return {@link Normalization} referred to in the Settings
      */
-    protected Normalization parseNormalization(Settings settings) {
-        String normalization = settings.get("normalization");
-
+    protected Normalization parseNormalization(Settings innerSettings) {
+        if (innerSettings.get("") == null) {
+            throw new IllegalArgumentException("missing normalization mode");
+        }
+        String normalization = innerSettings.get("");
         if ("no".equals(normalization)) {
             return NO_NORMALIZATION;
-        } else if ("h1".equals(normalization)) {
-            float c = settings.getAsFloat("normalization.h1.c", 1f);
+        }
+        if ("h1".equals(normalization)) {
+            if (innerSettings.get("h1.c") == null) {
+                throw new IllegalArgumentException("missing parameter h1.c for normalization [h1]");
+            }
+            float c = innerSettings.getAsFloat("h1.c", -1f);
             return new NormalizationH1(c);
         } else if ("h2".equals(normalization)) {
-            float c = settings.getAsFloat("normalization.h2.c", 1f);
+            if (innerSettings.get("h2.c") == null) {
+                throw new IllegalArgumentException("missing parameter h2.c for normalization [h2]");
+            }
+            float c = innerSettings.getAsFloat("h2.c", -1f);
             return new NormalizationH2(c);
         } else if ("h3".equals(normalization)) {
-            float c = settings.getAsFloat("normalization.h3.c", 800f);
+            if (innerSettings.get("h3.c") == null) {
+            throw new IllegalArgumentException("missing parameter h3.c for normalization [h3]");
+        }
+            float c = innerSettings.getAsFloat("h3.c", -1f);
             return new NormalizationH3(c);
         } else if ("z".equals(normalization)) {
-            float z = settings.getAsFloat("normalization.z.z", 0.30f);
+            if (innerSettings.get("z.z") == null) {
+                throw new IllegalArgumentException("missing parameter z.z for normalization [z]");
+            }
+            float z = innerSettings.getAsFloat("z.z", -1f);
             return new NormalizationZ(z);
-        } else {
-            throw new IllegalArgumentException("Unsupported Normalization [" + normalization + "]");
         }
+        throw new IllegalArgumentException("Unsupported Normalization [" + normalization + "]");
     }
 }

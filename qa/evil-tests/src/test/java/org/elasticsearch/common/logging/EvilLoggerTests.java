@@ -77,14 +77,14 @@ public class EvilLoggerTests extends ESTestCase {
         testLogger.trace("This is a trace message");
         final String path = System.getProperty("es.logs") + ".log";
         final List<String> events = Files.readAllLines(PathUtils.get(path));
-        assertThat(events.size(), equalTo(6)); // the five messages me log plus a warning for unsupported configuration files
+        assertThat(events.size(), equalTo(5));
         final String location = "org.elasticsearch.common.logging.EvilLoggerTests.testLocationInfoTest";
         // the first message is a warning for unsupported configuration files
-        assertLogLine(events.get(1), Level.ERROR, location, "This is an error message");
-        assertLogLine(events.get(2), Level.WARN, location, "This is a warning message");
-        assertLogLine(events.get(3), Level.INFO, location, "This is an info message");
-        assertLogLine(events.get(4), Level.DEBUG, location, "This is a debug message");
-        assertLogLine(events.get(5), Level.TRACE, location, "This is a trace message");
+        assertLogLine(events.get(0), Level.ERROR, location, "This is an error message");
+        assertLogLine(events.get(1), Level.WARN, location, "This is a warning message");
+        assertLogLine(events.get(2), Level.INFO, location, "This is an info message");
+        assertLogLine(events.get(3), Level.DEBUG, location, "This is a debug message");
+        assertLogLine(events.get(4), Level.TRACE, location, "This is a trace message");
     }
 
     private void assertLogLine(final String logLine, final Level level, final String location, final String message) {

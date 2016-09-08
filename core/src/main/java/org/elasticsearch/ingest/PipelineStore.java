@@ -45,7 +45,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 
-public class PipelineStore extends AbstractComponent implements ClusterStateListener {
+public class    PipelineStore extends AbstractComponent implements ClusterStateListener {
 
     private final Pipeline.Factory factory = new Pipeline.Factory();
     private final Map<String, Processor.Factory> processorFactories;

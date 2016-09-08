@@ -162,6 +162,7 @@ public class WatcherDateTimeUtils {
      * Parse a {@link TimeValue} with support for fractional values.
      */
     public static TimeValue parseTimeValueSupportingFractional(@Nullable String sValue, String settingName) {
+        // TODO we can potentially remove this in 6.x
         // This code is lifted almost straight from 2.x's TimeValue.java
         Objects.requireNonNull(settingName);
         if (sValue == null) {

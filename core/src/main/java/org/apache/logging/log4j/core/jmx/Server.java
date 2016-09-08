@@ -192,6 +192,10 @@ public final class Server {
      * Unregister all log4j MBeans from the platform MBean server.
      */
     public static void unregisterMBeans() {
+        if (isJmxDisabled()) {
+            LOGGER.debug("JMX disabled for Log4j2. Not unregistering MBeans.");
+            return;
+        }
         final MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         unregisterMBeans(mbs);
     }
@@ -233,6 +237,10 @@ public final class Server {
      * @param loggerContextName name of the logger context to unregister
      */
     public static void unregisterLoggerContext(final String loggerContextName) {
+        if (isJmxDisabled()) {
+            LOGGER.debug("JMX disabled for Log4j2. Not unregistering MBeans.");
+            return;
+        }
         final MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         unregisterLoggerContext(loggerContextName, mbs);
     }

@@ -235,11 +235,14 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                 .add(client().prepareUpdate("test", "type", "e1")
                         .setDoc("field", "2").setVersion(10)) // INTERNAL
                 .add(client().prepareUpdate("test", "type", "e1")
-                        .setDoc("field", "3").setVersion(13).setVersionType(VersionType.INTERNAL))
+                        .setDoc("field", "3").setVersion(20).setVersionType(VersionType.FORCE))
+                .add(client().prepareUpdate("test", "type", "e1")
+                        .setDoc("field", "4").setVersion(20).setVersionType(VersionType.INTERNAL))
                 .get();
 
         assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("version conflict"));
-        assertThat(bulkResponse.getItems()[1].getFailureMessage(), containsString("version conflict"));
+        assertThat(bulkResponse.getItems()[1].getResponse().getVersion(), equalTo(20L));
+        assertThat(bulkResponse.getItems()[2].getResponse().getVersion(), equalTo(21L));
     }
 
     public void testBulkUpdateMalformedScripts() throws Exception {

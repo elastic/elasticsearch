@@ -36,6 +36,7 @@ import org.elasticsearch.node.Node;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.common.util.CollectionUtils.asArrayList;
@@ -196,6 +197,18 @@ public class Loggers {
         }
         loggerConfig.removeAppender(appender.getName());
         ctx.updateLoggers();
+    }
+
+    public static Appender findAppender(final Logger logger, Class<? extends Appender> clazz) {
+        final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+        final Configuration config = ctx.getConfiguration();
+        final LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
+        for (final Map.Entry<String, Appender> entry : loggerConfig.getAppenders().entrySet()) {
+            if (entry.getValue().getClass().equals(clazz)) {
+                return entry.getValue();
+            }
+        }
+        return null;
     }
 
 }

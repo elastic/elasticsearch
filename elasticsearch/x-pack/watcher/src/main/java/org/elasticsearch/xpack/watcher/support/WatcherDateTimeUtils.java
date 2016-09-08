@@ -144,7 +144,7 @@ public class WatcherDateTimeUtils {
         }
         if (token == XContentParser.Token.VALUE_STRING) {
             try {
-                TimeValue value = TimeValue.parseTimeValue(parser.text(), settingName);
+                TimeValue value = parseTimeValueSupportingFractional(parser.text(), settingName);
                 if (value.millis() < 0) {
                     throw new ElasticsearchParseException("could not parse time value [{}]. Time value cannot be negative.", parser.text());
                 }
@@ -156,6 +156,48 @@ public class WatcherDateTimeUtils {
         }
         throw new ElasticsearchParseException("could not parse time value. expected either a string or a null value but found [{}] " +
                 "instead", token);
+    }
+
+    /**
+     * Parse a {@link TimeValue} with support for fractional values.
+     */
+    public static TimeValue parseTimeValueSupportingFractional(@Nullable String sValue, String settingName) {
+        // TODO we can potentially remove this in 6.x
+        // This code is lifted almost straight from 2.x's TimeValue.java
+        Objects.requireNonNull(settingName);
+        if (sValue == null) {
+            return null;
+        }
+        try {
+            long millis;
+            String lowerSValue = sValue.toLowerCase(Locale.ROOT).trim();
+            if (lowerSValue.endsWith("ms")) {
+                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 2)));
+            } else if (lowerSValue.endsWith("s")) {
+                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 1000);
+            } else if (lowerSValue.endsWith("m")) {
+                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 60 * 1000);
+            } else if (lowerSValue.endsWith("h")) {
+                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 60 * 60 * 1000);
+            } else if (lowerSValue.endsWith("d")) {
+                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 24 * 60 * 60 * 1000);
+            } else if (lowerSValue.endsWith("w")) {
+                millis = (long) (Double.parseDouble(lowerSValue.substring(0, lowerSValue.length() - 1)) * 7 * 24 * 60 * 60 * 1000);
+            } else if (lowerSValue.equals("-1")) {
+                // Allow this special value to be unit-less:
+                millis = -1;
+            } else if (lowerSValue.equals("0")) {
+                // Allow this special value to be unit-less:
+                millis = 0;
+            } else {
+                throw new ElasticsearchParseException(
+                        "Failed to parse setting [{}] with value [{}] as a time value: unit is missing or unrecognized",
+                        settingName, sValue);
+            }
+            return new TimeValue(millis, TimeUnit.MILLISECONDS);
+        } catch (NumberFormatException e) {
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, sValue);
+        }
     }
 
     private static class ClockNowCallable implements Callable<Long> {

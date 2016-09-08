@@ -1,8 +1,8 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
-:version:        5.0.0-alpha5
-:major-version:  5.x
+:version:        6.0.0-alpha1
+:major-version:  6.x
 :lucene_version: 6.2.0
 :branch:         master
 :jdk:            1.8.0_73

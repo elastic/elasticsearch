@@ -107,17 +107,4 @@ public class EvilLoggerTests extends ESTestCase {
             "This is a deprecation message");
     }
 
-    public void testUnsupportedLoggingConfigurationFiles() throws IOException {
-        // TODO: the warning for unsupported logging configurations can be removed in 6.0.0
-        assert Version.CURRENT.major < 6;
-        final String path = System.getProperty("es.logs") + ".log";
-        final List<String> events = Files.readAllLines(PathUtils.get(path));
-        assertThat(events.size(), equalTo(1));
-        assertLogLine(
-            events.get(0),
-            Level.WARN,
-            "org\\.elasticsearch\\.common\\.logging\\.LogConfigurator.*",
-            "ignoring unsupported logging configuration file \\[.*\\], logging is configured via \\[.*\\]");
-    }
-
 }

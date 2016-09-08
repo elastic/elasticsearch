@@ -184,9 +184,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract SearchContext aggregations(SearchContextAggregations aggregations);
 
-    public abstract void putFetchSubPhaseBuilder(String name, Object fetchSubPhaseBuilder);
+    public abstract void putSearchExtBuilder(String name, Object fetchSubPhaseBuilder);
 
-    public abstract Object getFetchSubPhaseBuilder(String name);
+    public abstract Object getSearchExtBuilder(String name);
 
     public abstract SearchContextHighlight highlight();
 

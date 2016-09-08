@@ -103,19 +103,19 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
             return singletonList(new TermVectorsFetchSubPhase());
         }
+
+        @Override
+        public List<SearchExtParser> getSearchExtParsers() {
+            return Collections.singletonList(TermVectorsFetchParser.INSTANCE);
+        }
     }
 
     public static final class TermVectorsFetchSubPhase implements FetchSubPhase {
         private static final String NAME = "term_vectors_fetch";
 
         @Override
-        public SearchExtParser parser() {
-            return TermVectorsFetchParser.INSTANCE;
-        }
-
-        @Override
         public void hitExecute(SearchContext context, HitContext hitContext) {
-            TermVectorsFetchBuilder fetchSubPhaseBuilder = (TermVectorsFetchBuilder)context.getFetchSubPhaseBuilder(NAME);
+            TermVectorsFetchBuilder fetchSubPhaseBuilder = (TermVectorsFetchBuilder)context.getSearchExtBuilder(NAME);
             if (fetchSubPhaseBuilder == null) {
                 return;
             }

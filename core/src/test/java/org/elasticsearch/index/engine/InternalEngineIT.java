@@ -19,20 +19,54 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 public class InternalEngineIT extends ESIntegTestCase {
+    @Test
+    public void testSetBogusMaxMergeThreads() throws InterruptedException {
+        client().admin().indices().prepareCreate("test").get();
+        ensureGreen();
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Collections.singletonMap("index.merge.scheduler.max_thread_count",
+                (Object) Integer.valueOf(Integer.MAX_VALUE))).get();
+        client().prepareIndex("test", "foo").setSource("field", "foo").get();
+        final CountDownLatch latch = new CountDownLatch(1);
+        client().admin().indices().prepareForceMerge("test").execute(new ActionListener<ForceMergeResponse>() {
+            @Override
+            public void onResponse(ForceMergeResponse forceMergeResponse) {
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                latch.countDown();
+                throw new AssertionError(e);
+            }
+        });
+        int numDocs = randomIntBetween(10, 100);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test", "foo").setSource("field", "foo").get();
+        }
+        latch.await();
+        client().admin().indices().prepareRefresh("test").get();
+        ElasticsearchAssertions.assertHitCount(client().prepareSearch("test").get(), numDocs + 1);
+    }
 
     @Test
     public void testSetIndexCompoundOnFlush() {

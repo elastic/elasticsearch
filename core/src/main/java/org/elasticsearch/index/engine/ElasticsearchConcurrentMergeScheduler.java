@@ -143,7 +143,7 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
 
     @Override
     public MergeScheduler clone() {
-        // Lucene IW makes a clone internally but since we hold on to this instance 
+        // Lucene IW makes a clone internally but since we hold on to this instance
         // the clone will just be the identity.
         return this;
     }
@@ -173,7 +173,11 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
 
     void refreshConfig() {
         if (this.getMaxMergeCount() != config.getMaxMergeCount() || this.getMaxThreadCount() != config.getMaxThreadCount()) {
-            this.setMaxMergesAndThreads(config.getMaxMergeCount(), config.getMaxThreadCount());
+            try {
+                this.setMaxMergesAndThreads(config.getMaxMergeCount(), config.getMaxThreadCount());
+            } catch (IllegalArgumentException ex) {
+                logger.error("Failed to apply merge scheduler settings", ex);
+            }
         }
         boolean isEnabled = getIORateLimitMBPerSec() != Double.POSITIVE_INFINITY;
         if (config.isAutoThrottle() && isEnabled == false) {

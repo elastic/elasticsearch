@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.fetch;
+package org.elasticsearch.search;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 

@@ -72,8 +72,9 @@ public class MockSearchService extends SearchService {
     @Inject
     public MockSearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService,
             IndicesService indicesService, ThreadPool threadPool, ScriptService scriptService,
-            BigArrays bigArrays, FetchPhase fetchPhase) {
-        super(settings, clusterSettings, clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase);
+            BigArrays bigArrays, FetchPhase fetchPhase, SearchExtParserRegistry searchExtParserRegistry) {
+        super(settings, clusterSettings, clusterService, indicesService, threadPool, scriptService,
+                bigArrays, fetchPhase, searchExtParserRegistry);
     }
 
     @Override

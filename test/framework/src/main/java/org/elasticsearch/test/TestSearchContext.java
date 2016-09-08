@@ -89,7 +89,7 @@ public class TestSearchContext extends SearchContext {
     private SearchContextAggregations aggregations;
 
     private final long originNanoTime = System.nanoTime();
-    private final Map<String, Object> subPhaseContexts = new HashMap<>();
+    private final Map<String, Object> searchExtBuilders = new HashMap<>();
 
     public TestSearchContext(ThreadPool threadPool, BigArrays bigArrays, ScriptService scriptService, IndexService indexService) {
         super(ParseFieldMatcher.STRICT);
@@ -196,13 +196,13 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void putFetchSubPhaseBuilder(String name, Object fetchSubPhaseBuilder) {
-        subPhaseContexts.put(name, fetchSubPhaseBuilder);
+    public void putSearchExtBuilder(String name, Object searchExtBuilders) {
+        this.searchExtBuilders.put(name, searchExtBuilders);
     }
 
     @Override
-    public Object getFetchSubPhaseBuilder(String name) {
-        return subPhaseContexts.get(name);
+    public Object getSearchExtBuilder(String name) {
+        return searchExtBuilders.get(name);
     }
 
     @Override

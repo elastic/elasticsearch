@@ -41,7 +41,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.search.SearchExtParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchPhase;
@@ -62,7 +61,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.contentBuilder;
 
 /**
@@ -76,16 +74,6 @@ public class FetchPhase implements SearchPhase {
     public FetchPhase(List<FetchSubPhase> fetchSubPhases) {
         this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsFetchSubPhase(this);
-    }
-
-    public Map<String, ? extends SearchExtParser> parsers() {
-        Map<String, SearchExtParser> parsers = new HashMap<>();
-        for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-            if (fetchSubPhase.parser() != null) {
-                parsers.put(fetchSubPhase.parser().getName(), fetchSubPhase.parser());
-            }
-        }
-        return unmodifiableMap(parsers);
     }
 
     @Override

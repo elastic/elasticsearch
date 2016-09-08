@@ -145,7 +145,7 @@ public class DefaultSearchContext extends SearchContext {
     private volatile long lastAccessTime = -1;
     private Profilers profilers;
 
-    private final Map<String, Object> subPhaseBuilders = new HashMap<>();
+    private final Map<String, Object> searchExtBuilders = new HashMap<>();
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
     private final QueryShardContext queryShardContext;
     private FetchPhase fetchPhase;
@@ -385,13 +385,13 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public Object getFetchSubPhaseBuilder(String name) {
-        return subPhaseBuilders.get(name);
+    public Object getSearchExtBuilder(String name) {
+        return searchExtBuilders.get(name);
     }
 
     @Override
-    public void putFetchSubPhaseBuilder(String name, Object fetchSubPhaseBuilder) {
-        subPhaseBuilders.put(name, fetchSubPhaseBuilder);
+    public void putSearchExtBuilder(String name, Object searchExtBuilder) {
+        searchExtBuilders.put(name, searchExtBuilder);
     }
 
     @Override

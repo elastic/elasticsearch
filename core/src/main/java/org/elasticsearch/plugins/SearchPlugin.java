@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
+import org.elasticsearch.search.SearchExtParser;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -80,6 +81,12 @@ public interface SearchPlugin {
      * The new {@link FetchSubPhase}s defined by this plugin.
      */
     default List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
+        return emptyList();
+    }
+    /**
+     * The new {@link SearchExtParser}s defined by this plugin.
+     */
+    default List<SearchExtParser> getSearchExtParsers() {
         return emptyList();
     }
     /**

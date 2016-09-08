@@ -100,7 +100,6 @@ import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
@@ -143,13 +142,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final ConcurrentMapLong<SearchContext> activeContexts = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
-    private final Map<String, SearchExtParser> fetchPhaseParsers;
+    private final SearchExtParserRegistry searchExtParserRegistry;
 
     private final ParseFieldMatcher parseFieldMatcher;
 
     @Inject
     public SearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService, IndicesService indicesService,
-                         ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase) {
+                         ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase,
+                         SearchExtParserRegistry searchExtParserRegistry) {
         super(settings);
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.threadPool = threadPool;
@@ -163,9 +163,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         this.defaultKeepAlive = DEFAULT_KEEPALIVE_SETTING.get(settings).millis();
 
-        this.fetchPhaseParsers = unmodifiableMap(fetchPhase.parsers());
-
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval, Names.SAME);
+
+        this.searchExtParserRegistry = searchExtParserRegistry;
 
         defaultSearchTimeout = DEFAULT_SEARCH_TIMEOUT_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
@@ -762,19 +762,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = extParser.currentName();
                     } else {
-                        SearchExtParser searchExtParser = this.fetchPhaseParsers.get(currentFieldName);
-                        if (searchExtParser == null) {
-                            if (currentFieldName != null && currentFieldName.equals("suggest")) {
-                                throw new SearchParseException(context,
-                                    "suggest is not supported in [ext], please use SearchSourceBuilder#suggest(SuggestBuilder) instead",
-                                    extParser.getTokenLocation());
-                            }
-                            throw new SearchParseException(context, "Unknown element [" + currentFieldName + "] in [ext]",
-                                    extParser.getTokenLocation());
-                        } else {
-                            Object fetchSubPhaseBuilder = searchExtParser.parse(extParser);
-                            context.putFetchSubPhaseBuilder(currentFieldName, fetchSubPhaseBuilder);
-                        }
+                        SearchExtParser searchExtParser = this.searchExtParserRegistry.lookup(currentFieldName, parseFieldMatcher,
+                                extParser.getTokenLocation());
+                        Object searchExtBuilder = searchExtParser.parse(extParser);
+                        context.putSearchExtBuilder(currentFieldName, searchExtBuilder);
                     }
                 }
             } catch (Exception e) {

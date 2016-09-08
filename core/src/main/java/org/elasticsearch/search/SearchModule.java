@@ -306,6 +306,7 @@ public class SearchModule extends AbstractModule {
             "moving_avg_model");
 
     private final List<FetchSubPhase> fetchSubPhases = new ArrayList<>();
+    private final SearchExtParserRegistry searchExtParserRegistry = new SearchExtParserRegistry();
 
     private final Settings settings;
     private final List<Entry> namedWriteables = new ArrayList<>();
@@ -326,6 +327,7 @@ public class SearchModule extends AbstractModule {
         registerAggregations(plugins);
         registerPipelineAggregations(plugins);
         registerFetchSubPhases(plugins);
+        registerSearchExtParsers(plugins);
         registerShapes();
         searchRequestParsers = new SearchRequestParsers(queryParserRegistry, aggregatorParsers, getSuggesters());
     }
@@ -380,6 +382,7 @@ public class SearchModule extends AbstractModule {
         if (false == transportClient) {
             bind(IndicesQueriesRegistry.class).toInstance(queryParserRegistry);
             bind(SearchRequestParsers.class).toInstance(searchRequestParsers);
+            bind(SearchExtParserRegistry.class).toInstance(searchExtParserRegistry);
             configureSearch();
         }
     }
@@ -723,6 +726,14 @@ public class SearchModule extends AbstractModule {
 
         FetchPhaseConstructionContext context = new FetchPhaseConstructionContext(highlighters);
         registerFromPlugin(plugins, p -> p.getFetchSubPhases(context), this::registerFetchSubPhase);
+    }
+
+    private void registerSearchExtParsers(List<SearchPlugin> plugins) {
+        registerFromPlugin(plugins, SearchPlugin::getSearchExtParsers, this::registerSearchExtParser);
+    }
+
+    private void registerSearchExtParser(SearchExtParser searchExtParser) {
+        searchExtParserRegistry.register(searchExtParser, searchExtParser.getName());
     }
 
     private void registerFetchSubPhase(FetchSubPhase subPhase) {

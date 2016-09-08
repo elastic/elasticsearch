@@ -510,13 +510,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void putFetchSubPhaseBuilder(String name, Object fetchSubPhaseBuilder) {
-        in.putFetchSubPhaseBuilder(name, fetchSubPhaseBuilder);
+    public void putSearchExtBuilder(String name, Object fetchSubPhaseBuilder) {
+        in.putSearchExtBuilder(name, fetchSubPhaseBuilder);
     }
 
     @Override
-    public Object getFetchSubPhaseBuilder(String name) {
-        return in.getFetchSubPhaseBuilder(name);
+    public Object getSearchExtBuilder(String name) {
+        return in.getSearchExtBuilder(name);
     }
 
     @Override

@@ -22,7 +22,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.search.SearchExtParser;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -75,13 +74,6 @@ public interface FetchSubPhase {
             return cache;
         }
 
-    }
-
-    /**
-     * Returns the parser for the optional config to be put in the ext section of the search request
-     */
-    default SearchExtParser parser() {
-        return null;
     }
 
     /**

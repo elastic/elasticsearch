@@ -55,9 +55,9 @@ public class LongGCDisruption extends SingleNodeDisruption {
             try {
                 suspendedThreads = ConcurrentHashMap.newKeySet();
 
-                final String currentThreadNamme = Thread.currentThread().getName();
-                assert currentThreadNamme.contains("[" + disruptedNode + "]") == false :
-                    "current thread match pattern. thread name: " + currentThreadNamme + ", node: " + disruptedNode;
+                final String currentThreadName = Thread.currentThread().getName();
+                assert currentThreadName.contains("[" + disruptedNode + "]") == false :
+                    "current thread match pattern. thread name: " + currentThreadName + ", node: " + disruptedNode;
                 // we spawn a background thread to protect against deadlock which can happen
                 // if there are shared resources between caller thread and and suspended threads
                 // see unsafeClasses to how to avoid that
@@ -73,7 +73,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
                         while (stopNodeThreads(disruptedNode, suspendedThreads)) ;
                     }
                 });
-                stoppingThread.setName(currentThreadNamme + "[LongGCDisruption][threadStopper]");
+                stoppingThread.setName(currentThreadName + "[LongGCDisruption][threadStopper]");
                 stoppingThread.start();
                 try {
                     stoppingThread.join(getStoppingTimeoutInMillis());

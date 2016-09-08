@@ -30,7 +30,6 @@ import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -139,13 +138,13 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
     }
 
     @Override
-    public EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs) {
+    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
         Map<RatedDocumentKey, RatedDocument> ratedDocsByKey = new HashMap<>();
         for (RatedDocument doc : ratedDocs) {
             ratedDocsByKey.put(doc.getKey(), doc);
         }
 
-        Collection<RatedDocumentKey> unknownDocIds = new ArrayList<>();
+        List<RatedDocumentKey> unknownDocIds = new ArrayList<>();
         List<Integer> ratings = new ArrayList<>();
         for (int i = 0; (i < position && i < hits.length); i++) {
             RatedDocumentKey id = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].getId());
@@ -166,7 +165,7 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
             double idcg = computeDCG(ratings);
             dcg = dcg / idcg;
         }
-        return new EvalQueryQuality(dcg, unknownDocIds);
+        return new EvalQueryQuality(taskId, dcg, unknownDocIds);
     }
 
     private static double computeDCG(List<Integer> ratings) {
@@ -208,7 +207,7 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
         builder.endObject();
         return builder;
     }
-    
+
     @Override
     public final boolean equals(Object obj) {
         if (this == obj) {
@@ -222,7 +221,7 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
                 Objects.equals(normalize, other.normalize) &&
                 Objects.equals(unknownDocRating, other.unknownDocRating);
     }
-    
+
     @Override
     public final int hashCode() {
         return Objects.hash(position, normalize, unknownDocRating);

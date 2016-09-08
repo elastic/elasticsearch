@@ -88,7 +88,6 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         private RatedRequest specification;
         private Map<String, EvalQueryQuality> partialResults;
         private RankEvalSpec task;
-        private Map<String, Collection<RatedDocumentKey>> unknownDocs;
         private AtomicInteger responseCounter;
 
         public RankEvalActionListener(ActionListener<RankEvalResponse> listener, RankEvalSpec task, RatedRequest specification,
@@ -98,21 +97,20 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             this.task = task;
             this.specification = specification;
             this.partialResults = partialResults;
-            this.unknownDocs = unknownDocs;
             this.responseCounter = responseCounter;
         }
 
         @Override
         public void onResponse(SearchResponse searchResponse) {
             SearchHits hits = searchResponse.getHits();
-            EvalQueryQuality queryQuality = task.getEvaluator().evaluate(hits.getHits(), specification.getRatedDocs());
+            EvalQueryQuality queryQuality = task.getEvaluator().evaluate(specification.getSpecId(), hits.getHits(),
+                    specification.getRatedDocs());
             partialResults.put(specification.getSpecId(), queryQuality);
-            unknownDocs.put(specification.getSpecId(), queryQuality.getUnknownDocs());
 
             if (responseCounter.decrementAndGet() < 1) {
                 // TODO add other statistics like micro/macro avg?
                 listener.onResponse(
-                        new RankEvalResponse(task.getEvaluator().combine(partialResults.values()), unknownDocs));
+                        new RankEvalResponse(task.getEvaluator().combine(partialResults.values()), partialResults));
             }
         }
 

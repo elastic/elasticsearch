@@ -30,7 +30,6 @@ import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -114,7 +113,7 @@ public class ReciprocalRank extends RankedListQualityMetric {
      * @return reciprocal Rank for above {@link SearchResult} list.
      **/
     @Override
-    public EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs) {
+    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
         Set<RatedDocumentKey> relevantDocIds = new HashSet<>();
         Set<RatedDocumentKey> irrelevantDocIds = new HashSet<>();
         for (RatedDocument doc : ratedDocs) {
@@ -125,7 +124,7 @@ public class ReciprocalRank extends RankedListQualityMetric {
             }
         }
 
-        Collection<RatedDocumentKey> unknownDocIds = new ArrayList<>();
+        List<RatedDocumentKey> unknownDocIds = new ArrayList<>();
         int firstRelevant = -1;
         boolean found = false;
         for (int i = 0; i < hits.length; i++) {
@@ -141,7 +140,7 @@ public class ReciprocalRank extends RankedListQualityMetric {
         }
 
         double reciprocalRank = (firstRelevant == -1) ? 0 : 1.0d / firstRelevant;
-        return new EvalQueryQuality(reciprocalRank, unknownDocIds);
+        return new EvalQueryQuality(taskId, reciprocalRank, unknownDocIds);
     }
 
     @Override
@@ -184,7 +183,7 @@ public class ReciprocalRank extends RankedListQualityMetric {
         ReciprocalRank other = (ReciprocalRank) obj;
         return Objects.equals(maxAcceptableRank, other.maxAcceptableRank);
     }
-    
+
     @Override
     public final int hashCode() {
         return Objects.hash(maxAcceptableRank);

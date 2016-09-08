@@ -27,7 +27,7 @@ import java.io.IOException;
 
 public class RatedDocumentTests extends ESTestCase {
 
-    public static RatedDocument createTestItem() {
+    public static RatedDocument createRatedDocument() {
         String index = randomAsciiOfLength(10);
         String type = randomAsciiOfLength(10);
         String docId = randomAsciiOfLength(10);
@@ -37,8 +37,8 @@ public class RatedDocumentTests extends ESTestCase {
     }
 
     public void testXContentParsing() throws IOException {
-        RatedDocument testItem = createTestItem();
-        XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
+        RatedDocument testItem = createRatedDocument();
+        XContentParser itemParser = RankEvalTestHelper.roundtrip(testItem);
         RatedDocument parsedItem = RatedDocument.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);

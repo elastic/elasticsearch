@@ -120,7 +120,7 @@ public class PrecisionAtN extends RankedListQualityMetric {
      * @return precision at n for above {@link SearchResult} list.
      **/
     @Override
-    public EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs) {
+    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
 
         Collection<RatedDocumentKey> relevantDocIds = new ArrayList<>();
         Collection<RatedDocumentKey> irrelevantDocIds = new ArrayList<>();
@@ -134,7 +134,7 @@ public class PrecisionAtN extends RankedListQualityMetric {
 
         int good = 0;
         int bad = 0;
-        Collection<RatedDocumentKey> unknownDocIds = new ArrayList<>();
+        List<RatedDocumentKey> unknownDocIds = new ArrayList<>();
         for (int i = 0; (i < n && i < hits.length); i++) {
             RatedDocumentKey hitKey = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].getId());
             if (relevantDocIds.contains(hitKey)) {
@@ -146,7 +146,7 @@ public class PrecisionAtN extends RankedListQualityMetric {
             }
         }
         double precision = (double) good / (good + bad);
-        return new EvalQueryQuality(precision, unknownDocIds);
+        return new EvalQueryQuality(taskId, precision, unknownDocIds);
     }
 
     // TODO add abstraction that also works for other metrics
@@ -194,7 +194,7 @@ public class PrecisionAtN extends RankedListQualityMetric {
         PrecisionAtN other = (PrecisionAtN) obj;
         return Objects.equals(n, other.n);
     }
-    
+
     @Override
     public final int hashCode() {
         return Objects.hash(n);

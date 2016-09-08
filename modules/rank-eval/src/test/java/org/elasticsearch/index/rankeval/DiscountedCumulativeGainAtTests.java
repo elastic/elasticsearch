@@ -60,7 +60,7 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0)));
         }
         DiscountedCumulativeGainAt dcg = new DiscountedCumulativeGainAt(6);
-        assertEquals(13.84826362927298, dcg.evaluate(hits, rated).getQualityLevel(), 0.00001);
+        assertEquals(13.84826362927298, dcg.evaluate("id", hits, rated).getQualityLevel(), 0.00001);
 
         /**
          * Check with normalization: to get the maximal possible dcg, sort documents by relevance in descending order
@@ -77,7 +77,7 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
          * idcg = 14.595390756454922 (sum of last column)
          */
         dcg.setNormalize(true);
-        assertEquals(13.84826362927298 / 14.595390756454922, dcg.evaluate(hits, rated).getQualityLevel(), 0.00001);
+        assertEquals(13.84826362927298 / 14.595390756454922, dcg.evaluate("id", hits, rated).getQualityLevel(), 0.00001);
     }
 
     /**
@@ -106,7 +106,7 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0)));
         }
         DiscountedCumulativeGainAt dcg = new DiscountedCumulativeGainAt(6);
-        EvalQueryQuality result = dcg.evaluate(hits, rated);
+        EvalQueryQuality result = dcg.evaluate("id", hits, rated);
         assertEquals(12.392789260714371, result.getQualityLevel(), 0.00001);
         assertEquals(3, result.getUnknownDocs().size());
     }
@@ -131,7 +131,7 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
     }
     public void testXContentRoundtrip() throws IOException {
         DiscountedCumulativeGainAt testItem = createTestItem();
-        XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
+        XContentParser itemParser = RankEvalTestHelper.roundtrip(testItem);
         itemParser.nextToken();
         itemParser.nextToken();
         DiscountedCumulativeGainAt parsedItem = DiscountedCumulativeGainAt.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);

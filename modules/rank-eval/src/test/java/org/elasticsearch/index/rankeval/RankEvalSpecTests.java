@@ -89,7 +89,7 @@ public class RankEvalSpecTests extends ESTestCase {
 
         RankEvalSpec testItem = new RankEvalSpec(specs, metric);
 
-        XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
+        XContentParser itemParser = RankEvalTestHelper.roundtrip(testItem);
 
         QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, itemParser, ParseFieldMatcher.STRICT);
         RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,

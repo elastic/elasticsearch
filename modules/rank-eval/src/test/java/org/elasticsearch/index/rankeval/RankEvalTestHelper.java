@@ -30,9 +30,16 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class XContentTestHelper {
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
-    public static XContentParser roundtrip(ToXContentToBytes testItem) throws IOException { 
+public class RankEvalTestHelper {
+
+    public static XContentParser roundtrip(ToXContentToBytes testItem) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(ESTestCase.randomFrom(XContentType.values()));
         if (ESTestCase.randomBoolean()) {
             builder.prettyPrint();
@@ -41,5 +48,21 @@ public class XContentTestHelper {
         XContentBuilder shuffled = ESTestCase.shuffleXContent(builder);
         XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
         return itemParser;
+    }
+
+    public static void testHashCodeAndEquals(Object testItem, Object mutation, Object secondCopy) {
+        assertFalse("testItem is equal to null", testItem.equals(null));
+        assertFalse("testItem is equal to incompatible type", testItem.equals(""));
+        assertTrue("testItem is not equal to self", testItem.equals(testItem));
+        assertThat("same testItem's hashcode returns different values if called multiple times", testItem.hashCode(),
+                equalTo(testItem.hashCode()));
+
+        assertThat("different testItem should not be equal", mutation, not(equalTo(testItem)));
+
+        assertNotSame("testItem copy is not same as original", testItem, secondCopy);
+        assertTrue("testItem is not equal to its copy", testItem.equals(secondCopy));
+        assertTrue("equals is not symmetric", secondCopy.equals(testItem));
+        assertThat("testItem copy's hashcode is different from original hashcode", secondCopy.hashCode(),
+                equalTo(testItem.hashCode()));
     }
 }

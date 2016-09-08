@@ -25,7 +25,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -77,8 +76,11 @@ public interface FetchSubPhase {
 
     }
 
-    default Map<String, ? extends FetchSubPhaseParser> parsers() {
-        return Collections.emptyMap();
+    /**
+     * Returns the parser for the optional config to be put in the ext section of the search request
+     */
+    default SearchExtParser parser() {
+        return null;
     }
 
     /**

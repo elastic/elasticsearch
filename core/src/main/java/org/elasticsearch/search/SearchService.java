@@ -63,7 +63,7 @@ import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.FetchSubPhaseParser;
+import org.elasticsearch.search.fetch.SearchExtParser;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
@@ -144,7 +144,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final ConcurrentMapLong<SearchContext> activeContexts = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
-    private final Map<String, FetchSubPhaseParser> fetchPhaseParsers;
+    private final Map<String, SearchExtParser> fetchPhaseParsers;
 
     private final ParseFieldMatcher parseFieldMatcher;
 
@@ -763,8 +763,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = extParser.currentName();
                     } else {
-                        FetchSubPhaseParser fetchSubPhaseParser = this.fetchPhaseParsers.get(currentFieldName);
-                        if (fetchSubPhaseParser == null) {
+                        SearchExtParser searchExtParser = this.fetchPhaseParsers.get(currentFieldName);
+                        if (searchExtParser == null) {
                             if (currentFieldName != null && currentFieldName.equals("suggest")) {
                                 throw new SearchParseException(context,
                                     "suggest is not supported in [ext], please use SearchSourceBuilder#suggest(SuggestBuilder) instead",
@@ -773,7 +773,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                             throw new SearchParseException(context, "Unknown element [" + currentFieldName + "] in [ext]",
                                     extParser.getTokenLocation());
                         } else {
-                            Object fetchSubPhaseBuilder = fetchSubPhaseParser.parse(extParser);
+                            Object fetchSubPhaseBuilder = searchExtParser.parse(extParser);
                             context.putFetchSubPhaseBuilder(currentFieldName, fetchSubPhaseBuilder);
                         }
                     }

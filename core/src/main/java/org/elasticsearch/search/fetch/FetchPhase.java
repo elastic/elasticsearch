@@ -77,10 +77,12 @@ public class FetchPhase implements SearchPhase {
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsFetchSubPhase(this);
     }
 
-    public Map<String, ? extends FetchSubPhaseParser> parsers() {
-        Map<String, FetchSubPhaseParser> parsers = new HashMap<>();
+    public Map<String, ? extends SearchExtParser> parsers() {
+        Map<String, SearchExtParser> parsers = new HashMap<>();
         for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-            parsers.putAll(fetchSubPhase.parsers());
+            if (fetchSubPhase.parser() != null) {
+                parsers.put(fetchSubPhase.parser().getName(), fetchSubPhase.parser());
+            }
         }
         return unmodifiableMap(parsers);
     }

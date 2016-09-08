@@ -50,7 +50,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -109,8 +108,8 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         private static final String NAME = "term_vectors_fetch";
 
         @Override
-        public Map<String, ? extends FetchSubPhaseParser> parsers() {
-            return singletonMap(NAME, new TermVectorsFetchParser());
+        public SearchExtParser parser() {
+            return TermVectorsFetchParser.INSTANCE;
         }
 
         @Override
@@ -145,7 +144,18 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         }
     }
 
-    public static class TermVectorsFetchParser implements FetchSubPhaseParser {
+    public static final class TermVectorsFetchParser implements SearchExtParser {
+
+        private static final TermVectorsFetchParser INSTANCE = new TermVectorsFetchParser();
+
+        private TermVectorsFetchParser() {
+        }
+
+        @Override
+        public String getName() {
+            return TermVectorsFetchSubPhase.NAME;
+        }
+
         @Override
         public TermVectorsFetchBuilder parse(XContentParser parser) throws Exception {
             String field;
@@ -162,7 +172,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         }
     }
 
-    public static class TermVectorsFetchBuilder {
+    public static final class TermVectorsFetchBuilder {
         private final String field;
 
         private TermVectorsFetchBuilder(String field) {

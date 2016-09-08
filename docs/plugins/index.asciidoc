@@ -1,8 +1,8 @@
 = Elasticsearch Plugins and Integrations
 
-:ref:            https://www.elastic.co/guide/en/elasticsearch/reference/master
+:ref:            https://www.elastic.co/guide/en/elasticsearch/reference/5.x
 :guide:          https://www.elastic.co/guide
-:version:        5.0.0-alpha5
+:version:        5.1.0
 :lucene_version: 6.2.0
 
 [[intro]]

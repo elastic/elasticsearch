@@ -98,6 +98,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
             if (VersionUtils.isSnapshot(v)) continue;  // snapshots are unreleased, so there is no backcompat yet
             if (v.isAlpha()) continue; // no guarantees for alpha releases
             if (v.onOrBefore(Version.V_2_0_0_beta1)) continue; // we can only test back one major lucene version
+            if (v.onOrBefore(Version.V_5_0_0)) continue; // we have not yet released this
             if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
             expectedVersions.add(v.toString());
         }

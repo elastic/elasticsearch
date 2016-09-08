@@ -6,7 +6,7 @@
 :lucene_version: 6.2.0
 :branch:         master
 :jdk:            1.8.0_73
-:defguide:       https://www.elastic.co/guide/en/elasticsearch/guide/5.x
+:defguide:       https://www.elastic.co/guide/en/elasticsearch/guide/master
 :plugins:        https://www.elastic.co/guide/en/elasticsearch/plugins/5.x
 :javaclient:     https://www.elastic.co/guide/en/elasticsearch/client/java-api/5.x/
 :issue:          https://github.com/elastic/elasticsearch/issues/

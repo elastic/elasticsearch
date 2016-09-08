@@ -75,7 +75,7 @@
 "Test Put Versioned Template":
   - do:
       indices.put_template:
-        id: "my_template"
+        name: "my_template"
         body: >
           {
             "version": 10,
@@ -86,13 +86,13 @@
 
   - do:
       indices.get_template:
-        id: "my_template"
+        name: "my_template"
   - match: { my_template.version: 10 }
 
   # Lower version
   - do:
       indices.put_template:
-        id: "my_template"
+        name: "my_template"
         body: >
           {
             "version": 9,
@@ -103,13 +103,13 @@
 
   - do:
       indices.get_template:
-        id: "my_template"
+        name: "my_template"
   - match: { my_template.version: 9 }
 
   # Higher version
   - do:
       indices.put_template:
-        id: "my_template"
+        name: "my_template"
         body: >
           {
             "version": 6789,
@@ -120,13 +120,13 @@
 
   - do:
       indices.get_template:
-        id: "my_template"
+        name: "my_template"
   - match: { my_template.version: 6789 }
 
   # No version
   - do:
       indices.put_template:
-        id: "my_template"
+        name: "my_template"
         body: >
           {
             "template": "*",
@@ -136,13 +136,13 @@
 
   - do:
       indices.get_template:
-        id: "my_template"
+        name: "my_template"
   - is_false: my_template.version
 
   # Coming back with a version
   - do:
       indices.put_template:
-        id: "my_template"
+        name: "my_template"
         body: >
           {
             "version": 5385,
@@ -153,16 +153,16 @@
 
   - do:
       indices.get_template:
-        id: "my_template"
+        name: "my_template"
   - match: { my_template.version: 5385 }
 
   # Able to delete the versioned template
   - do:
       indices.delete_template:
-        id: "my_template"
+        name: "my_template"
   - match: { acknowledged: true }
 
   - do:
       catch: missing
       indices.get_template:
-        id: "my_template"
+        name: "my_template"

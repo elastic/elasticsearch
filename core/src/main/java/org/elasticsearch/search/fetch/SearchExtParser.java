@@ -22,9 +22,17 @@ package org.elasticsearch.search.fetch;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 /**
- * Parser for the ext section of a search request, which can hold custom fetch sub phase
+ * Parser for the ext section of a search request, which can hold custom fetch sub phases config
  */
-public interface FetchSubPhaseParser {
+public interface SearchExtParser {
 
+    /**
+     * Returns the name of the element that this parser is able to parse
+     */
+    String getName();
+
+    /**
+     * Parses the element whose name is returned by {@link #getName()}
+     */
     Object parse(XContentParser parser) throws Exception;
 }

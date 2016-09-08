@@ -33,7 +33,7 @@ Which indices are yellow?
 
 [source,sh]
 --------------------------------------------------
-% curl localhost:9200/_cat/indices | grep ^yell
+% curl localhost:9200/_cat/indices?health=yellow
 yellow open  wiki     2 1  6401 1115 151.4mb 151.4mb
 yellow open  twitter  5 1 11434    0    32mb    32mb
 --------------------------------------------------

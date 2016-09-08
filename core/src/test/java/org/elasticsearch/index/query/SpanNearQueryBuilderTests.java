@@ -24,11 +24,13 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Iterator;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -112,8 +114,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         assertEquals(json, false, parsed.inOrder());
     }
 
-    public void testCollectPayloadsDeprecated() throws Exception {
-        assertEquals("We can remove support for ignoring collect_payloads in 6.0.0", 5, Version.CURRENT.major);
+    public void testCollectPayloadsNoLongerSupported() throws Exception {
         String json =
                 "{\n" +
                 "  \"span_near\" : {\n" +
@@ -146,6 +147,9 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
                 "  }\n" +
                 "}";
 
-        parseQuery(json, ParseFieldMatcher.EMPTY); // Just don't throw an error and we're fine
+        final ParsingException e = expectThrows(
+                ParsingException.class,
+                () -> parseQuery(json, ParseFieldMatcher.EMPTY));
+        assertThat(e.getMessage(), containsString("[span_near] query does not support [collect_payloads]"));
     }
 }

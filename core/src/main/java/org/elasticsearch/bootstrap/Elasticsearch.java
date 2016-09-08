@@ -29,6 +29,7 @@ import org.elasticsearch.cli.SettingCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.node.NodeValidationException;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -75,7 +76,7 @@ class Elasticsearch extends SettingCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws UserException {
         if (options.nonOptionArguments().isEmpty() == false) {
             throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
         }
@@ -92,16 +93,20 @@ class Elasticsearch extends SettingCommand {
         final boolean daemonize = options.has(daemonizeOption);
         final Path pidFile = pidfileOption.value(options);
 
-        init(daemonize, pidFile, settings);
+        try {
+            init(daemonize, pidFile, settings);
+        } catch (NodeValidationException e) {
+            throw new UserException(ExitCodes.CONFIG, e.getMessage());
+        }
     }
 
-    void init(final boolean daemonize, final Path pidFile, final Map<String, String> esSettings) {
+    void init(final boolean daemonize, final Path pidFile, final Map<String, String> esSettings) throws NodeValidationException {
         try {
             Bootstrap.init(!daemonize, pidFile, esSettings);
-        } catch (final Throwable t) {
+        } catch (BootstrapException | RuntimeException e) {
             // format exceptions to the console in a special way
             // to avoid 2MB stacktraces from guice, etc.
-            throw new StartupException(t);
+            throw new StartupException(e);
         }
     }
 

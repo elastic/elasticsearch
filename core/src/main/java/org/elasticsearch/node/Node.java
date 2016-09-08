@@ -455,7 +455,7 @@ public class Node implements Closeable {
     /**
      * Start the node. If the node is already started, this method is no-op.
      */
-    public Node start() {
+    public Node start() throws NodeValidationException {
         if (!lifecycle.moveToStarted()) {
             return this;
         }
@@ -740,7 +740,9 @@ public class Node implements Closeable {
      *                              bound and publishing to
      */
     @SuppressWarnings("unused")
-    protected void validateNodeBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress) {
+    protected void validateNodeBeforeAcceptingRequests(
+        final Settings settings,
+        final BoundTransportAddress boundTransportAddress) throws NodeValidationException {
     }
 
     /** Writes a file to the logs dir containing the ports for the given transport type */

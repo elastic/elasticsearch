@@ -279,6 +279,12 @@ public class JarHell {
                      * cf. https://issues.apache.org/jira/browse/LOG4J2-1560
                      */
                     return;
+                } else if (clazz.startsWith("org.apache.logging.log4j.core.jmx.Server")) {
+                    /*
+                     * deliberate to hack around a bug in Log4j
+                     * cf. https://issues.apache.org/jira/browse/LOG4J2-1506
+                     */
+                    return;
                 }
                 throw new IllegalStateException("jar hell!" + System.lineSeparator() +
                         "class: " + clazz + System.lineSeparator() +

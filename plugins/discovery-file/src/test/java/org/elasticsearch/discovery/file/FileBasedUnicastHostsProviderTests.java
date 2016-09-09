@@ -19,14 +19,18 @@
 
 package org.elasticsearch.discovery.file;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.MockTcpTransport;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -38,8 +42,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-
-import static org.hamcrest.Matchers.containsString;
 
 /**
  * Tests for {@link FileBasedUnicastHostsProvider}.
@@ -55,34 +57,37 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
     }
 
     @AfterClass
-    public static void stopThreadPool() {
-        if (threadPool != null) {
-            threadPool.shutdownNow();
-            threadPool = null;
-        }
+    public static void stopThreadPool() throws InterruptedException {
+        terminate(threadPool);
     }
 
     @Before
     public void createTransportSvc() {
-        transportService = MockTransportService.local(Settings.EMPTY, Version.CURRENT, threadPool);
+        MockTcpTransport transport =
+            new MockTcpTransport(Settings.EMPTY,
+                                    threadPool,
+                                    BigArrays.NON_RECYCLING_INSTANCE,
+                                    new NoneCircuitBreakerService(),
+                                    new NamedWriteableRegistry(Collections.emptyList()),
+                                    new NetworkService(Settings.EMPTY, Collections.emptyList()));
+        transportService = new MockTransportService(Settings.EMPTY, transport, threadPool);
     }
 
     public void testBuildDynamicNodes() throws Exception {
         final List<String> hostEntries = Arrays.asList("192.168.0.1", "192.168.0.2:9305", "255.255.23.15");
-        final Settings settings = setupUnicastHosts(hostEntries);
-        final FileBasedUnicastHostsProvider provider = new FileBasedUnicastHostsProvider(settings, transportService);
-        final List<DiscoveryNode> nodes = provider.buildDynamicNodes();
+        final List<DiscoveryNode> nodes = setupAndRunHostProvider(hostEntries);
         assertEquals(hostEntries.size(), nodes.size());
-        for (int i = 0; i < hostEntries.size(); i++) {
-            assertThat(nodes.get(i).getAddress().toString(), containsString(hostEntries.get(i)));
-        }
+        assertEquals("192.168.0.1", nodes.get(0).getAddress().getHost());
+        assertEquals(9300, nodes.get(0).getAddress().getPort());
+        assertEquals("192.168.0.2", nodes.get(1).getAddress().getHost());
+        assertEquals(9305, nodes.get(1).getAddress().getPort());
+        assertEquals("255.255.23.15", nodes.get(2).getAddress().getHost());
+        assertEquals(9300, nodes.get(2).getAddress().getPort());
     }
 
     public void testEmptyUnicastHostsFile() throws Exception {
         final List<String> hostEntries = Collections.emptyList();
-        final Settings settings = setupUnicastHosts(hostEntries);
-        final FileBasedUnicastHostsProvider provider = new FileBasedUnicastHostsProvider(settings, transportService);
-        final List<DiscoveryNode> nodes = provider.buildDynamicNodes();
+        final List<DiscoveryNode> nodes = setupAndRunHostProvider(hostEntries);
         assertEquals(0, nodes.size());
     }
 
@@ -95,8 +100,19 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         assertEquals(0, nodes.size());
     }
 
-    // sets up the config dir and writes to the unicast hosts file in the config dir
-    private Settings setupUnicastHosts(final List<String> hostEntries) throws IOException {
+    public void testInvalidHostEntries() throws Exception {
+        List<String> hostEntries = Arrays.asList("192.168.0.1:9300:9300");
+        List<DiscoveryNode> nodes = setupAndRunHostProvider(hostEntries);
+        assertEquals(0, nodes.size());
+
+        hostEntries = Arrays.asList("abc");
+        nodes = setupAndRunHostProvider(hostEntries);
+        assertEquals(0, nodes.size());
+    }
+
+    // sets up the config dir, writes to the unicast hosts file in the config dir,
+    // and then runs the file-based unicast host provider to get the list of discovery nodes
+    private List<DiscoveryNode> setupAndRunHostProvider(final List<String> hostEntries) throws IOException {
         final Path homeDir = createTempDir();
         final Settings settings = Settings.builder()
                                       .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
@@ -107,6 +123,7 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         try (BufferedWriter writer = Files.newBufferedWriter(unicastHostsPath)) {
             writer.write(String.join("\n", hostEntries));
         }
-        return settings;
+
+        return new FileBasedUnicastHostsProvider(settings, transportService).buildDynamicNodes();
     }
 }

@@ -98,8 +98,8 @@ public class NodesFaultDetection extends FaultDetection {
                 nodesFD.remove(monitoredNode);
             }
         }
-        // add any missing nodes
 
+        // add any missing nodes
         final DiscoveryNode localNode = clusterService.localNode();
         for (DiscoveryNode node : clusterState.nodes()) {
             if (node.equals(localNode)) {

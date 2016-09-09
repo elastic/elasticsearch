@@ -38,7 +38,7 @@ public class SearchRequestParsers {
      * Query parsers that may be used in search requests.
      * @see org.elasticsearch.index.query.QueryParseContext
      * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, AggregatorParsers,
-     * Suggesters, SearchExtRegistry)
+     *      Suggesters, SearchExtRegistry)
      */
     public final IndicesQueriesRegistry queryParsers;
 
@@ -47,7 +47,7 @@ public class SearchRequestParsers {
     /**
      * Agg and pipeline agg parsers that may be used in search requests.
      * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, AggregatorParsers,
-     * Suggesters, SearchExtRegistry)
+     *      Suggesters, SearchExtRegistry)
      */
     public final AggregatorParsers aggParsers;
 
@@ -55,7 +55,7 @@ public class SearchRequestParsers {
     /**
      * Suggesters that may be used in search requests.
      * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, AggregatorParsers,
-     * Suggesters, SearchExtRegistry)
+     *      Suggesters, SearchExtRegistry)
      */
     public final Suggesters suggesters;
 

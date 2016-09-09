@@ -102,7 +102,7 @@ public class FileBasedUnicastHostsProvider extends AbstractComponent implements 
             discoNodes.add(new DiscoveryNode("#zen_unicast_host_" + i + "#", addresses[0], Version.CURRENT.minimumCompatibilityVersion()));
         }
 
-        logger.debug((Supplier<?>) () -> new ParameterizedMessage("[discovery-file] Using dynamic discovery nodes {}", discoNodes));
+        logger.debug("[discovery-file] Using dynamic discovery nodes {}", discoNodes);
 
         return discoNodes;
     }

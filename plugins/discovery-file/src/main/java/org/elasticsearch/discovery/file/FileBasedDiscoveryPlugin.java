@@ -46,7 +46,7 @@ public class FileBasedDiscoveryPlugin extends Plugin implements DiscoveryPlugin 
     }
 
     public void onModule(DiscoveryModule discoveryModule) {
-        logger.debug("register file-based unicast hosts provider");
+        logger.trace("registering file-based unicast hosts provider");
         discoveryModule.addDiscoveryType(DISCOVERY_FILE, ZenDiscovery.class);
         discoveryModule.addUnicastHostProvider(DISCOVERY_FILE, FileBasedUnicastHostsProvider.class);
     }

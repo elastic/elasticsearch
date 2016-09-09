@@ -173,19 +173,10 @@ public class ZenFaultDetectionTests extends ESTestCase {
     }
 
     public void testNodesFaultDetectionConnectOnDisconnect() throws InterruptedException {
-        Settings.Builder settings = Settings.builder();
-        boolean shouldRetry = randomBoolean();
-        // make sure we don't ping again after the initial ping
-        settings.put(FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING.getKey(), shouldRetry)
-                .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "5m");
-        ClusterState clusterStateA = ClusterState.builder(new ClusterName("test")).nodes(buildNodesForA(true)).build();
-        ClusterState clusterStateB = ClusterState.builder(new ClusterName("test")).nodes(buildNodesForB(false)).build();
-        setState(clusterServiceA, clusterStateA);
-        setState(clusterServiceB, clusterStateB);
-        NodesFaultDetection nodesFDA = new NodesFaultDetection(settings.build(), threadPool, serviceA, clusterStateA.getClusterName(),
-                                                                  clusterServiceA);
-        NodesFaultDetection nodesFDB = new NodesFaultDetection(settings.build(), threadPool, serviceB, clusterStateB.getClusterName(),
-                                                                  clusterServiceB);
+        final boolean shouldRetry = randomBoolean();
+        final Tuple<NodesFaultDetection, NodesFaultDetection> nodesFDs = setupNodesFaultDetections(shouldRetry, false);
+        final NodesFaultDetection nodesFDA = nodesFDs.v1();
+        final NodesFaultDetection nodesFDB = nodesFDs.v2();
         final CountDownLatch pingSent = new CountDownLatch(1);
         nodesFDB.addListener(new NodesFaultDetection.Listener() {
             @Override
@@ -193,7 +184,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
                 pingSent.countDown();
             }
         });
-        nodesFDA.updateNodesAndPing(clusterStateA);
+        nodesFDA.updateNodesAndPing(clusterServiceA.state());
 
         // wait for the first ping to go out, so we will really respond to a disconnect event rather then
         // the ping failing
@@ -227,20 +218,9 @@ public class ZenFaultDetectionTests extends ESTestCase {
     }
 
     public void testNodesFaultDetectionPingFromStaleMaster() throws InterruptedException {
-        Settings.Builder settings = Settings.builder();
-        boolean shouldRetry = randomBoolean();
-        // make sure we don't ping again after the initial ping
-        settings.put(FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING.getKey(), shouldRetry)
-            .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "5m");
-        // make B the master instead of A, but A still thinks its master and tries to ping B and it should get a failure as a result
-        ClusterState clusterStateA = ClusterState.builder(new ClusterName("test")).nodes(buildNodesForA(true)).build();
-        ClusterState clusterStateB = ClusterState.builder(new ClusterName("test")).nodes(buildNodesForB(true)).build();
-        setState(clusterServiceA, clusterStateA);
-        setState(clusterServiceB, clusterStateB);
-        NodesFaultDetection nodesFDA = new NodesFaultDetection(settings.build(), threadPool, serviceA, clusterStateA.getClusterName(),
-                                                                  clusterServiceA);
-        NodesFaultDetection nodesFDB = new NodesFaultDetection(settings.build(), threadPool, serviceB, clusterStateB.getClusterName(),
-                                                                  clusterServiceB);
+        // passing true for isBAlsoMaster because two nodes think they are master in this scenario
+        final Tuple<NodesFaultDetection, NodesFaultDetection> nodesFDs = setupNodesFaultDetections(randomBoolean(), true);
+        final NodesFaultDetection nodesFDA = nodesFDs.v1();
 
         final String[] failureReason = new String[1];
         final DiscoveryNode[] failureNode = new DiscoveryNode[1];
@@ -253,7 +233,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
                 notified.countDown();
             }
         });
-        nodesFDA.updateNodesAndPing(clusterStateA);
+        nodesFDA.updateNodesAndPing(clusterServiceA.state());
 
         // wait till the response arrives to node A
         notified.await(30, TimeUnit.SECONDS);
@@ -342,6 +322,22 @@ public class ZenFaultDetectionTests extends ESTestCase {
         assertThat(inFlightRequestsBreaker.getTrippedCount(), equalTo(0L));
         assertThat(pingProbeA.completedPings(), greaterThanOrEqualTo(minExpectedPings));
         assertThat(pingProbeB.completedPings(), greaterThanOrEqualTo(minExpectedPings));
+    }
+
+    private Tuple<NodesFaultDetection, NodesFaultDetection> setupNodesFaultDetections(boolean shouldRetry, boolean isBAlsoMaster) {
+        Settings.Builder settings = Settings.builder();
+        // make sure we don't ping again after the initial ping
+        settings.put(FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING.getKey(), shouldRetry)
+            .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), "5m");
+        ClusterState clusterStateA = ClusterState.builder(new ClusterName("test")).nodes(buildNodesForA(true)).build();
+        ClusterState clusterStateB = ClusterState.builder(new ClusterName("test")).nodes(buildNodesForB(isBAlsoMaster)).build();
+        setState(clusterServiceA, clusterStateA);
+        setState(clusterServiceB, clusterStateB);
+        NodesFaultDetection nodesFDA = new NodesFaultDetection(settings.build(), threadPool, serviceA, clusterStateA.getClusterName(),
+                                                                  clusterServiceA);
+        NodesFaultDetection nodesFDB = new NodesFaultDetection(settings.build(), threadPool, serviceB, clusterStateB.getClusterName(),
+                                                                  clusterServiceB);
+        return Tuple.tuple(nodesFDA, nodesFDB);
     }
 
     private static class PingProbe extends MockTransportService.Tracer {

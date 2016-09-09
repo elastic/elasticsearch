@@ -39,6 +39,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * An implementation of {@link UnicastHostsProvider} that reads hosts/ports
@@ -55,10 +56,13 @@ import java.util.List;
 public class FileBasedUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
 
     static final String UNICAST_HOSTS_FILE = "unicast_hosts.txt";
+    static final String UNICAST_HOST_PREFIX = "#zen_file_unicast_host_";
 
     private final TransportService transportService;
 
     private final Path unicastHostsFilePath;
+
+    private final AtomicLong nodeIdGenerator = new AtomicLong(); // generates unique ids for the node
 
     @Inject
     public FileBasedUnicastHostsProvider(Settings settings, TransportService transportService) {
@@ -99,7 +103,9 @@ public class FileBasedUnicastHostsProvider extends AbstractComponent implements 
                                                                             host));
                 return Collections.emptyList();
             }
-            discoNodes.add(new DiscoveryNode("#zen_unicast_host_" + i + "#", addresses[0], Version.CURRENT.minimumCompatibilityVersion()));
+            discoNodes.add(new DiscoveryNode(UNICAST_HOST_PREFIX + nodeIdGenerator.incrementAndGet() + "#",
+                                                addresses[0],
+                                                Version.CURRENT.minimumCompatibilityVersion()));
         }
 
         logger.debug("[discovery-file] Using dynamic discovery nodes {}", discoNodes);

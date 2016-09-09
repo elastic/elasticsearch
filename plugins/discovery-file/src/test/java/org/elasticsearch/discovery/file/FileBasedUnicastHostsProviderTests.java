@@ -43,6 +43,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.discovery.file.FileBasedUnicastHostsProvider.UNICAST_HOSTS_FILE;
+import static org.elasticsearch.discovery.file.FileBasedUnicastHostsProvider.UNICAST_HOST_PREFIX;
+
 /**
  * Tests for {@link FileBasedUnicastHostsProvider}.
  */
@@ -79,10 +82,13 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         assertEquals(hostEntries.size(), nodes.size());
         assertEquals("192.168.0.1", nodes.get(0).getAddress().getHost());
         assertEquals(9300, nodes.get(0).getAddress().getPort());
+        assertEquals(UNICAST_HOST_PREFIX + "1#", nodes.get(0).getId());
         assertEquals("192.168.0.2", nodes.get(1).getAddress().getHost());
         assertEquals(9305, nodes.get(1).getAddress().getPort());
+        assertEquals(UNICAST_HOST_PREFIX + "2#", nodes.get(1).getId());
         assertEquals("255.255.23.15", nodes.get(2).getAddress().getHost());
         assertEquals(9300, nodes.get(2).getAddress().getPort());
+        assertEquals(UNICAST_HOST_PREFIX + "3#", nodes.get(2).getId());
     }
 
     public void testEmptyUnicastHostsFile() throws Exception {
@@ -119,7 +125,7 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
                                       .build();
         final Path configDir = homeDir.resolve("config");
         Files.createDirectory(configDir);
-        final Path unicastHostsPath = configDir.resolve(FileBasedUnicastHostsProvider.UNICAST_HOSTS_FILE);
+        final Path unicastHostsPath = configDir.resolve(UNICAST_HOSTS_FILE);
         try (BufferedWriter writer = Files.newBufferedWriter(unicastHostsPath)) {
             writer.write(String.join("\n", hostEntries));
         }

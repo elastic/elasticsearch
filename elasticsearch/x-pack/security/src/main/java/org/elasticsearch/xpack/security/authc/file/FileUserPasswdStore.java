@@ -16,6 +16,7 @@ import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.RefreshListener;
@@ -133,6 +134,7 @@ public class FileUserPasswdStore {
 
         Map<String, char[]> users = new HashMap<>();
 
+        final boolean allowReserved = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings) == false;
         int lineNr = 0;
         for (String line : lines) {
             lineNr++;
@@ -149,7 +151,7 @@ public class FileUserPasswdStore {
                 continue;
             }
             String username = line.substring(0, i);
-            Validation.Error validationError = Users.validateUsername(username, false, settings);
+            Validation.Error validationError = Users.validateUsername(username, allowReserved, settings);
             if (validationError != null) {
                 logger.error("invalid username [{}] in users file [{}], skipping... ({})", username, path.toAbsolutePath(),
                         validationError);

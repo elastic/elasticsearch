@@ -9,6 +9,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
@@ -41,16 +42,21 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private final NativeUsersStore nativeUsersStore;
     private final AnonymousUser anonymousUser;
     private final boolean anonymousEnabled;
+    private final boolean enabled;
 
     public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser) {
         super(TYPE, new RealmConfig(TYPE, Settings.EMPTY, settings, env));
         this.nativeUsersStore = nativeUsersStore;
+        this.enabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
         this.anonymousUser = anonymousUser;
         this.anonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
     }
 
     @Override
     protected User doAuthenticate(UsernamePasswordToken token) {
+        if (enabled == false) {
+            return null;
+        }
         if (isReserved(token.principal(), config.globalSettings()) == false) {
             return null;
         }
@@ -73,6 +79,13 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     @Override
     protected User doLookupUser(String username) {
+        if (enabled == false) {
+            if (anonymousEnabled && AnonymousUser.isAnonymousUsername(username, config.globalSettings())) {
+                return anonymousUser;
+            }
+            return null;
+        }
+
         if (isReserved(username, config.globalSettings()) == false) {
             return null;
         }
@@ -99,13 +112,13 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         switch (username) {
             case ElasticUser.NAME:
             case KibanaUser.NAME:
-                return true;
+                return XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
             default:
                 return AnonymousUser.isAnonymousUsername(username, settings);
         }
     }
 
-    User getUser(String username, ReservedUserInfo userInfo) {
+    private User getUser(String username, ReservedUserInfo userInfo) {
         assert username != null;
         switch (username) {
             case ElasticUser.NAME:
@@ -121,7 +134,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     }
 
     public Collection<User> users() {
-        if (nativeUsersStore.started() == false) {
+        if (nativeUsersStore.started() == false || enabled == false) {
             return anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList();
         }
 

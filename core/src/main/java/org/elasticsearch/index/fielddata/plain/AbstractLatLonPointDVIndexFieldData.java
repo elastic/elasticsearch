@@ -24,6 +24,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -38,9 +39,6 @@ import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
-/**
- * Created by nknize on 8/23/16.
- */
 public abstract class AbstractLatLonPointDVIndexFieldData extends DocValuesIndexFieldData
     implements IndexGeoPointFieldData {
     AbstractLatLonPointDVIndexFieldData(Index index, String fieldName) {

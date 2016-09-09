@@ -20,8 +20,10 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -36,10 +38,13 @@ import java.util.Iterator;
 import java.util.Map;
 
 /**
- * Created by nknize on 8/23/16.
+ * Field Mapper for geo_point types.
+ *
+ * Uses lucene 6 LatLonPoint encoding
  */
 public class LatLonPointFieldMapper extends BaseGeoPointFieldMapper {
     public static final String CONTENT_TYPE = "geo_point";
+    public static final Version LAT_LON_FIELD_VERSION = Version.V_5_0_0_alpha6;
 
     public static class Defaults extends BaseGeoPointFieldMapper.Defaults {
         public static final LatLonPointFieldType FIELD_TYPE = new LatLonPointFieldType();
@@ -134,8 +139,11 @@ public class LatLonPointFieldMapper extends BaseGeoPointFieldMapper {
         } else {
             GeoUtils.normalizePoint(point);
         }
-        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+        if (fieldType().indexOptions() != IndexOptions.NONE) {
             context.doc().add(new LatLonPoint(fieldType().name(), point.lat(), point.lon()));
+        }
+        if (fieldType().stored()) {
+            context.doc().add(new StoredField(fieldType().name(), point.toString()));
         }
         if (fieldType.hasDocValues()) {
             context.doc().add(new LatLonDocValuesField(fieldType().name(), point.lat(), point.lon()));

@@ -86,7 +86,7 @@ public class ExternalMapper extends FieldMapper {
             BaseGeoPointFieldMapper pointMapper;
             if (context.indexCreatedVersion().before(Version.V_2_2_0)) {
                 pointMapper = legacyPointBuilder.build(context);
-            } else if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0_alpha6)) {
+            } else if (context.indexCreatedVersion().onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
                 pointMapper = latLonPointBuilder.build(context);
             } else {
                 pointMapper = pointBuilder.build(context);

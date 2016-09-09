@@ -25,7 +25,9 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.apache.lucene.util.BitUtil;
-import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.BytesRef;
+
+import java.util.Arrays;
 
 import static org.elasticsearch.common.geo.GeoHashUtils.mortonEncode;
 import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
@@ -97,7 +99,8 @@ public final class GeoPoint {
     // todo remove with next release of lucene
     public GeoPoint resetFromIndexableField(IndexableField field) {
         if (field instanceof LatLonPoint) {
-            byte[] bytes = field.binaryValue().bytes;
+            BytesRef br = field.binaryValue();
+            byte[] bytes = Arrays.copyOfRange(br.bytes, br.offset, br.length);
             return this.reset(
                 GeoEncodingUtils.decodeLatitude(bytes, 0),
                 GeoEncodingUtils.decodeLongitude(bytes, Integer.BYTES));

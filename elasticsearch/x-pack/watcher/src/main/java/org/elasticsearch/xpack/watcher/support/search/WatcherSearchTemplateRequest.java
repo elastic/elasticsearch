@@ -215,7 +215,8 @@ public class WatcherSearchTemplateRequest implements ToXContent {
                                     searchRequestParsers.queryParsers, searchSourceParser, parseFieldMatcher);
                             try (XContentBuilder upgradeBuilder = XContentBuilder.builder(parser.contentType().xContent())) {
                                 SearchSourceBuilder sourceBuilder = SearchSourceBuilder.fromXContent(context,
-                                        searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
+                                        searchRequestParsers.aggParsers, searchRequestParsers.suggesters,
+                                        searchRequestParsers.searchExtParsers);
                                 upgradeBuilder.value(sourceBuilder);
                                 searchSource = upgradeBuilder.bytes();
                             } catch (Exception e) {

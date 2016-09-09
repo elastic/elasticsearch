@@ -295,8 +295,8 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertResult("{'binary':null}", () -> builder().startObject().field("binary").value(null, 0, 0).endObject());
 
         final byte[] randomBytes = randomBytes();
-        final int offset = randomIntBetween(0, randomBytes.length);
-        final int length = randomIntBetween(1, Math.max(1, randomBytes.length - offset));
+        final int offset = randomIntBetween(0, randomBytes.length - 1);
+        final int length = randomIntBetween(1, Math.max(1, randomBytes.length - offset - 1));
 
         XContentBuilder builder = builder().startObject();
         if (randomBoolean()) {

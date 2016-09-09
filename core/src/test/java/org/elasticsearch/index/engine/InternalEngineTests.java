@@ -62,7 +62,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.PrefixMessageFactory;
-import org.elasticsearch.common.logging.TestLoggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -1538,7 +1537,7 @@ public class InternalEngineTests extends ESTestCase {
 
         Logger rootLogger = LogManager.getRootLogger();
         Level savedLevel = rootLogger.getLevel();
-        TestLoggers.addAppender(rootLogger, mockAppender);
+        Loggers.addAppender(rootLogger, mockAppender);
         Loggers.setLevel(rootLogger, Level.DEBUG);
         rootLogger = LogManager.getRootLogger();
 
@@ -1556,7 +1555,7 @@ public class InternalEngineTests extends ESTestCase {
             assertTrue(mockAppender.sawIndexWriterMessage);
 
         } finally {
-            TestLoggers.removeAppender(rootLogger, mockAppender);
+            Loggers.removeAppender(rootLogger, mockAppender);
             Loggers.setLevel(rootLogger, savedLevel.toString());
         }
     }
@@ -1577,7 +1576,7 @@ public class InternalEngineTests extends ESTestCase {
             iwIFDLogger = LogManager.getLogger("index.engine.lucene.iw.ifd");
         }
 
-        TestLoggers.addAppender(iwIFDLogger, mockAppender);
+        Loggers.addAppender(iwIFDLogger, mockAppender);
         Loggers.setLevel(iwIFDLogger, Level.DEBUG);
 
         try {
@@ -1596,7 +1595,7 @@ public class InternalEngineTests extends ESTestCase {
             assertTrue(mockAppender.sawIndexWriterIFDMessage);
 
         } finally {
-            TestLoggers.removeAppender(iwIFDLogger, mockAppender);
+            Loggers.removeAppender(iwIFDLogger, mockAppender);
             Loggers.setLevel(iwIFDLogger, (Level) null);
         }
     }

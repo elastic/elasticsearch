@@ -34,7 +34,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.TestLoggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
@@ -382,7 +381,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
         Logger rootLogger = LogManager.getRootLogger();
         Level savedLevel = rootLogger.getLevel();
-        TestLoggers.addAppender(rootLogger, mockAppender);
+        Loggers.addAppender(rootLogger, mockAppender);
         Loggers.setLevel(rootLogger, Level.TRACE);
 
         try {
@@ -414,7 +413,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
             assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey()), equalTo("false"));
         } finally {
-            TestLoggers.removeAppender(rootLogger, mockAppender);
+            Loggers.removeAppender(rootLogger, mockAppender);
             Loggers.setLevel(rootLogger, savedLevel);
         }
     }
@@ -471,7 +470,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         MockAppender mockAppender = new MockAppender("testUpdateMergeMaxThreadCount");
         Logger rootLogger = LogManager.getRootLogger();
         Level savedLevel = rootLogger.getLevel();
-        TestLoggers.addAppender(rootLogger, mockAppender);
+        Loggers.addAppender(rootLogger, mockAppender);
         Loggers.setLevel(rootLogger, Level.TRACE);
 
         try {
@@ -505,7 +504,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey()), equalTo("1"));
 
         } finally {
-            TestLoggers.removeAppender(rootLogger, mockAppender);
+            Loggers.removeAppender(rootLogger, mockAppender);
             Loggers.setLevel(rootLogger, savedLevel);
         }
     }

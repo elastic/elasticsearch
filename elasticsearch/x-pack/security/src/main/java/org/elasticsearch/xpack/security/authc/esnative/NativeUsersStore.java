@@ -379,7 +379,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             if (request.passwordHash() == null) {
                 updateUserWithoutPassword(request, listener);
             } else {
-                upsertUser(request, listener);
+                indexUser(request, listener);
             }
         } catch (Exception e) {
             logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to put user [{}]", request.username()), e);
@@ -398,7 +398,8 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                         User.Fields.ROLES.getPreferredName(), putUserRequest.roles(),
                         User.Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
                         User.Fields.EMAIL.getPreferredName(), putUserRequest.email(),
-                        User.Fields.METADATA.getPreferredName(), putUserRequest.metadata())
+                        User.Fields.METADATA.getPreferredName(), putUserRequest.metadata(),
+                        User.Fields.ENABLED.getPreferredName(), putUserRequest.enabled())
                 .setRefreshPolicy(putUserRequest.getRefreshPolicy())
                 .execute(new ActionListener<UpdateResponse>() {
                     @Override
@@ -424,27 +425,21 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                 });
     }
 
-    private void upsertUser(final PutUserRequest putUserRequest, final ActionListener<Boolean> listener) {
+    private void indexUser(final PutUserRequest putUserRequest, final ActionListener<Boolean> listener) {
         assert putUserRequest.passwordHash() != null;
-        client.prepareUpdate(SecurityTemplateService.SECURITY_INDEX_NAME,
+        client.prepareIndex(SecurityTemplateService.SECURITY_INDEX_NAME,
                 USER_DOC_TYPE, putUserRequest.username())
-                .setDoc(User.Fields.USERNAME.getPreferredName(), putUserRequest.username(),
-                        User.Fields.PASSWORD.getPreferredName(), String.valueOf(putUserRequest.passwordHash()),
-                        User.Fields.ROLES.getPreferredName(), putUserRequest.roles(),
-                        User.Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
-                        User.Fields.EMAIL.getPreferredName(), putUserRequest.email(),
-                        User.Fields.METADATA.getPreferredName(), putUserRequest.metadata())
-                .setUpsert(User.Fields.USERNAME.getPreferredName(), putUserRequest.username(),
+                .setSource(User.Fields.USERNAME.getPreferredName(), putUserRequest.username(),
                         User.Fields.PASSWORD.getPreferredName(), String.valueOf(putUserRequest.passwordHash()),
                         User.Fields.ROLES.getPreferredName(), putUserRequest.roles(),
                         User.Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
                         User.Fields.EMAIL.getPreferredName(), putUserRequest.email(),
                         User.Fields.METADATA.getPreferredName(), putUserRequest.metadata(),
-                        User.Fields.ENABLED.getPreferredName(), true)
+                        User.Fields.ENABLED.getPreferredName(), putUserRequest.enabled())
                 .setRefreshPolicy(putUserRequest.getRefreshPolicy())
-                .execute(new ActionListener<UpdateResponse>() {
+                .execute(new ActionListener<IndexResponse>() {
                     @Override
-                    public void onResponse(UpdateResponse updateResponse) {
+                    public void onResponse(IndexResponse updateResponse) {
                         clearRealmCache(putUserRequest.username(), listener, updateResponse.getResult() == DocWriteResponse.Result.CREATED);
                     }
 

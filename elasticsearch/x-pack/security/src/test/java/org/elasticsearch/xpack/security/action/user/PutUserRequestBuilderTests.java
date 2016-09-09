@@ -40,6 +40,7 @@ public class PutUserRequestBuilderTests extends ESTestCase {
         assertThat(request.fullName(), nullValue());
         assertThat(request.email(), nullValue());
         assertThat(request.metadata().isEmpty(), is(true));
+        assertTrue(request.enabled());
     }
 
     public void testMissingEmailFullName() throws Exception {
@@ -112,5 +113,21 @@ public class PutUserRequestBuilderTests extends ESTestCase {
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
                 () -> builder.source("kibana4", new BytesArray(json.getBytes(StandardCharsets.UTF_8))));
         assertThat(e.getMessage(), containsString("expected field [email] to be of type string"));
+    }
+
+    public void testWithEnabled() throws IOException {
+        final String json = "{\n" +
+                "    \"roles\": [\n" +
+                "      \"kibana4\"\n" +
+                "    ],\n" +
+                "    \"full_name\": \"Kibana User\",\n" +
+                "    \"email\": \"kibana@elastic.co\",\n" +
+                "    \"metadata\": {}\n," +
+                "    \"enabled\": false\n" +
+                "}";
+
+        PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
+        PutUserRequest request = builder.source("kibana4", new BytesArray(json.getBytes(StandardCharsets.UTF_8))).request();
+        assertFalse(request.enabled());
     }
 }

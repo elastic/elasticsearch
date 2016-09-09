@@ -16,6 +16,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.support.Validation;
@@ -84,6 +85,11 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         return this;
     }
 
+    public PutUserRequestBuilder enabled(boolean enabled) {
+        request.enabled(enabled);
+        return this;
+    }
+
     public PutUserRequestBuilder source(String username, BytesReference source) throws IOException {
         username(username);
         try (XContentParser parser = XContentHelper.createParser(source)) {
@@ -98,7 +104,6 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                         String password = parser.text();
                         char[] passwordChars = password.toCharArray();
                         password(passwordChars);
-                        password = null;
                         Arrays.fill(passwordChars, (char) 0);
                     } else {
                         throw new ElasticsearchParseException(
@@ -138,6 +143,23 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                     } else {
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type object, but found [{}] instead", currentFieldName, token);
+                    }
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.ENABLED)) {
+                    if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                        enabled(parser.booleanValue());
+                    } else {
+                        throw new ElasticsearchParseException(
+                                "expected field [{}] to be of type boolean, but found [{}] instead", currentFieldName, token);
+                    }
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.USERNAME)) {
+                    if (token == Token.VALUE_STRING) {
+                        if (username.equals(parser.text()) == false) {
+                            throw new IllegalArgumentException("[username] in source does not match the username provided [" +
+                                    username + "]");
+                        }
+                    } else {
+                        throw new ElasticsearchParseException(
+                                "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);
                     }
                 } else {
                     throw new ElasticsearchParseException("failed to parse add user request. unexpected field [{}]", currentFieldName);

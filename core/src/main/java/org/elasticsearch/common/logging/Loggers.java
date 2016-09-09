@@ -199,7 +199,7 @@ public class Loggers {
         ctx.updateLoggers();
     }
 
-    public static Appender findAppender(final Logger logger, Class<? extends Appender> clazz) {
+    public static Appender findAppender(final Logger logger, final Class<? extends Appender> clazz) {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         final Configuration config = ctx.getConfiguration();
         final LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());

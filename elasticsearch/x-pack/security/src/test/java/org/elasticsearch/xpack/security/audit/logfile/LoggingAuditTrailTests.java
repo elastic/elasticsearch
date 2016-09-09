@@ -673,7 +673,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         // test disabled
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
-        settings = Settings.builder().put(this.settings).put("xpack.security.audit.logfile.events.exclude", "authentication_success").build();
+        settings = Settings.builder()
+                .put(this.settings)
+                .put("xpack.security.audit.logfile.events.exclude", "authentication_success")
+                .build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.authenticationSuccess(realm, user, "_action", message);
         assertEmptyLog(logger);

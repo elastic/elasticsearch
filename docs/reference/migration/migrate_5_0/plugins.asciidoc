@@ -25,23 +25,17 @@ discovery plugins.
 Plugins implementing custom queries need to implement the `fromXContent(QueryParseContext)` method in their
 `QueryParser` subclass rather than `parse`. This method will take care of parsing the query from `XContent` format
 into an intermediate query representation that can be streamed between the nodes in binary format, effectively the
-query object used in the java api. Also, the query parser needs to implement the `getBuilderPrototype` method that
-returns a prototype of the `NamedWriteable` query, which allows to deserialize an incoming query by calling
-`readFrom(StreamInput)` against it, which will create a new object, see usages of `Writeable`. The `QueryParser`
-also needs to declare the generic type of the query that it supports and it's able to parse.
+query object used in the java api. Also, the query builder needs to be registered as a `NamedWriteable`. This is
+all done by implementing the `SearchPlugin` interface and overriding the `getQueries` method.
 The query object can then transform itself into a lucene query through the new `toQuery(QueryShardContext)` method,
 which returns a lucene query to be executed on the data node.
 
 Similarly, plugins implementing custom score functions need to implement the `fromXContent(QueryParseContext)`
 method in their `ScoreFunctionParser` subclass rather than `parse`. This method will take care of parsing
 the function from `XContent` format into an intermediate function representation that can be streamed between
-the nodes in binary format, effectively the function object used in the java api. Also, the query parser needs
-to implement the `getBuilderPrototype` method that returns a prototype of the `NamedWriteable` function, which
-allows to deserialize an incoming function by calling `readFrom(StreamInput)` against it, which will create a
-new object, see usages of `Writeable`. The `ScoreFunctionParser` also needs to declare the generic type of the
-function that it supports and it's able to parse. The function object can then transform itself into a lucene
-function through the new `toFunction(QueryShardContext)` method, which returns a lucene function to be executed
-on the data node.
+the nodes in binary format, effectively the function object used in the java api. The function object can then
+transform itself into a lucene function through the new `toFunction(QueryShardContext)` method, which returns
+a lucene function to be executed on the data node.
 
 ==== Cloud AWS plugin changes
 
@@ -146,6 +140,18 @@ remove their `onModule(NetworkModule)` implemnetation.
 Plugins that register custom search time behavior (`Query`, `Suggester`,
 `ScoreFunction`, `FetchSubPhase`, `Highlighter`, etc) should implement
 `SearchPlugin` and remove their `onModule(SearchModule)` implementation.
+
+==== SearchParseElement
+
+The `SearchParseElement` interface has been removed. Custom search request
+ sections can only be provided under the `ext` element. Plugins can
+ plug in custom parsers for those additional sections by providing a
+ `SearchPlugin.SearchExtSpec`, which consists of a `SearchExtParser`
+ implementation that can parse`XContent` into a `SearchExtBuilder`
+ implementation. The parsing happens now in the coordinating node. The
+ result of parsing is serialized to the data nodes through transport layer
+ together with the rest of the search request and stored in the search
+ context for later retrieval.
 
 ==== Testing Custom Plugins
 

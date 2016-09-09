@@ -131,13 +131,6 @@ The `geo_shape` filter has been replaced by the <<query-dsl-geo-shape-query>>.
 It behaves as a query in ``query context'' and as a filter in ``filter
 context'' (see <<query-dsl>>).
 
-[role="exclude",id="query-dsl-geohash-cell-filter"]
-=== Geohash Cell Filter
-
-The `geohash_cell` filter has been replaced by the <<query-dsl-geohash-cell-query>>.
-It behaves as a query in ``query context'' and as a filter in ``filter
-context'' (see <<query-dsl>>).
-
 [role="exclude",id="query-dsl-has-child-filter"]
 === Has Child Filter
 

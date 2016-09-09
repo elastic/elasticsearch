@@ -74,6 +74,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -1100,7 +1101,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             });
             indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
 
-            String geoFieldMapping = (idxSettings.getIndexVersionCreated().before(Version.V_5_0_0_alpha6)) ?
+            String geoFieldMapping = (idxSettings.getIndexVersionCreated().before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) ?
                 LEGACY_GEO_POINT_FIELD_MAPPING : "type=geo_point";
 
             for (String type : currentTypes) {

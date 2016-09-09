@@ -30,9 +30,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
-/**
- * Created by nknize on 8/23/16.
- */
 final class LatLonPointDVAtomicFieldData extends AbstractAtomicGeoPointFieldData {
     private final SortedNumericDocValues values;
 

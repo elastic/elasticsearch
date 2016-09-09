@@ -460,10 +460,6 @@ Centimeter::    `cm` or `centimeters`
 Millimeter::    `mm` or `millimeters`
 Nautical mile:: `NM`, `nmi` or `nauticalmiles`
 
-The `precision` parameter in the <<query-dsl-geohash-cell-query>> accepts
-distances with the above units, but if no unit is specified, then the
-precision is interpreted as the length of the geohash.
-
 [[fuzziness]]
 [float]
 === Fuzziness

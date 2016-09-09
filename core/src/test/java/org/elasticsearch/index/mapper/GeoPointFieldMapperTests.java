@@ -168,7 +168,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("point").field("type", "geo_point");
-        if (version.before(Version.V_5_0_0_alpha6)) {
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             xContentBuilder = xContentBuilder.field("lat_lon", true);
         }
         String mapping = xContentBuilder.endObject().endObject().endObject().endObject().string();
@@ -182,7 +182,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .bytes());
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
-        if (version.before(Version.V_5_0_0_alpha6)) {
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
             assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
         }
@@ -402,7 +402,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT, Version.CURRENT);
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("point").field("type", "geo_point");
-        if (version.before(Version.V_5_0_0_alpha6)) {
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             xContentBuilder = xContentBuilder.field("lat_lon", true);
         }
         String mapping = xContentBuilder.field("store", true).endObject().endObject().endObject().endObject().string();
@@ -416,8 +416,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .bytes());
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
-        // TODO LatLonPoint FieldType is private and frozen, need to add ability to store field
-        if (version.before(Version.V_5_0_0_alpha6)) {
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
             assertThat(doc.rootDoc().getField("point.lat").numericValue().doubleValue(), equalTo(1.2));
             assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
@@ -435,7 +434,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("point").field("type", "geo_point").field("doc_values", false);
-        if (version.before(Version.V_5_0_0_alpha6)) {
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             xContentBuilder = xContentBuilder.field("lat_lon", true);
         }
         String mapping = xContentBuilder.field("store", true).endObject().endObject().endObject().endObject().string();
@@ -478,7 +477,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("point").field("type", "geo_point");
-        if (version.before(Version.V_5_0_0_alpha6)) {
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             xContentBuilder = xContentBuilder.field("lat_lon", true);
         }
         String mapping = xContentBuilder.endObject().endObject().endObject().endObject().string();
@@ -493,7 +492,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .bytes());
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
-        if (version.before(Version.V_5_0_0_alpha6)) {
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
             assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
             if (version.before(Version.V_2_2_0)) {
@@ -508,7 +507,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("point").field("type", "geo_point");
-        if (version.before(Version.V_5_0_0_alpha6)) {
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             xContentBuilder = xContentBuilder.field("lat_lon", true);
         }
         String mapping = xContentBuilder.field("store", true).endObject().endObject().endObject().endObject().string();
@@ -522,7 +521,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
         assertThat(doc.rootDoc().getField("point"), notNullValue());
-        if (version.before(Version.V_5_0_0_alpha6)) {
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
             assertThat(doc.rootDoc().getField("point.lat").numericValue().doubleValue(), equalTo(1.2));
             assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
@@ -540,7 +539,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("point").field("type", "geo_point").field("doc_values", false);
-        if (version.before(Version.V_5_0_0_alpha6)) {
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             xContentBuilder = xContentBuilder.field("lat_lon", true);
         }
         String mapping = xContentBuilder.field("store", true).endObject().endObject().endObject().endObject().string();
@@ -559,23 +558,25 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         // doc values are enabled by default, but in this test we disable them; we should only have 2 points
         assertThat(doc.rootDoc().getFields("point"), notNullValue());
-        assertThat(doc.rootDoc().getFields("point").length, equalTo(2));
         if (version.before(Version.V_5_0_0_alpha2)) {
+            assertThat(doc.rootDoc().getFields("point").length, equalTo(2));
             assertThat(doc.rootDoc().getFields("point.lat").length, equalTo(2));
             assertThat(doc.rootDoc().getFields("point.lon").length, equalTo(2));
             assertThat(doc.rootDoc().getFields("point.lat")[0].numericValue().doubleValue(), equalTo(1.2));
             assertThat(doc.rootDoc().getFields("point.lon")[0].numericValue().doubleValue(), equalTo(1.3));
             assertThat(doc.rootDoc().getFields("point.lat")[1].numericValue().doubleValue(), equalTo(1.4));
             assertThat(doc.rootDoc().getFields("point.lon")[1].numericValue().doubleValue(), equalTo(1.5));
+        } else if (version.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            assertThat(doc.rootDoc().getFields("point").length, equalTo(4));
         }
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getFields("point")[0].stringValue(), equalTo("1.2,1.3"));
-        } else if (version.before(Version.V_5_0_0_alpha6)) {
+        } else if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoPointField.encodeLatLon(1.2, 1.3)));
         }
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getFields("point")[1].stringValue(), equalTo("1.4,1.5"));
-        } else if (version.before(Version.V_5_0_0_alpha6)) {
+        } else if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(GeoPointField.encodeLatLon(1.4, 1.5)));
         }
     }
@@ -584,7 +585,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("point").field("type", "geo_point");
-        if (version.before(Version.V_5_0_0_alpha6)) {
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             xContentBuilder = xContentBuilder.field("lat_lon", true);
         }
         String mapping = xContentBuilder.endObject().endObject().endObject().endObject().string();
@@ -598,7 +599,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .bytes());
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
-        if (version.before(Version.V_5_0_0_alpha6)) {
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
             assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
             if (version.before(Version.V_2_2_0)) {
@@ -614,7 +615,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startArray("dynamic_templates").startObject().startObject("point").field("match", "point*")
             .startObject("mapping").field("type", "geo_point");
-        if (version.before(Version.V_5_0_0_alpha6)) {
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             xContentBuilder = xContentBuilder.field("lat_lon", true);
         }
         String mapping = xContentBuilder.endObject().endObject().endObject().endArray().endObject().endObject().string();
@@ -628,7 +629,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .bytes());
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
-        if (version.before(Version.V_5_0_0_alpha6)) {
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
             assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
             if (version.before(Version.V_2_2_0)) {
@@ -643,7 +644,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("point").field("type", "geo_point");
-        if (version.before(Version.V_5_0_0_alpha6)) {
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             xContentBuilder = xContentBuilder.field("lat_lon", true);
         }
         String mapping = xContentBuilder.field("store", true).endObject().endObject().endObject().endObject().string();
@@ -657,7 +658,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .bytes());
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
-        if (version.before(Version.V_5_0_0_alpha6)) {
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
             assertThat(doc.rootDoc().getField("point.lat").numericValue().doubleValue(), equalTo(1.2));
             assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
@@ -667,6 +668,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             } else {
                 assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoPointField.encodeLatLon(1.2, 1.3)));
             }
+        } else {
+            assertThat(doc.rootDoc().getFields("point").length, equalTo(3));
         }
     }
 
@@ -674,7 +677,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("point").field("type", "geo_point");
-        if (version.before(Version.V_5_0_0_alpha6)) {
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             xContentBuilder = xContentBuilder.field("lat_lon", true);
         }
         String mapping = xContentBuilder.field("store", true).field("doc_values", false).endObject().endObject()
@@ -692,8 +695,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .bytes());
 
         assertThat(doc.rootDoc().getFields("point"), notNullValue());
-        assertThat(doc.rootDoc().getFields("point").length, CoreMatchers.equalTo(2));
         if (version.before(Version.V_5_0_0_alpha2)) {
+            assertThat(doc.rootDoc().getFields("point").length, CoreMatchers.equalTo(2));
             assertThat(doc.rootDoc().getFields("point.lat").length, equalTo(2));
             assertThat(doc.rootDoc().getFields("point.lon").length, equalTo(2));
             assertThat(doc.rootDoc().getFields("point.lat")[0].numericValue().doubleValue(), equalTo(1.2));
@@ -710,6 +713,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             } else {
                 assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(GeoPointField.encodeLatLon(1.4, 1.5)));
             }
+        } else if (version.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            assertThat(doc.rootDoc().getFields("point").length, CoreMatchers.equalTo(4));
         }
     }
 
@@ -722,7 +727,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         DocumentMapperParser parser = createIndex("test", settings).mapperService().documentMapperParser();
         // test deprecation exceptions on newly created indexes
-        if (version.onOrAfter(Version.V_5_0_0_alpha6)) {
+        if (version.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             try {
                 String normalizeMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                     .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
@@ -733,7 +738,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             }
         }
 
-        if (version.onOrAfter(Version.V_5_0_0_alpha6)) {
+        if (version.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             try {
                 String normalizeMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                     .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true).endObject().endObject()
@@ -747,7 +752,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         try {
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point");
-            if (version.before(Version.V_5_0_0_alpha6)) {
+            if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
                 xContentBuilder = xContentBuilder.field("lat_lon", true).field("geohash", true);
             }
             String validateMapping = xContentBuilder.field("validate", true).endObject().endObject().endObject().endObject().string();
@@ -760,7 +765,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         try {
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point");
-            if (version.before(Version.V_5_0_0_alpha6)) {
+            if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
                 xContentBuilder = xContentBuilder.field("lat_lon", true).field("geohash", true);
             }
             String validateMapping = xContentBuilder.field("validate_lat", true).endObject().endObject().endObject().endObject().string();
@@ -773,7 +778,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         try {
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point");
-            if (version.before(Version.V_5_0_0_alpha6)) {
+            if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
                 xContentBuilder = xContentBuilder.field("lat_lon", true).field("geohash", true);
             }
             String validateMapping = xContentBuilder.field("validate_lon", true).endObject().endObject().endObject().endObject().string();
@@ -787,7 +792,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         try {
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point");
-            if (version.before(Version.V_5_0_0_alpha6)) {
+            if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
                 xContentBuilder = xContentBuilder.field("lat_lon", true).field("geohash", true);
             }
             String normalizeMapping = xContentBuilder.field("normalize", true).endObject().endObject().endObject().endObject().string();
@@ -800,7 +805,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         try {
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point");
-            if (version.before(Version.V_5_0_0_alpha6)) {
+            if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
                 xContentBuilder = xContentBuilder.field("lat_lon", true).field("geohash", true);
             }
             String normalizeMapping = xContentBuilder.field("normalize_lat", true).endObject().endObject().endObject().endObject().string();
@@ -813,7 +818,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         try {
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point");
-            if (version.before(Version.V_5_0_0_alpha6)) {
+            if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
                 xContentBuilder = xContentBuilder.field("lat_lon", true).field("geohash", true);
             }
             String normalizeMapping = xContentBuilder.field("normalize_lon", true).endObject().endObject().endObject().endObject().string();

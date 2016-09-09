@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper.LegacyGeoPointFieldType;
+import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.search.geo.LegacyInMemoryGeoBoundingBoxQuery;
 import org.elasticsearch.index.search.geo.LegacyIndexedGeoBoundingBoxQuery;
@@ -360,7 +361,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             }
         }
 
-        if (indexVersionCreated.onOrAfter(Version.V_5_0_0_alpha6)) {
+        if (indexVersionCreated.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             return LatLonPoint.newBoxQuery(fieldType.name(), luceneBottomRight.getLat(), luceneTopLeft.getLat(),
                 luceneTopLeft.getLon(), luceneBottomRight.getLon());
         } else if (indexVersionCreated.onOrAfter(Version.V_2_2_0)) {

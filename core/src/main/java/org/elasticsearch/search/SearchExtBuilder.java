@@ -20,25 +20,28 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
 
 /**
  * Intermediate serializable representation of a search ext section. To be subclassed by plugins that support
  * a custom section as part of a search request, which will be provided within the ext element.
- * Any state needs to be serialized as part of the {@link org.elasticsearch.common.io.stream.Writeable#writeTo(StreamOutput)} method and
- * read from the incoming stream, usually done adding a constructor that takes {@link org.elasticsearch.common.io.stream.StreamInput} as
+ * Any state needs to be serialized as part of the {@link Writeable#writeTo(StreamOutput)} method and
+ * read from the incoming stream, usually done adding a constructor that takes {@link StreamInput} as
  * an argument.
  *
  * Registration happens through {@link SearchPlugin#getSearchExts()}, which also needs a {@link SearchExtParser} that's able to parse
  * the incoming request from the REST layer into the proper {@link SearchExtBuilder} subclass.
  *
  * {@link #getWriteableName()} must return the same name as the one used for the registration
- * of the {@link org.elasticsearch.plugins.SearchPlugin.SearchExtSpec}.
+ * of the {@link SearchExtSpec}.
  *
  * @see SearchExtParser
- * @see org.elasticsearch.plugins.SearchPlugin.SearchExtSpec
+ * @see SearchExtSpec
  */
 public abstract class SearchExtBuilder implements NamedWriteable, ToXContent {
 

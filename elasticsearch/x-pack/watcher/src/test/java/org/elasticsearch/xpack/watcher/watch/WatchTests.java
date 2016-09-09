@@ -21,7 +21,6 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpClient;
@@ -305,7 +304,7 @@ public class WatchTests extends ESTestCase {
         queryRegistry.register(queryParser1, MatchAllQueryBuilder.NAME);
         QueryParser<ScriptQueryBuilder> queryParser2 = ScriptQueryBuilder::fromXContent;
         queryRegistry.register(queryParser2, ScriptQueryBuilder.NAME);
-        SearchRequestParsers searchParsers = new SearchRequestParsers(queryRegistry, null,  null);
+        SearchRequestParsers searchParsers = new SearchRequestParsers(queryRegistry, null,  null, null);
         WatcherSearchTemplateService searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, searchParsers);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -437,7 +436,7 @@ public class WatchTests extends ESTestCase {
                 queryRegistry.register(queryParser1, MatchAllQueryBuilder.NAME);
                 QueryParser<ScriptQueryBuilder> queryParser2 = ScriptQueryBuilder::fromXContent;
                 queryRegistry.register(queryParser2, ScriptQueryBuilder.NAME);
-                SearchRequestParsers searchParsers = new SearchRequestParsers(queryRegistry, null,  null);
+                SearchRequestParsers searchParsers = new SearchRequestParsers(queryRegistry, null,  null, null);
                 parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, searchParsers, scriptService));
                 return new InputRegistry(Settings.EMPTY, parsers);
             default:
@@ -502,7 +501,7 @@ public class WatchTests extends ESTestCase {
         IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry();
         QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
         queryRegistry.register(queryParser, MatchAllQueryBuilder.NAME);
-        SearchRequestParsers searchParsers = new SearchRequestParsers(queryRegistry, null, null);
+        SearchRequestParsers searchParsers = new SearchRequestParsers(queryRegistry, null, null, null);
         Map<String, TransformFactory> factories = new HashMap<>();
         factories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
         factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, searchParsers, scriptService));

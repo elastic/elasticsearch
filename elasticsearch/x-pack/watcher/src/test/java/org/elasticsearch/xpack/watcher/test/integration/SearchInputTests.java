@@ -147,7 +147,7 @@ public class SearchInputTests extends ESIntegTestCase {
         parser.nextToken();
 
         IndicesQueriesRegistry indicesQueryRegistry = internalCluster().getInstance(IndicesQueriesRegistry.class);
-        SearchRequestParsers searchParsers = new SearchRequestParsers(indicesQueryRegistry, null, null);
+        SearchRequestParsers searchParsers = new SearchRequestParsers(indicesQueryRegistry, null, null, null);
         SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, WatcherClientProxy.of(client()),
                                                             searchParsers, scriptService());
 

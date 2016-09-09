@@ -21,6 +21,3 @@ esplugin {
     description 'Discovery file plugin enables unicast discovery from hosts stored in a file.'
     classname 'org.elasticsearch.discovery.file.FileBasedDiscoveryPlugin'
 }
-
-// no integration tests for this plugin
-integTest.enabled = false

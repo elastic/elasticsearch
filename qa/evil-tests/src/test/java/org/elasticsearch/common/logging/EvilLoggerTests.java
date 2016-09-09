@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.PathUtils;
@@ -38,6 +39,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.vividsolutions.jts.geom.Dimension.L;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EvilLoggerTests extends ESTestCase {
@@ -105,6 +107,11 @@ public class EvilLoggerTests extends ESTestCase {
             Level.WARN,
             "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
             "This is a deprecation message");
+    }
+
+    public void testFindAppender() {
+        assertNotNull(Loggers.findAppender(testLogger, ConsoleAppender.class));
+        assertNull(Loggers.findAppender(ESLoggerFactory.getLogger("counting_no_op"), ConsoleAppender.class));
     }
 
 }

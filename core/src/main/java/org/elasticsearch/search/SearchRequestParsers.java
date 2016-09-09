@@ -37,7 +37,8 @@ public class SearchRequestParsers {
     /**
      * Query parsers that may be used in search requests.
      * @see org.elasticsearch.index.query.QueryParseContext
-     * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, AggregatorParsers, Suggesters)
+     * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, AggregatorParsers,
+     * Suggesters, SearchExtRegistry)
      */
     public final IndicesQueriesRegistry queryParsers;
 
@@ -45,20 +46,29 @@ public class SearchRequestParsers {
     // and pipeline agg parsers should be here
     /**
      * Agg and pipeline agg parsers that may be used in search requests.
-     * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, AggregatorParsers, Suggesters)
+     * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, AggregatorParsers,
+     * Suggesters, SearchExtRegistry)
      */
     public final AggregatorParsers aggParsers;
 
     // TODO: Suggesters should be removed and the underlying map moved here
     /**
      * Suggesters that may be used in search requests.
-     * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, AggregatorParsers, Suggesters)
+     * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, AggregatorParsers,
+     * Suggesters, SearchExtRegistry)
      */
     public final Suggesters suggesters;
 
-    public SearchRequestParsers(IndicesQueriesRegistry queryParsers, AggregatorParsers aggParsers, Suggesters suggesters) {
+    /**
+     * Pluggable section that can be parsed out of a search section, within the ext element
+     */
+    public final SearchExtRegistry searchExtParsers;
+
+    public SearchRequestParsers(IndicesQueriesRegistry queryParsers, AggregatorParsers aggParsers, Suggesters suggesters,
+                                SearchExtRegistry searchExtParsers) {
         this.queryParsers = queryParsers;
         this.aggParsers = aggParsers;
         this.suggesters = suggesters;
+        this.searchExtParsers = searchExtParsers;
     }
 }

@@ -39,6 +39,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -89,7 +90,7 @@ public class TestSearchContext extends SearchContext {
     private SearchContextAggregations aggregations;
 
     private final long originNanoTime = System.nanoTime();
-    private final Map<String, Object> searchExtBuilders = new HashMap<>();
+    private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 
     public TestSearchContext(ThreadPool threadPool, BigArrays bigArrays, ScriptService scriptService, IndexService indexService) {
         super(ParseFieldMatcher.STRICT);
@@ -196,12 +197,12 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void putSearchExtBuilder(String name, Object searchExtBuilders) {
-        this.searchExtBuilders.put(name, searchExtBuilders);
+    public void addSearchExt(SearchExtBuilder searchExtBuilder) {
+        searchExtBuilders.put(searchExtBuilder.getWriteableName(), searchExtBuilder);
     }
 
     @Override
-    public Object getSearchExtBuilder(String name) {
+    public SearchExtBuilder getSearchExt(String name) {
         return searchExtBuilders.get(name);
     }
 

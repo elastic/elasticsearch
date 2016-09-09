@@ -35,6 +35,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder.Type;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -2773,4 +2774,19 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertThat(field.getFragments()[1].string(), equalTo("<em>cow</em>"));
     }
 
+    public void testFunctionScoreQueryHighlight() throws Exception {
+        client().prepareIndex("test", "type", "1")
+            .setSource(jsonBuilder().startObject().field("text", "brown").endObject())
+            .setRefresh(true)
+            .get();
+
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(new FunctionScoreQueryBuilder(QueryBuilders.prefixQuery("text", "bro")))
+            .addHighlightedField("text")
+            .get();
+        assertHitCount(searchResponse, 1);
+        HighlightField field = searchResponse.getHits().getAt(0).highlightFields().get("text");
+        assertThat(field.getFragments().length, equalTo(1));
+        assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+    }
 }

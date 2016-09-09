@@ -25,9 +25,7 @@ import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.search.highlight.WeightedSpanTerm;
 import org.apache.lucene.search.highlight.WeightedSpanTermExtractor;
 import org.apache.lucene.spatial.geopoint.search.GeoPointInBBoxQuery;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.index.query.HasChildQueryBuilder;
 import org.elasticsearch.index.query.HasChildQueryParser;
 
 import java.io.IOException;
@@ -82,9 +80,6 @@ public final class CustomQueryScorer extends QueryScorer {
             if (query instanceof FunctionScoreQuery) {
                 query = ((FunctionScoreQuery) query).getSubQuery();
                 extract(query, query.getBoost(), terms);
-            } else if (query instanceof FiltersFunctionScoreQuery) {
-                query = ((FiltersFunctionScoreQuery) query).getSubQuery();
-                extract(query, query.getBoost(), terms);
             } else if (terms.isEmpty()) {
                 extractWeightedTerms(terms, query, query.getBoost());
             }
@@ -98,9 +93,11 @@ public final class CustomQueryScorer extends QueryScorer {
             } else if (query instanceof HasChildQueryParser.LateParsingQuery) {
                 // skip has_child or has_parent queries, see: https://github.com/elastic/elasticsearch/issues/14999
                 return;
+            } else if (query instanceof FunctionScoreQuery) {
+                super.extract(((FunctionScoreQuery) query).getSubQuery(), boost, terms);
+            } else {
+                super.extract(query, boost, terms);
             }
-
-            super.extract(query, boost, terms);
         }
     }
 }

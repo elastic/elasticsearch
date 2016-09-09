@@ -25,13 +25,12 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.XContentTestUtils;
 
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.ingest.IngestDocumentTests.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
 
 public class JsonProcessorTests extends ESTestCase {
 
@@ -48,12 +47,10 @@ public class JsonProcessorTests extends ESTestCase {
         String randomJson = XContentHelper.convertToJson(builder.bytes(), false);
         document.put(randomField, randomJson);
 
-
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         jsonProcessor.execute(ingestDocument);
         Map<String, Object> jsonified = ingestDocument.getFieldValue(randomTargetField, Map.class);
-        String difference = XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder(jsonified, randomJsonMap);
-        assertThat(difference, isEmptyOrNullString());
+        assertIngestDocument(ingestDocument.getFieldValue(randomTargetField, Object.class), jsonified);
     }
 
     public void testInvalidJson() {

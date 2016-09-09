@@ -169,7 +169,7 @@ public final class RandomDocumentPicks {
     }
 
     private static Object randomFieldValue(Random random, int currentDepth) {
-        switch(RandomInts.randomIntBetween(random, 0, 8)) {
+        switch(RandomInts.randomIntBetween(random, 0, 9)) {
             case 0:
                 return randomString(random);
             case 1:
@@ -210,6 +210,10 @@ public final class RandomDocumentPicks {
                 Map<String, Object> newNode = new HashMap<>();
                 addRandomFields(random, newNode, ++currentDepth);
                 return newNode;
+            case 9:
+                byte[] byteArray = new byte[RandomInts.randomIntBetween(random, 1, 1024)];
+                random.nextBytes(byteArray);
+                return byteArray;
             default:
                 throw new UnsupportedOperationException();
         }

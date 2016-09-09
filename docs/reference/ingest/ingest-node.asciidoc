@@ -1289,7 +1289,7 @@ Converts a JSON string into a structured JSON object.
 --------------------------------------------------
 {
   "json": {
-    "field": "my_json_string"
+    "field": "{\"foo\": 2000}"
   }
 }
 --------------------------------------------------

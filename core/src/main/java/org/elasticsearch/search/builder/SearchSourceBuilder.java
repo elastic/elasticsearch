@@ -170,7 +170,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     private List<String> stats;
 
-    private List<SearchExtBuilder> extBuilders;
+    private List<SearchExtBuilder> extBuilders = Collections.emptyList();
 
     private boolean profile = false;
 
@@ -224,9 +224,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         timeout = in.readOptionalWriteable(TimeValue::new);
         trackScores = in.readBoolean();
         version = in.readOptionalBoolean();
-        if (in.readBoolean()) {
-            extBuilders = in.readNamedWriteableList(SearchExtBuilder.class);
-        }
+        extBuilders = in.readNamedWriteableList(SearchExtBuilder.class);
         profile = in.readBoolean();
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
@@ -278,12 +276,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         out.writeOptionalWriteable(timeout);
         out.writeBoolean(trackScores);
         out.writeOptionalBoolean(version);
-        if (extBuilders == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeNamedWriteableList(extBuilders);
-        }
+        out.writeNamedWriteableList(extBuilders);
         out.writeBoolean(profile);
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeOptionalWriteable(sliceBuilder);
@@ -862,7 +855,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     }
 
     public SearchSourceBuilder ext(List<SearchExtBuilder> searchExtBuilders) {
-        this.extBuilders = searchExtBuilders;
+        this.extBuilders = Objects.requireNonNull(searchExtBuilders, "searchExtBuilders must not be null");
         return this;
     }
 

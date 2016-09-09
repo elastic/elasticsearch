@@ -184,10 +184,8 @@ public class ZenFaultDetectionTests extends ESTestCase {
         setState(clusterServiceB, clusterStateB);
         NodesFaultDetection nodesFDA = new NodesFaultDetection(settings.build(), threadPool, serviceA, clusterStateA.getClusterName(),
                                                                   clusterServiceA);
-        nodesFDA.setLocalNode(nodeA);
         NodesFaultDetection nodesFDB = new NodesFaultDetection(settings.build(), threadPool, serviceB, clusterStateB.getClusterName(),
                                                                   clusterServiceB);
-        nodesFDB.setLocalNode(nodeB);
         final CountDownLatch pingSent = new CountDownLatch(1);
         nodesFDB.addListener(new NodesFaultDetection.Listener() {
             @Override
@@ -241,10 +239,8 @@ public class ZenFaultDetectionTests extends ESTestCase {
         setState(clusterServiceB, clusterStateB);
         NodesFaultDetection nodesFDA = new NodesFaultDetection(settings.build(), threadPool, serviceA, clusterStateA.getClusterName(),
                                                                   clusterServiceA);
-        nodesFDA.setLocalNode(nodeA);
         NodesFaultDetection nodesFDB = new NodesFaultDetection(settings.build(), threadPool, serviceB, clusterStateB.getClusterName(),
                                                                   clusterServiceB);
-        nodesFDB.setLocalNode(nodeB);
 
         final String[] failureReason = new String[1];
         final DiscoveryNode[] failureNode = new DiscoveryNode[1];

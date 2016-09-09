@@ -216,7 +216,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     @Override
     protected void doStart() {
-        nodesFD.setLocalNode(clusterService.localNode());
         joinThreadControl.start();
         pingService.start();
         this.nodeJoinController = new NodeJoinController(clusterService, allocationService, electMaster, discoverySettings, settings);

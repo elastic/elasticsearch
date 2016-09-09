@@ -68,8 +68,6 @@ public class NodesFaultDetection extends FaultDetection {
 
     private volatile long clusterStateVersion = ClusterState.UNKNOWN_VERSION;
 
-    private volatile DiscoveryNode localNode;
-
     public NodesFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName,
                                ClusterService clusterService) {
         super(settings, threadPool, transportService, clusterName, clusterService);
@@ -79,10 +77,6 @@ public class NodesFaultDetection extends FaultDetection {
 
         transportService.registerRequestHandler(
             PING_ACTION_NAME, PingRequest::new, ThreadPool.Names.SAME, false, false, new PingRequestHandler());
-    }
-
-    public void setLocalNode(DiscoveryNode localNode) {
-        this.localNode = localNode;
     }
 
     public void addListener(Listener listener) {
@@ -106,6 +100,7 @@ public class NodesFaultDetection extends FaultDetection {
         }
         // add any missing nodes
 
+        final DiscoveryNode localNode = clusterService.localNode();
         for (DiscoveryNode node : clusterState.nodes()) {
             if (node.equals(localNode)) {
                 // no need to monitor the local node
@@ -211,7 +206,7 @@ public class NodesFaultDetection extends FaultDetection {
             if (!running()) {
                 return;
             }
-            final PingRequest pingRequest = new PingRequest(node, clusterName, localNode, clusterStateVersion);
+            final PingRequest pingRequest = new PingRequest(node, clusterName, clusterService.localNode(), clusterStateVersion);
             final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING)
                 .withTimeout(pingRetryTimeout).build();
             transportService.sendRequest(node, PING_ACTION_NAME, pingRequest, options, new TransportResponseHandler<PingResponse>() {
@@ -237,6 +232,9 @@ public class NodesFaultDetection extends FaultDetection {
                             if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
                                 handleTransportDisconnect(node);
                                 return;
+                            }
+                            if (exp.getCause() != null && exp.getCause() instanceof IllegalStateException) {
+
                             }
 
                             retryCount++;
@@ -275,6 +273,7 @@ public class NodesFaultDetection extends FaultDetection {
         public void messageReceived(PingRequest request, TransportChannel channel) throws Exception {
             // if we are not the node we are supposed to be pinged, send an exception
             // this can happen when a kill -9 is sent, and another node is started using the same port
+            final DiscoveryNode localNode = clusterService.localNode();
             if (!localNode.equals(request.targetNode())) {
                 throw new IllegalStateException("Got pinged as node " + request.targetNode() + "], but I am node " + localNode );
             }
@@ -292,8 +291,6 @@ public class NodesFaultDetection extends FaultDetection {
                     && currentMasterNode.equals(request.masterNode) == false) {
                 // this node has a different node as master than the one that sent this ping message, so notify
                 // the sending node that this node does not believe it to be the master
-                // TODO: should we throw a specialized exception type here that can be caught by the
-                // TransportService#sendRequest's exception handler so we don't keep retrying to send to this node?
                 throw new IllegalStateException("Got pinged by node [" + request.masterNode + "] but I believe master to be ["
                                                     + currentMasterNode + "]");
             }

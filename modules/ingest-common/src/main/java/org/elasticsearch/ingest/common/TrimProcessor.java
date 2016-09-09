@@ -27,8 +27,8 @@ public final class TrimProcessor extends AbstractStringProcessor {
 
     public static final String TYPE = "trim";
 
-    TrimProcessor(String processorTag, String field) {
-        super(processorTag, field);
+    TrimProcessor(String processorTag, String field, boolean ignoreMissing) {
+        super(processorTag, field, ignoreMissing);
     }
 
     @Override
@@ -48,8 +48,8 @@ public final class TrimProcessor extends AbstractStringProcessor {
         }
 
         @Override
-        protected TrimProcessor newProcessor(String tag, String field) {
-            return new TrimProcessor(tag, field);
+        protected TrimProcessor newProcessor(String tag, String field, boolean ignoreMissing) {
+            return new TrimProcessor(tag, field, ignoreMissing);
         }
     }
 }

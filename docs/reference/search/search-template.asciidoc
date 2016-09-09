@@ -257,7 +257,7 @@ for `end`:
 [float]
 ===== Converting parameters to JSON
 
-The `{{toJson}}parameter{{/toJson}}` function can be used to convert parameters
+The `{{#toJson}}parameter{{/toJson}}` function can be used to convert parameters
 like maps and array to their JSON representation:
 
 [source,js]

@@ -27,6 +27,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.appender.CountingNoOpAppender;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -115,8 +116,6 @@ public class EvilLoggerTests extends ESTestCase {
     }
 
     public void testUnsupportedLoggingConfigurationFiles() throws IOException {
-        // TODO: the warning for unsupported logging configurations can be removed in 6.0.0
-        assert Version.CURRENT.major < 6;
         final String path = System.getProperty("es.logs") + ".log";
         final List<String> events = Files.readAllLines(PathUtils.get(path));
         assertThat(events.size(), equalTo(1));

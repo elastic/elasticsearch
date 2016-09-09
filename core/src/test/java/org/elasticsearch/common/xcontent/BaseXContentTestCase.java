@@ -22,6 +22,7 @@ package org.elasticsearch.common.xcontent;
 import com.fasterxml.jackson.core.JsonGenerationException;
 import com.fasterxml.jackson.core.JsonGenerator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -478,8 +479,9 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     public void testPath() throws Exception {
         assertResult("{'path':null}", () -> builder().startObject().field("path", (Path) null).endObject());
 
-        Path path = PathUtils.get("first", "second", "third");
-        assertResult("{'path':'"+ path.toString() + "'}", () -> builder().startObject().field("path", path).endObject());
+        final Path path = PathUtils.get("first", "second", "third");
+        final String expected = Constants.WINDOWS ? "{'path':'first\\\\second\\\\third'}" : "{'path':'first/second/third'}";
+        assertResult(expected, () -> builder().startObject().field("path", path).endObject());
     }
 
     public void testObjects() throws Exception {
@@ -494,13 +496,14 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         objects.put("{'objects':[1,1,2,3,5,8]}", new Object[]{(short) 1, (short) 1, (short) 2, (short) 3, (short) 5, (short) 8});
         objects.put("{'objects':['a','b','c']}", new Object[]{"a", "b", "c"});
         objects.put("{'objects':['a','b','c']}", new Object[]{new Text("a"), new Text(new BytesArray("b")), new Text("c")});
-        objects.put("{'objects':['" + PathUtils.get("a", "b", "c") + "','" + PathUtils.get("d", "e") + "']}",
-            new Object[]{PathUtils.get("a", "b", "c"), PathUtils.get("d", "e")});
         objects.put("{'objects':null}", null);
         objects.put("{'objects':[null,null,null]}", new Object[]{null, null, null});
         objects.put("{'objects':['OPEN','CLOSE']}", IndexMetaData.State.values());
         objects.put("{'objects':[{'f1':'v1'},{'f2':'v2'}]}", new Object[]{singletonMap("f1", "v1"), singletonMap("f2", "v2")});
         objects.put("{'objects':[[1,2,3],[4,5]]}", new Object[]{Arrays.asList(1, 2, 3), Arrays.asList(4, 5)});
+
+        final String paths = Constants.WINDOWS ? "{'objects':['a\\\\b\\\\c','d\\\\e']}" : "{'objects':['a/b/c','d/e']}";
+        objects.put(paths, new Object[]{PathUtils.get("a", "b", "c"), PathUtils.get("d", "e")});
 
         final DateTimeFormatter formatter = XContentBuilder.DEFAULT_DATE_PRINTER;
         final Date d1 = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
@@ -541,13 +544,15 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         object.put("{'object':'string'}", "string");
         object.put("{'object':'a'}", new Text("a"));
         object.put("{'object':'b'}", new Text(new BytesArray("b")));
-        object.put("{'object':'" + PathUtils.get("a", "b", "c") + "'}", PathUtils.get("a", "b", "c"));
         object.put("{'object':null}", null);
         object.put("{'object':'OPEN'}", IndexMetaData.State.OPEN);
         object.put("{'object':'NM'}", DistanceUnit.NAUTICALMILES);
         object.put("{'object':{'f1':'v1'}}", singletonMap("f1", "v1"));
         object.put("{'object':{'f1':{'f2':'v2'}}}", singletonMap("f1", singletonMap("f2", "v2")));
         object.put("{'object':[1,2,3]}", Arrays.asList(1, 2, 3));
+
+        final String path = Constants.WINDOWS ? "{'object':'a\\\\b\\\\c'}" : "{'object':'a/b/c'}";
+        object.put(path, PathUtils.get("a", "b", "c"));
 
         final DateTimeFormatter formatter = XContentBuilder.DEFAULT_DATE_PRINTER;
         final Date d1 = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
@@ -634,8 +639,9 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         innerMap.put("long[]", new long[]{1L, 3L});
         innerMap.put("path", PathUtils.get("path", "to", "file"));
         innerMap.put("object", singletonMap("key", "value"));
-        maps.put("{'map':{'path':'" + PathUtils.get("path", "to", "file")
-            + "','string':'value','long[]':[1,3],'int':42,'long':42,'object':{'key':'value'}}}", innerMap);
+
+        final String path = Constants.WINDOWS ? "path\\\\to\\\\file" : "path/to/file";
+        maps.put("{'map':{'path':'" + path + "','string':'value','long[]':[1,3],'int':42,'long':42,'object':{'key':'value'}}}", innerMap);
 
         for (Map.Entry<String, Map<String, ?>> m : maps.entrySet()) {
             final String expected = m.getKey();
@@ -650,9 +656,12 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         iterables.put("{'iter':null}", (Iterable) null);
         iterables.put("{'iter':[]}", Collections.emptyList());
         iterables.put("{'iter':['a','b']}", Arrays.asList("a", "b"));
-        iterables.put("{'iter':'" + PathUtils.get("path", "to", "file") +"'}", PathUtils.get("path", "to", "file"));
-        iterables.put("{'iter':['" + PathUtils.get("a", "b", "c") + "','" + PathUtils.get("c", "d") + "']}",
-            Arrays.asList(PathUtils.get("a", "b", "c"), PathUtils.get("c", "d")));
+
+        final String path = Constants.WINDOWS ? "{'iter':'path\\\\to\\\\file'}" : "{'iter':'path/to/file'}";
+        iterables.put(path, PathUtils.get("path", "to", "file"));
+
+        final String paths = Constants.WINDOWS ? "{'iter':['a\\\\b\\\\c','c\\\\d']}" : "{'iter':['a/b/c','c/d']}";
+        iterables.put(paths, Arrays.asList(PathUtils.get("a", "b", "c"), PathUtils.get("c", "d")));
 
         for (Map.Entry<String, Iterable<?>> i : iterables.entrySet()) {
             final String expected = i.getKey();

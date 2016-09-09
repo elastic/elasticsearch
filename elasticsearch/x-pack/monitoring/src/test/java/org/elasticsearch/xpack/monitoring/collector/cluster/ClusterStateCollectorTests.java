@@ -34,6 +34,9 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
 
     public void testClusterStateCollectorNoIndices() throws Exception {
+        // waits for pending tasks before collecing cluster state.
+        // prevents the collector to read an older cluster state than the one used in assert later
+        ensureGreen();
         assertMonitoringDocs(newClusterStateCollector().doCollect(), 0);
     }
 

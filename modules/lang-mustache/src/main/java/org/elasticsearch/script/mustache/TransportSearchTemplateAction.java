@@ -32,14 +32,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchRequestParsers;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -86,7 +83,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
             try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
                 SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
                 builder.parseXContent(new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher),
-                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
+                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
                 searchRequest.source(builder);
 
                 searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {

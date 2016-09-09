@@ -36,17 +36,17 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseContext;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
@@ -90,7 +90,7 @@ public class TestSearchContext extends SearchContext {
     private SearchContextAggregations aggregations;
 
     private final long originNanoTime = System.nanoTime();
-    private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
+    private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 
     public TestSearchContext(ThreadPool threadPool, BigArrays bigArrays, ScriptService scriptService, IndexService indexService) {
         super(ParseFieldMatcher.STRICT);
@@ -197,12 +197,13 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory) {
-        String subPhaseName = contextFactory.getName();
-        if (subPhaseContexts.get(subPhaseName) == null) {
-            subPhaseContexts.put(subPhaseName, contextFactory.newContextInstance());
-        }
-        return (SubPhaseContext) subPhaseContexts.get(subPhaseName);
+    public void addSearchExt(SearchExtBuilder searchExtBuilder) {
+        searchExtBuilders.put(searchExtBuilder.getWriteableName(), searchExtBuilder);
+    }
+
+    @Override
+    public SearchExtBuilder getSearchExt(String name) {
+        return searchExtBuilders.get(name);
     }
 
     @Override
@@ -259,6 +260,16 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext) {
+        return null;
+    }
+
+    @Override
+    public DocValueFieldsContext docValueFieldsContext() {
+        return null;
+    }
+
+    @Override
+    public SearchContext docValueFieldsContext(DocValueFieldsContext docValueFieldsContext) {
         return null;
     }
 

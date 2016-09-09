@@ -59,6 +59,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.fetch.FetchSubPhasePluginIT;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.rescore.QueryRescoreBuilderTests;
@@ -85,7 +86,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -132,7 +132,8 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 bindMapperExtension();
             }
         };
-        SearchModule searchModule = new SearchModule(settings, false, emptyList()) {
+        SearchModule searchModule = new SearchModule(settings, false,
+                Collections.singletonList(new FetchSubPhasePluginIT.FetchTermVectorsPlugin())) {
             @Override
             protected void configureSearch() {
                 // Skip me
@@ -389,11 +390,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
             builder.aggregation(AggregationBuilders.avg(randomAsciiOfLengthBetween(5, 20)));
         }
         if (randomBoolean()) {
-            XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
-            xContentBuilder.startObject();
-            xContentBuilder.field("term_vectors_fetch", randomAsciiOfLengthBetween(5, 20));
-            xContentBuilder.endObject();
-            builder.ext(xContentBuilder);
+            builder.ext(Collections.singletonList(new FetchSubPhasePluginIT.TermVectorsFetchBuilder("test")));
         }
         if (randomBoolean()) {
             String field = randomBoolean() ? null : randomAsciiOfLengthBetween(5, 20);
@@ -431,15 +428,14 @@ public class SearchSourceBuilderTests extends ESTestCase {
                                 // test the embedded case
         }
         SearchSourceBuilder newBuilder = SearchSourceBuilder.fromXContent(parseContext, searchRequestParsers.aggParsers,
-            searchRequestParsers.suggesters);
+            searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
         assertNull(parser.nextToken());
         assertEquals(testBuilder, newBuilder);
         assertEquals(testBuilder.hashCode(), newBuilder.hashCode());
     }
 
     private static QueryParseContext createParseContext(XContentParser parser) {
-        QueryParseContext context = new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
-        return context;
+        return new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
     }
 
     public void testSerialization() throws IOException {
@@ -497,7 +493,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
             String restContent = " { \"_source\": { \"includes\": \"include\", \"excludes\": \"*.field2\"}}";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
-                        searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
+                        searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
                 assertArrayEquals(new String[]{"*.field2"}, searchSourceBuilder.fetchSource().excludes());
                 assertArrayEquals(new String[]{"include"}, searchSourceBuilder.fetchSource().includes());
             }
@@ -506,7 +502,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
             String restContent = " { \"_source\": false}";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
-                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
+                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
                 assertArrayEquals(new String[]{}, searchSourceBuilder.fetchSource().excludes());
                 assertArrayEquals(new String[]{}, searchSourceBuilder.fetchSource().includes());
                 assertFalse(searchSourceBuilder.fetchSource().fetchSource());
@@ -519,7 +515,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
             String restContent = " { \"sort\": \"foo\"}";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
-                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
+                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
                 assertEquals(1, searchSourceBuilder.sorts().size());
                 assertEquals(new FieldSortBuilder("foo"), searchSourceBuilder.sorts().get(0));
             }
@@ -535,7 +531,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
                     "    ]}";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
-                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
+                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
                 assertEquals(5, searchSourceBuilder.sorts().size());
                 assertEquals(new FieldSortBuilder("post_date"), searchSourceBuilder.sorts().get(0));
                 assertEquals(new FieldSortBuilder("user"), searchSourceBuilder.sorts().get(1));
@@ -559,7 +555,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
                     "}\n";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
-                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
+                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
                 assertEquals(1, searchSourceBuilder.aggregations().count());
             }
         }
@@ -575,7 +571,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
                     "}\n";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
-                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
+                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
                 assertEquals(1, searchSourceBuilder.aggregations().count());
             }
         }
@@ -601,7 +597,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 "}\n";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
-                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
+                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
                 assertEquals(1, searchSourceBuilder.rescores().size());
                 assertEquals(new QueryRescorerBuilder(QueryBuilders.matchQuery("content", "baz")).windowSize(50),
                         searchSourceBuilder.rescores().get(0));
@@ -624,7 +620,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 "}\n";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
-                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
+                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
                 assertEquals(1, searchSourceBuilder.rescores().size());
                 assertEquals(new QueryRescorerBuilder(QueryBuilders.matchQuery("content", "baz")).windowSize(50),
                         searchSourceBuilder.rescores().get(0));
@@ -637,7 +633,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         final String query = "{ \"query\": { \"match_all\": {}}, \"timeout\": \"" + timeout + "\"}";
         try (XContentParser parser = XContentFactory.xContent(query).createParser(query)) {
             final SearchSourceBuilder builder = SearchSourceBuilder.fromXContent(createParseContext(parser),
-                searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
+                searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
             assertThat(builder.timeout(), equalTo(TimeValue.parseTimeValue(timeout, null, "timeout")));
         }
     }
@@ -650,7 +646,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
                     expectThrows(
                             ElasticsearchParseException.class,
                             () -> SearchSourceBuilder.fromXContent(createParseContext(parser),
-                                searchRequestParsers.aggParsers, searchRequestParsers.suggesters));
+                                searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers));
             assertThat(e, hasToString(containsString("unit is missing or unrecognized")));
         }
     }

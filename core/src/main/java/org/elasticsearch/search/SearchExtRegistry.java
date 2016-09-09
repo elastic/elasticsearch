@@ -16,25 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.fetch.subphase;
 
-import java.util.List;
+package org.elasticsearch.search;
+
+import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 
 /**
- * All the required context to pull a field from the doc values.
+ * Extensions to ParseFieldRegistry to make Guice happy.
  */
-public class DocValueFieldsContext {
+public class SearchExtRegistry extends ParseFieldRegistry<SearchExtParser> {
 
-    private final List<String> fields;
-
-    public DocValueFieldsContext(List<String> fields) {
-        this.fields = fields;
-    }
-
-    /**
-     * Returns the required docvalue fields
-     */
-    public List<String> fields() {
-        return this.fields;
+    public SearchExtRegistry() {
+        super("ext");
     }
 }

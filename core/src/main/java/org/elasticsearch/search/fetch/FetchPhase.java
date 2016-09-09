@@ -43,7 +43,6 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsFetchSubPhase;
@@ -62,11 +61,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.contentBuilder;
 
 /**
- *
+ * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
+ * after reducing all of the matches returned by the query phase
  */
 public class FetchPhase implements SearchPhase {
 
@@ -75,15 +74,6 @@ public class FetchPhase implements SearchPhase {
     public FetchPhase(List<FetchSubPhase> fetchSubPhases) {
         this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsFetchSubPhase(this);
-    }
-
-    @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        Map<String, SearchParseElement> parseElements = new HashMap<>();
-        for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-            parseElements.putAll(fetchSubPhase.parseElements());
-        }
-        return unmodifiableMap(parseElements);
     }
 
     @Override

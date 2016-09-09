@@ -28,6 +28,7 @@ import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -50,7 +51,8 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        String geoFieldMapping = (mapperService.getIndexSettings().getIndexVersionCreated().before(Version.V_5_0_0_alpha6)) ?
+        String geoFieldMapping = (mapperService.getIndexSettings().getIndexVersionCreated()
+            .before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) ?
             LEGACY_GEO_POINT_FIELD_MAPPING : "type=geo_point";
         mapperService.merge("nested_doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("nested_doc",
                 STRING_FIELD_NAME, "type=text",

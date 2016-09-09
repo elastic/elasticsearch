@@ -144,7 +144,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
 
         public Y build(Mapper.BuilderContext context) {
             // version 5.0 cuts over to LatLonPoint and no longer indexes geohash, or lat/lon separately
-            if (context.indexCreatedVersion().before(Version.V_5_0_0_alpha6)) {
+            if (context.indexCreatedVersion().before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
                 return buildLegacy(context);
             }
             return build(context, name, fieldType, defaultFieldType, context.indexSettings(),
@@ -203,7 +203,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
             Version indexVersionCreated = parserContext.indexVersionCreated();
             if (indexVersionCreated.before(Version.V_2_2_0)) {
                 builder = new LegacyGeoPointFieldMapper.Builder(name);
-            } else if (indexVersionCreated.onOrAfter(Version.V_5_0_0_alpha6)) {
+            } else if (indexVersionCreated.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
                 builder = new LatLonPointFieldMapper.Builder(name);
             } else {
                 builder = new GeoPointFieldMapper.Builder(name);
@@ -214,7 +214,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();
                 Object propNode = entry.getValue();
-                if (indexVersionCreated.before(Version.V_5_0_0_alpha6)) {
+                if (indexVersionCreated.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
                     if (propName.equals("lat_lon")) {
                         deprecationLogger.deprecated(CONTENT_TYPE + " lat_lon parameter is deprecated and will be removed "
                             + "in the next major release");

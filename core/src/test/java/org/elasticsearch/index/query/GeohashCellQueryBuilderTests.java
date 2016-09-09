@@ -29,6 +29,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.query.GeohashCellQuery.Builder;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
@@ -89,7 +90,7 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
     public void testToQuery() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Version version = createShardContext().indexVersionCreated();
-        if (version.before(Version.V_5_0_0_alpha6)) {
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             super.testToQuery();
         }
     }
@@ -145,7 +146,7 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
     public void testMustRewrite() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Version version = createShardContext().indexVersionCreated();
-        if (version.before(Version.V_5_0_0_alpha6)) {
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             super.testMustRewrite();
         }
     }

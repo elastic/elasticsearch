@@ -93,6 +93,7 @@ import org.elasticsearch.plugins.SearchPlugin.FetchPhaseConstructionContext;
 import org.elasticsearch.plugins.SearchPlugin.PipelineAggregationSpec;
 import org.elasticsearch.plugins.SearchPlugin.QuerySpec;
 import org.elasticsearch.plugins.SearchPlugin.ScoreFunctionSpec;
+import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtensionSpec;
 import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -306,7 +307,7 @@ public class SearchModule extends AbstractModule {
             "moving_avg_model");
 
     private final List<FetchSubPhase> fetchSubPhases = new ArrayList<>();
-    private final SearchExtParserRegistry searchExtParserRegistry = new SearchExtParserRegistry();
+    private final SearchExtRegistry searchExtParserRegistry = new SearchExtRegistry();
 
     private final Settings settings;
     private final List<Entry> namedWriteables = new ArrayList<>();
@@ -327,9 +328,9 @@ public class SearchModule extends AbstractModule {
         registerAggregations(plugins);
         registerPipelineAggregations(plugins);
         registerFetchSubPhases(plugins);
-        registerSearchExtParsers(plugins);
+        registerSearchExts(plugins);
         registerShapes();
-        searchRequestParsers = new SearchRequestParsers(queryParserRegistry, aggregatorParsers, getSuggesters());
+        searchRequestParsers = new SearchRequestParsers(queryParserRegistry, aggregatorParsers, getSuggesters(), searchExtParserRegistry);
     }
 
     public List<Entry> getNamedWriteables() {
@@ -382,7 +383,7 @@ public class SearchModule extends AbstractModule {
         if (false == transportClient) {
             bind(IndicesQueriesRegistry.class).toInstance(queryParserRegistry);
             bind(SearchRequestParsers.class).toInstance(searchRequestParsers);
-            bind(SearchExtParserRegistry.class).toInstance(searchExtParserRegistry);
+            bind(SearchExtRegistry.class).toInstance(searchExtParserRegistry);
             configureSearch();
         }
     }
@@ -728,12 +729,13 @@ public class SearchModule extends AbstractModule {
         registerFromPlugin(plugins, p -> p.getFetchSubPhases(context), this::registerFetchSubPhase);
     }
 
-    private void registerSearchExtParsers(List<SearchPlugin> plugins) {
-        registerFromPlugin(plugins, SearchPlugin::getSearchExtParsers, this::registerSearchExtParser);
+    private void registerSearchExts(List<SearchPlugin> plugins) {
+        registerFromPlugin(plugins, SearchPlugin::getSearchExts, this::registerSearchExt);
     }
 
-    private void registerSearchExtParser(SearchExtParser searchExtParser) {
-        searchExtParserRegistry.register(searchExtParser, searchExtParser.getName());
+    private void registerSearchExt(SearchExtSpec<?> spec) {
+        searchExtParserRegistry.register(spec.getParser(), spec.getName());
+        namedWriteables.add(new Entry(SearchExtBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
     }
 
     private void registerFetchSubPhase(FetchSubPhase subPhase) {

@@ -27,12 +27,15 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchExtParser;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -49,6 +52,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.Requests.indexRequest;
@@ -56,11 +60,16 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-@ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
+@ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2)
 public class FetchSubPhasePluginIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(FetchTermVectorsPlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
     }
 
     @SuppressWarnings("unchecked")
@@ -85,10 +94,8 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
 
         client().admin().indices().prepareRefresh().execute().actionGet();
 
-        XContentBuilder extSource = jsonBuilder().startObject()
-                .field("term_vectors_fetch", "test")
-                .endObject();
-         SearchResponse response = client().prepareSearch().setSource(new SearchSourceBuilder().ext(extSource)).get();
+         SearchResponse response = client().prepareSearch().setSource(new SearchSourceBuilder()
+                 .ext(Collections.singletonList(new TermVectorsFetchBuilder("test")))).get();
         assertSearchResponse(response);
         assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("i"),
                 equalTo(2));
@@ -105,8 +112,9 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         }
 
         @Override
-        public List<SearchExtParser> getSearchExtParsers() {
-            return Collections.singletonList(TermVectorsFetchParser.INSTANCE);
+        public List<SearchExtSpec<?>> getSearchExts() {
+            return Collections.singletonList(new SearchExtSpec<>(TermVectorsFetchSubPhase.NAME,
+                    TermVectorsFetchBuilder::new, TermVectorsFetchParser.INSTANCE));
         }
     }
 
@@ -115,7 +123,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
 
         @Override
         public void hitExecute(SearchContext context, HitContext hitContext) {
-            TermVectorsFetchBuilder fetchSubPhaseBuilder = (TermVectorsFetchBuilder)context.getSearchExtBuilder(NAME);
+            TermVectorsFetchBuilder fetchSubPhaseBuilder = (TermVectorsFetchBuilder)context.getSearchExt(NAME);
             if (fetchSubPhaseBuilder == null) {
                 return;
             }
@@ -145,7 +153,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         }
     }
 
-    public static final class TermVectorsFetchParser implements SearchExtParser {
+    public static final class TermVectorsFetchParser implements SearchExtParser<TermVectorsFetchBuilder> {
 
         private static final TermVectorsFetchParser INSTANCE = new TermVectorsFetchParser();
 
@@ -153,12 +161,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         }
 
         @Override
-        public String getName() {
-            return TermVectorsFetchSubPhase.NAME;
-        }
-
-        @Override
-        public TermVectorsFetchBuilder parse(XContentParser parser) throws Exception {
+        public TermVectorsFetchBuilder fromXContent(XContentParser parser) throws IOException {
             String field;
             XContentParser.Token token = parser.currentToken();
             if (token == XContentParser.Token.VALUE_STRING) {
@@ -173,15 +176,51 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         }
     }
 
-    public static final class TermVectorsFetchBuilder {
+    public static final class TermVectorsFetchBuilder extends SearchExtBuilder {
         private final String field;
 
-        private TermVectorsFetchBuilder(String field) {
+        public TermVectorsFetchBuilder(String field) {
             this.field = field;
+        }
+
+        public TermVectorsFetchBuilder(StreamInput in) throws IOException {
+            this.field = in.readString();
         }
 
         public String getField() {
             return field;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            TermVectorsFetchBuilder that = (TermVectorsFetchBuilder) o;
+            return Objects.equals(field, that.field);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(field);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return TermVectorsFetchSubPhase.NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(field);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.field(TermVectorsFetchSubPhase.NAME, field);
         }
     }
 }

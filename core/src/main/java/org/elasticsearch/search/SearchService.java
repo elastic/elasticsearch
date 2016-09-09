@@ -39,9 +39,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -142,14 +139,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final ConcurrentMapLong<SearchContext> activeContexts = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
-    private final SearchExtParserRegistry searchExtParserRegistry;
-
     private final ParseFieldMatcher parseFieldMatcher;
 
     @Inject
     public SearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService, IndicesService indicesService,
-                         ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase,
-                         SearchExtParserRegistry searchExtParserRegistry) {
+                         ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase) {
         super(settings);
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.threadPool = threadPool;
@@ -164,8 +158,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.defaultKeepAlive = DEFAULT_KEEPALIVE_SETTING.get(settings).millis();
 
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval, Names.SAME);
-
-        this.searchExtParserRegistry = searchExtParserRegistry;
 
         defaultSearchTimeout = DEFAULT_SEARCH_TIMEOUT_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
@@ -749,39 +741,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         if (source.ext() != null) {
-            XContentParser extParser = null;
-            try {
-                extParser = XContentFactory.xContent(source.ext()).createParser(source.ext());
-                if (extParser.nextToken() != XContentParser.Token.START_OBJECT) {
-                    throw new SearchParseException(context, "expected start object, found [" + extParser.currentToken() + "] instead",
-                            extParser.getTokenLocation());
-                }
-                XContentParser.Token token;
-                String currentFieldName = null;
-                while ((token = extParser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = extParser.currentName();
-                    } else {
-                        SearchExtParser searchExtParser = this.searchExtParserRegistry.lookup(currentFieldName, parseFieldMatcher,
-                                extParser.getTokenLocation());
-                        Object searchExtBuilder = searchExtParser.parse(extParser);
-                        context.putSearchExtBuilder(currentFieldName, searchExtBuilder);
-                    }
-                }
-            } catch (Exception e) {
-                String sSource = "_na_";
-                try {
-                    sSource = source.toString();
-                } catch (Exception inner) {
-                    e.addSuppressed(inner);
-                    // ignore
-                }
-                XContentLocation location = extParser != null ? extParser.getTokenLocation() : null;
-                throw new SearchParseException(context, "failed to parse ext source [" + sSource + "]", location, e);
-            } finally {
-                if (extParser != null) {
-                    extParser.close();
-                }
+            for (SearchExtBuilder searchExtBuilder : source.ext()) {
+                context.addSearchExt(searchExtBuilder);
             }
         }
         if (source.version() != null) {

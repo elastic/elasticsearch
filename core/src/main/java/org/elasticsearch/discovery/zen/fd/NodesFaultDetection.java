@@ -233,9 +233,6 @@ public class NodesFaultDetection extends FaultDetection {
                                 handleTransportDisconnect(node);
                                 return;
                             }
-                            if (exp.getCause() != null && exp.getCause() instanceof IllegalStateException) {
-
-                            }
 
                             retryCount++;
                             logger.trace(

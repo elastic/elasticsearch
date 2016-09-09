@@ -168,7 +168,7 @@ if exist "%JAVA_HOME%"\bin\client\jvm.dll (
 
 :foundJVM
 if "%ES_JVM_OPTIONS%" == "" (
-set ES_JVM_OPTIONS="%ES_HOME%\config\jvm.options"
+set ES_JVM_OPTIONS=%ES_HOME%\config\jvm.options
 )
 
 if not "%ES_JAVA_OPTS%" == "" set ES_JAVA_OPTS=%ES_JAVA_OPTS: =;%

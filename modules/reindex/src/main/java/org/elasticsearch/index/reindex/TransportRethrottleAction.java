@@ -40,8 +40,8 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
     @Inject
     public TransportRethrottleAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
             TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, RethrottleAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, RethrottleRequest::new, ListTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+        super(settings, RethrottleAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+                RethrottleRequest::new, ListTasksResponse::new, ThreadPool.Names.MANAGEMENT);
     }
 
     @Override

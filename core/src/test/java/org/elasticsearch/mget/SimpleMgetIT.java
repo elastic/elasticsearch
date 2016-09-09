@@ -27,7 +27,7 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -108,7 +108,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
     public void testThatSourceFilteringIsSupported() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         BytesReference sourceBytesRef = jsonBuilder().startObject()
-                .field("field", "1", "2")
+                .array("field", "1", "2")
                 .startObject("included").field("field", "should be seen").field("hidden_field", "should not be seen").endObject()
                 .field("excluded", "should not be seen")
                 .endObject().bytes();

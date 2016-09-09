@@ -67,6 +67,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
@@ -95,7 +96,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockRepository.Plugin.class);
+        return Arrays.asList(MockRepository.Plugin.class);
     }
 
     public void testRestorePersistentSettings() throws Exception {

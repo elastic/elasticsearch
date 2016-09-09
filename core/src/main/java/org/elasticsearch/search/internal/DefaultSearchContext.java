@@ -45,11 +45,12 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -60,9 +61,9 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseContext;
-import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
-import org.elasticsearch.search.highlight.SearchContextHighlight;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
@@ -106,7 +107,7 @@ public class DefaultSearchContext extends SearchContext {
     private ScrollContext scrollContext;
     private boolean explain;
     private boolean version = false; // by default, we don't return versions
-    private List<String> fieldNames;
+    private StoredFieldsContext storedFields;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
     private int from = -1;
@@ -651,21 +652,29 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFieldNames() {
-        return fieldNames != null;
+    public boolean hasStoredFields() {
+        return storedFields != null && storedFields.fieldNames() != null;
     }
 
     @Override
-    public List<String> fieldNames() {
-        if (fieldNames == null) {
-            fieldNames = new ArrayList<>();
-        }
-        return fieldNames;
+    public boolean hasStoredFieldsContext() {
+        return storedFields != null;
     }
 
     @Override
-    public void emptyFieldNames() {
-        this.fieldNames = Collections.emptyList();
+    public StoredFieldsContext storedFieldsContext() {
+        return storedFields;
+    }
+
+    @Override
+    public SearchContext storedFieldsContext(StoredFieldsContext storedFieldsContext) {
+        this.storedFields = storedFieldsContext;
+        return this;
+    }
+
+    @Override
+    public boolean storedFieldsRequested() {
+        return storedFields == null || storedFields.fetchFields();
     }
 
     @Override

@@ -100,9 +100,7 @@ public final class ThreadContext implements Closeable, Writeable {
     public StoredContext stashContext() {
         final ThreadContextStruct context = threadLocal.get();
         threadLocal.set(null);
-        return () -> {
-            threadLocal.set(context);
-        };
+        return () -> threadLocal.set(context);
     }
 
     /**
@@ -114,9 +112,7 @@ public final class ThreadContext implements Closeable, Writeable {
         Map<String, String> newHeader = new HashMap<>(headers);
         newHeader.putAll(context.requestHeaders);
         threadLocal.set(DEFAULT_CONTEXT.putHeaders(newHeader));
-        return () -> {
-            threadLocal.set(context);
-        };
+        return () -> threadLocal.set(context);
     }
 
     /**
@@ -124,9 +120,7 @@ public final class ThreadContext implements Closeable, Writeable {
      */
     public StoredContext newStoredContext() {
         final ThreadContextStruct context = threadLocal.get();
-        return () -> {
-            threadLocal.set(context);
-        };
+        return () -> threadLocal.set(context);
     }
 
     @Override
@@ -252,6 +246,7 @@ public final class ThreadContext implements Closeable, Writeable {
         return command;
     }
 
+    @FunctionalInterface
     public interface StoredContext extends AutoCloseable {
         @Override
         void close();
@@ -261,7 +256,7 @@ public final class ThreadContext implements Closeable, Writeable {
         }
     }
 
-    static final class ThreadContextStruct {
+    private static final class ThreadContextStruct {
         private final Map<String, String> requestHeaders;
         private final Map<String, Object> transientHeaders;
         private final Map<String, List<String>> responseHeaders;
@@ -274,7 +269,7 @@ public final class ThreadContext implements Closeable, Writeable {
             }
 
             this.requestHeaders = requestHeaders;
-            this.responseHeaders = in.readMapOfLists();
+            this.responseHeaders = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
             this.transientHeaders = Collections.emptyMap();
         }
 
@@ -375,9 +370,8 @@ public final class ThreadContext implements Closeable, Writeable {
                 out.writeString(entry.getValue());
             }
 
-            out.writeMapOfLists(responseHeaders);
+            out.writeMapOfLists(responseHeaders, StreamOutput::writeString, StreamOutput::writeString);
         }
-
     }
 
     private static class ContextThreadLocal extends CloseableThreadLocal<ThreadContextStruct> {
@@ -432,11 +426,11 @@ public final class ThreadContext implements Closeable, Writeable {
     /**
      * Wraps a Runnable to preserve the thread context.
      */
-    class ContextPreservingRunnable implements Runnable {
+    private class ContextPreservingRunnable implements Runnable {
         private final Runnable in;
         private final ThreadContext.StoredContext ctx;
 
-        ContextPreservingRunnable(Runnable in) {
+        private ContextPreservingRunnable(Runnable in) {
             ctx = newStoredContext();
             this.in = in;
         }
@@ -444,7 +438,7 @@ public final class ThreadContext implements Closeable, Writeable {
         @Override
         public void run() {
             boolean whileRunning = false;
-            try (ThreadContext.StoredContext ingore = stashContext()){
+            try (ThreadContext.StoredContext ignore = stashContext()){
                 ctx.restore();
                 whileRunning = true;
                 in.run();
@@ -472,7 +466,7 @@ public final class ThreadContext implements Closeable, Writeable {
     /**
      * Wraps an AbstractRunnable to preserve the thread context.
      */
-    public class ContextPreservingAbstractRunnable extends AbstractRunnable {
+    private class ContextPreservingAbstractRunnable extends AbstractRunnable {
         private final AbstractRunnable in;
         private final ThreadContext.StoredContext ctx;
 
@@ -504,7 +498,7 @@ public final class ThreadContext implements Closeable, Writeable {
         @Override
         protected void doRun() throws Exception {
             boolean whileRunning = false;
-            try (ThreadContext.StoredContext ingore = stashContext()){
+            try (ThreadContext.StoredContext ignore = stashContext()){
                 ctx.restore();
                 whileRunning = true;
                 in.doRun();

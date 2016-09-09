@@ -31,7 +31,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Sub phase within the fetch phase used to fetch things *about* the documents highlghting.
+ * Sub phase within the fetch phase used to fetch things *about* the documents like highlighting or matched queries.
  */
 public interface FetchSubPhase {
 

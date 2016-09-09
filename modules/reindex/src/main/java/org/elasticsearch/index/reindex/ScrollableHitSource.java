@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -50,13 +50,13 @@ import static java.util.Objects.requireNonNull;
 public abstract class ScrollableHitSource implements Closeable {
     private final AtomicReference<String> scrollId = new AtomicReference<>();
 
-    protected final ESLogger logger;
+    protected final Logger logger;
     protected final BackoffPolicy backoffPolicy;
     protected final ThreadPool threadPool;
     protected final Runnable countSearchRetry;
     protected final Consumer<Exception> fail;
 
-    public ScrollableHitSource(ESLogger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
+    public ScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
             Consumer<Exception> fail) {
         this.logger = logger;
         this.backoffPolicy = backoffPolicy;

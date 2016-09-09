@@ -12,7 +12,7 @@ the same pattern:
     "params": { ... } <3>
   }
 -------------------------------------
-<1> The language the script is written in, which defaults to `groovy`.
+<1> The language the script is written in, which defaults to `painless`.
 <2> The script itself which may be specfied as `inline`, `id`, or `file`.
 <3> Any named parameters that should be passed into the script.
 
@@ -102,6 +102,12 @@ Instead, pass it in as a named parameter:
 
 The first version has to be recompiled every time the multiplier changes.  The
 second version is only compiled once.
+
+If you compile too many unique scripts within a small amount of time,
+Elasticsearch will reject the new dynamic scripts with a
+`circuit_breaking_exception` error. By default, up to 15 inline scripts per
+minute will be compiled. You can change this setting dynamically by setting
+`script.max_compilations_per_minute`.
 
 ========================================
 

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentLocation;
 
@@ -36,7 +36,7 @@ import static org.junit.Assert.assertThat;
  */
 public class LengthAssertion extends Assertion {
 
-    private static final ESLogger logger = Loggers.getLogger(LengthAssertion.class);
+    private static final Logger logger = Loggers.getLogger(LengthAssertion.class);
 
     public LengthAssertion(XContentLocation location, String field, Object expectedValue) {
         super(location, field, expectedValue);

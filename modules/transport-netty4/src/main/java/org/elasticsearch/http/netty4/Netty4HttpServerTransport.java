@@ -33,7 +33,6 @@ import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.oio.OioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.oio.OioServerSocketChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
@@ -44,6 +43,8 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.timeout.ReadTimeoutException;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -291,10 +292,10 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
 
         serverBootstrap = new ServerBootstrap();
         if (blockingServer) {
-            serverBootstrap.group(new OioEventLoopGroup(workerCount, daemonThreadFactory(settings, "http_server_worker")));
+            serverBootstrap.group(new OioEventLoopGroup(workerCount, daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
             serverBootstrap.channel(OioServerSocketChannel.class);
         } else {
-            serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings, "http_server_worker")));
+            serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
             serverBootstrap.channel(NioServerSocketChannel.class);
         }
 
@@ -382,7 +383,8 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         return publishPort;
     }
 
-    private Netty4CorsConfig buildCorsConfig(Settings settings) {
+    // package private for testing
+    static Netty4CorsConfig buildCorsConfig(Settings settings) {
         if (SETTING_CORS_ENABLED.get(settings) == false) {
             return Netty4CorsConfigBuilder.forOrigins().disable().build();
         }
@@ -403,14 +405,14 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {
             builder.allowCredentials();
         }
-        String[] strMethods = settings.getAsArray(SETTING_CORS_ALLOW_METHODS.getKey());
+        String[] strMethods = Strings.splitStringByCommaToArray(SETTING_CORS_ALLOW_METHODS.get(settings));
         HttpMethod[] methods = Arrays.asList(strMethods)
             .stream()
             .map(HttpMethod::valueOf)
             .toArray(size -> new HttpMethod[size]);
         return builder.allowedRequestMethods(methods)
             .maxAge(SETTING_CORS_MAX_AGE.get(settings))
-            .allowedRequestHeaders(settings.getAsArray(SETTING_CORS_ALLOW_HEADERS.getKey()))
+            .allowedRequestHeaders(Strings.splitStringByCommaToArray(SETTING_CORS_ALLOW_HEADERS.get(settings)))
             .shortCircuit()
             .build();
     }
@@ -512,10 +514,16 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
                 return;
             }
             if (!NetworkExceptionHelper.isCloseConnectionException(cause)) {
-                logger.warn("caught exception while handling client http traffic, closing connection {}", cause, ctx.channel());
+                logger.warn(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "caught exception while handling client http traffic, closing connection {}", ctx.channel()),
+                    cause);
                 ctx.channel().close();
             } else {
-                logger.debug("caught exception while handling client http traffic, closing connection {}", cause, ctx.channel());
+                logger.debug(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "caught exception while handling client http traffic, closing connection {}", ctx.channel()),
+                    cause);
                 ctx.channel().close();
             }
         }
@@ -548,12 +556,12 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             ch.pipeline().addLast("decoder", decoder);
             ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor());
+            ch.pipeline().addLast("encoder", new HttpResponseEncoder());
             final HttpObjectAggregator aggregator = new HttpObjectAggregator(Math.toIntExact(transport.maxContentLength.bytes()));
             if (transport.maxCompositeBufferComponents != -1) {
                 aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             }
             ch.pipeline().addLast("aggregator", aggregator);
-            ch.pipeline().addLast("encoder", new HttpResponseEncoder());
             if (transport.compression) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(transport.compressionLevel));
             }

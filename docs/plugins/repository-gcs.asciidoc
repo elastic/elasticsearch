@@ -131,6 +131,7 @@ A service account file looks like this:
   "client_x509_cert_url": "..."
 }
 ----
+// NOTCONSOLE
 
 This file must be copied in the `config` directory of the elasticsearch installation and on
 every node of the cluster.

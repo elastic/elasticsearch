@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESAllocationTestCase;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 
 import java.util.Collections;
@@ -82,14 +82,12 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         // ok now we are started and can be allocated anywhere!! lets see...
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), STARTED);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).currentNodeId(), "node2");
-        assertTrue(routingTable.index("idx").shard(0).shards().get(0).allocatedPostIndexCreate(state.getMetaData().index("idx")));
 
         // we fail it again to check if we are initializing immediately on the other node
         state = stateFromResult(state, service.applyFailedShard(state, routingTable.index("idx").shard(0).shards().get(0)));
         routingTable = state.routingTable();
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).currentNodeId(), "node1");
-        assertTrue(routingTable.index("idx").shard(0).shards().get(0).allocatedPostIndexCreate(state.getMetaData().index("idx")));
 
         allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state,
             null, 0, false);

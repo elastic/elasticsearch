@@ -19,9 +19,6 @@
 
 package org.elasticsearch.common.network;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
@@ -33,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.util.Providers;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
@@ -46,6 +44,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A module to handle registering and binding all network related classes.
@@ -76,11 +77,11 @@ public class NetworkModule extends AbstractModule {
     private final ExtensionPoint.SelectedType<TransportService> transportServiceTypes = new ExtensionPoint.SelectedType<>("transport_service", TransportService.class);
     private final ExtensionPoint.SelectedType<Transport> transportTypes = new ExtensionPoint.SelectedType<>("transport", Transport.class);
     private final ExtensionPoint.SelectedType<HttpServerTransport> httpTransportTypes = new ExtensionPoint.SelectedType<>("http_transport", HttpServerTransport.class);
-    private final List<Entry> namedWriteables = new ArrayList<>();
+    private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
 
     /**
      * Creates a network module that custom networking classes can be plugged into.
-     *  @param networkService A constructed network service object to bind.
+     * @param networkService A constructed network service object to bind.
      * @param settings The settings for the node
      * @param transportClient True if only transport classes should be allowed to be registered, false otherwise.
      */
@@ -90,8 +91,8 @@ public class NetworkModule extends AbstractModule {
         this.transportClient = transportClient;
         registerTransportService("default", TransportService.class);
         registerTransport(LOCAL_TRANSPORT, LocalTransport.class);
-        registerTaskStatus(ReplicationTask.Status.NAME, ReplicationTask.Status::new);
-        registerTaskStatus(RawTaskStatus.NAME, RawTaskStatus::new);
+        namedWriteables.add(new NamedWriteableRegistry.Entry(Task.Status.class, ReplicationTask.Status.NAME, ReplicationTask.Status::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new));
         registerBuiltinAllocationCommands();
     }
 
@@ -116,10 +117,6 @@ public class NetworkModule extends AbstractModule {
             throw new IllegalArgumentException("Cannot register http transport " + clazz.getName() + " for transport client");
         }
         httpTransportTypes.registerExtension(name, clazz);
-    }
-
-    public void registerTaskStatus(String name, Writeable.Reader<? extends Task.Status> reader) {
-        namedWriteables.add(new Entry(Task.Status.class, name, reader));
     }
 
     /**

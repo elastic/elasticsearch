@@ -771,7 +771,7 @@ on a date or timestamp field in a document by using the <<date-math-index-names,
 The processor sets the `_index` meta field with a date math index name expression based on the provided index name
 prefix, a date or timestamp field in the documents being processed and the provided date rounding.
 
-First this processor fetches the date or timestamp from a field in the document being processed. Optionally
+First, this processor fetches the date or timestamp from a field in the document being processed. Optionally,
 date formatting can be configured on how the field's value should be parsed into a date. Then this date,
 the provided index name prefix and the provided date rounding get formatted into a date math index name expression.
 Also here optionally date formatting can be specified on how the date should be formatted into a date math index name
@@ -782,32 +782,115 @@ date in the `date1` field:
 
 [source,js]
 --------------------------------------------------
-PUT _ingest/pipeline/1
+PUT _ingest/pipeline/monthlyindex
 {
+  "description": "monthly date-time index naming",
   "processors" : [
     {
       "date_index_name" : {
         "field" : "date1",
         "index_name_prefix" : "myindex-",
-        "date_rounding" : "m"
+        "date_rounding" : "M"
       }
     }
   ]
 }
 --------------------------------------------------
+// CONSOLE
+
 
 Using that pipeline for an index request:
 
 [source,js]
 --------------------------------------------------
-PUT /myindex/type/1?pipeline=1
+PUT /myindex/type/1?pipeline=monthlyindex
 {
   "date1" : "2016-04-25T12:02:01.789Z"
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
-The above request will not index this document into the `myindex` index, but into the `myindex-2016-04-01` index.
-This is because the date is being rounded by month.
+[source,js]
+--------------------------------------------------
+{
+  "_index" : "myindex-2016-04-01",
+  "_type" : "type",
+  "_id" : "1",
+  "_version" : 1,
+  "result" : "created",
+  "_shards" : {
+    "total" : 2,
+    "successful" : 1,
+    "failed" : 0
+  },
+  "created" : true
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+
+The above request will not index this document into the `myindex` index, but into the `myindex-2016-04-01` index because
+it was rounded by month. This is because the date-index-name-processor overrides the `_index` property of the document.
+
+To see the date-math value of the index supplied in the actual index request which resulted in the above document being
+indexed into `myindex-2016-04-01` we can inspect the effects of the processor using a simulate request.
+
+
+[source,js]
+--------------------------------------------------
+POST _ingest/pipeline/_simulate
+{
+  "pipeline" :
+  {
+    "description": "monthly date-time index naming",
+    "processors" : [
+      {
+        "date_index_name" : {
+          "field" : "date1",
+          "index_name_prefix" : "myindex-",
+          "date_rounding" : "M"
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_source": {
+        "date1": "2016-04-25T12:02:01.789Z"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+and the result:
+
+[source,js]
+--------------------------------------------------
+{
+  "docs" : [
+    {
+      "doc" : {
+        "_id" : "_id",
+        "_index" : "<myindex-{2016-04-25||/M{yyyy-MM-dd|UTC}}>",
+        "_type" : "_type",
+        "_source" : {
+          "date1" : "2016-04-25T12:02:01.789Z"
+        },
+        "_ingest" : {
+          "timestamp" : "2016-08-11T12:00:01.222Z"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2016-08-11T12:00:01.222Z/$body.docs.0.doc._ingest.timestamp/]
+
+The above example shows that `_index` was set to `<myindex-{2016-04-25||/M{yyyy-MM-dd|UTC}}>`. Elasticsearch
+understands this to mean `2016-04-01` as is explained in the <<date-math-index-names, date math index name documentation>>
 
 [[date-index-name-options]]
 .Date index name options
@@ -1273,20 +1356,23 @@ caching see <<modules-scripting-using-caching, Script Caching>>.
 | `file`                 | no        | -       | The script file to refer to
 | `id`                   | no        | -       | The stored script id to refer to
 | `inline`               | no        | -       | An inline script to be executed
+| `params`               | no        | -       | Script Parameters
 |======
 
 You can access the current ingest document from within the script context by using the `ctx` variable.
 
-The following example sets a new field called `field_a_plus_b` to be the sum of two existing
-numeric fields `field_a` and `field_b`:
+The following example sets a new field called `field_a_plus_b_times_c` to be the sum of two existing
+numeric fields `field_a` and `field_b` multiplied by the parameter param_c:
 
 [source,js]
 --------------------------------------------------
 {
   "script": {
-    "field": "field_a_plus_b",
     "lang": "painless",
-    "inline": "return ctx.field_a + ctx.field_b"
+    "inline": "ctx.field_a_plus_b_times_c = (ctx.field_a + ctx.field_b) * params.param_c",
+    "params": {
+      "param_c": 10
+    }
   }
 }
 --------------------------------------------------
@@ -1409,3 +1495,115 @@ Converts a string to its uppercase equivalent.
   }
 }
 --------------------------------------------------
+
+[[dot-expand-processor]]
+=== Dot Expander Processor
+
+Expands a field with dots into an object field. This processor allows fields
+with dots in the name to be accessible by other processors in the pipeline.
+Otherwise these <<accessing-data-in-pipelines,fields> can't be accessed by any processor.
+
+[[dot-expender-options]]
+.Dot Expand Options
+[options="header"]
+|======
+| Name     | Required  | Default  | Description
+| `field`  | yes       | -        | The field to expand into an object field
+| `path`   | no        | -        | The field that contains the field to expand. Only required if the field to expand is part another object field, because the `field` option can only understand leaf fields.
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "dot_expander": {
+    "field": "foo.bar"
+  }
+}
+--------------------------------------------------
+
+For example the dot expand processor would turn this document:
+
+[source,js]
+--------------------------------------------------
+{
+  "foo.bar" : "value"
+}
+--------------------------------------------------
+
+into:
+
+[source,js]
+--------------------------------------------------
+{
+  "foo" : {
+     "bar" : "value"
+  }
+}
+--------------------------------------------------
+
+If there is already a `bar` field nested under `foo` then
+this processor merges the the `foo.bar` field into it. If the field is
+a scalar value then it will turn that field into an array field.
+
+For example, the following document:
+
+[source,js]
+--------------------------------------------------
+{
+  "foo.bar" : "value2",
+  "foo" : {
+    "bar" : "value1"
+  }
+}
+--------------------------------------------------
+
+is transformed by the `dot_expander` processor into:
+
+[source,js]
+--------------------------------------------------
+{
+  "foo" : {
+    "bar" : ["value1", "value2"]
+  }
+}
+--------------------------------------------------
+
+If any field outside of the leaf field conflicts with a pre-existing field of the same name,
+then that field needs to be renamed first.
+
+Consider the following document:
+
+[source,js]
+--------------------------------------------------
+{
+  "foo": "value1",
+  "foo.bar": "value2"
+}
+--------------------------------------------------
+
+Then the the `foo` needs to be renamed first before the `dot_expander`
+processor is applied. So in order for the `foo.bar` field to properly
+be expanded into the `bar` field under the `foo` field the following
+pipeline should be used:
+
+[source,js]
+--------------------------------------------------
+{
+  "processors" : [
+    {
+      "rename" : {
+        "field" : "foo",
+        "target_field" : "foo.bar""
+      }
+    },
+    {
+      "dot_expander": {
+        "field": "foo.bar"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+The reason for this is that Ingest doesn't know how to automatically cast
+a scalar field to an object field.

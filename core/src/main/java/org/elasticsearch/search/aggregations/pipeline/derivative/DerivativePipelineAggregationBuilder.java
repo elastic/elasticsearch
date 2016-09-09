@@ -47,7 +47,6 @@ import java.util.Objects;
 
 public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<DerivativePipelineAggregationBuilder> {
     public static final String NAME = "derivative";
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField FORMAT_FIELD = new ParseField("format");
     private static final ParseField GAP_POLICY_FIELD = new ParseField("gap_policy");

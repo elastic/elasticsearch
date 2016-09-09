@@ -36,6 +36,7 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggesters;
@@ -51,22 +52,17 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
 
     private final ScriptService scriptService;
     private final TransportSearchAction searchAction;
-    private final IndicesQueriesRegistry queryRegistry;
-    private final AggregatorParsers aggsParsers;
-    private final Suggesters suggesters;
+    private final SearchRequestParsers searchRequestParsers;
 
     @Inject
     public TransportSearchTemplateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                          ActionFilters actionFilters, IndexNameExpressionResolver resolver,
                                          ScriptService scriptService,
-                                         TransportSearchAction searchAction, IndicesQueriesRegistry indicesQueryRegistry,
-                                         AggregatorParsers aggregatorParsers, Suggesters suggesters) {
+                                         TransportSearchAction searchAction, SearchRequestParsers searchRequestParsers) {
         super(settings, SearchTemplateAction.NAME, threadPool, transportService, actionFilters, resolver, SearchTemplateRequest::new);
         this.scriptService = scriptService;
         this.searchAction = searchAction;
-        this.queryRegistry = indicesQueryRegistry;
-        this.aggsParsers = aggregatorParsers;
-        this.suggesters = suggesters;
+        this.searchRequestParsers = searchRequestParsers;
     }
 
     @Override
@@ -89,7 +85,8 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
 
             try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
                 SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
-                builder.parseXContent(new QueryParseContext(queryRegistry, parser, parseFieldMatcher), aggsParsers, suggesters);
+                builder.parseXContent(new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher),
+                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
                 searchRequest.source(builder);
 
                 searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {

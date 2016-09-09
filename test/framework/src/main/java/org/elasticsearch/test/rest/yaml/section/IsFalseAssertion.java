@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentLocation;
 
@@ -35,7 +35,7 @@ import static org.junit.Assert.assertThat;
  */
 public class IsFalseAssertion extends Assertion {
 
-    private static final ESLogger logger = Loggers.getLogger(IsFalseAssertion.class);
+    private static final Logger logger = Loggers.getLogger(IsFalseAssertion.class);
 
     public IsFalseAssertion(XContentLocation location, String field) {
         super(location, field, false);

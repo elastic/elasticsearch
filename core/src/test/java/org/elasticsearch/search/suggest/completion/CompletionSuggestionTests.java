@@ -46,8 +46,11 @@ public class CompletionSuggestionTests extends ESTestCase {
         float maxScore = randomIntBetween(totalResults, totalResults*2);
         for (int i = 0; i < totalResults; i++) {
             Suggest.Suggestion<CompletionSuggestion.Entry> suggestion = randomFrom(shardSuggestions);
-            suggestion.getEntries().get(0).addOption(new CompletionSuggestion.Entry.Option(i, new Text(""),
-                maxScore - i, Collections.emptyMap(), Collections.emptyMap()));
+            CompletionSuggestion.Entry entry = suggestion.getEntries().get(0);
+            if (entry.getOptions().size() < size) {
+                entry.addOption(new CompletionSuggestion.Entry.Option(i, new Text(""),
+                    maxScore - i, Collections.emptyMap()));
+            }
         }
         CompletionSuggestion reducedSuggestion = CompletionSuggestion.reduceTo(shardSuggestions);
         assertNotNull(reducedSuggestion);

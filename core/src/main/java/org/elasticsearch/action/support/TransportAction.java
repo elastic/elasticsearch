@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -27,7 +28,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskListener;
@@ -137,8 +137,8 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
             return;
         }
 
-        if (task != null && request.getShouldPersistResult()) {
-            listener = new PersistentActionListener<>(taskManager, task, listener);
+        if (task != null && request.getShouldStoreResult()) {
+            listener = new TaskResultStoringActionListener<>(taskManager, task, listener);
         }
 
         if (filters.length == 0) {
@@ -165,9 +165,9 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
 
         private final TransportAction<Request, Response> action;
         private final AtomicInteger index = new AtomicInteger();
-        private final ESLogger logger;
+        private final Logger logger;
 
-        private RequestFilterChain(TransportAction<Request, Response> action, ESLogger logger) {
+        private RequestFilterChain(TransportAction<Request, Response> action, Logger logger) {
             this.action = action;
             this.logger = logger;
         }
@@ -201,9 +201,9 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
 
         private final ActionFilter[] filters;
         private final AtomicInteger index;
-        private final ESLogger logger;
+        private final Logger logger;
 
-        private ResponseFilterChain(ActionFilter[] filters, ESLogger logger) {
+        private ResponseFilterChain(ActionFilter[] filters, Logger logger) {
             this.filters = filters;
             this.index = new AtomicInteger(filters.length);
             this.logger = logger;
@@ -256,14 +256,14 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
     }
 
     /**
-     * Wrapper for an action listener that persists the result at the end of the execution
+     * Wrapper for an action listener that stores the result at the end of the execution
      */
-    private static class PersistentActionListener<Response extends ActionResponse> implements ActionListener<Response> {
+    private static class TaskResultStoringActionListener<Response extends ActionResponse> implements ActionListener<Response> {
         private final ActionListener<Response> delegate;
         private final Task task;
         private final TaskManager taskManager;
 
-        private  PersistentActionListener(TaskManager taskManager, Task task, ActionListener<Response> delegate) {
+        private TaskResultStoringActionListener(TaskManager taskManager, Task task, ActionListener<Response> delegate) {
             this.taskManager = taskManager;
             this.task = task;
             this.delegate = delegate;
@@ -272,7 +272,7 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
         @Override
         public void onResponse(Response response) {
             try {
-                taskManager.persistResult(task, response, delegate);
+                taskManager.storeResult(task, response, delegate);
             } catch (Exception e) {
                 delegate.onFailure(e);
             }
@@ -281,7 +281,7 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
         @Override
         public void onFailure(Exception e) {
             try {
-                taskManager.persistResult(task, e, delegate);
+                taskManager.storeResult(task, e, delegate);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
                 delegate.onFailure(inner);

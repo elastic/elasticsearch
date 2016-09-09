@@ -30,6 +30,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -55,12 +56,14 @@ public class TribeUnitTests extends ESTestCase {
 
 
     @BeforeClass
-    public static void createTribes() {
+    public static void createTribes() throws NodeValidationException {
         Settings baseSettings = Settings.builder()
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
             .put("transport.type", "local")
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local")
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
+            .build();
 
         tribe1 = new TribeClientNode(
             Settings.builder()

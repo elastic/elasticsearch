@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,7 +43,6 @@ import java.util.Objects;
 public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric, PercentilesAggregationBuilder> {
     public static final String NAME = Percentiles.TYPE_NAME;
     public static final Type TYPE = new Type(NAME);
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private double[] percents = PercentilesParser.DEFAULT_PERCENTS;
     private PercentilesMethod method = PercentilesMethod.TDIGEST;
@@ -182,7 +180,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(PercentilesParser.PERCENTS_FIELD.getPreferredName(), percents);
+        builder.array(PercentilesParser.PERCENTS_FIELD.getPreferredName(), percents);
         builder.field(AbstractPercentilesParser.KEYED_FIELD.getPreferredName(), keyed);
         builder.startObject(method.getName());
         if (method == PercentilesMethod.TDIGEST) {

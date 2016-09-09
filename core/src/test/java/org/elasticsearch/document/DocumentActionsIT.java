@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 
@@ -50,7 +51,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class DocumentActionsIT extends ESIntegTestCase {
     protected void createIndex() {
-        createIndex(getConcreteIndexName());
+        ElasticsearchAssertions.assertAcked(prepareCreate(getConcreteIndexName()).addMapping("type1", "name", "type=keyword,store=true"));
     }
 
     protected String getConcreteIndexName() {

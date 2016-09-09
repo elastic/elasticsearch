@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.cluster.service;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -63,7 +65,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(TestPlugin.class);
+        return Arrays.asList(TestPlugin.class);
     }
 
     public void testAckedUpdateTask() throws Exception {
@@ -125,7 +127,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error("failed to execute callback in test {}", e, source);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
                 onFailure.set(true);
                 latch.countDown();
             }
@@ -196,7 +198,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error("failed to execute callback in test {}", e, source);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
                 onFailure.set(true);
                 latch.countDown();
             }
@@ -270,7 +272,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error("failed to execute callback in test {}", e, source);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
                 onFailure.set(true);
                 latch.countDown();
             }
@@ -344,7 +346,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error("failed to execute callback in test {}", e, source);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
                 onFailure.set(true);
                 latch.countDown();
             }

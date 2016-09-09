@@ -91,9 +91,13 @@ public class RoundTripTests extends ESTestCase {
     public void testUpdateByQueryRequest() throws IOException {
         UpdateByQueryRequest update = new UpdateByQueryRequest(new SearchRequest());
         randomRequest(update);
+        if (randomBoolean()) {
+            update.setPipeline(randomAsciiOfLength(5));
+        }
         UpdateByQueryRequest tripped = new UpdateByQueryRequest();
         roundTrip(update, tripped);
         assertRequestEquals(update, tripped);
+        assertEquals(update.getPipeline(), tripped.getPipeline());
     }
 
     private void randomRequest(AbstractBulkIndexByScrollRequest<?> request) {
@@ -200,14 +204,6 @@ public class RoundTripTests extends ESTestCase {
                 randomFrom(ScriptType.values()), // Type
                 random().nextBoolean() ? null : randomSimpleString(random()), // Language
                 emptyMap()); // Params
-    }
-
-    private long randomPositiveLong() {
-        long l;
-        do {
-            l = randomLong();
-        } while (l < 0);
-        return l;
     }
 
     private void assertResponseEquals(BulkIndexByScrollResponse expected, BulkIndexByScrollResponse actual) {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
@@ -46,6 +45,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
@@ -63,6 +63,8 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
@@ -114,9 +116,13 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static java.util.Collections.emptyList;
@@ -312,27 +318,159 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     /**
-     * Test that adding additional object into otherwise correct query string
-     * should always trigger some kind of Parsing Exception.
+     * Test that adding an additional object within each object of the otherwise correct query always triggers some kind of
+     * parse exception. Some specific objects do not cause any exception as they can hold arbitrary content; they can be
+     * declared by overriding {@link #getObjectsHoldingArbitraryContent()}.
      */
-    public void testUnknownObjectException() throws IOException {
-        String validQuery = createTestQueryBuilder().toString();
-        assertThat(validQuery, containsString("{"));
-        for (int insertionPosition = 0; insertionPosition < validQuery.length(); insertionPosition++) {
-            if (validQuery.charAt(insertionPosition) == '{') {
-                String testQuery = validQuery.substring(0, insertionPosition) + "{ \"newField\" : "
-                        + validQuery.substring(insertionPosition) + "}";
-                try {
-                    parseQuery(testQuery);
+    public final void testUnknownObjectException() throws IOException {
+        Set<String> candidates = new HashSet<>();
+        // Adds the valid query to the list of queries to modify and test
+        candidates.add(createTestQueryBuilder().toString());
+        // Adds the alternates versions of the query too
+        candidates.addAll(getAlternateVersions().keySet());
+
+        List<Tuple<String, Boolean>> testQueries = alterateQueries(candidates, getObjectsHoldingArbitraryContent());
+        for (Tuple<String, Boolean> testQuery : testQueries) {
+            boolean expectedException = testQuery.v2();
+            try {
+                parseQuery(testQuery.v1());
+                if (expectedException) {
                     fail("some parsing exception expected for query: " + testQuery);
-                } catch (ParsingException | ElasticsearchParseException e) {
-                    // different kinds of exception wordings depending on location
-                    // of mutation, so no simple asserts possible here
-                } catch (JsonParseException e) {
-                    // mutation produced invalid json
                 }
+            } catch (ParsingException | ElasticsearchParseException e) {
+                // different kinds of exception wordings depending on location
+                // of mutation, so no simple asserts possible here
+                if (expectedException == false) {
+                    throw new AssertionError("unexpected exception when parsing query:\n" + testQuery, e);
+                }
+            } catch (IllegalArgumentException e) {
+                if (expectedException == false) {
+                    throw new AssertionError("unexpected exception when parsing query:\n" + testQuery, e);
+                }
+                assertThat(e.getMessage(), containsString("unknown field [newField], parser not found"));
             }
         }
+    }
+
+    /**
+     * Traverses the json tree of the valid query provided as argument and mutates it one or more times by adding one object within each
+     * object encountered.
+     *
+     * For instance given the following valid term query:
+     * {
+     *     "term" : {
+     *         "field" : {
+     *             "value" : "foo"
+     *         }
+     *     }
+     * }
+     *
+     * The following two mutations will be generated, and an exception is expected when trying to parse them:
+     * {
+     *     "term" : {
+     *         "newField" : {
+     *             "field" : {
+     *                 "value" : "foo"
+     *             }
+     *         }
+     *     }
+     * }
+     *
+     * {
+     *     "term" : {
+     *         "field" : {
+     *             "newField" : {
+     *                 "value" : "foo"
+     *             }
+     *         }
+     *     }
+     * }
+     *
+     * Every mutation is then added to the list of results with a boolean flag indicating if a parsing exception is expected or not
+     * for the mutation. Some specific objects do not cause any exception as they can hold arbitrary content; they are passed using the
+     * arbitraryMarkers parameter.
+     */
+    static List<Tuple<String, Boolean>> alterateQueries(Set<String> queries, Set<String> arbitraryMarkers) throws IOException {
+        List<Tuple<String, Boolean>> results = new ArrayList<>();
+
+        // Indicate if a part of the query can hold any arbitrary content
+        boolean hasArbitraryContent = (arbitraryMarkers != null && arbitraryMarkers.isEmpty() == false);
+
+        for (String query : queries) {
+            // Track the number of query mutations
+            int mutation = 0;
+
+            while (true) {
+                boolean expectException = true;
+
+                BytesStreamOutput out = new BytesStreamOutput();
+                try (
+                        XContentGenerator generator = XContentType.JSON.xContent().createGenerator(out);
+                        XContentParser parser = XContentHelper.createParser(new BytesArray(query));
+                ) {
+                    int objectIndex = -1;
+                    Deque<String> levels = new LinkedList<>();
+
+                    // Parse the valid query and inserts a new object level called "newField"
+                    XContentParser.Token token;
+                    while ((token = parser.nextToken()) != null) {
+                        if (token == XContentParser.Token.START_OBJECT) {
+                            objectIndex++;
+                            levels.addLast(parser.currentName());
+
+                            if (objectIndex == mutation) {
+                                // We reached the place in the object tree where we want to insert a new object level
+                                generator.writeStartObject();
+                                generator.writeFieldName("newField");
+                                XContentHelper.copyCurrentStructure(generator, parser);
+                                generator.writeEndObject();
+
+                                if (hasArbitraryContent) {
+                                    // The query has one or more fields that hold arbitrary content. If the current
+                                    // field is one (or a child) of those, no exception is expected when parsing the mutated query.
+                                    for (String marker : arbitraryMarkers) {
+                                        if (levels.contains(marker)) {
+                                            expectException = false;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                // Jump to next token
+                                continue;
+                            }
+                        } else if (token == XContentParser.Token.END_OBJECT) {
+                            levels.removeLast();
+                        }
+
+                        // We are walking through the object tree, so we can safely copy the current node
+                        XContentHelper.copyCurrentEvent(generator, parser);
+                    }
+
+                    if (objectIndex < mutation) {
+                        // We did not reach the insertion point, there's no more mutations to try
+                        break;
+                    } else {
+                        // We reached the expected insertion point, so next time we'll try one step further
+                        mutation++;
+                    }
+                }
+
+                results.add(new Tuple<>(out.bytes().utf8ToString(), expectException));
+            }
+        }
+        return results;
+    }
+
+    /**
+     * Returns a set of object names that won't trigger any exception (uncluding their children) when testing that unknown
+     * objects cause parse exceptions through {@link #testUnknownObjectException()}. Default is an empty set. Can be overridden
+     * by subclasses that test queries which contain objects that get parsed on the data nodes (e.g. score functions) or objects
+     * that can contain arbitrary content (e.g. documents for percolate or more like this query, params for scripts). In such
+     * cases no exception would get thrown.
+     */
+    protected Set<String> getObjectsHoldingArbitraryContent() {
+        return Collections.emptySet();
     }
 
     /**
@@ -818,8 +956,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * <li> Take a reference documentation example.
      * <li> Stick it into the createParseableQueryJson method of the respective query test.
      * <li> Manually check that what the QueryBuilder generates equals the input json ignoring default options.
-     * <li> Put the manual checks into the asserQueryParsedFromJson method.
-     * <li> Now copy the generated json including default options into createParseableQueryJso
+     * <li> Put the manual checks into the assertQueryParsedFromJson method.
+     * <li> Now copy the generated json including default options into createParseableQueryJson
      * <li> By now the roundtrip check for the json should be happy.
      * </ul>
      **/

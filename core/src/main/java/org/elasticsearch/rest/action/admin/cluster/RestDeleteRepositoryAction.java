@@ -28,7 +28,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
 import static org.elasticsearch.client.Requests.deleteRepositoryRequest;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;

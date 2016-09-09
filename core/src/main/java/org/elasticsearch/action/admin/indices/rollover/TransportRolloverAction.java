@@ -47,10 +47,14 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static java.util.Collections.unmodifiableList;
 
 /**
  * Main class to swap the index pointed to by an alias, given some conditions
@@ -156,13 +160,12 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
     static IndicesAliasesClusterStateUpdateRequest prepareRolloverAliasesUpdateRequest(String oldIndex, String newIndex,
                                                                                        RolloverRequest request) {
-        final IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest()
+        List<AliasAction> actions = unmodifiableList(Arrays.asList(
+                new AliasAction.Add(newIndex, request.getAlias(), null, null, null),
+                new AliasAction.Remove(oldIndex, request.getAlias())));
+        final IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(actions)
             .ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout());
-        AliasAction[] actions = new AliasAction[2];
-        actions[0] = new AliasAction(AliasAction.Type.ADD, newIndex, request.getAlias());
-        actions[1] = new AliasAction(AliasAction.Type.REMOVE, oldIndex, request.getAlias());
-        updateRequest.actions(actions);
         return updateRequest;
     }
 

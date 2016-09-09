@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class GeoDistanceIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class);
     }
 
     public void testSimpleDistance() throws Exception {
@@ -230,7 +230,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                 .actionGet();
 
         client().prepareIndex("test", "type1", "3")
-                .setSource(jsonBuilder().startObject().field("names", "Times Square", "Tribeca").startArray("locations")
+                .setSource(jsonBuilder().startObject().array("names", "Times Square", "Tribeca").startArray("locations")
                         // to NY: 5.286 km
                         .startObject().field("lat", 40.759011).field("lon", -73.9844722).endObject()
                         // to NY: 0.4621 km
@@ -238,7 +238,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         client().prepareIndex("test", "type1", "4")
-                .setSource(jsonBuilder().startObject().field("names", "Wall Street", "Soho").startArray("locations")
+                .setSource(jsonBuilder().startObject().array("names", "Wall Street", "Soho").startArray("locations")
                         // to NY: 1.055 km
                         .startObject().field("lat", 40.7051157).field("lon", -74.0088305).endObject()
                         // to NY: 1.258 km
@@ -246,7 +246,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         client().prepareIndex("test", "type1", "5")
-                .setSource(jsonBuilder().startObject().field("names", "Greenwich Village", "Brooklyn").startArray("locations")
+                .setSource(jsonBuilder().startObject().array("names", "Greenwich Village", "Brooklyn").startArray("locations")
                         // to NY: 2.029 km
                         .startObject().field("lat", 40.731033).field("lon", -73.9962255).endObject()
                         // to NY: 8.572 km
@@ -355,14 +355,14 @@ public class GeoDistanceIT extends ESIntegTestCase {
         ensureGreen();
 
         client().prepareIndex("test", "type1", "1")
-                .setSource(jsonBuilder().startObject().field("names", "Times Square", "Tribeca").startArray("locations")
+                .setSource(jsonBuilder().startObject().array("names", "Times Square", "Tribeca").startArray("locations")
                         // to NY: 5.286 km
                         .startObject().field("lat", 40.759011).field("lon", -73.9844722).endObject()
                         // to NY: 0.4621 km
                         .startObject().field("lat", 40.718266).field("lon", -74.007819).endObject().endArray().endObject())
                 .execute().actionGet();
 
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("names", "Wall Street", "Soho").endObject())
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().array("names", "Wall Street", "Soho").endObject())
                 .execute().actionGet();
 
         refresh();

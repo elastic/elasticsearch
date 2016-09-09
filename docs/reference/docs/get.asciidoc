@@ -46,17 +46,15 @@ curl -XHEAD -i 'http://localhost:9200/twitter/tweet/1'
 === Realtime
 
 By default, the get API is realtime, and is not affected by the refresh
-rate of the index (when data will become visible for search). In order
-to disable realtime GET, one can set `realtime` parameter to `false`.
+rate of the index (when data will become visible for search). If a document
+has been updated but is not yet refreshed, the get API will issue a refresh
+call in-place to make the document visible. This will also make other documents
+changed since the last refresh visible. In order to disable realtime GET,
+one can set the `realtime` parameter to `false`.
 
 When getting a document, one can specify `fields` to fetch from it. They
 will, when possible, be fetched as stored fields (fields mapped as
-stored in the mapping). When using realtime GET, there is no notion of
-stored fields (at least for a period of time, basically, until the next
-flush), so they will be extracted from the source itself (note, even if
-source is not enabled). It is a good practice to assume that the fields
-will be loaded from source when using realtime GET, even if the fields
-are stored.
+<<mapping-store,stored>> in the mapping).
 
 [float]
 [[type]]

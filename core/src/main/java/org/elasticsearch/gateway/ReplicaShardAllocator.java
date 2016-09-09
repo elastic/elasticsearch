@@ -31,10 +31,10 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -59,11 +59,10 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
      * match. Today, a better match is one that has full sync id match compared to not having one in
      * the previous recovery.
      */
-    public boolean processExistingRecoveries(RoutingAllocation allocation) {
-        boolean changed = false;
+    public void processExistingRecoveries(RoutingAllocation allocation) {
         MetaData metaData = allocation.metaData();
         RoutingNodes routingNodes = allocation.routingNodes();
-        List<Tuple<ShardRouting, UnassignedInfo>> recoveriesToCancel = new ArrayList<>();
+        List<Runnable> shardCancellationActions = new ArrayList<>();
         for (RoutingNode routingNode : routingNodes) {
             for (ShardRouting shard : routingNode) {
                 if (shard.primary() == true) {
@@ -77,8 +76,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 }
 
                 // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
-                IndexMetaData indexMetaData = metaData.getIndexSafe(shard.index());
-                if (shard.allocatedPostIndexCreate(indexMetaData) == false) {
+                if (shard.unassignedInfo() != null && shard.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
                     continue;
                 }
 
@@ -120,23 +118,19 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                             "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node ["+ nodeWithHighestMatch + "]",
                             null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false, UnassignedInfo.AllocationStatus.NO_ATTEMPT);
                         // don't cancel shard in the loop as it will cause a ConcurrentModificationException
-                        recoveriesToCancel.add(new Tuple<>(shard, unassignedInfo));
-                        changed = true;
+                        shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo, metaData.getIndexSafe(shard.index()), allocation.changes()));
                     }
                 }
             }
         }
-        for (Tuple<ShardRouting, UnassignedInfo> cancellation : recoveriesToCancel) {
-            routingNodes.moveToUnassigned(cancellation.v1(), cancellation.v2());
+        for (Runnable action : shardCancellationActions) {
+            action.run();
         }
-        return changed;
     }
 
-    public boolean allocateUnassigned(RoutingAllocation allocation) {
-        boolean changed = false;
+    public void allocateUnassigned(RoutingAllocation allocation) {
         final RoutingNodes routingNodes = allocation.routingNodes();
         final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
-        MetaData metaData = allocation.metaData();
         while (unassignedIterator.hasNext()) {
             ShardRouting shard = unassignedIterator.next();
             if (shard.primary()) {
@@ -144,8 +138,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             }
 
             // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
-            IndexMetaData indexMetaData = metaData.getIndexSafe(shard.index());
-            if (shard.allocatedPostIndexCreate(indexMetaData) == false) {
+            if (shard.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
                 continue;
             }
 
@@ -153,7 +146,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             Decision decision = canBeAllocatedToAtLeastOneNode(shard, allocation);
             if (decision.type() != Decision.Type.YES) {
                 logger.trace("{}: ignoring allocation, can't be allocated on any node", shard);
-                changed |= unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.fromDecision(decision));
+                unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.fromDecision(decision), allocation.changes());
                 continue;
             }
 
@@ -161,7 +154,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             if (shardStores.hasData() == false) {
                 logger.trace("{}: ignoring allocation, still fetching shard stores", shard);
                 allocation.setHasPendingAsyncFetch();
-                changed |= unassignedIterator.removeAndIgnore(AllocationStatus.FETCHING_SHARD_DATA);
+                unassignedIterator.removeAndIgnore(AllocationStatus.FETCHING_SHARD_DATA, allocation.changes());
                 continue; // still fetching
             }
 
@@ -186,19 +179,17 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 if (decision.type() == Decision.Type.THROTTLE) {
                     logger.debug("[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent store", shard.index(), shard.id(), shard, nodeWithHighestMatch.node());
                     // we are throttling this, but we have enough to allocate to this node, ignore it for now
-                    changed |= unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.fromDecision(decision));
+                    unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.fromDecision(decision), allocation.changes());
                 } else {
                     logger.debug("[{}][{}]: allocating [{}] to [{}] in order to reuse its unallocated persistent store", shard.index(), shard.id(), shard, nodeWithHighestMatch.node());
                     // we found a match
-                    changed = true;
-                    unassignedIterator.initialize(nodeWithHighestMatch.nodeId(), null, allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
+                    unassignedIterator.initialize(nodeWithHighestMatch.nodeId(), null, allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
                 }
             } else if (matchingNodes.hasAnyData() == false) {
                 // if we didn't manage to find *any* data (regardless of matching sizes), check if the allocation of the replica shard needs to be delayed
-                changed |= ignoreUnassignedIfDelayed(unassignedIterator, shard);
+                ignoreUnassignedIfDelayed(unassignedIterator, shard, allocation.changes());
             }
         }
-        return changed;
     }
 
     /**
@@ -211,14 +202,12 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
      *
      * @param unassignedIterator iterator over unassigned shards
      * @param shard the shard which might be delayed
-     * @return true iff there was a change to the unassigned info
      */
-    public boolean ignoreUnassignedIfDelayed(RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator, ShardRouting shard) {
+    public void ignoreUnassignedIfDelayed(RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator, ShardRouting shard, RoutingChangesObserver changes) {
         if (shard.unassignedInfo().isDelayed()) {
             logger.debug("{}: allocation of [{}] is delayed", shard.shardId(), shard);
-            return unassignedIterator.removeAndIgnore(AllocationStatus.DELAYED_ALLOCATION);
+            unassignedIterator.removeAndIgnore(AllocationStatus.DELAYED_ALLOCATION, changes);
         }
-        return false;
     }
 
     /**

@@ -19,14 +19,12 @@
 
 package org.elasticsearch.ingest.common;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -35,6 +33,7 @@ import org.elasticsearch.script.ScriptService;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalMap;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalStringProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 import static org.elasticsearch.script.ScriptService.ScriptType.FILE;
@@ -51,25 +50,18 @@ public final class ScriptProcessor extends AbstractProcessor {
 
     private final Script script;
     private final ScriptService scriptService;
-    private final String field;
 
-    ScriptProcessor(String tag, Script script, ScriptService scriptService, String field)  {
+    ScriptProcessor(String tag, Script script, ScriptService scriptService)  {
         super(tag);
         this.script = script;
         this.scriptService = scriptService;
-        this.field = field;
     }
 
     @Override
     public void execute(IngestDocument document) {
-        Map<String, Object> vars = new HashMap<>();
-        vars.put("ctx", document.getSourceAndMetadata());
-        CompiledScript compiledScript = scriptService.compile(script, ScriptContext.Standard.INGEST, emptyMap());
-        ExecutableScript executableScript = scriptService.executable(compiledScript, vars);
-        Object value = executableScript.run();
-        if (field != null) {
-            document.setFieldValue(field, value);
-        }
+        ExecutableScript executableScript = scriptService.executable(script, ScriptContext.Standard.INGEST, emptyMap());
+        executableScript.setNextVar("ctx",  document.getSourceAndMetadata());
+        executableScript.run();
     }
 
     @Override
@@ -88,11 +80,11 @@ public final class ScriptProcessor extends AbstractProcessor {
         @Override
         public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                       Map<String, Object> config) throws Exception {
-            String field = readOptionalStringProperty(TYPE, processorTag, config, "field");
             String lang = readStringProperty(TYPE, processorTag, config, "lang");
             String inline = readOptionalStringProperty(TYPE, processorTag, config, "inline");
             String file = readOptionalStringProperty(TYPE, processorTag, config, "file");
             String id = readOptionalStringProperty(TYPE, processorTag, config, "id");
+            Map<String, ?> params = readOptionalMap(TYPE, processorTag, config, "params");
 
             boolean containsNoScript = !hasLength(file) && !hasLength(id) && !hasLength(inline);
             if (containsNoScript) {
@@ -105,18 +97,22 @@ public final class ScriptProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, processorTag, null, "Only one of [file], [id], or [inline] may be configured");
             }
 
+            if(params == null) {
+                params = emptyMap();
+            }
+
             final Script script;
             if (Strings.hasLength(file)) {
-                script = new Script(file, FILE, lang, emptyMap());
+                script = new Script(file, FILE, lang, params);
             } else if (Strings.hasLength(inline)) {
-                script = new Script(inline, INLINE, lang, emptyMap());
+                script = new Script(inline, INLINE, lang, params);
             } else if (Strings.hasLength(id)) {
-                script = new Script(id, STORED, lang, emptyMap());
+                script = new Script(id, STORED, lang, params);
             } else {
                 throw newConfigurationException(TYPE, processorTag, null, "Could not initialize script");
             }
 
-            return new ScriptProcessor(processorTag, script, scriptService, field);
+            return new ScriptProcessor(processorTag, script, scriptService);
         }
     }
 }

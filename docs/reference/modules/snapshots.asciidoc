@@ -38,7 +38,7 @@ which returns:
   "my_backup": {
     "type": "fs",
     "settings": {
-      "compress": "true",
+      "compress": true,
       "location": "/mount/backups/my_backup"
     }
   }
@@ -219,7 +219,7 @@ specifying the list of indices in the body of the snapshot request.
 PUT /_snapshot/my_backup/snapshot_1
 {
   "indices": "index_1,index_2",
-  "ignore_unavailable": "true",
+  "ignore_unavailable": true,
   "include_global_state": false
 }
 -----------------------------------
@@ -340,7 +340,7 @@ with associated indices
 POST /_snapshot/my_backup/snapshot_1/_restore
 {
   "indices": "index_1,index_2",
-  "ignore_unavailable": "true",
+  "ignore_unavailable": true,
   "include_global_state": true,
   "rename_pattern": "index_(.+)",
   "rename_replacement": "restored_index_$1"
@@ -396,8 +396,7 @@ Please note, that some settings such as `index.number_of_shards` cannot be chang
 The information stored in a snapshot is not tied to a particular cluster or a cluster name. Therefore it's possible to
 restore a snapshot made from one cluster into another cluster. All that is required is registering the repository
 containing the snapshot in the new cluster and starting the restore process. The new cluster doesn't have to have the
-same size or topology.  However, the version of the new cluster should be the same or newer than the cluster that was
-used to create the snapshot.
+same size or topology.  However, the version of the new cluster should be the same or newer (only 1 major version newer) than the cluster that was used to create the snapshot.  For example, you can restore a 1.x snapshot to a 2.x cluster, but not a 1.x snapshot to a 5.x cluster.
 
 If the new cluster has a smaller size additional considerations should be made. First of all it's necessary to make sure
 that new cluster have enough capacity to store all indices in the snapshot. It's possible to change indices settings
@@ -498,6 +497,12 @@ The snapshot and restore framework allows running only one snapshot or one resto
 running snapshot was executed by mistake, or takes unusually long, it can be terminated using the snapshot delete operation.
 The snapshot delete operation checks if the deleted snapshot is currently running and if it does, the delete operation stops
 that snapshot before deleting the snapshot data from the repository.
+
+[source,sh]
+-----------------------------------
+DELETE /_snapshot/my_backup/snapshot_1
+-----------------------------------
+// CONSOLE
 
 The restore operation uses the standard shard recovery mechanism. Therefore, any currently running restore operation can
 be canceled by deleting indices that are being restored. Please note that data for all deleted indices will be removed

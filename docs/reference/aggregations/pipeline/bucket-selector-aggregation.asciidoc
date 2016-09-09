@@ -3,12 +3,12 @@
 
 experimental[]
 
-A parent pipeline aggregation which executes a script which determines whether the current bucket will be retained 
-in the parent multi-bucket aggregation. The specified metric must be numeric and the script must return a boolean value. 
-If the script language is `expression` then a numeric return value is permitted. In this case 0.0 will be evaluated as `false` 
+A parent pipeline aggregation which executes a script which determines whether the current bucket will be retained
+in the parent multi-bucket aggregation. The specified metric must be numeric and the script must return a boolean value.
+If the script language is `expression` then a numeric return value is permitted. In this case 0.0 will be evaluated as `false`
 and all other values will evaluate to true.
 
-Note: The bucket_selector aggregation, like all pipeline aggregations, executions after all other sibling aggregations. This means that 
+Note: The bucket_selector aggregation, like all pipeline aggregations, executions after all other sibling aggregations. This means that
 using the bucket_selector aggregation to filter the returned buckets in the response does not save on execution time running the aggregations.
 
 ==== Syntax
@@ -23,30 +23,32 @@ A `bucket_selector` aggregation looks like this in isolation:
             "my_var1": "the_sum", <1>
             "my_var2": "the_value_count"
         },
-        "script": "my_var1 > my_var2"
+        "script": "params.my_var1 > params.my_var2"
     }
 }
 --------------------------------------------------
-<1> Here, `my_var1` is the name of the variable for this buckets path to use in the script, `the_sum` is the path to 
+<1> Here, `my_var1` is the name of the variable for this buckets path to use in the script, `the_sum` is the path to
 the metrics to use for that variable.
 
 
 .`bucket_selector` Parameters
 |===
 |Parameter Name |Description |Required |Default Value
-|`script` |The script to run for this aggregation. The script can be inline, file or indexed. (see <<modules-scripting>> 
+|`script` |The script to run for this aggregation. The script can be inline, file or indexed. (see <<modules-scripting>>
 for more details) |Required |
-|`buckets_path` |A map of script variables and their associated path to the buckets we wish to use for the variable 
+|`buckets_path` |A map of script variables and their associated path to the buckets we wish to use for the variable
 (see <<buckets-path-syntax>> for more details) |Required |
  |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
  details)|Optional, defaults to `skip` |
 |===
 
-The following snippet only retains buckets where the total sales for the month is less than or equal to 50:
+The following snippet only retains buckets where the total sales for the month is more than 400:
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search
 {
+    "size": 0,
     "aggs" : {
         "sales_per_month" : {
             "date_histogram" : {
@@ -64,7 +66,7 @@ The following snippet only retains buckets where the total sales for the month i
                         "buckets_path": {
                           "totalSales": "total_sales"
                         },
-                        "script": "totalSales <= 50"
+                        "script": "params.totalSales > 200"
                     }
                 }
             }
@@ -72,12 +74,18 @@ The following snippet only retains buckets where the total sales for the month i
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 And the following may be the response:
 
 [source,js]
 --------------------------------------------------
 {
+   "took": 11,
+   "timed_out": false,
+   "_shards": ...,
+   "hits": ...,
    "aggregations": {
       "sales_per_month": {
          "buckets": [
@@ -86,7 +94,7 @@ And the following may be the response:
                "key": 1420070400000,
                "doc_count": 3,
                "total_sales": {
-                   "value": 50
+                   "value": 550.0
                }
             },<1>
             {
@@ -94,7 +102,7 @@ And the following may be the response:
                "key": 1425168000000,
                "doc_count": 2,
                "total_sales": {
-                   "value": 40
+                   "value": 375.0
                },
             }
          ]
@@ -102,4 +110,7 @@ And the following may be the response:
    }
 }
 --------------------------------------------------
-<1> Bucket for `2015/02/01 00:00:00` has been removed as its total sales exceeded 50
+// TESTRESPONSE[s/"took": 11/"took": $body.took/]
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+<1> Bucket for `2015/02/01 00:00:00` has been removed as its total sales was less than 200

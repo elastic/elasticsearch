@@ -22,6 +22,7 @@ package org.elasticsearch.gradle.doc
 import org.gradle.api.DefaultTask
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.file.ConfigurableFileTree
+import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.TaskAction
 
@@ -60,6 +61,12 @@ public class SnippetsTask extends DefaultTask {
         exclude 'build'
     }
 
+    /**
+     * Substitutions done on every snippet's contents.
+     */
+    @Input
+    Map<String, String> defaultSubstitutions = [:]
+
     @TaskAction
     public void executeTask() {
         /*
@@ -75,20 +82,38 @@ public class SnippetsTask extends DefaultTask {
             Closure emit = {
                 snippet.contents = contents.toString()
                 contents = null
+                Closure doSubstitution = { String pattern, String subst ->
+                    /*
+                     * $body is really common but it looks like a
+                     * backreference so we just escape it here to make the
+                     * tests cleaner.
+                     */
+                    subst = subst.replace('$body', '\\$body')
+                    // \n is a new line....
+                    subst = subst.replace('\\n', '\n')
+                    snippet.contents = snippet.contents.replaceAll(
+                        pattern, subst)
+                }
+                defaultSubstitutions.each doSubstitution
                 if (substitutions != null) {
-                    substitutions.each { String pattern, String subst ->
-                        /*
-                         * $body is really common but it looks like a
-                         * backreference so we just escape it here to make the
-                         * tests cleaner.
-                         */
-                        subst = subst.replace('$body', '\\$body')
-                        // \n is a new line....
-                        subst = subst.replace('\\n', '\n')
-                        snippet.contents = snippet.contents.replaceAll(
-                            pattern, subst)
-                    }
+                    substitutions.each doSubstitution
                     substitutions = null
+                }
+                if (snippet.language == null) {
+                    throw new InvalidUserDataException("$snippet: "
+                        + "Snippet missing a language. This is required by "
+                        + "Elasticsearch's doc testing infrastructure so we "
+                        + "be sure we don't accidentally forget to test a "
+                        + "snippet.")
+                }
+                // Try to detect snippets that contain `curl`
+                if (snippet.language == 'sh' || snippet.language == 'shell') {
+                    snippet.curl = snippet.contents.contains('curl')
+                    if (snippet.console == false && snippet.curl == false) {
+                        throw new InvalidUserDataException("$snippet: "
+                            + "No need for NOTCONSOLE if snippet doesn't "
+                            + "contain `curl`.")
+                    }
                 }
                 perSnippet(snippet)
                 snippet = null
@@ -107,30 +132,45 @@ public class SnippetsTask extends DefaultTask {
                     }
                     return
                 }
-                matcher = line =~ /\[source,(\w+)]\s*/
+                matcher = line =~ /\["?source"?,\s*"?(\w+)"?(,.*)?].*/
                 if (matcher.matches()) {
                     lastLanguage = matcher.group(1)
                     lastLanguageLine = lineNumber
                     return
                 }
                 if (line ==~ /\/\/\s*AUTOSENSE\s*/) {
-                    throw new InvalidUserDataException("AUTOSENSE has been " +
-                            "replaced by CONSOLE. Use that instead at " +
-                            "$file:$lineNumber")
+                    throw new InvalidUserDataException("$file:$lineNumber: "
+                        + "AUTOSENSE has been replaced by CONSOLE.")
                 }
                 if (line ==~ /\/\/\s*CONSOLE\s*/) {
                     if (snippet == null) {
-                        throw new InvalidUserDataException("CONSOLE not " +
-                            "paired with a snippet at $file:$lineNumber")
+                        throw new InvalidUserDataException("$file:$lineNumber: "
+                            + "CONSOLE not paired with a snippet")
+                    }
+                    if (snippet.console != null) {
+                        throw new InvalidUserDataException("$file:$lineNumber: "
+                            + "Can't be both CONSOLE and NOTCONSOLE")
                     }
                     snippet.console = true
+                    return
+                }
+                if (line ==~ /\/\/\s*NOTCONSOLE\s*/) {
+                    if (snippet == null) {
+                        throw new InvalidUserDataException("$file:$lineNumber: "
+                            + "NOTCONSOLE not paired with a snippet")
+                    }
+                    if (snippet.console != null) {
+                        throw new InvalidUserDataException("$file:$lineNumber: "
+                            + "Can't be both CONSOLE and NOTCONSOLE")
+                    }
+                    snippet.console = false
                     return
                 }
                 matcher = line =~ /\/\/\s*TEST(\[(.+)\])?\s*/
                 if (matcher.matches()) {
                     if (snippet == null) {
-                        throw new InvalidUserDataException("TEST not " +
-                            "paired with a snippet at $file:$lineNumber")
+                        throw new InvalidUserDataException("$file:$lineNumber: "
+                            + "TEST not paired with a snippet at ")
                     }
                     snippet.test = true
                     if (matcher.group(2) != null) {
@@ -172,8 +212,8 @@ public class SnippetsTask extends DefaultTask {
                 matcher = line =~ /\/\/\s*TESTRESPONSE(\[(.+)\])?\s*/
                 if (matcher.matches()) {
                     if (snippet == null) {
-                        throw new InvalidUserDataException("TESTRESPONSE not " +
-                            "paired with a snippet at $file:$lineNumber")
+                        throw new InvalidUserDataException("$file:$lineNumber: "
+                            + "TESTRESPONSE not paired with a snippet")
                     }
                     snippet.testResponse = true
                     if (matcher.group(2) != null) {
@@ -226,7 +266,7 @@ public class SnippetsTask extends DefaultTask {
         int end = NOT_FINISHED
         String contents
 
-        boolean console = false
+        Boolean console = null
         boolean test = false
         boolean testResponse = false
         boolean testSetup = false
@@ -235,6 +275,7 @@ public class SnippetsTask extends DefaultTask {
         String language = null
         String catchPart = null
         String setup = null
+        boolean curl
         List warnings = new ArrayList()
 
         @Override
@@ -243,8 +284,8 @@ public class SnippetsTask extends DefaultTask {
             if (language != null) {
                 result += "($language)"
             }
-            if (console) {
-                result += '// CONSOLE'
+            if (console != null) {
+                result += console ? '// CONSOLE' : '// NOTCONSOLE'
             }
             if (test) {
                 result += '// TEST'
@@ -269,6 +310,9 @@ public class SnippetsTask extends DefaultTask {
             }
             if (testSetup) {
                 result += '// TESTSETUP'
+            }
+            if (curl) {
+                result += '(curl)'
             }
             return result
         }

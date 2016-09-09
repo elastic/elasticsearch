@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -33,6 +32,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.AbstractTermsParser;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -81,17 +81,18 @@ public class SignificantTermsParser extends AbstractTermsParser {
     }
 
     @Override
-    public boolean parseSpecial(String aggregationName, XContentParser parser, ParseFieldMatcher parseFieldMatcher, Token token,
-            String currentFieldName, Map<ParseField, Object> otherOptions) throws IOException {
+    public boolean parseSpecial(String aggregationName, XContentParseContext context, Token token,
+                                String currentFieldName, Map<ParseField, Object> otherOptions) throws IOException {
         if (token == XContentParser.Token.START_OBJECT) {
             SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserRegistry
-                    .lookupReturningNullIfNotFound(currentFieldName, parseFieldMatcher);
+                    .lookupReturningNullIfNotFound(currentFieldName, context.getParseFieldMatcher());
             if (significanceHeuristicParser != null) {
-                SignificanceHeuristic significanceHeuristic = significanceHeuristicParser.parse(parser, parseFieldMatcher);
+                SignificanceHeuristic significanceHeuristic = significanceHeuristicParser.parse(context);
                 otherOptions.put(SignificantTermsAggregationBuilder.HEURISTIC, significanceHeuristic);
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, SignificantTermsAggregationBuilder.BACKGROUND_FILTER)) {
-                QueryParseContext queryParseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
+            } else if (context.matchField(currentFieldName, SignificantTermsAggregationBuilder.BACKGROUND_FILTER)) {
+                QueryParseContext queryParseContext = new QueryParseContext(context.getDefaultScriptLanguage(), queriesRegistry,
+                        context.getParser(), context.getParseFieldMatcher());
                 Optional<QueryBuilder> filter = queryParseContext.parseInnerQueryBuilder();
                 if (filter.isPresent()) {
                     otherOptions.put(SignificantTermsAggregationBuilder.BACKGROUND_FILTER, filter.get());

@@ -28,6 +28,8 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -82,7 +84,7 @@ public class GceInstancesServiceImpl extends AbstractLifecycleComponent implemen
                 return instanceList.isEmpty()  || instanceList.getItems() == null ?
                     Collections.<Instance>emptyList() : instanceList.getItems();
             } catch (PrivilegedActionException e) {
-                logger.warn("Problem fetching instance list for zone {}", e, zoneId);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Problem fetching instance list for zone {}", zoneId), e);
                 logger.debug("Full exception:", e);
                 // assist type inference
                 return Collections.<Instance>emptyList();

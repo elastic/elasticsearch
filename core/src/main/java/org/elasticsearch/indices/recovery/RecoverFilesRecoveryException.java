@@ -57,7 +57,7 @@ public class RecoverFilesRecoveryException extends ElasticsearchException implem
     public RecoverFilesRecoveryException(StreamInput in) throws IOException{
         super(in);
         numberOfFiles = in.readInt();
-        totalFilesSize = ByteSizeValue.readBytesSizeValue(in);
+        totalFilesSize = new ByteSizeValue(in);
     }
 
     @Override

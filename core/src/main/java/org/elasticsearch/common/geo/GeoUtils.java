@@ -26,8 +26,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 
 import java.io.IOException;
 

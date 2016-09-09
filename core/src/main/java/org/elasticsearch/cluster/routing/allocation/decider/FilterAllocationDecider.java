@@ -21,10 +21,10 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -75,7 +75,6 @@ public class FilterAllocationDecider extends AllocationDecider {
     private volatile DiscoveryNodeFilters clusterIncludeFilters;
     private volatile DiscoveryNodeFilters clusterExcludeFilters;
 
-    @Inject
     public FilterAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         setClusterRequireFilters(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.get(settings));
@@ -94,7 +93,7 @@ public class FilterAllocationDecider extends AllocationDecider {
             // this is a setting that can only be set within the system!
             IndexMetaData indexMd = allocation.metaData().getIndexSafe(shardRouting.index());
             DiscoveryNodeFilters initialRecoveryFilters = indexMd.getInitialRecoveryFilters();
-            if (shardRouting.allocatedPostIndexCreate(indexMd) == false &&
+            if (shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE &&
                 initialRecoveryFilters != null &&
                 initialRecoveryFilters.match(node.node()) == false) {
                 return allocation.decision(Decision.NO, NAME, "node does not match index initial recovery filters [%s]",

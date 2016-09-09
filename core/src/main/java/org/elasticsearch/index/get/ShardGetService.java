@@ -40,29 +40,20 @@ import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParentFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.search.fetch.parent.ParentFieldSubFetchPhase;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
-import org.elasticsearch.search.lookup.LeafSearchLookup;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.ParentFieldSubFetchPhase;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -84,7 +75,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     public GetStats stats() {
         return new GetStats(existsMetric.count(), TimeUnit.NANOSECONDS.toMillis(existsMetric.sum()), missingMetric.count(), TimeUnit.NANOSECONDS.toMillis(missingMetric.sum()), currentMetric.count());
     }
-
 
     public GetResult get(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext, boolean ignoreErrorsOnGeneratedFields) {
         currentMetric.inc();
@@ -182,137 +172,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         try {
             // break between having loaded it from translog (so we only have _source), and having a document to load
-            if (get.docIdAndVersion() != null) {
-                return innerGetLoadFromStoredFields(type, id, gFields, fetchSourceContext, get, mapperService);
-            } else {
-                Translog.Source source = get.source();
-
-                Map<String, GetField> fields = null;
-                SearchLookup searchLookup = null;
-
-                // we can only load scripts that can run against the source
-                Set<String> neededFields = new HashSet<>();
-                // add meta fields
-                neededFields.add(RoutingFieldMapper.NAME);
-                DocumentMapper docMapper = mapperService.documentMapper(type);
-                if (docMapper.parentFieldMapper().active()) {
-                    neededFields.add(ParentFieldMapper.NAME);
-                }
-                if (docMapper.timestampFieldMapper().enabled()) {
-                    neededFields.add(TimestampFieldMapper.NAME);
-                }
-                if (docMapper.TTLFieldMapper().enabled()) {
-                    neededFields.add(TTLFieldMapper.NAME);
-                }
-                // add requested fields
-                if (gFields != null) {
-                    neededFields.addAll(Arrays.asList(gFields));
-                }
-                for (String field : neededFields) {
-                    if (SourceFieldMapper.NAME.equals(field)) {
-                        // dealt with when normalizing fetchSourceContext.
-                        continue;
-                    }
-                    Object value = null;
-                    if (field.equals(RoutingFieldMapper.NAME)) {
-                        value = source.routing;
-                    } else if (field.equals(ParentFieldMapper.NAME) && docMapper.parentFieldMapper().active()) {
-                        value = source.parent;
-                    } else if (field.equals(TimestampFieldMapper.NAME) && docMapper.timestampFieldMapper().enabled()) {
-                        value = source.timestamp;
-                    } else if (field.equals(TTLFieldMapper.NAME) && docMapper.TTLFieldMapper().enabled()) {
-                        // Call value for search with timestamp + ttl here to display the live remaining ttl value and be consistent with the search result display
-                        if (source.ttl > 0) {
-                            value = docMapper.TTLFieldMapper().valueForSearch(source.timestamp + source.ttl);
-                        }
-                    } else {
-                        if (searchLookup == null) {
-                            searchLookup = new SearchLookup(mapperService, null, new String[]{type});
-                            searchLookup.source().setSource(source.source);
-                        }
-
-                        FieldMapper fieldMapper = docMapper.mappers().smartNameFieldMapper(field);
-                        if (fieldMapper == null) {
-                            if (docMapper.objectMappers().get(field) != null) {
-                                // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
-                                throw new IllegalArgumentException("field [" + field + "] isn't a leaf field");
-                            }
-                        } else if (shouldGetFromSource(ignoreErrorsOnGeneratedFields, docMapper, fieldMapper)) {
-                            List<Object> values = searchLookup.source().extractRawValues(field);
-                            if (!values.isEmpty()) {
-                                value = values;
-                            }
-
-                        }
-                    }
-                    if (value != null) {
-                        if (fields == null) {
-                            fields = new HashMap<>(2);
-                        }
-                        if (value instanceof List) {
-                            fields.put(field, new GetField(field, (List) value));
-                        } else {
-                            fields.put(field, new GetField(field, Collections.singletonList(value)));
-                        }
-                    }
-                }
-
-                // deal with source, but only if it's enabled (we always have it from the translog)
-                BytesReference sourceToBeReturned = null;
-                SourceFieldMapper sourceFieldMapper = docMapper.sourceMapper();
-                if (fetchSourceContext.fetchSource() && sourceFieldMapper.enabled()) {
-
-                    sourceToBeReturned = source.source;
-
-                    // Cater for source excludes/includes at the cost of performance
-                    // We must first apply the field mapper filtering to make sure we get correct results
-                    // in the case that the fetchSourceContext white lists something that's not included by the field mapper
-
-                    boolean sourceFieldFiltering = sourceFieldMapper.includes().length > 0 || sourceFieldMapper.excludes().length > 0;
-                    boolean sourceFetchFiltering = fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0;
-                    if (sourceFieldFiltering || sourceFetchFiltering) {
-                        // TODO: The source might parsed and available in the sourceLookup but that one uses unordered maps so different. Do we care?
-                        Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source.source, true);
-                        XContentType sourceContentType = typeMapTuple.v1();
-                        Map<String, Object> sourceAsMap = typeMapTuple.v2();
-                        if (sourceFieldFiltering) {
-                            sourceAsMap = XContentMapValues.filter(sourceAsMap, sourceFieldMapper.includes(), sourceFieldMapper.excludes());
-                        }
-                        if (sourceFetchFiltering) {
-                            sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
-                        }
-                        try {
-                            sourceToBeReturned = XContentFactory.contentBuilder(sourceContentType).map(sourceAsMap).bytes();
-                        } catch (IOException e) {
-                            throw new ElasticsearchException("Failed to get type [" + type + "] and id [" + id + "] with includes/excludes set", e);
-                        }
-                    }
-                }
-
-                return new GetResult(shardId.getIndexName(), type, id, get.version(), get.exists(), sourceToBeReturned, fields);
-            }
+            return innerGetLoadFromStoredFields(type, id, gFields, fetchSourceContext, get, mapperService);
         } finally {
             get.release();
-        }
-    }
-
-    protected boolean shouldGetFromSource(boolean ignoreErrorsOnGeneratedFields, DocumentMapper docMapper, FieldMapper fieldMapper) {
-        if (!fieldMapper.isGenerated()) {
-            //if the field is always there we check if either source mapper is enabled, in which case we get the field
-            // from source, or, if the field is stored, in which case we have to get if from source here also (we are in the translog phase, doc not indexed yet, we annot access the stored fields)
-            return docMapper.sourceMapper().enabled() || fieldMapper.fieldType().stored();
-        } else {
-            if (!fieldMapper.fieldType().stored()) {
-                //if it is not stored, user will not get the generated field back
-                return false;
-            } else {
-                if (ignoreErrorsOnGeneratedFields) {
-                    return false;
-                } else {
-                    throw new ElasticsearchException("Cannot access field " + fieldMapper.name() + " from transaction log. You can only get this field after refresh() has been called.");
-                }
-            }
-
         }
     }
 
@@ -347,43 +209,13 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             fields.put(ParentFieldMapper.NAME, new GetField(ParentFieldMapper.NAME, Collections.singletonList(parentId)));
         }
 
-        // now, go and do the script thingy if needed
-
         if (gFields != null && gFields.length > 0) {
-            SearchLookup searchLookup = null;
             for (String field : gFields) {
-                Object value = null;
                 FieldMapper fieldMapper = docMapper.mappers().smartNameFieldMapper(field);
                 if (fieldMapper == null) {
                     if (docMapper.objectMappers().get(field) != null) {
                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
                         throw new IllegalArgumentException("field [" + field + "] isn't a leaf field");
-                    }
-                } else if (!fieldMapper.fieldType().stored() && !fieldMapper.isGenerated()) {
-                    if (searchLookup == null) {
-                        searchLookup = new SearchLookup(mapperService, null, new String[]{type});
-                        LeafSearchLookup leafSearchLookup = searchLookup.getLeafSearchLookup(docIdAndVersion.context);
-                        searchLookup.source().setSource(source);
-                        leafSearchLookup.setDocument(docIdAndVersion.docId);
-                    }
-
-                    List<Object> values = searchLookup.source().extractRawValues(field);
-                    if (!values.isEmpty()) {
-                        for (int i = 0; i < values.size(); i++) {
-                            values.set(i, fieldMapper.fieldType().valueForSearch(values.get(i)));
-                        }
-                        value = values;
-                    }
-                }
-
-                if (value != null) {
-                    if (fields == null) {
-                        fields = new HashMap<>(2);
-                    }
-                    if (value instanceof List) {
-                        fields.put(field, new GetField(field, (List) value));
-                    } else {
-                        fields.put(field, new GetField(field, Collections.singletonList(value)));
                     }
                 }
             }

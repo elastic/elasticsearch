@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesService;
@@ -81,7 +82,8 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
         shardStateAction = new ShardStateAction(settings, clusterService, transportService, null, null, THREAD_POOL);
         actionFilters = new ActionFilters(Collections.emptySet());
         indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
-        autoCreateIndex = new AutoCreateIndex(settings, indexNameExpressionResolver);
+        autoCreateIndex = new AutoCreateIndex(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                indexNameExpressionResolver);
     }
 
     @After

@@ -135,5 +135,15 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
                 "}";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[regexp] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
+
+        String shortJson =
+                "{\n" +
+                "    \"regexp\": {\n" +
+                "      \"user1\": \"k.*y\",\n" +
+                "      \"user2\": \"k.*y\"\n" +
+                "    }\n" +
+                "}";
+        e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
+        assertEquals("[regexp] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
     }
 }

@@ -70,12 +70,12 @@ public class GroovyIndexedScriptTests extends ESIntegTestCase {
     public void testFieldIndexedScript()  throws ExecutionException, InterruptedException {
         client().admin().cluster().preparePutStoredScript()
                 .setId("script1")
-                .setScriptLang("groovy")
+                .setScriptLang(GroovyScriptEngineService.NAME)
                 .setSource(new BytesArray("{ \"script\" : \"2\"}"))
                 .get();
         client().admin().cluster().preparePutStoredScript()
                 .setId("script2")
-                .setScriptLang("groovy")
+                .setScriptLang(GroovyScriptEngineService.NAME)
                 .setSource(new BytesArray("{ \"script\" : \"factor * 2\"}"))
                 .get();
 
@@ -93,8 +93,9 @@ public class GroovyIndexedScriptTests extends ESIntegTestCase {
                 .prepareSearch()
                 .setSource(
                         new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(1)
-                                .scriptField("test1", new Script("script1", ScriptType.STORED, "groovy", null))
-                                .scriptField("test2", new Script("script2", ScriptType.STORED, "groovy", script2Params)))
+                                .scriptField("test1", new Script("script1", ScriptType.STORED, GroovyScriptEngineService.NAME, null))
+                                .scriptField("test2",
+                                    new Script("script2", ScriptType.STORED, GroovyScriptEngineService.NAME, script2Params)))
                 .setIndices("test").setTypes("scriptTest").get();
         assertHitCount(searchResponse, 5);
         assertTrue(searchResponse.getHits().hits().length == 1);
@@ -120,7 +121,8 @@ public class GroovyIndexedScriptTests extends ESIntegTestCase {
                     .prepareSearch()
                     .setSource(
                             new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).scriptField("test_field",
-                                    new Script("script1", ScriptType.STORED, "groovy", null))).setIndices("test_index")
+                                    new Script("script1", ScriptType.STORED, GroovyScriptEngineService.NAME, null)))
+                                            .setIndices("test_index")
                     .setTypes("test_type").get();
             assertHitCount(searchResponse, 1);
             SearchHit sh = searchResponse.getHits().getAt(0);
@@ -157,7 +159,7 @@ public class GroovyIndexedScriptTests extends ESIntegTestCase {
                 .prepareSearch("test")
                 .setSource(
                         new SearchSourceBuilder().aggregation(AggregationBuilders.terms("test").script(
-                                new Script("script1", ScriptType.STORED, null, null)))).get();
+                                new Script("script1", ScriptType.STORED, GroovyScriptEngineService.NAME, null)))).get();
         assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getAggregations().get("test"), notNullValue());
     }

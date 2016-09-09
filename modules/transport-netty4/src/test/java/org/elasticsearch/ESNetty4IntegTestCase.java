@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 
+import java.util.Arrays;
 import java.util.Collection;
 
 @ESIntegTestCase.SuppressLocalMode
@@ -61,12 +62,12 @@ public abstract class ESNetty4IntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(Netty4Plugin.class);
+        return Arrays.asList(Netty4Plugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return pluginList(Netty4Plugin.class);
+        return Arrays.asList(Netty4Plugin.class);
     }
 
 }

@@ -56,7 +56,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class, MockEngineFactoryPlugin.class);
+        return Arrays.asList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class, MockEngineFactoryPlugin.class);
     }
 
     public void testRandomExceptions() throws IOException, InterruptedException, ExecutionException {

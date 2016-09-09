@@ -21,6 +21,7 @@ package org.elasticsearch.plugin.discovery.gce;
 
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.util.ClassInfo;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.cloud.gce.GceMetadataService;
@@ -28,7 +29,6 @@ import org.elasticsearch.cloud.gce.GceModule;
 import org.elasticsearch.cloud.gce.network.GceNameResolver;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
@@ -51,7 +51,7 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
     public static final String GCE = "gce";
     private final Settings settings;
-    protected final ESLogger logger = Loggers.getLogger(GceDiscoveryPlugin.class);
+    protected final Logger logger = Loggers.getLogger(GceDiscoveryPlugin.class);
 
     static {
         /*

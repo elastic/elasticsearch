@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -34,7 +35,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
@@ -129,21 +129,18 @@ public class GatewayAllocator extends AbstractComponent {
         }
     }
 
-    public boolean allocateUnassigned(final RoutingAllocation allocation) {
-        boolean changed = false;
-
+    public void allocateUnassigned(final RoutingAllocation allocation) {
         RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
         unassigned.sort(PriorityComparator.getAllocationComparator(allocation)); // sort for priority ordering
 
-        changed |= primaryShardAllocator.allocateUnassigned(allocation);
-        changed |= replicaShardAllocator.processExistingRecoveries(allocation);
-        changed |= replicaShardAllocator.allocateUnassigned(allocation);
-        return changed;
+        primaryShardAllocator.allocateUnassigned(allocation);
+        replicaShardAllocator.processExistingRecoveries(allocation);
+        replicaShardAllocator.allocateUnassigned(allocation);
     }
 
     class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {
 
-        public InternalAsyncFetch(ESLogger logger, String type, ShardId shardId, Lister<? extends BaseNodesResponse<T>, T> action) {
+        public InternalAsyncFetch(Logger logger, String type, ShardId shardId, Lister<? extends BaseNodesResponse<T>, T> action) {
             super(logger, type, shardId, action);
         }
 

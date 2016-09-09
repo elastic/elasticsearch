@@ -19,9 +19,9 @@
 package org.elasticsearch.search.aggregations.metrics.stats.extended;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -38,11 +38,11 @@ public class ExtendedStatsParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
-            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
-        if (parseFieldMatcher.match(currentFieldName, ExtendedStatsAggregator.SIGMA_FIELD)) {
+    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token,
+                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
+        if (context.matchField(currentFieldName, ExtendedStatsAggregator.SIGMA_FIELD)) {
             if (token.isValue()) {
-                otherOptions.put(ExtendedStatsAggregator.SIGMA_FIELD, parser.doubleValue());
+                otherOptions.put(ExtendedStatsAggregator.SIGMA_FIELD, context.getParser().doubleValue());
                 return true;
             }
         }

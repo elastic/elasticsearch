@@ -202,7 +202,7 @@ public class SearchAfterBuilder implements ToXContent, Writeable {
     }
 
     void innerToXContent(XContentBuilder builder) throws IOException {
-        builder.field(SEARCH_AFTER.getPreferredName(), sortValues);
+        builder.array(SEARCH_AFTER.getPreferredName(), sortValues);
     }
 
     public static SearchAfterBuilder fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {

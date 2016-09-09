@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTableGenerator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -330,7 +331,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             boolean atLeastOne = false;
             for (int i = 0; i < numberOfShards; i++) {
                 if (atLeastOne == false || randomBoolean()) {
-                    idxMetaWithAllocationIds.putActiveAllocationIds(i, Sets.newHashSet(UUIDs.randomBase64UUID()));
+                    idxMetaWithAllocationIds.putInSyncAllocationIds(i, Sets.newHashSet(UUIDs.randomBase64UUID()));
                     atLeastOne = true;
                 }
             }
@@ -400,7 +401,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
         IndexMetaData.Builder idxMetaBuilder = IndexMetaData.builder(clusterState.metaData().index(indexName));
         for (final IntObjectCursor<Set<String>> entry : allocationIds.build()) {
-            idxMetaBuilder.putActiveAllocationIds(entry.key, entry.value);
+            idxMetaBuilder.putInSyncAllocationIds(entry.key, entry.value);
         }
         MetaData.Builder metaDataBuilder = MetaData.builder(clusterState.metaData()).put(idxMetaBuilder);
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metaData(metaDataBuilder).build();
@@ -447,7 +448,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
         idxMetaBuilder = IndexMetaData.builder(clusterState.metaData().index(indexName));
         for (final IntObjectCursor<Set<String>> entry : allocationIds.build()) {
-            idxMetaBuilder.putActiveAllocationIds(entry.key, entry.value);
+            idxMetaBuilder.putInSyncAllocationIds(entry.key, entry.value);
         }
         metaDataBuilder = MetaData.builder(clusterState.metaData()).put(idxMetaBuilder);
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metaData(metaDataBuilder).build();
@@ -518,16 +519,16 @@ public class ClusterStateHealthTests extends ESTestCase {
     }
 
     // returns true if the inactive primaries in the index are only due to cluster recovery
-    // (not because of allocation failure or previously having allocation ids assigned)
+    // (not because of allocation of existing shard or previously having allocation ids assigned)
     private boolean primaryInactiveDueToRecovery(final String indexName, final ClusterState clusterState) {
         for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : clusterState.routingTable().index(indexName).shards()) {
             final ShardRouting primaryShard = shardRouting.value.primaryShard();
             if (primaryShard.active() == false) {
-                if (clusterState.metaData().index(indexName).activeAllocationIds(shardRouting.key).isEmpty() == false) {
+                if (clusterState.metaData().index(indexName).inSyncAllocationIds(shardRouting.key).isEmpty() == false) {
                     return false;
                 }
-                if (primaryShard.unassignedInfo() != null &&
-                        primaryShard.unassignedInfo().getReason() == UnassignedInfo.Reason.ALLOCATION_FAILED) {
+                if (primaryShard.recoverySource() != null &&
+                    primaryShard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
                     return false;
                 }
             }

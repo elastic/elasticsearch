@@ -40,7 +40,7 @@ The `_shards` header provides information about the replication process of the i
 
 * `total` - Indicates to how many shard copies (primary and replica shards) the index operation should be executed on.
 * `successful`- Indicates the number of shard copies the index operation succeeded on.
-* `failures` - An array that contains replication related errors in the case an index operation failed on a replica shard.
+* `failed` - An array that contains replication related errors in the case an index operation failed on a replica shard.
 
 The index operation is successful in the case `successful` is at least 1.
 

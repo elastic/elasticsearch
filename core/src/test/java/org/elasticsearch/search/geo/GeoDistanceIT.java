@@ -36,6 +36,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -56,7 +57,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(CustomScriptPlugin.class, InternalSettingsPlugin.class);
+        return Arrays.asList(CustomScriptPlugin.class, InternalSettingsPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {

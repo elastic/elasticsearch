@@ -19,12 +19,21 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.log4j.Java9Hack;
-import org.apache.log4j.PropertyConfigurator;
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.ElasticsearchException;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.AbstractConfiguration;
+import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilder;
+import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFactory;
+import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
+import org.apache.logging.log4j.core.config.composite.CompositeConfiguration;
+import org.apache.logging.log4j.core.config.properties.PropertiesConfiguration;
+import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationFactory;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -34,144 +43,57 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 
-import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.Strings.cleanPath;
-
-/**
- * Configures log4j with a special set of replacements.
- */
 public class LogConfigurator {
 
-    static final List<String> ALLOWED_SUFFIXES = Arrays.asList(".yml", ".yaml", ".json", ".properties");
+    public static void configure(final Environment environment, final boolean resolveConfig) throws IOException {
+        final Settings settings = environment.settings();
 
-    private static final Map<String, String> REPLACEMENTS;
-    static {
-        Map<String, String> replacements = new HashMap<>();
-        // Appenders
-        replacements.put("async", "org.apache.log4j.AsyncAppender");
-        replacements.put("console", ConsoleAppender.class.getName());
-        replacements.put("dailyRollingFile", "org.apache.log4j.DailyRollingFileAppender");
-        replacements.put("externallyRolledFile", "org.apache.log4j.ExternallyRolledFileAppender");
-        replacements.put("extrasRollingFile", "org.apache.log4j.rolling.RollingFileAppender");
-        replacements.put("file", "org.apache.log4j.FileAppender");
-        replacements.put("jdbc", "org.apache.log4j.jdbc.JDBCAppender");
-        replacements.put("jms", "org.apache.log4j.net.JMSAppender");
-        replacements.put("lf5", "org.apache.log4j.lf5.LF5Appender");
-        replacements.put("ntevent", "org.apache.log4j.nt.NTEventLogAppender");
-        replacements.put("null", "org.apache.log4j.NullAppender");
-        replacements.put("rollingFile", "org.apache.log4j.RollingFileAppender");
-        replacements.put("smtp", "org.apache.log4j.net.SMTPAppender");
-        replacements.put("socket", "org.apache.log4j.net.SocketAppender");
-        replacements.put("socketHub", "org.apache.log4j.net.SocketHubAppender");
-        replacements.put("syslog", "org.apache.log4j.net.SyslogAppender");
-        replacements.put("telnet", "org.apache.log4j.net.TelnetAppender");
-        replacements.put("terminal", TerminalAppender.class.getName());
+        setLogConfigurationSystemProperty(environment, settings);
 
-        // Policies
-        replacements.put("timeBased", "org.apache.log4j.rolling.TimeBasedRollingPolicy");
-        replacements.put("sizeBased", "org.apache.log4j.rolling.SizeBasedTriggeringPolicy");
+        // we initialize the status logger immediately otherwise Log4j will complain when we try to get the context
+        final ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
+        builder.setStatusLevel(Level.ERROR);
+        Configurator.initialize(builder.build());
 
-        // Layouts
-        replacements.put("simple", "org.apache.log4j.SimpleLayout");
-        replacements.put("html", "org.apache.log4j.HTMLLayout");
-        replacements.put("pattern", "org.apache.log4j.PatternLayout");
-        replacements.put("consolePattern", "org.apache.log4j.PatternLayout");
-        replacements.put("enhancedPattern", "org.apache.log4j.EnhancedPatternLayout");
-        replacements.put("ttcc", "org.apache.log4j.TTCCLayout");
-        replacements.put("xml", "org.apache.log4j.XMLLayout");
-        REPLACEMENTS = unmodifiableMap(replacements);
+        final LoggerContext context = (LoggerContext) LogManager.getContext(false);
 
-        if (Constants.JRE_IS_MINIMUM_JAVA9) {
-            Java9Hack.fixLog4j();
-        }
-    }
-
-    private static boolean loaded;
-
-    /**
-     * Consolidates settings and converts them into actual log4j settings, then initializes loggers and appenders.
-     *  @param settings      custom settings that should be applied
-     * @param resolveConfig controls whether the logging conf file should be read too or not.
-     */
-    public static void configure(Settings settings, boolean resolveConfig) {
-        if (loaded) {
-            return;
-        }
-        loaded = true;
-        // TODO: this is partly a copy of InternalSettingsPreparer...we should pass in Environment and not do all this...
-        Environment environment = new Environment(settings);
-
-        Settings.Builder settingsBuilder = Settings.builder();
         if (resolveConfig) {
-            resolveConfig(environment, settingsBuilder);
-        }
-
-        // add custom settings after config was added so that they are not overwritten by config
-        settingsBuilder.put(settings);
-        settingsBuilder.replacePropertyPlaceholders();
-        Properties props = new Properties();
-        for (Map.Entry<String, String> entry : settingsBuilder.build().getAsMap().entrySet()) {
-            String key = "log4j." + entry.getKey();
-            String value = entry.getValue();
-            value = REPLACEMENTS.getOrDefault(value, value);
-            if (key.endsWith(".value")) {
-                props.setProperty(key.substring(0, key.length() - ".value".length()), value);
-            } else if (key.endsWith(".type")) {
-                props.setProperty(key.substring(0, key.length() - ".type".length()), value);
-            } else {
-                props.setProperty(key, value);
-            }
-        }
-        // ensure explicit path to logs dir exists
-        props.setProperty("log4j.path.logs", cleanPath(environment.logsFile().toAbsolutePath().toString()));
-        PropertyConfigurator.configure(props);
-    }
-
-    /**
-     * sets the loaded flag to false so that logging configuration can be
-     * overridden. Should only be used in tests.
-     */
-    static void reset() {
-        loaded = false;
-    }
-
-    static void resolveConfig(Environment env, final Settings.Builder settingsBuilder) {
-
-        try {
-            Set<FileVisitOption> options = EnumSet.of(FileVisitOption.FOLLOW_LINKS);
-            Files.walkFileTree(env.configFile(), options, Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
+            final List<AbstractConfiguration> configurations = new ArrayList<>();
+            final PropertiesConfigurationFactory factory = new PropertiesConfigurationFactory();
+            final Set<FileVisitOption> options = EnumSet.of(FileVisitOption.FOLLOW_LINKS);
+            Files.walkFileTree(environment.configFile(), options, Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    String fileName = file.getFileName().toString();
-                    if (fileName.startsWith("logging.")) {
-                        for (String allowedSuffix : ALLOWED_SUFFIXES) {
-                            if (fileName.endsWith(allowedSuffix)) {
-                                loadConfig(file, settingsBuilder);
-                                break;
-                            }
-                        }
+                    if (file.getFileName().toString().equals("log4j2.properties")) {
+                        configurations.add((PropertiesConfiguration) factory.getConfiguration(file.toString(), file.toUri()));
                     }
                     return FileVisitResult.CONTINUE;
                 }
             });
-        } catch (IOException ioe) {
-            throw new ElasticsearchException("Failed to load logging configuration", ioe);
+            context.start(new CompositeConfiguration(configurations));
+        }
+
+        if (ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.exists(settings)) {
+            Loggers.setLevel(ESLoggerFactory.getRootLogger(), ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings));
+        }
+
+        final Map<String, String> levels = settings.filter(ESLoggerFactory.LOG_LEVEL_SETTING::match).getAsMap();
+        for (String key : levels.keySet()) {
+            final Level level = ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings);
+            Loggers.setLevel(Loggers.getLogger(key.substring("logger.".length())), level);
         }
     }
 
-    static void loadConfig(Path file, Settings.Builder settingsBuilder) {
-        try {
-            settingsBuilder.loadFromPath(file);
-        } catch (IOException | SettingsException | NoClassDefFoundError e) {
-            // ignore
-        }
+    @SuppressForbidden(reason = "sets system property for logging configuration")
+    private static void setLogConfigurationSystemProperty(final Environment environment, final Settings settings) {
+        System.setProperty("es.logs", environment.logsFile().resolve(ClusterName.CLUSTER_NAME_SETTING.get(settings).value()).toString());
     }
+
 }

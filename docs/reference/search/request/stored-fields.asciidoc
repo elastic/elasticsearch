@@ -1,4 +1,4 @@
-[[search-request-fields]]
+[[search-request-stored-fields]]
 === Fields
 
 WARNING: The `stored_fields` parameter is about fields that are explicitly marked as
@@ -52,4 +52,22 @@ will fail.
 Script fields can also be automatically detected and used as fields, so
 things like `_source.obj1.field1` can be used, though not recommended, as
 `obj1.field1` will work as well.
+
+==== Disable stored fields entirely
+
+To disable the stored fields (and metadata fields) entirely use: `\_none_`:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "stored_fields": "_none_",
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+NOTE: <<search-request-source-filtering,`_source`>> and <<search-request-version, `version`>> parameters cannot be activated if `_none_` is used.
 

@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.reindex.RestReindexAction.ReindexParseContext;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -109,8 +110,8 @@ public class RestReindexActionTests extends ESTestCase {
         }
         try (XContentParser p = JsonXContent.jsonXContent.createParser(request)) {
             ReindexRequest r = new ReindexRequest(new SearchRequest(), new IndexRequest());
-            RestReindexAction.PARSER.parse(p, r,
-                    new ReindexParseContext(new IndicesQueriesRegistry(), null, null, ParseFieldMatcher.STRICT));
+            SearchRequestParsers searchParsers = new SearchRequestParsers(new IndicesQueriesRegistry(), null, null);
+            RestReindexAction.PARSER.parse(p, r, new ReindexParseContext(searchParsers, ParseFieldMatcher.STRICT));
             assertEquals("localhost", r.getRemoteInfo().getHost());
             assertArrayEquals(new String[] {"source"}, r.getSearchRequest().indices());
         }

@@ -25,8 +25,12 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.MockSearchService;
+import org.elasticsearch.search.SearchService;
 
 import java.util.Collection;
+import java.util.List;
 
 /**
  * A node for testing which allows:
@@ -36,26 +40,33 @@ import java.util.Collection;
  * </ul>
  */
 public class MockNode extends Node {
-
-    private final boolean mockBigArrays;
-    private Collection<Class<? extends Plugin>> plugins;
+    private final Collection<Class<? extends Plugin>> classpathPlugins;
 
     public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
         super(InternalSettingsPreparer.prepareEnvironment(settings, null), classpathPlugins);
-        this.plugins = classpathPlugins;
-        this.mockBigArrays = classpathPlugins.contains(NodeMocksPlugin.class); // if this plugin is present we mock bigarrays :)
+        this.classpathPlugins = classpathPlugins;
     }
 
-    public Collection<Class<? extends Plugin>> getPlugins() {
-        return plugins;
+    /**
+     * The classpath plugins this node was constructed with.
+     */
+    public Collection<Class<? extends Plugin>> getClasspathPlugins() {
+        return classpathPlugins;
     }
 
     @Override
     protected BigArrays createBigArrays(Settings settings, CircuitBreakerService circuitBreakerService) {
-        if (mockBigArrays) {
-            return new MockBigArrays(settings, circuitBreakerService);
-        } else {
+        if (getPluginsService().filterPlugins(NodeMocksPlugin.class).isEmpty()) {
             return super.createBigArrays(settings, circuitBreakerService);
         }
+        return new MockBigArrays(settings, circuitBreakerService);
+    }
+
+    @Override
+    protected Class<? extends SearchService> pickSearchServiceImplementation() {
+        if (getPluginsService().filterPlugins(MockSearchService.TestPlugin.class).isEmpty()) {
+            return super.pickSearchServiceImplementation();
+        }
+        return MockSearchService.class;
     }
 }

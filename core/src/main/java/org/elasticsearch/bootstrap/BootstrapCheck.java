@@ -19,18 +19,22 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeValidationException;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -61,7 +65,7 @@ final class BootstrapCheck {
      * @param settings              the current node settings
      * @param boundTransportAddress the node network bindings
      */
-    static void check(final Settings settings, final BoundTransportAddress boundTransportAddress) {
+    static void check(final Settings settings, final BoundTransportAddress boundTransportAddress) throws NodeValidationException {
         check(
                 enforceLimits(boundTransportAddress),
                 BootstrapSettings.IGNORE_SYSTEM_BOOTSTRAP_CHECKS.get(settings),
@@ -81,7 +85,11 @@ final class BootstrapCheck {
      * @param nodeName           the node name to be used as a logging prefix
      */
     // visible for testing
-    static void check(final boolean enforceLimits, final boolean ignoreSystemChecks, final List<Check> checks, final String nodeName) {
+    static void check(
+        final boolean enforceLimits,
+        final boolean ignoreSystemChecks,
+        final List<Check> checks,
+        final String nodeName) throws NodeValidationException {
         check(enforceLimits, ignoreSystemChecks, checks, Loggers.getLogger(BootstrapCheck.class, nodeName));
     }
 
@@ -100,7 +108,7 @@ final class BootstrapCheck {
             final boolean enforceLimits,
             final boolean ignoreSystemChecks,
             final List<Check> checks,
-            final ESLogger logger) {
+            final Logger logger) throws NodeValidationException {
         final List<String> errors = new ArrayList<>();
         final List<String> ignoredErrors = new ArrayList<>();
 
@@ -129,14 +137,14 @@ final class BootstrapCheck {
             final List<String> messages = new ArrayList<>(1 + errors.size());
             messages.add("bootstrap checks failed");
             messages.addAll(errors);
-            final RuntimeException re = new RuntimeException(String.join("\n", messages));
-            errors.stream().map(IllegalStateException::new).forEach(re::addSuppressed);
-            throw re;
+            final NodeValidationException ne = new NodeValidationException(String.join("\n", messages));
+            errors.stream().map(IllegalStateException::new).forEach(ne::addSuppressed);
+            throw ne;
         }
 
     }
 
-    static void log(final ESLogger logger, final String error) {
+    static void log(final Logger logger, final String error) {
         logger.warn(error);
     }
 
@@ -166,7 +174,6 @@ final class BootstrapCheck {
         if (Constants.LINUX || Constants.MAC_OS_X) {
             checks.add(new MaxSizeVirtualMemoryCheck());
         }
-        checks.add(new MinMasterNodesCheck(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(settings)));
         if (Constants.LINUX) {
             checks.add(new MaxMapCountCheck());
         }
@@ -330,32 +337,6 @@ final class BootstrapCheck {
 
     }
 
-    static class MinMasterNodesCheck implements Check {
-
-        final boolean minMasterNodesIsSet;
-
-        MinMasterNodesCheck(boolean minMasterNodesIsSet) {
-            this.minMasterNodesIsSet = minMasterNodesIsSet;
-        }
-
-        @Override
-        public boolean check() {
-            return minMasterNodesIsSet == false;
-        }
-
-        @Override
-        public String errorMessage() {
-            return "please set [" + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() +
-                "] to a majority of the number of master eligible nodes in your cluster";
-        }
-
-        @Override
-        public final boolean isSystemCheck() {
-            return false;
-        }
-
-    }
-
     static class MaxNumberOfThreadsCheck implements Check {
 
         private final long maxNumberOfThreadsThreshold = 1 << 11;
@@ -444,7 +425,7 @@ final class BootstrapCheck {
         }
 
         // visible for testing
-        long getMaxMapCount(ESLogger logger) {
+        long getMaxMapCount(Logger logger) {
             final Path path = getProcSysVmMaxMapCountPath();
             try (final BufferedReader bufferedReader = getBufferedReader(path)) {
                 final String rawProcSysVmMaxMapCount = readProcSysVmMaxMapCount(bufferedReader);
@@ -452,11 +433,15 @@ final class BootstrapCheck {
                     try {
                         return parseProcSysVmMaxMapCount(rawProcSysVmMaxMapCount);
                     } catch (final NumberFormatException e) {
-                        logger.warn("unable to parse vm.max_map_count [{}]", e, rawProcSysVmMaxMapCount);
+                        logger.warn(
+                            (Supplier<?>) () -> new ParameterizedMessage(
+                                "unable to parse vm.max_map_count [{}]",
+                                rawProcSysVmMaxMapCount),
+                            e);
                     }
                 }
             } catch (final IOException e) {
-                logger.warn("I/O exception while trying to read [{}]", e, path);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("I/O exception while trying to read [{}]", path), e);
             }
             return -1;
         }

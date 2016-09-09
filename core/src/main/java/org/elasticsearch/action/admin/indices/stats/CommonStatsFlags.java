@@ -19,17 +19,15 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.EnumSet;
 
-/**
- */
-public class CommonStatsFlags implements Streamable, Cloneable {
+public class CommonStatsFlags implements Writeable, Cloneable {
 
     public static final CommonStatsFlags ALL = new CommonStatsFlags().all();
     public static final CommonStatsFlags NONE = new CommonStatsFlags().clear();
@@ -41,19 +39,45 @@ public class CommonStatsFlags implements Streamable, Cloneable {
     private String[] completionDataFields = null;
     private boolean includeSegmentFileSizes = false;
 
-
     /**
      * @param flags flags to set. If no flags are supplied, default flags will be set.
      */
     public CommonStatsFlags(Flag... flags) {
         if (flags.length > 0) {
             clear();
-            for (Flag f : flags) {
-                this.flags.add(f);
-            }
+            Collections.addAll(this.flags, flags);
         }
     }
 
+    public CommonStatsFlags(StreamInput in) throws IOException {
+        final long longFlags = in.readLong();
+        flags.clear();
+        for (Flag flag : Flag.values()) {
+            if ((longFlags & (1 << flag.ordinal())) != 0) {
+                flags.add(flag);
+            }
+        }
+        types = in.readStringArray();
+        groups = in.readStringArray();
+        fieldDataFields = in.readStringArray();
+        completionDataFields = in.readStringArray();
+        includeSegmentFileSizes = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        long longFlags = 0;
+        for (Flag flag : flags) {
+            longFlags |= (1 << flag.ordinal());
+        }
+        out.writeLong(longFlags);
+
+        out.writeStringArrayNullable(types);
+        out.writeStringArrayNullable(groups);
+        out.writeStringArrayNullable(fieldDataFields);
+        out.writeStringArrayNullable(completionDataFields);
+        out.writeBoolean(includeSegmentFileSizes);
+    }
 
     /**
      * Sets all flags to return all stats.
@@ -162,7 +186,6 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         flags.add(flag);
     }
 
-
     public CommonStatsFlags set(Flag flag, boolean add) {
         if (add) {
             set(flag);
@@ -170,49 +193,6 @@ public class CommonStatsFlags implements Streamable, Cloneable {
             unSet(flag);
         }
         return this;
-    }
-
-    public static CommonStatsFlags readCommonStatsFlags(StreamInput in) throws IOException {
-        CommonStatsFlags flags = new CommonStatsFlags();
-        flags.readFrom(in);
-        return flags;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        long longFlags = 0;
-        for (Flag flag : flags) {
-            longFlags |= (1 << flag.ordinal());
-        }
-        out.writeLong(longFlags);
-
-        out.writeStringArrayNullable(types);
-        out.writeStringArrayNullable(groups);
-        out.writeStringArrayNullable(fieldDataFields);
-        out.writeStringArrayNullable(completionDataFields);
-        if (out.getVersion().onOrAfter(Version.V_5_0_0_alpha1)) {
-            out.writeBoolean(includeSegmentFileSizes);
-        }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        final long longFlags = in.readLong();
-        flags.clear();
-        for (Flag flag : Flag.values()) {
-            if ((longFlags & (1 << flag.ordinal())) != 0) {
-                flags.add(flag);
-            }
-        }
-        types = in.readStringArray();
-        groups = in.readStringArray();
-        fieldDataFields = in.readStringArray();
-        completionDataFields = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_5_0_0_alpha1)) {
-            includeSegmentFileSizes = in.readBoolean();
-        } else {
-            includeSegmentFileSizes = false;
-        }
     }
 
     @Override
@@ -226,7 +206,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         }
     }
 
-    public static enum Flag {
+    public enum Flag {
         // Do not change the order of these flags we use
         // the ordinal for encoding! Only append to the end!
         Store("store"),
@@ -247,7 +227,6 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         RequestCache("request_cache"),
         Recovery("recovery");
 
-
         private final String restName;
 
         Flag(String restName) {
@@ -257,6 +236,5 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         public String getRestName() {
             return restName;
         }
-
     }
 }

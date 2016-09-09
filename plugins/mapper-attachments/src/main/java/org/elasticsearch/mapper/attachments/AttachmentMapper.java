@@ -19,6 +19,7 @@
 
 package org.elasticsearch.mapper.attachments;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
@@ -26,23 +27,22 @@ import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.core.TextFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
@@ -52,7 +52,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
+import static org.elasticsearch.index.mapper.TypeParsers.parseMultiField;
 
 /**
  * <pre>
@@ -75,7 +75,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
  */
 public class AttachmentMapper extends FieldMapper {
 
-    private static ESLogger logger = ESLoggerFactory.getLogger("mapper.attachment");
+    private static Logger logger = ESLoggerFactory.getLogger("mapper.attachment");
     public static final Setting<Boolean> INDEX_ATTACHMENT_IGNORE_ERRORS_SETTING =
         Setting.boolSetting("index.mapping.attachment.ignore_errors", true, Property.IndexScope);
     public static final Setting<Boolean> INDEX_ATTACHMENT_DETECT_LANGUAGE_SETTING =
@@ -653,4 +653,5 @@ public class AttachmentMapper extends FieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
+
 }

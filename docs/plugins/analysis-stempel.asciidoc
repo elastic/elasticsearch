@@ -40,4 +40,3 @@ The node must be stopped before removing the plugin.
 
 The plugin provides the `polish` analyzer and `polish_stem` token filter,
 which are not configurable.
-

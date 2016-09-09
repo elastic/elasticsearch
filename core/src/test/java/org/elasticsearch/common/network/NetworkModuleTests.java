@@ -19,20 +19,12 @@
 
 package org.elasticsearch.common.network;
 
-import java.io.IOException;
-import java.util.Collections;
-
-import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.ModuleTestCase;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerAdapter;
 import org.elasticsearch.http.HttpServerTransport;
@@ -41,10 +33,11 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Collections;
 
 public class NetworkModuleTests extends ModuleTestCase {
 
@@ -167,41 +160,5 @@ public class NetworkModuleTests extends ModuleTestCase {
         module = new NetworkModule(new NetworkService(settings, Collections.emptyList()), settings, false);
         assertNotBound(module, HttpServerTransport.class);
         assertFalse(module.isTransportClient());
-    }
-
-    public void testRegisterTaskStatus() {
-        Settings settings = Settings.EMPTY;
-        NetworkModule module = new NetworkModule(new NetworkService(settings, Collections.emptyList()), settings, false);
-        NamedWriteableRegistry registry = new NamedWriteableRegistry(module.getNamedWriteables());
-        assertFalse(module.isTransportClient());
-
-        // Builtin reader comes back
-        assertNotNull(registry.getReader(Task.Status.class, ReplicationTask.Status.NAME));
-
-        module.registerTaskStatus(DummyTaskStatus.NAME, DummyTaskStatus::new);
-        assertTrue(module.getNamedWriteables().stream().anyMatch(x -> x.name.equals(DummyTaskStatus.NAME)));
-    }
-
-    private class DummyTaskStatus implements Task.Status {
-        public static final String NAME = "dummy";
-
-        public DummyTaskStatus(StreamInput in) {
-            throw new UnsupportedOperationException("test");
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            throw new UnsupportedOperationException();
-        }
     }
 }

@@ -57,6 +57,9 @@ public class RethrottleTests extends ReindexTestCase {
         request.source().setSize(1);             // Make sure we use multiple batches
         ListenableActionFuture<? extends BulkIndexByScrollResponse> responseListener = request.execute();
 
+        // Wait for the task to start
+        assertBusy(() -> assertEquals(1, client().admin().cluster().prepareListTasks().setActions(actionName).get().getTasks().size()));
+
         // Now rethrottle it so it'll finish
         ListTasksResponse rethrottleResponse = rethrottle().setActions(actionName).setRequestsPerSecond(Float.POSITIVE_INFINITY).get();
         assertThat(rethrottleResponse.getTasks(), hasSize(1));

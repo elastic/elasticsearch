@@ -81,7 +81,7 @@ public class TruncateTranslogIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class, MockEngineFactoryPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class, MockEngineFactoryPlugin.class);
     }
 
     public void testCorruptTranslogTruncation() throws Exception {

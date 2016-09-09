@@ -19,6 +19,8 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -50,7 +52,8 @@ import java.util.concurrent.locks.ReentrantLock;
 public class IndexingMemoryController extends AbstractComponent implements IndexingOperationListener, Closeable {
 
     /** How much heap (% or bytes) we will share across all actively indexing shards on this node (default: 10%). */
-    public static final Setting<ByteSizeValue> INDEX_BUFFER_SIZE_SETTING = Setting.byteSizeSetting("indices.memory.index_buffer_size", "10%", Property.NodeScope);
+    public static final Setting<ByteSizeValue> INDEX_BUFFER_SIZE_SETTING = 
+            Setting.memorySizeSetting("indices.memory.index_buffer_size", "10%", Property.NodeScope);
 
     /** Only applies when <code>indices.memory.index_buffer_size</code> is a %, to set a floor on the actual size in bytes (default: 48 MB). */
     public static final Setting<ByteSizeValue> MIN_INDEX_BUFFER_SIZE_SETTING = Setting.byteSizeSetting("indices.memory.min_index_buffer_size",
@@ -177,7 +180,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn("failed to write indexing buffer for shard [{}]; ignoring", e, shard.shardId());
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to write indexing buffer for shard [{}]; ignoring", shard.shardId()), e);
             }
         });
     }

@@ -32,13 +32,21 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -46,6 +54,8 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.HasChildQueryBuilder;
+import org.elasticsearch.index.query.HasParentQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -55,7 +65,11 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -64,7 +78,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
@@ -91,7 +108,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(PercolatorPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, PercolatorPlugin.class, FoolMeScriptPlugin.class);
     }
 
     @Before
@@ -429,23 +446,31 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
     }
 
-    public void testVerifyRangeQueries() {
+    public void testUnsupportedQueries() {
         RangeQueryBuilder rangeQuery1 = new RangeQueryBuilder("field").from("2016-01-01||/D").to("2017-01-01||/D");
         RangeQueryBuilder rangeQuery2 = new RangeQueryBuilder("field").from("2016-01-01||/D").to("now");
-        PercolatorFieldMapper.verifyRangeQueries(rangeQuery1);
-        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyRangeQueries(rangeQuery2));
-        PercolatorFieldMapper.verifyRangeQueries(new BoolQueryBuilder().must(rangeQuery1));
+        PercolatorFieldMapper.verifyQuery(rangeQuery1);
+        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(rangeQuery2));
+        PercolatorFieldMapper.verifyQuery(new BoolQueryBuilder().must(rangeQuery1));
         expectThrows(IllegalArgumentException.class, () ->
-                PercolatorFieldMapper.verifyRangeQueries(new BoolQueryBuilder().must(rangeQuery2)));
-        PercolatorFieldMapper.verifyRangeQueries(new ConstantScoreQueryBuilder((rangeQuery1)));
+                PercolatorFieldMapper.verifyQuery(new BoolQueryBuilder().must(rangeQuery2)));
+        PercolatorFieldMapper.verifyQuery(new ConstantScoreQueryBuilder((rangeQuery1)));
         expectThrows(IllegalArgumentException.class, () ->
-                PercolatorFieldMapper.verifyRangeQueries(new ConstantScoreQueryBuilder(rangeQuery2)));
-        PercolatorFieldMapper.verifyRangeQueries(new BoostingQueryBuilder(rangeQuery1, new MatchAllQueryBuilder()));
+                PercolatorFieldMapper.verifyQuery(new ConstantScoreQueryBuilder(rangeQuery2)));
+        PercolatorFieldMapper.verifyQuery(new BoostingQueryBuilder(rangeQuery1, new MatchAllQueryBuilder()));
         expectThrows(IllegalArgumentException.class, () ->
-                PercolatorFieldMapper.verifyRangeQueries(new BoostingQueryBuilder(rangeQuery2, new MatchAllQueryBuilder())));
-        PercolatorFieldMapper.verifyRangeQueries(new FunctionScoreQueryBuilder(rangeQuery1, new RandomScoreFunctionBuilder()));
+                PercolatorFieldMapper.verifyQuery(new BoostingQueryBuilder(rangeQuery2, new MatchAllQueryBuilder())));
+        PercolatorFieldMapper.verifyQuery(new FunctionScoreQueryBuilder(rangeQuery1, new RandomScoreFunctionBuilder()));
         expectThrows(IllegalArgumentException.class, () ->
-                PercolatorFieldMapper.verifyRangeQueries(new FunctionScoreQueryBuilder(rangeQuery2, new RandomScoreFunctionBuilder())));
+                PercolatorFieldMapper.verifyQuery(new FunctionScoreQueryBuilder(rangeQuery2, new RandomScoreFunctionBuilder())));
+
+        HasChildQueryBuilder hasChildQuery = new HasChildQueryBuilder("_type", new MatchAllQueryBuilder(), ScoreMode.None);
+        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(hasChildQuery));
+        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(new BoolQueryBuilder().must(hasChildQuery)));
+
+        HasParentQueryBuilder hasParentQuery = new HasParentQueryBuilder("_type", new MatchAllQueryBuilder(), false);
+        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(hasParentQuery));
+        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(new BoolQueryBuilder().must(hasParentQuery)));
     }
 
     private void assertQueryBuilder(BytesRef actual, QueryBuilder expected) throws IOException {
@@ -454,4 +479,93 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         QueryParseContext qsc = indexService.newQueryShardContext().newParseContext(sourceParser);
         assertThat(qsc.parseInnerQueryBuilder().get(), equalTo(expected));
     }
+
+
+    public void testEmptyName() throws Exception {
+        // after 5.x
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("").field("type", "percolator").endObject().endObject()
+            .endObject().endObject().string();
+        DocumentMapperParser parser = mapperService.documentMapperParser();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parser.parse("type1", new CompressedXContent(mapping))
+        );
+        assertThat(e.getMessage(), containsString("name cannot be empty string"));
+
+        // before 5.x
+        Version oldVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_2_0_0, Version.V_2_3_5);
+        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, oldVersion).build();
+        DocumentMapperParser parser2x = createIndex("test_old", oldIndexSettings).mapperService().documentMapperParser();
+
+        DocumentMapper defaultMapper = parser2x.parse("type1", new CompressedXContent(mapping));
+        assertEquals(mapping, defaultMapper.mappingSource().string());
+    }
+
+    public void testImplicitlySetDefaultScriptLang() throws Exception {
+        addQueryMapping();
+        XContentBuilder query = jsonBuilder();
+        query.startObject();
+        query.startObject("script");
+        if (randomBoolean()) {
+            query.field("script", "return true");
+        } else {
+            query.startObject("script");
+            query.field("inline", "return true");
+            query.endObject();
+        }
+        query.endObject();
+        query.endObject();
+
+        ParsedDocument doc = mapperService.documentMapper(typeName).parse("test", typeName, "1",
+                XContentFactory.jsonBuilder().startObject()
+                        .rawField(fieldName, new BytesArray(query.string()))
+                        .endObject().bytes());
+        BytesRef querySource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
+        Map<String, Object> parsedQuery = XContentHelper.convertToMap(new BytesArray(querySource), true).v2();
+        assertEquals(Script.DEFAULT_SCRIPT_LANG, XContentMapValues.extractValue("script.script.lang", parsedQuery));
+
+        query = jsonBuilder();
+        query.startObject();
+        query.startObject("function_score");
+        query.startArray("functions");
+        query.startObject();
+        query.startObject("script_score");
+        if (randomBoolean()) {
+            query.field("script", "return true");
+        } else {
+            query.startObject("script");
+            query.field("inline", "return true");
+            query.endObject();
+        }
+        query.endObject();
+        query.endObject();
+        query.endArray();
+        query.endObject();
+        query.endObject();
+
+        doc = mapperService.documentMapper(typeName).parse("test", typeName, "1",
+                XContentFactory.jsonBuilder().startObject()
+                        .rawField(fieldName, new BytesArray(query.string()))
+                        .endObject().bytes());
+        querySource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
+        parsedQuery = XContentHelper.convertToMap(new BytesArray(querySource), true).v2();
+        assertEquals(Script.DEFAULT_SCRIPT_LANG,
+                ((List) XContentMapValues.extractValue("function_score.functions.script_score.script.lang", parsedQuery)).get(0));
+    }
+
+    // Just so that we store scripts in percolator queries, but not really execute these scripts.
+    public static class FoolMeScriptPlugin extends MockScriptPlugin {
+
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Collections.singletonMap("return true", (vars) -> true);
+        }
+
+        @Override
+        public String pluginScriptLang() {
+            return Script.DEFAULT_SCRIPT_LANG;
+        }
+    }
+
 }

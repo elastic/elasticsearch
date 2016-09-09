@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.PluginInfo;
@@ -34,13 +34,24 @@ import java.util.List;
 /**
  * Information about plugins and modules
  */
-public class PluginsAndModules implements Streamable, ToXContent {
-    private List<PluginInfo> plugins;
-    private List<PluginInfo> modules;
+public class PluginsAndModules implements Writeable, ToXContent {
+    private final List<PluginInfo> plugins;
+    private final List<PluginInfo> modules;
 
-    public PluginsAndModules() {
-        plugins = new ArrayList<>();
-        modules = new ArrayList<>();
+    public PluginsAndModules(List<PluginInfo> plugins, List<PluginInfo> modules) {
+        this.plugins = Collections.unmodifiableList(plugins);
+        this.modules = Collections.unmodifiableList(modules);
+    }
+
+    public PluginsAndModules(StreamInput in) throws IOException {
+        this.plugins = Collections.unmodifiableList(in.readList(PluginInfo::new));
+        this.modules = Collections.unmodifiableList(in.readList(PluginInfo::new));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeList(plugins);
+        out.writeList(modules);
     }
 
     /**
@@ -67,33 +78,6 @@ public class PluginsAndModules implements Streamable, ToXContent {
     
     public void addModule(PluginInfo info) {
         modules.add(info);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        if (plugins.isEmpty() == false || modules.isEmpty() == false) {
-            throw new IllegalStateException("instance is already populated");
-        }
-        int plugins_size = in.readInt();
-        for (int i = 0; i < plugins_size; i++) {
-            plugins.add(PluginInfo.readFromStream(in));
-        }
-        int modules_size = in.readInt();
-        for (int i = 0; i < modules_size; i++) {
-            modules.add(PluginInfo.readFromStream(in));
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(plugins.size());
-        for (PluginInfo plugin : getPluginInfos()) {
-            plugin.writeTo(out);
-        }
-        out.writeInt(modules.size());
-        for (PluginInfo module : getModuleInfos()) {
-            module.writeTo(out);
-        }
     }
 
     @Override

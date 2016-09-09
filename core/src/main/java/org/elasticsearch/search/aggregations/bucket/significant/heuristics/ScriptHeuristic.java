@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLoggerFactory;
@@ -35,6 +34,7 @@ import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -146,8 +146,9 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         return Objects.equals(script, other.script);
     }
 
-    public static SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher)
+    public static SignificanceHeuristic parse(XContentParseContext context)
             throws IOException, QueryShardException {
+        XContentParser parser = context.getParser();
         String heuristicName = parser.currentName();
         Script script = null;
         XContentParser.Token token;
@@ -156,8 +157,8 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             if (token.equals(XContentParser.Token.FIELD_NAME)) {
                 currentFieldName = parser.currentName();
             } else {
-                if (parseFieldMatcher.match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, parseFieldMatcher);
+                if (context.matchField(currentFieldName, ScriptField.SCRIPT)) {
+                    script = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                 } else {
                     throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown object [{}]", heuristicName, currentFieldName);
                 }

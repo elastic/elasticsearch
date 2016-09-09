@@ -20,6 +20,11 @@ nbactions.xml
 .gradle/
 build/
 
+# gradle wrapper 
+/gradle/
+gradlew
+gradlew.bat
+
 # maven stuff (to be removed when trunk becomes 4.x)
 *-execution-hints.log
 target/

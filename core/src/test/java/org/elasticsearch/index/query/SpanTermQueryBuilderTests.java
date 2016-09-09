@@ -120,6 +120,15 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
                 "}";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[span_term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+
+        String shortJson = "{\n" +
+                "  \"span_term\" : {\n" +
+                "    \"message1\" : \"this\",\n" +
+                "    \"message2\" : \"this\"\n" +
+                "  }\n" +
+                "}";
+        e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
+        assertEquals("[span_term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 
 }

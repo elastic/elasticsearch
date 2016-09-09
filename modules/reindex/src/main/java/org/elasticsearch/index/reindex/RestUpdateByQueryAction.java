@@ -32,6 +32,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 
@@ -48,9 +49,8 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
 
     @Inject
     public RestUpdateByQueryAction(Settings settings, RestController controller,
-            IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
-            ClusterService clusterService) {
-        super(settings, indicesQueriesRegistry, aggParsers, suggesters, clusterService, UpdateByQueryAction.INSTANCE);
+            SearchRequestParsers searchRequestParsers, ClusterService clusterService) {
+        super(settings, searchRequestParsers, clusterService, UpdateByQueryAction.INSTANCE);
         controller.registerHandler(POST, "/{index}/_update_by_query", this);
         controller.registerHandler(POST, "/{index}/{type}/_update_by_query", this);
     }

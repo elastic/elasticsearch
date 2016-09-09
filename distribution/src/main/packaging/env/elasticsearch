@@ -24,7 +24,7 @@
 #ES_JAVA_OPTS=
 
 # Configure restart on package upgrade (true, every other setting will lead to not restarting)
-#ES_RESTART_ON_UPGRADE=true
+#RESTART_ON_UPGRADE=true
 
 ################################
 # Elasticsearch service

@@ -105,16 +105,17 @@ The following parameters are accepted by `geo_point` fields:
 
     Should the geo-point also be indexed as a geohash in the `.geohash`
     sub-field? Defaults to `false`, unless `geohash_prefix` is `true`.
+    deprecated[2.4]
 
 <<geohash-precision,`geohash_precision`>>::
 
     The maximum length of the geohash to use for the `geohash` and
-    `geohash_prefix` options.
+    `geohash_prefix` options. deprecated[2.4]
 
 <<geohash-prefix,`geohash_prefix`>>::
 
     Should the geo-point also be indexed as a geohash plus all its prefixes?
-    Defaults to `false`.
+    Defaults to `false`. deprecated[2.4]
 
 <<ignore-malformed,`ignore_malformed`>>::
 
@@ -124,7 +125,7 @@ The following parameters are accepted by `geo_point` fields:
 <<lat-lon,`lat_lon`>>::
 
     Should the geo-point also be indexed as `.lat` and `.lon` sub-fields?
-    Accepts `true` and `false` (default).
+    Accepts `true` and `false` (default). deprecated[2.3]
 
 ==== Using geo-points in scripts
 

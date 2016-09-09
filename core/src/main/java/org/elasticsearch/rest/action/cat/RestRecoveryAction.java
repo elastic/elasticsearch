@@ -24,6 +24,8 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
@@ -34,8 +36,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.Comparator;
 import java.util.List;
@@ -148,14 +149,16 @@ public class RestRecoveryAction extends AbstractCatAction {
                 t.addCell(index);
                 t.addCell(state.getShardId().id());
                 t.addCell(new TimeValue(state.getTimer().time()));
-                t.addCell(state.getType().toString().toLowerCase(Locale.ROOT));
+                t.addCell(state.getRecoverySource().getType().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getStage().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName());
                 t.addCell(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getName());
                 t.addCell(state.getTargetNode().getHostName());
                 t.addCell(state.getTargetNode().getName());
-                t.addCell(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshot().getRepository());
-                t.addCell(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshot().getSnapshotId().getName());
+                t.addCell(state.getRecoverySource() == null || state.getRecoverySource().getType() != RecoverySource.Type.SNAPSHOT ? "n/a" :
+                    ((SnapshotRecoverySource) state.getRecoverySource()).snapshot().getRepository());
+                t.addCell(state.getRecoverySource() == null || state.getRecoverySource().getType() != RecoverySource.Type.SNAPSHOT ? "n/a" :
+                    ((SnapshotRecoverySource) state.getRecoverySource()).snapshot().getSnapshotId().getName());
                 t.addCell(state.getIndex().totalRecoverFiles());
                 t.addCell(state.getIndex().recoveredFileCount());
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredFilesPercent()));

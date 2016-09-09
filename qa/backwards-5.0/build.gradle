@@ -18,6 +18,6 @@ integTest {
   cluster {
     numNodes = 2
     numBwcNodes = 1
-    bwcVersion = "5.0.0-alpha5-SNAPSHOT" // this is the same as the current version until we released the first RC
+    bwcVersion = "6.0.0-alpha1-SNAPSHOT" // this is the same as the current version until we released the first RC
   }
 }

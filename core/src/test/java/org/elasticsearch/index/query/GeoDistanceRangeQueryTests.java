@@ -46,7 +46,6 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
 
     @Override
     protected GeoDistanceRangeQueryBuilder doCreateTestQueryBuilder() {
-        Version version = createShardContext().indexVersionCreated();
         GeoDistanceRangeQueryBuilder builder;
         GeoPoint randomPoint = RandomGeoGenerator.randomPointIn(random(), -180.0, -89.9, 180.0, 89.9);
         if (randomBoolean()) {
@@ -105,9 +104,6 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
         }
         if (randomBoolean()) {
             builder.geoDistance(randomFrom(GeoDistance.values()));
-        }
-        if (randomBoolean() && version.before(Version.V_2_2_0)) {
-            builder.optimizeBbox(randomFrom("none", "memory", "indexed"));
         }
         builder.unit(fromToUnits);
         if (randomBoolean()) {
@@ -245,14 +241,6 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
         assertEquals("[to] must not be null", e.getMessage());
     }
 
-    public void testInvalidOptimizeBBox() {
-        GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, new GeoPoint());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.optimizeBbox(null));
-        assertEquals("optimizeBbox must not be null", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class, () -> builder.optimizeBbox("foo"));
-        assertEquals("optimizeBbox must be one of [none, memory, indexed]", e.getMessage());
-    }
-
     public void testInvalidGeoDistance() {
         GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, new GeoPoint());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.geoDistance(null));
@@ -306,7 +294,6 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
                 "    \"include_upper\" : true,\n" +
                 "    \"unit\" : \"m\",\n" +
                 "    \"distance_type\" : \"sloppy_arc\",\n" +
-                "    \"optimize_bbox\" : \"memory\",\n" +
                 "    \"validation_method\" : \"STRICT\",\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
@@ -315,6 +302,26 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
         GeoDistanceRangeQueryBuilder parsed = (GeoDistanceRangeQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, -70.0, parsed.point().lon(), 0.0001);
+    }
+
+    public void testFromJsonOptimizeBboxFails() throws IOException {
+        String json =
+            "{\n" +
+                "  \"geo_distance_range\" : {\n" +
+                "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
+                "    \"from\" : \"200km\",\n" +
+                "    \"to\" : \"400km\",\n" +
+                "    \"include_lower\" : true,\n" +
+                "    \"include_upper\" : true,\n" +
+                "    \"unit\" : \"m\",\n" +
+                "    \"distance_type\" : \"sloppy_arc\",\n" +
+                "    \"optimize_bbox\" : \"memory\",\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
     }
 
     public void testFromJsonCoerceFails() throws IOException {
@@ -328,7 +335,6 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
                 "    \"include_upper\" : true,\n" +
                 "    \"unit\" : \"m\",\n" +
                 "    \"distance_type\" : \"sloppy_arc\",\n" +
-                "    \"optimize_bbox\" : \"memory\",\n" +
                 "    \"coerce\" : true,\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
@@ -349,7 +355,6 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
                 "    \"include_upper\" : true,\n" +
                 "    \"unit\" : \"m\",\n" +
                 "    \"distance_type\" : \"sloppy_arc\",\n" +
-                "    \"optimize_bbox\" : \"memory\",\n" +
                 "    \"ignore_malformed\" : true,\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +

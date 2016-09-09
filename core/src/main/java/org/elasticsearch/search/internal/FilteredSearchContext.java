@@ -32,9 +32,10 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -45,10 +46,10 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseContext;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
-import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
-import org.elasticsearch.search.highlight.SearchContextHighlight;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
+import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -67,6 +68,31 @@ public abstract class FilteredSearchContext extends SearchContext {
         //inner_hits in percolator ends up with null inner search context
         super(in == null ? ParseFieldMatcher.EMPTY : in.parseFieldMatcher());
         this.in = in;
+    }
+
+    @Override
+    public boolean hasStoredFields() {
+        return in.hasStoredFields();
+    }
+
+    @Override
+    public boolean hasStoredFieldsContext() {
+        return in.hasStoredFieldsContext();
+    }
+
+    @Override
+    public boolean storedFieldsRequested() {
+        return in.storedFieldsRequested();
+    }
+
+    @Override
+    public StoredFieldsContext storedFieldsContext() {
+        return in.storedFieldsContext();
+    }
+
+    @Override
+    public SearchContext storedFieldsContext(StoredFieldsContext storedFieldsContext) {
+        return in.storedFieldsContext(storedFieldsContext);
     }
 
     @Override
@@ -374,20 +400,6 @@ public abstract class FilteredSearchContext extends SearchContext {
         return in.size(size);
     }
 
-    @Override
-    public boolean hasFieldNames() {
-        return in.hasFieldNames();
-    }
-
-    @Override
-    public List<String> fieldNames() {
-        return in.fieldNames();
-    }
-
-    @Override
-    public void emptyFieldNames() {
-        in.emptyFieldNames();
-    }
 
     @Override
     public boolean explain() {

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.tribe;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -117,6 +119,9 @@ public class TribeService extends AbstractLifecycleComponent {
         sb.put(Node.NODE_MASTER_SETTING.getKey(), false);
         sb.put(Node.NODE_DATA_SETTING.getKey(), false);
         sb.put(Node.NODE_INGEST_SETTING.getKey(), false);
+        if (!NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.exists(settings)) {
+            sb.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), nodesSettings.size());
+        }
         sb.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local"); // a tribe node should not use zen discovery
         // nothing is going to be discovered, since no master will be elected
         sb.put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0);
@@ -271,7 +276,7 @@ public class TribeService extends AbstractLifecycleComponent {
                         otherNode.close();
                     } catch (Exception inner) {
                         inner.addSuppressed(e);
-                        logger.warn("failed to close node {} on failed start", inner, otherNode);
+                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to close node {} on failed start", otherNode), inner);
                     }
                 }
                 if (e instanceof RuntimeException) {
@@ -293,7 +298,7 @@ public class TribeService extends AbstractLifecycleComponent {
             try {
                 node.close();
             } catch (Exception e) {
-                logger.warn("failed to close node {}", e, node);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to close node {}", node), e);
             }
         }
     }
@@ -317,7 +322,7 @@ public class TribeService extends AbstractLifecycleComponent {
                     event,
                     ClusterStateTaskConfig.build(Priority.NORMAL),
                     executor,
-                    (source, e) -> logger.warn("failed to process [{}]", e, source));
+                    (source, e) -> logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to process [{}]", source), e));
         }
     }
 

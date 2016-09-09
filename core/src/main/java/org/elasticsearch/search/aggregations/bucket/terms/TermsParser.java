@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -27,6 +26,7 @@ import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -75,15 +75,16 @@ public class TermsParser extends AbstractTermsParser {
     }
 
     @Override
-    public boolean parseSpecial(String aggregationName, XContentParser parser, ParseFieldMatcher parseFieldMatcher, Token token,
-            String currentFieldName, Map<ParseField, Object> otherOptions) throws IOException {
+    public boolean parseSpecial(String aggregationName, XContentParseContext context, Token token,
+                                String currentFieldName, Map<ParseField, Object> otherOptions) throws IOException {
+        XContentParser parser = context.getParser();
         if (token == XContentParser.Token.START_OBJECT) {
-            if (parseFieldMatcher.match(currentFieldName, TermsAggregationBuilder.ORDER_FIELD)) {
+            if (context.matchField(currentFieldName, TermsAggregationBuilder.ORDER_FIELD)) {
                 otherOptions.put(TermsAggregationBuilder.ORDER_FIELD, Collections.singletonList(parseOrderParam(aggregationName, parser)));
                 return true;
             }
         } else if (token == XContentParser.Token.START_ARRAY) {
-            if (parseFieldMatcher.match(currentFieldName, TermsAggregationBuilder.ORDER_FIELD)) {
+            if (context.matchField(currentFieldName, TermsAggregationBuilder.ORDER_FIELD)) {
                 List<OrderElement> orderElements = new ArrayList<>();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     if (token == XContentParser.Token.START_OBJECT) {
@@ -98,7 +99,7 @@ public class TermsParser extends AbstractTermsParser {
                 return true;
             }
         } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-            if (parseFieldMatcher.match(currentFieldName, TermsAggregationBuilder.SHOW_TERM_DOC_COUNT_ERROR)) {
+            if (context.matchField(currentFieldName, TermsAggregationBuilder.SHOW_TERM_DOC_COUNT_ERROR)) {
                 otherOptions.put(TermsAggregationBuilder.SHOW_TERM_DOC_COUNT_ERROR, parser.booleanValue());
                 return true;
             }

@@ -32,6 +32,12 @@ import java.util.regex.Matcher
  * Generates REST tests for each snippet marked // TEST.
  */
 public class RestTestsFromSnippetsTask extends SnippetsTask {
+    /**
+     * These languages aren't supported by the syntax highlighter so we
+     * shouldn't use them.
+     */
+    private static final List BAD_LANGUAGES = ['json', 'javascript']
+
     @Input
     Map<String, String> setups = new HashMap()
 
@@ -87,9 +93,9 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
          * calls buildTest to actually build the test.
          */
         void handleSnippet(Snippet snippet) {
-            if (snippet.language == 'json') {
+            if (BAD_LANGUAGES.contains(snippet.language)) {
                 throw new InvalidUserDataException(
-                        "$snippet: Use `js` instead of `json`.")
+                        "$snippet: Use `js` instead of `${snippet.language}`.")
             }
             if (snippet.testSetup) {
                 setup(snippet)
@@ -111,7 +117,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
 
             if (false == test.continued) {
                 current.println('---')
-                current.println("\"$test.start\":")
+                current.println("\"line_$test.start\":")
             }
             if (test.skipTest) {
                 current.println("  - skip:")
@@ -140,6 +146,9 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
         void emitDo(String method, String pathAndQuery, String body,
                 String catchPart, List warnings, boolean inSetup) {
             def (String path, String query) = pathAndQuery.tokenize('?')
+            if (path == null) {
+                path = '' // Catch requests to the root...
+            }
             current.println("  - do:")
             if (catchPart != null) {
                 current.println("      catch: $catchPart")

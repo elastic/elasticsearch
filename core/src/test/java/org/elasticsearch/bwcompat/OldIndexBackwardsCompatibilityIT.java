@@ -24,15 +24,18 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -45,8 +48,9 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.index.mapper.string.StringFieldMapperPositionIncrementGapTests;
+import org.elasticsearch.index.mapper.StringFieldMapperPositionIncrementGapTests;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -68,6 +72,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -90,7 +95,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class);
     }
 
     List<String> indexes;
@@ -102,8 +107,8 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     @Before
     public void initIndexesList() throws Exception {
-        indexes = OldIndexUtils.loadIndexesList("index", getBwcIndicesPath());
-        unsupportedIndexes = OldIndexUtils.loadIndexesList("unsupported", getBwcIndicesPath());
+        indexes = OldIndexUtils.loadDataFilesList("index", getBwcIndicesPath());
+        unsupportedIndexes = OldIndexUtils.loadDataFilesList("unsupported", getBwcIndicesPath());
     }
 
     @AfterClass
@@ -248,15 +253,43 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         Version actualVersionCreated = Version.indexCreated(getIndexResponse.getSettings().get(indexName));
         assertEquals(indexCreated, actualVersionCreated);
         ensureYellow(indexName);
-        IndicesSegmentResponse segmentsResponse = client().admin().indices().prepareSegments(indexName).get();
-        IndexSegments segments = segmentsResponse.getIndices().get(indexName);
-        for (IndexShardSegments indexShardSegments : segments) {
-            for (ShardSegments shardSegments : indexShardSegments) {
-                for (Segment segment : shardSegments) {
-                    assertEquals(indexCreated.luceneVersion, segment.version);
+        RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName)
+            .setDetailed(true).setActiveOnly(false).get();
+        boolean foundTranslog = false;
+        for (List<RecoveryState> states : recoveryResponse.shardRecoveryStates().values()) {
+            for (RecoveryState state : states) {
+                if (state.getStage() == RecoveryState.Stage.DONE
+                    && state.getPrimary()
+                    && state.getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
+                    assertFalse("more than one primary recoverd?", foundTranslog);
+                    assertNotEquals(0, state.getTranslog().recoveredOperations());
+                    foundTranslog = true;
                 }
             }
         }
+        assertTrue("expected translog but nothing was recovered", foundTranslog);
+        IndicesSegmentResponse segmentsResponse = client().admin().indices().prepareSegments(indexName).get();
+        IndexSegments segments = segmentsResponse.getIndices().get(indexName);
+        int numCurrent = 0;
+        int numBWC = 0;
+        for (IndexShardSegments indexShardSegments : segments) {
+            for (ShardSegments shardSegments : indexShardSegments) {
+                for (Segment segment : shardSegments) {
+                    if (indexCreated.luceneVersion.equals(segment.version)) {
+                        numBWC++;
+                        if (Version.CURRENT.luceneVersion.equals(segment.version)) {
+                            numCurrent++;
+                        }
+                    } else if (Version.CURRENT.luceneVersion.equals(segment.version)) {
+                        numCurrent++;
+                    } else {
+                        fail("unexpected version " + segment.version);
+                    }
+                }
+            }
+        }
+        assertNotEquals("expected at least 1 current segment after translog recovery", 0, numCurrent);
+        assertNotEquals("expected at least 1 old segment", 0, numBWC);
         SearchResponse test = client().prepareSearch(indexName).get();
         assertThat(test.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
     }
@@ -278,6 +311,14 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         searchRsp = searchReq.get();
         ElasticsearchAssertions.assertNoFailures(searchRsp);
         assertEquals(numDocs, searchRsp.getHits().getTotalHits());
+        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(indexName).get();
+        Version versionCreated = Version.fromId(Integer.parseInt(getSettingsResponse.getSetting(indexName, "index.version.created")));
+        if (versionCreated.onOrAfter(Version.V_2_4_0)) {
+            searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.existsQuery("field.with.dots"));
+            searchRsp = searchReq.get();
+            ElasticsearchAssertions.assertNoFailures(searchRsp);
+            assertEquals(numDocs, searchRsp.getHits().getTotalHits());
+        }
     }
 
     boolean findPayloadBoostInExplanation(Explanation expl) {

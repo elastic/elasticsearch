@@ -19,6 +19,8 @@
 
 package org.elasticsearch.discovery.zen.fd;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,7 +36,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -42,6 +43,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -283,8 +285,13 @@ public class MasterFaultDetection extends FaultDetection {
                                     }
 
                                     int retryCount = ++MasterFaultDetection.this.retryCount;
-                                    logger.trace("[master] failed to ping [{}], retry [{}] out of [{}]", exp, masterNode, retryCount,
-                                        pingRetryCount);
+                                    logger.trace(
+                                        (Supplier<?>) () -> new ParameterizedMessage(
+                                            "[master] failed to ping [{}], retry [{}] out of [{}]",
+                                            masterNode,
+                                            retryCount,
+                                            pingRetryCount),
+                                        exp);
                                     if (retryCount >= pingRetryCount) {
                                         logger.debug("[master] failed to ping [{}], tried [{}] times, each with maximum [{}] timeout",
                                             masterNode, pingRetryCount, pingRetryTimeout);

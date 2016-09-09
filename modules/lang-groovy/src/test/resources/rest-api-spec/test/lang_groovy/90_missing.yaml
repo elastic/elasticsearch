@@ -34,6 +34,7 @@
             script:
               inline: "ctx._source.foo = bar"
               params: { bar: 'xxx' }
+              lang: "groovy"
 
   - do:
       update:

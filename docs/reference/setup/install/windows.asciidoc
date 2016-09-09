@@ -156,7 +156,7 @@ The Elasticsearch service can be configured prior to installation by setting the
 `CONF_DIR`::
 
     Configuration file directory (which needs to include `elasticsearch.yml`
-    and `logging.yml` files), defaults to `%ES_HOME%\conf`.
+    and `log4j2.properties` files), defaults to `%ES_HOME%\conf`.
 
 `ES_JAVA_OPTS`::
 

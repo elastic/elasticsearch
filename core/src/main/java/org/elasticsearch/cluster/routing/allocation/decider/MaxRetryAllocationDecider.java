@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
@@ -49,7 +48,6 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
      *
      * @param settings {@link Settings} used by this {@link AllocationDecider}
      */
-    @Inject
     public MaxRetryAllocationDecider(Settings settings) {
         super(settings);
     }
@@ -79,5 +77,13 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return canAllocate(shardRouting, allocation);
+    }
+
+    @Override
+    public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard " + shardRouting;
+        // check if we have passed the maximum retry threshold through canAllocate,
+        // if so, we don't want to force the primary allocation here
+        return canAllocate(shardRouting, node, allocation);
     }
 }

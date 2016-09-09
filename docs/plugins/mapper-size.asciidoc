@@ -106,4 +106,3 @@ GET my_index/_search
 <2> Aggregating on the `_size` field
 <3> Sorting on the `_size` field
 <4> Accessing the `_size` field in scripts (inline scripts must be modules-security-scripting.html#enable-dynamic-scripting[enabled] for this example to work)
-

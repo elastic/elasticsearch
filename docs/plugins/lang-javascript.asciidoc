@@ -1,6 +1,8 @@
 [[lang-javascript]]
 === JavaScript Language Plugin
 
+deprecated[5.0.0,JavaScript will be replaced by the new scripting language {ref}/modules-scripting-painless.html[`Painless`]]
+
 The JavaScript language plugin enables the use of JavaScript in Elasticsearch
 scripts, via Mozilla's
 https://developer.mozilla.org/en-US/docs/Mozilla/Projects/Rhino[Rhino JavaScript] engine.
@@ -143,7 +145,7 @@ JavaScript:
 First, save this file as `config/scripts/my_script.js` on every node
 in the cluster:
 
-[source,js]
+[source,painless]
 ----
 doc["num"].value * factor
 ----

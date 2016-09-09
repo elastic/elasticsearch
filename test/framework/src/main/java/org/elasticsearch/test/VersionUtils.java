@@ -118,7 +118,7 @@ public class VersionUtils {
         } else if (minVersionIndex > maxVersionIndex) {
             throw new IllegalArgumentException("maxVersion [" + maxVersion + "] cannot be less than minVersion [" + minVersion + "]");
         } else {
-            assert minVersion.id == 5000099 : "remove the hack above";
+            assert minVersion == null || minVersion.id != 5000099 : "remove the hack above"; // will fail once 5.0.0 is released
             // minVersionIndex is inclusive so need to add 1 to this index
             int range = maxVersionIndex + 1 - minVersionIndex;
             return SORTED_VERSIONS.get(minVersionIndex + random.nextInt(range));

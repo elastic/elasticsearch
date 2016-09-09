@@ -269,12 +269,6 @@ public class Node implements Closeable {
                 logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
                     environment.configFile(), Arrays.toString(environment.dataFiles()), environment.logsFile(), environment.pluginsFile());
             }
-            // TODO: Remove this in Elasticsearch 6.0.0
-            if (JsonXContent.unquotedFieldNamesSet) {
-                DeprecationLogger dLogger = new DeprecationLogger(logger);
-                dLogger.deprecated("[{}] has been set, but will be removed in Elasticsearch 6.0.0",
-                    JsonXContent.JSON_ALLOW_UNQUOTED_FIELD_NAMES);
-            }
 
             this.pluginsService = new PluginsService(tmpSettings, environment.modulesFile(), environment.pluginsFile(), classpathPlugins);
             this.settings = pluginsService.updatedSettings();

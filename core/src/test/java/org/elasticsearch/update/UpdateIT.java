@@ -527,15 +527,9 @@ public class UpdateIT extends ESIntegTestCase {
                         .setVersionType(VersionType.EXTERNAL).execute(),
                 ActionRequestValidationException.class);
 
-
-        // With force version
-        client().prepareUpdate(indexOrAlias(), "type", "2")
-                .setScript(new Script("", ScriptService.ScriptType.INLINE,  "put_values", Collections.singletonMap("text", "v10")))
-                .setVersion(10).setVersionType(VersionType.FORCE).get();
-
         GetResponse get = get("test", "type", "2");
         assertThat(get.getVersion(), equalTo(10L));
-        assertThat((String) get.getSource().get("text"), equalTo("v10"));
+        assertThat((String) get.getSource().get("text"), equalTo("value"));
 
         // upserts - the combination with versions is a bit weird. Test are here to ensure we do not change our behavior unintentionally
 

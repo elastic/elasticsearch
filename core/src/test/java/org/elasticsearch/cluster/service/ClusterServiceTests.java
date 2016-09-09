@@ -38,7 +38,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.TestLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -688,7 +688,7 @@ public class ClusterServiceTests extends ESTestCase {
             "*processing [test3]: took [3s] done applying updated cluster_state (version: *, uuid: *)"));
 
         Logger rootLogger = LogManager.getRootLogger();
-        TestLoggers.addAppender(rootLogger, mockAppender);
+        Loggers.addAppender(rootLogger, mockAppender);
         try {
             final CountDownLatch latch = new CountDownLatch(4);
             clusterService.currentTimeOverride = System.nanoTime();
@@ -763,7 +763,7 @@ public class ClusterServiceTests extends ESTestCase {
             });
             latch.await();
         } finally {
-            TestLoggers.removeAppender(rootLogger, mockAppender);
+            Loggers.removeAppender(rootLogger, mockAppender);
         }
         mockAppender.assertAllExpectationsMatched();
     }
@@ -781,7 +781,7 @@ public class ClusterServiceTests extends ESTestCase {
             "*cluster state update task [test4] took [34s] above the warn threshold of *"));
 
         Logger rootLogger = LogManager.getRootLogger();
-        TestLoggers.addAppender(rootLogger, mockAppender);
+        Loggers.addAppender(rootLogger, mockAppender);
         try {
             final CountDownLatch latch = new CountDownLatch(5);
             final CountDownLatch processedFirstTask = new CountDownLatch(1);
@@ -877,7 +877,7 @@ public class ClusterServiceTests extends ESTestCase {
             });
             latch.await();
         } finally {
-            TestLoggers.removeAppender(rootLogger, mockAppender);
+            Loggers.removeAppender(rootLogger, mockAppender);
         }
         mockAppender.assertAllExpectationsMatched();
     }

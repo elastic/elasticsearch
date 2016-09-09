@@ -258,7 +258,7 @@ final class Security {
             addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
         }
         // TODO: this should be removed in ES 6.0! We will no longer support data paths with the cluster as a folder
-        assert Version.CURRENT.major < 6 : "cluster name is no longer used in data path";
+        // https://github.com/elastic/elasticsearch/issues/20391
         for (Path path : environment.dataWithClusterFiles()) {
             addPathIfExists(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
         }

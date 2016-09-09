@@ -479,7 +479,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertResult("{'path':null}", () -> builder().startObject().field("path", (Path) null).endObject());
 
         Path path = PathUtils.get("first", "second", "third");
-        assertResult("{'path':'first/second/third'}", () -> builder().startObject().field("path", path).endObject());
+        assertResult("{'path':'"+ path.toString() + "'}", () -> builder().startObject().field("path", path).endObject());
     }
 
     public void testObjects() throws Exception {
@@ -494,7 +494,8 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         objects.put("{'objects':[1,1,2,3,5,8]}", new Object[]{(short) 1, (short) 1, (short) 2, (short) 3, (short) 5, (short) 8});
         objects.put("{'objects':['a','b','c']}", new Object[]{"a", "b", "c"});
         objects.put("{'objects':['a','b','c']}", new Object[]{new Text("a"), new Text(new BytesArray("b")), new Text("c")});
-        objects.put("{'objects':['a/b/c','d/e']}", new Object[]{PathUtils.get("a", "b", "c"), PathUtils.get("d", "e")});
+        objects.put("{'objects':['" + PathUtils.get("a", "b", "c") + "','" + PathUtils.get("d", "e") + "']}",
+            new Object[]{PathUtils.get("a", "b", "c"), PathUtils.get("d", "e")});
         objects.put("{'objects':null}", null);
         objects.put("{'objects':[null,null,null]}", new Object[]{null, null, null});
         objects.put("{'objects':['OPEN','CLOSE']}", IndexMetaData.State.values());
@@ -540,7 +541,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         object.put("{'object':'string'}", "string");
         object.put("{'object':'a'}", new Text("a"));
         object.put("{'object':'b'}", new Text(new BytesArray("b")));
-        object.put("{'object':'a/b/c'}", PathUtils.get("a", "b", "c"));
+        object.put("{'object':'" + PathUtils.get("a", "b", "c") + "'}", PathUtils.get("a", "b", "c"));
         object.put("{'object':null}", null);
         object.put("{'object':'OPEN'}", IndexMetaData.State.OPEN);
         object.put("{'object':'NM'}", DistanceUnit.NAUTICALMILES);
@@ -633,7 +634,8 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         innerMap.put("long[]", new long[]{1L, 3L});
         innerMap.put("path", PathUtils.get("path", "to", "file"));
         innerMap.put("object", singletonMap("key", "value"));
-        maps.put("{'map':{'path':'path/to/file','string':'value','long[]':[1,3],'int':42,'long':42,'object':{'key':'value'}}}", innerMap);
+        maps.put("{'map':{'path':'" + PathUtils.get("path", "to", "file")
+            + "','string':'value','long[]':[1,3],'int':42,'long':42,'object':{'key':'value'}}}", innerMap);
 
         for (Map.Entry<String, Map<String, ?>> m : maps.entrySet()) {
             final String expected = m.getKey();
@@ -648,8 +650,9 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         iterables.put("{'iter':null}", (Iterable) null);
         iterables.put("{'iter':[]}", Collections.emptyList());
         iterables.put("{'iter':['a','b']}", Arrays.asList("a", "b"));
-        iterables.put("{'iter':'path/to/file'}", PathUtils.get("path", "to", "file"));
-        iterables.put("{'iter':['a/b/c','c/d']}", Arrays.asList(PathUtils.get("a", "b", "c"), PathUtils.get("c", "d")));
+        iterables.put("{'iter':'" + PathUtils.get("path", "to", "file") +"'}", PathUtils.get("path", "to", "file"));
+        iterables.put("{'iter':['" + PathUtils.get("a", "b", "c") + "','" + PathUtils.get("c", "d") + "']}",
+            Arrays.asList(PathUtils.get("a", "b", "c"), PathUtils.get("c", "d")));
 
         for (Map.Entry<String, Iterable<?>> i : iterables.entrySet()) {
             final String expected = i.getKey();

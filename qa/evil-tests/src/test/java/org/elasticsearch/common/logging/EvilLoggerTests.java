@@ -22,8 +22,10 @@ package org.elasticsearch.common.logging;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
+import org.apache.logging.log4j.core.appender.CountingNoOpAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.PathUtils;
@@ -110,8 +112,13 @@ public class EvilLoggerTests extends ESTestCase {
     }
 
     public void testFindAppender() {
-        assertNotNull(Loggers.findAppender(testLogger, ConsoleAppender.class));
-        assertNull(Loggers.findAppender(ESLoggerFactory.getLogger("counting_no_op"), ConsoleAppender.class));
+        final Appender testLoggerConsoleAppender = Loggers.findAppender(testLogger, ConsoleAppender.class);
+        assertNotNull(testLoggerConsoleAppender);
+        assertThat(testLoggerConsoleAppender.getName(), equalTo("console"));
+        final Logger countingNoOpLogger = ESLoggerFactory.getLogger("counting_no_op");
+        assertNull(Loggers.findAppender(countingNoOpLogger, ConsoleAppender.class));
+        final Appender countingNoOpAppender = Loggers.findAppender(countingNoOpLogger, CountingNoOpAppender.class);
+        assertThat(countingNoOpAppender.getName(), equalTo("counting_no_op"));
     }
 
 }

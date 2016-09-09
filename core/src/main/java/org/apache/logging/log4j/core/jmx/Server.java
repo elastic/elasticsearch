@@ -44,6 +44,7 @@ import org.apache.logging.log4j.core.util.Constants;
 import org.apache.logging.log4j.spi.LoggerContextFactory;
 import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.logging.log4j.util.PropertiesUtil;
+import org.elasticsearch.common.SuppressForbidden;
 
 /**
  * Creates MBeans to instrument various classes in the log4j class hierarchy.
@@ -51,6 +52,7 @@ import org.apache.logging.log4j.util.PropertiesUtil;
  * All instrumentation for Log4j 2 classes can be disabled by setting system property {@code -Dlog4j2.disable.jmx=true}.
  * </p>
  */
+@SuppressForbidden(reason = "copied class to hack around Log4j bug")
 public final class Server {
 
     /**

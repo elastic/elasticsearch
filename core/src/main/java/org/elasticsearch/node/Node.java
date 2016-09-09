@@ -600,24 +600,6 @@ public class Node implements Closeable {
         injector.getInstance(IndicesService.class).stop();
         logger.info("stopped");
 
-        final String log4jShutdownEnabled = System.getProperty("es.log4j.shutdownEnabled", "true");
-        final boolean shutdownEnabled;
-        switch (log4jShutdownEnabled) {
-            case "true":
-                shutdownEnabled = true;
-                break;
-            case "false":
-                shutdownEnabled = false;
-                break;
-            default:
-                throw new IllegalArgumentException(
-                    "invalid value for [es.log4j.shutdownEnabled], was [" + log4jShutdownEnabled + "] but must be [true] or [false]");
-        }
-        if (shutdownEnabled) {
-            LoggerContext context = (LoggerContext) LogManager.getContext(false);
-            Configurator.shutdown(context);
-        }
-
         return this;
     }
 
@@ -709,6 +691,24 @@ public class Node implements Closeable {
         }
         IOUtils.close(toClose);
         logger.info("closed");
+
+        final String log4jShutdownEnabled = System.getProperty("es.log4j.shutdownEnabled", "true");
+        final boolean shutdownEnabled;
+        switch (log4jShutdownEnabled) {
+            case "true":
+                shutdownEnabled = true;
+                break;
+            case "false":
+                shutdownEnabled = false;
+                break;
+            default:
+                throw new IllegalArgumentException(
+                        "invalid value for [es.log4j.shutdownEnabled], was [" + log4jShutdownEnabled + "] but must be [true] or [false]");
+        }
+        if (shutdownEnabled) {
+            LoggerContext context = (LoggerContext) LogManager.getContext(false);
+            Configurator.shutdown(context);
+        }
     }
 
 

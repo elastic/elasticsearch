@@ -1272,6 +1272,28 @@ Throws an error when the field is not an array.
 }
 --------------------------------------------------
 
+[[json-processor]]
+=== JSON Processor
+Converts a JSON string into a structured JSON object.
+
+[[json-options]]
+.Json Options
+[options="header"]
+|======
+| Name           | Required  | Default  | Description
+| `field`        | yes       | -        | The field to be parsed
+| `target_field` | no        | `field`  | The field to insert the converted structured object into
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "json": {
+    "field": "{\"foo\": 2000}"
+  }
+}
+--------------------------------------------------
+
 [[lowercase-processor]]
 === Lowercase Processor
 Converts a string to its lowercase equivalent.

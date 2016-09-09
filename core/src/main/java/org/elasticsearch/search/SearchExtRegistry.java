@@ -24,9 +24,9 @@ import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 /**
  * Extensions to ParseFieldRegistry to make Guice happy.
  */
-public class SearchExtParserRegistry extends ParseFieldRegistry<SearchExtParser> {
+public class SearchExtRegistry extends ParseFieldRegistry<SearchExtParser> {
 
-    SearchExtParserRegistry() {
+    public SearchExtRegistry() {
         super("ext");
     }
 }

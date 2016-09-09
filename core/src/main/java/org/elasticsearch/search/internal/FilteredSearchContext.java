@@ -38,6 +38,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -510,13 +511,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void putSearchExtBuilder(String name, Object fetchSubPhaseBuilder) {
-        in.putSearchExtBuilder(name, fetchSubPhaseBuilder);
+    public void addSearchExt(SearchExtBuilder searchExtBuilder) {
+        in.addSearchExt(searchExtBuilder);
     }
 
     @Override
-    public Object getSearchExtBuilder(String name) {
-        return in.getSearchExtBuilder(name);
+    public SearchExtBuilder getSearchExt(String name) {
+        return in.getSearchExt(name);
     }
 
     @Override

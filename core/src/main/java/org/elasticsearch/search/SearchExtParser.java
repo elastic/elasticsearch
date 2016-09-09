@@ -21,18 +21,23 @@ package org.elasticsearch.search;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 
+import java.io.IOException;
+
 /**
- * Parser for the ext section of a search request, which can hold custom fetch sub phases config
+ * Defines a parser that is able to parse {@link org.elasticsearch.search.SearchExtBuilder}s
+ * from {@link org.elasticsearch.common.xcontent.XContent}.
+ *
+ * Registration happens through {@link org.elasticsearch.plugins.SearchPlugin#getSearchExts()}, which also needs a {@link SearchExtBuilder}
+ * implementation which is the object that this parser returns when reading an incoming request form the REST layer.
+ *
+ * @see SearchExtBuilder
+ * @see org.elasticsearch.plugins.SearchPlugin.SearchExtSpec
  */
-public interface SearchExtParser {
+@FunctionalInterface
+public interface SearchExtParser<T extends SearchExtBuilder> {
 
     /**
-     * Returns the name of the element that this parser is able to parse
+     * Parses the supported element placed within the ext section of a search request
      */
-    String getName();
-
-    /**
-     * Parses the element whose name is returned by {@link #getName()}
-     */
-    Object parse(XContentParser parser) throws Exception;
+    T fromXContent(XContentParser parser) throws IOException;
 }

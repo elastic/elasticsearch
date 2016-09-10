@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices;
 
+import org.apache.lucene.analysis.minhash.MinHashFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
@@ -252,5 +253,19 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         } else {
             assertEquals(e.getMessage(), "failed to find global char filter under [foobar]");
         }
+    }
+
+    public void testNonPreBuildTokenFilter() throws IOException {
+        AnalyzeRequest request = new AnalyzeRequest();
+        request.tokenizer("whitespace");
+        request.addTokenFilter("min_hash");
+        request.text("the quick brown fox");
+        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, analysisService, registry, environment);
+        List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
+        int default_hash_count = 1;
+        int default_bucket_size = 512;
+        int default_hash_set_size = 1;
+        assertEquals(default_hash_count * default_bucket_size * default_hash_set_size, tokens.size());
+
     }
 }

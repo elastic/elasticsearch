@@ -20,6 +20,8 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.Appender;
+import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
@@ -29,6 +31,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -258,7 +261,11 @@ final class Bootstrap {
 
         try {
             if (!foreground) {
-                Loggers.disableConsoleLogging();
+                final Logger rootLogger = ESLoggerFactory.getRootLogger();
+                final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
+                if (maybeConsoleAppender != null) {
+                    Loggers.removeAppender(rootLogger, maybeConsoleAppender);
+                }
                 closeSystOut();
             }
 
@@ -283,8 +290,10 @@ final class Bootstrap {
             }
         } catch (NodeValidationException | RuntimeException e) {
             // disable console logging, so user does not see the exception twice (jvm will show it already)
-            if (foreground) {
-                Loggers.disableConsoleLogging();
+            final Logger rootLogger = ESLoggerFactory.getRootLogger();
+            final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
+            if (foreground && maybeConsoleAppender != null) {
+                Loggers.removeAppender(rootLogger, maybeConsoleAppender);
             }
             Logger logger = Loggers.getLogger(Bootstrap.class);
             if (INSTANCE.node != null) {
@@ -316,8 +325,8 @@ final class Bootstrap {
                 logger.error("Exception", e);
             }
             // re-enable it if appropriate, so they can see any logging during the shutdown process
-            if (foreground) {
-                Loggers.enableConsoleLogging();
+            if (foreground && maybeConsoleAppender != null) {
+                Loggers.addAppender(rootLogger, maybeConsoleAppender);
             }
 
             throw e;

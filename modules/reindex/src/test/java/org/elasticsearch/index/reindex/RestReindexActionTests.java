@@ -110,7 +110,7 @@ public class RestReindexActionTests extends ESTestCase {
         }
         try (XContentParser p = JsonXContent.jsonXContent.createParser(request)) {
             ReindexRequest r = new ReindexRequest(new SearchRequest(), new IndexRequest());
-            SearchRequestParsers searchParsers = new SearchRequestParsers(new IndicesQueriesRegistry(), null, null);
+            SearchRequestParsers searchParsers = new SearchRequestParsers(new IndicesQueriesRegistry(), null, null, null);
             RestReindexAction.PARSER.parse(p, r, new ReindexParseContext(searchParsers, ParseFieldMatcher.STRICT));
             assertEquals("localhost", r.getRemoteInfo().getHost());
             assertArrayEquals(new String[] {"source"}, r.getSearchRequest().indices());

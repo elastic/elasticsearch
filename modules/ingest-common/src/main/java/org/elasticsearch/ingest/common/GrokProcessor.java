@@ -39,21 +39,36 @@ public final class GrokProcessor extends AbstractProcessor {
     private final String matchField;
     private final Grok grok;
     private final boolean traceMatch;
+    private final boolean ignoreMissing;
 
-    public GrokProcessor(String tag, Map<String, String> patternBank, List<String> matchPatterns, String matchField) {
-        this(tag, patternBank, matchPatterns, matchField, false);
-    }
-
-    public GrokProcessor(String tag, Map<String, String> patternBank, List<String> matchPatterns, String matchField, boolean traceMatch) {
+    public GrokProcessor(String tag, Map<String, String> patternBank, List<String> matchPatterns, String matchField,
+                         boolean traceMatch, boolean ignoreMissing) {
         super(tag);
         this.matchField = matchField;
         this.grok = new Grok(patternBank, combinePatterns(matchPatterns, traceMatch));
         this.traceMatch = traceMatch;
+        this.ignoreMissing = ignoreMissing;
     }
 
     @Override
     public void execute(IngestDocument ingestDocument) throws Exception {
-        String fieldValue = ingestDocument.getFieldValue(matchField, String.class);
+        String fieldValue;
+
+        try {
+            fieldValue = ingestDocument.getFieldValue(matchField, String.class);
+        } catch (IllegalArgumentException e) {
+            if (ignoreMissing && ingestDocument.hasField(matchField) != true) {
+                return;
+            }
+            throw e;
+        }
+
+        if (fieldValue == null && ignoreMissing) {
+            return;
+        } else if (fieldValue == null) {
+            throw new IllegalArgumentException("field [" + matchField + "] is null, cannot process it.");
+        }
+
         Map<String, Object> matches = grok.captures(fieldValue);
         if (matches == null) {
             throw new IllegalArgumentException("Provided Grok expressions do not match field value: [" + fieldValue + "]");
@@ -77,8 +92,12 @@ public final class GrokProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public Grok getGrok() {
+    Grok getGrok() {
         return grok;
+    }
+
+    boolean isIgnoreMissing() {
+        return ignoreMissing;
     }
 
     String getMatchField() {
@@ -128,6 +147,7 @@ public final class GrokProcessor extends AbstractProcessor {
             String matchField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             List<String> matchPatterns = ConfigurationUtils.readList(TYPE, processorTag, config, "patterns");
             boolean traceMatch = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "trace_match", false);
+            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
 
             if (matchPatterns.isEmpty()) {
                 throw newConfigurationException(TYPE, processorTag, "patterns", "List of patterns must not be empty");
@@ -139,7 +159,7 @@ public final class GrokProcessor extends AbstractProcessor {
             }
 
             try {
-                return new GrokProcessor(processorTag, patternBank, matchPatterns, matchField, traceMatch);
+                return new GrokProcessor(processorTag, patternBank, matchPatterns, matchField, traceMatch, ignoreMissing);
             } catch (Exception e) {
                 throw newConfigurationException(TYPE, processorTag, "patterns",
                     "Invalid regex pattern found in: " + matchPatterns + ". " + e.getMessage());

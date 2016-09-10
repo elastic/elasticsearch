@@ -430,7 +430,10 @@ public class GeoShapeFieldMapper extends FieldMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public Mapper parse(ParseContext originalContext) throws IOException {
+        // Numeric fields, by default, will not be included in _all
+        final ParseContext context = originalContext.setIncludeInAllDefault(false);
+
         try {
             Shape shape = context.parseExternalValue(Shape.class);
             if (shape == null) {

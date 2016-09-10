@@ -399,9 +399,11 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         switch (randomInt(2)) {
             case 0:
                 // started replica
-                newShardRouting = TestShardRouting.newShardRouting(temp.shardId(), temp.currentNodeId(), null,
-                    false, ShardRoutingState.STARTED, AllocationId.newRelocation(temp.allocationId()));
-
+                ShardRouting init = TestShardRouting.newShardRouting(temp.shardId(), temp.currentNodeId(), null,
+                    false, ShardRoutingState.INITIALIZING, AllocationId.newRelocation(temp.allocationId()));
+                indexService.removeShard(0, "b/c simon says so");
+                indexShard = indexService.createShard(init);
+                newShardRouting = init.moveToStarted();
                 indexShard.updateRoutingEntry(newShardRouting);
                 break;
             case 1:
@@ -412,12 +414,14 @@ public class IndexShardTests extends ESSingleNodeTestCase {
                     relocating ? randomBoolean() : false,
                     ShardRoutingState.INITIALIZING,
                     relocating ? AllocationId.newRelocation(temp.allocationId()) : temp.allocationId());
+                indexService.removeShard(0, "b/c simon says so");
+                indexShard = indexService.createShard(newShardRouting);
                 indexShard.updateRoutingEntry(newShardRouting);
                 break;
             case 2:
                 // relocation source
                 newShardRouting = TestShardRouting.newShardRouting(temp.shardId(), temp.currentNodeId(), "otherNode",
-                    false, ShardRoutingState.RELOCATING, AllocationId.newRelocation(temp.allocationId()));
+                    true, ShardRoutingState.RELOCATING, AllocationId.newRelocation(temp.allocationId()));
                 indexShard.updateRoutingEntry(newShardRouting);
                 indexShard.relocated("test");
                 break;
@@ -1698,12 +1702,12 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         test.removeShard(0, "b/c simon says so");
         DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
         {
-            final IndexShard newShard = test.createShard(routing);
-            newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
+            final IndexShard mergeShard = test.createShard(routing);
+            mergeShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
 
             BiConsumer<String, MappingMetaData> mappingConsumer = (type, mapping) -> {
                 try {
-                    client().admin().indices().preparePutMapping().setConcreteIndex(newShard.indexSettings().getIndex())
+                    client().admin().indices().preparePutMapping().setConcreteIndex(mergeShard.indexSettings().getIndex())
                         .setType(type)
                         .setSource(mapping.source().string())
                         .get();
@@ -1714,12 +1718,12 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             expectThrows(IllegalArgumentException.class, () -> {
                 IndexService index = indicesService.indexService(resolveIndex("index"));
                 IndexService index_2 = indicesService.indexService(resolveIndex("index_2"));
-                newShard.recoverFromLocalShards(mappingConsumer, Arrays.asList(index.getShard(0), index_2.getShard(0)));
+                mergeShard.recoverFromLocalShards(mappingConsumer, Arrays.asList(index.getShard(0), index_2.getShard(0)));
             });
 
             IndexService indexService = indicesService.indexService(resolveIndex("index"));
-            assertTrue(newShard.recoverFromLocalShards(mappingConsumer, Arrays.asList(indexService.getShard(0))));
-            RecoveryState recoveryState = newShard.recoveryState();
+            assertTrue(mergeShard.recoverFromLocalShards(mappingConsumer, Arrays.asList(indexService.getShard(0))));
+            RecoveryState recoveryState = mergeShard.recoveryState();
             assertEquals(RecoveryState.Stage.DONE, recoveryState.getStage());
             assertTrue(recoveryState.getIndex().fileDetails().size() > 0);
             for (RecoveryState.File file : recoveryState.getIndex().fileDetails()) {
@@ -1730,7 +1734,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
                 }
             }
             routing = ShardRoutingHelper.moveToStarted(routing);
-            newShard.updateRoutingEntry(routing);
+            mergeShard.updateRoutingEntry(routing);
             assertHitCount(client().prepareSearch("index_1").get(), 2);
         }
         // now check that it's persistent ie. that the added shards are committed

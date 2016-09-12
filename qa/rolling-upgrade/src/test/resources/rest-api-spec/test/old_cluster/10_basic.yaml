@@ -1,7 +1,7 @@
 ---
 "Index data and search on the old cluster":
-  - do:
-      bulk:
+ - do:
+     bulk:
         refresh: true
         body:
           - '{"index": {"_index": "test_index", "_type": "test_type"}}'

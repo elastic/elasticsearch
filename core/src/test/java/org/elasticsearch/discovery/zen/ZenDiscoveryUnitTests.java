@@ -149,9 +149,10 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
 
     public void testNodesUpdatedAfterClusterStatePublished() throws Exception {
         ThreadPool threadPool = new TestThreadPool(getClass().getName());
+        // randomly make minimum_master_nodes a value higher than we have nodes for, so it will force failure
+        int minMasterNodes = randomBoolean() ? 3 : 1;
         Settings settings = Settings.builder()
-                                // randomly make minimum_master_nodes a value higher than we have nodes for, so it will force failure
-                                .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), randomBoolean() ? "3" : "1").build();
+                                .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.toString(minMasterNodes)).build();
 
         Map<String, MockNode> nodes = new HashMap<>();
         ZenDiscovery zenDiscovery = null;
@@ -185,6 +186,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                 expectedFDNodes = fdNodesForState(newState, master.discoveryNode);
             } catch (Discovery.FailedToCommitClusterStateException e) {
                 // not successful, so expectedFDNodes above should remain what it was originally assigned
+                assertEquals(3, minMasterNodes); // ensure min master nodes is the higher value, otherwise we shouldn't fail
             }
 
             assertEquals(expectedFDNodes, zenDiscovery.getFaultDetectionNodes());

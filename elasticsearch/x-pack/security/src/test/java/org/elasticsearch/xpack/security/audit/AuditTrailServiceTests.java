@@ -192,4 +192,32 @@ public class AuditTrailServiceTests extends ESTestCase {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
         }
     }
+
+    public void testAuthenticationSuccessRest() throws Exception {
+        User user = new User("_username", "r1");
+        String realm = "_realm";
+        service.authenticationSuccess(realm, user, restRequest);
+        verify(licenseState).isAuditingAllowed();
+        if (isAuditingAllowed) {
+            for (AuditTrail auditTrail : auditTrails) {
+                verify(auditTrail).authenticationSuccess(realm, user, restRequest);
+            }
+        } else {
+            verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
+        }
+    }
+
+    public void testAuthenticationSuccessTransport() throws Exception {
+        User user = new User("_username", "r1");
+        String realm = "_realm";
+        service.authenticationSuccess(realm, user, "_action", message);
+        verify(licenseState).isAuditingAllowed();
+        if (isAuditingAllowed) {
+            for (AuditTrail auditTrail : auditTrails) {
+                verify(auditTrail).authenticationSuccess(realm, user, "_action", message);
+            }
+        } else {
+            verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
+        }
+    }
 }

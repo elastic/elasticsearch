@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.file.FileUserPasswdStore;
 import org.elasticsearch.xpack.security.authc.file.FileUserRolesStore;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
@@ -85,8 +86,10 @@ public class UsersTool extends MultiCommand {
         @Override
         protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
             Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
+
             String username = parseUsername(arguments.values(options), env.settings());
-            Validation.Error validationError = Users.validateUsername(username, false, Settings.EMPTY);
+            final boolean allowReserved = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(env.settings()) == false;
+            Validation.Error validationError = Users.validateUsername(username, allowReserved, env.settings());
             if (validationError != null) {
                 throw new UserException(ExitCodes.DATA_ERROR, "Invalid username [" + username + "]... " + validationError);
             }
@@ -395,7 +398,8 @@ public class UsersTool extends MultiCommand {
             throw new UserException(ExitCodes.USAGE, "Expected a single username argument, found extra: " + args.toString());
         }
         String username = args.get(0);
-        Validation.Error validationError = Users.validateUsername(username, false, settings);
+        final boolean allowReserved = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings) == false;
+        Validation.Error validationError = Users.validateUsername(username, allowReserved, settings);
         if (validationError != null) {
             throw new UserException(ExitCodes.DATA_ERROR, "Invalid username [" + username + "]... " + validationError);
         }

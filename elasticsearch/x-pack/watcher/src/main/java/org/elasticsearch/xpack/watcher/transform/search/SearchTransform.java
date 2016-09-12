@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.transform.search;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -12,9 +13,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.suggest.Suggesters;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.transform.Transform;
@@ -92,9 +91,12 @@ public class SearchTransform implements Transform {
         return builder;
     }
 
-    public static SearchTransform parse(String watchId, XContentParser parser, QueryParseContext context,
-                                        AggregatorParsers aggParsers, Suggesters suggesters)
-            throws IOException {
+    public static SearchTransform parse(Logger transformLogger, String watchId,
+                                        XContentParser parser,
+                                        boolean upgradeTransformSource,
+                                        String defaultLegacyScriptLanguage,
+                                        ParseFieldMatcher parseFieldMatcher,
+                                        SearchRequestParsers searchRequestParsers) throws IOException {
         WatcherSearchTemplateRequest request = null;
         TimeValue timeout = null;
         DateTimeZone dynamicNameTimeZone = null;
@@ -106,7 +108,10 @@ public class SearchTransform implements Transform {
                 currentFieldName = parser.currentName();
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.REQUEST)) {
                 try {
-                    request = WatcherSearchTemplateRequest.fromXContent(parser, ExecutableSearchTransform.DEFAULT_SEARCH_TYPE);
+                    request = WatcherSearchTemplateRequest.fromXContent(
+                            transformLogger, parser, ExecutableSearchTransform.DEFAULT_SEARCH_TYPE, upgradeTransformSource,
+                            defaultLegacyScriptLanguage, parseFieldMatcher, searchRequestParsers
+                    );
                 } catch (ElasticsearchParseException srpe) {
                     throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse [{}]", srpe,
                             TYPE, watchId, currentFieldName);

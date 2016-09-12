@@ -28,8 +28,14 @@ public abstract class ConditionFactory<C extends Condition, R extends Condition.
 
     /**
      * Parses the given xcontent and creates a concrete condition
+     *
+     * @param watchId                   The id of the watch
+     * @param parser                    The parsing that contains the condition content
+     * @param upgradeConditionSource    Whether to upgrade the source related to condition if in legacy format
+     *                                  Note: depending on the version, only conditions implementations that have a
+     *                                  known legacy format will support this option, otherwise this is a noop.
      */
-    public abstract C parseCondition(String watchId, XContentParser parser) throws IOException;
+    public abstract C parseCondition(String watchId, XContentParser parser, boolean upgradeConditionSource) throws IOException;
 
     /**
      * Creates an {@link ExecutableCondition executable condition} for the given condition.

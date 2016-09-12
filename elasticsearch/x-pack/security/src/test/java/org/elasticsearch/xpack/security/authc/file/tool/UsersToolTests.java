@@ -16,11 +16,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.security.user.ElasticUser;
+import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -181,6 +184,18 @@ public class UsersToolTests extends CommandTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("Invalid username"));
     }
 
+    public void testParseReservedUsername() throws Exception {
+        final String name = randomFrom(ElasticUser.NAME, KibanaUser.NAME);
+        UserException e = expectThrows(UserException.class, () -> {
+            UsersTool.parseUsername(Collections.singletonList(name), Settings.EMPTY);
+        });
+        assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
+        assertTrue(e.getMessage(), e.getMessage().contains("Invalid username"));
+
+        Settings settings = Settings.builder().put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false).build();
+        UsersTool.parseUsername(Collections.singletonList(name), settings);
+    }
+
     public void testParseUsernameMissing() throws Exception {
         UserException e = expectThrows(UserException.class, () -> {
            UsersTool.parseUsername(Collections.emptyList(), Settings.EMPTY);
@@ -271,6 +286,15 @@ public class UsersToolTests extends CommandTestCase {
         });
         assertEquals(ExitCodes.CODE_ERROR, e.exitCode);
         assertEquals("User [existing_user] already exists", e.getMessage());
+    }
+
+    public void testUseraddReservedUser() throws Exception {
+        final String name = randomFrom(ElasticUser.NAME, KibanaUser.NAME);
+        UserException e = expectThrows(UserException.class, () -> {
+            execute("useradd", pathHomeParameter, fileTypeParameter, name, "-p", "changeme");
+        });
+        assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
+        assertEquals("Invalid username [" + name + "]... Username [" + name + "] is reserved and may not be used.", e.getMessage());
     }
 
     public void testUseraddNoRoles() throws Exception {

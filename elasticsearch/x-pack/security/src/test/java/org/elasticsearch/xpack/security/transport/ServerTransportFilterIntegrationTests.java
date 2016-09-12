@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -78,7 +79,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .build();
     }
 
-    public void testThatConnectionToServerTypeConnectionWorks() throws IOException {
+    public void testThatConnectionToServerTypeConnectionWorks() throws IOException, NodeValidationException {
         Path home = createTempDir();
         Path xpackConf = home.resolve("config").resolve(XPackPlugin.NAME);
         Files.createDirectories(xpackConf);
@@ -109,7 +110,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         }
     }
 
-    public void testThatConnectionToClientTypeConnectionIsRejected() throws IOException {
+    public void testThatConnectionToClientTypeConnectionIsRejected() throws IOException, NodeValidationException {
         Path home = createTempDir();
         Path xpackConf = home.resolve("config").resolve(XPackPlugin.NAME);
         Files.createDirectories(xpackConf);

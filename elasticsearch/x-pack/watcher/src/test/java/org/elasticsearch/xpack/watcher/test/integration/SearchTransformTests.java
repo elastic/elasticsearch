@@ -26,7 +26,6 @@ import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
 import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
@@ -218,7 +217,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         SearchRequestParsers searchRequestParsers = internalCluster().getInstance(SearchRequestParsers.class);
         SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, WatcherClientProxy.of(client()),
                                                                              searchRequestParsers, scriptService());
-        ExecutableSearchTransform executable = transformFactory.parseExecutable("_id", parser);
+        ExecutableSearchTransform executable = transformFactory.parseExecutable("_id", parser, false);
 
         assertThat(executable, notNullValue());
         assertThat(executable.type(), is(SearchTransform.TYPE));

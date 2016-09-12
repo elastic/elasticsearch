@@ -35,6 +35,17 @@ public class InputRegistry {
      * @return          A new input instance from the parser
      */
     public ExecutableInput parse(String watchId, XContentParser parser) throws IOException {
+        return parse(watchId, parser, false);
+    }
+
+    /**
+     * Reads the contents of parser to create the correct Input
+     *
+     * @param parser                The parser containing the input definition
+     * @param upgradeInputSource    Whether to upgrade the source related to input if in legacy format.
+     * @return                      A new input instance from the parser
+     */
+    public ExecutableInput parse(String watchId, XContentParser parser, boolean upgradeInputSource) throws IOException {
         String type = null;
 
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
@@ -55,7 +66,7 @@ public class InputRegistry {
                 if (factory == null) {
                     throw new ElasticsearchParseException("could not parse input for watch [{}]. unknown input type [{}]", watchId, type);
                 }
-                input = factory.parseExecutable(watchId, parser);
+                input = factory.parseExecutable(watchId, parser, upgradeInputSource);
             } else {
                 throw new ElasticsearchParseException("could not parse input for watch [{}]. expected an object representing input [{}], " +
                         "but found [{}] instead", watchId, type, token);

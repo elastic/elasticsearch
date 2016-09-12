@@ -32,7 +32,7 @@ public class AlwaysConditionTests extends ESTestCase {
         builder.endObject();
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
-        AlwaysCondition condition = factory.parseCondition("_id", parser);
+        AlwaysCondition condition = factory.parseCondition("_id", parser, false);
         ExecutableAlwaysCondition executable = factory.createExecutable(condition);
         assertTrue(executable.execute(null).met());
     }
@@ -46,7 +46,7 @@ public class AlwaysConditionTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         try {
-            factor.parseCondition("_id", parser);
+            factor.parseCondition("_id", parser, false);
             fail("expected a condition exception trying to parse an invalid condition XContent, ["
                     + AlwaysCondition.TYPE + "] condition should not parse with a body");
         } catch (ElasticsearchParseException e) {

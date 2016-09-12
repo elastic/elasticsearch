@@ -5,11 +5,6 @@
  */
 package org.elasticsearch.license;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -20,10 +15,12 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 
-import static org.elasticsearch.license.TestUtils.generateSignedLicense;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class LicensesManagerServiceTests extends ESSingleNodeTestCase {

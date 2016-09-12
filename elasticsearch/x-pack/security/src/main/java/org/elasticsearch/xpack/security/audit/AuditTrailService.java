@@ -49,6 +49,24 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
     }
 
     @Override
+    public void authenticationSuccess(String realm, User user, RestRequest request) {
+        if (licenseState.isAuditingAllowed()) {
+            for (AuditTrail auditTrail : auditTrails) {
+                auditTrail.authenticationSuccess(realm, user, request);
+            }
+        }
+    }
+
+    @Override
+    public void authenticationSuccess(String realm, User user, String action, TransportMessage message) {
+        if (licenseState.isAuditingAllowed()) {
+            for (AuditTrail auditTrail : auditTrails) {
+                auditTrail.authenticationSuccess(realm, user, action, message);
+            }
+        }
+    }
+
+    @Override
     public void anonymousAccessDenied(String action, TransportMessage message) {
         if (licenseState.isAuditingAllowed()) {
             for (AuditTrail auditTrail : auditTrails) {

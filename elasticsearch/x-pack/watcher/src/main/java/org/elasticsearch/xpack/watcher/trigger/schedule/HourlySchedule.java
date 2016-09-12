@@ -56,7 +56,7 @@ public class HourlySchedule extends CronnableSchedule {
         if (params.paramAsBoolean("normalize", false) && minutes.length == 1) {
             builder.field(Parser.MINUTE_FIELD.getPreferredName(), minutes[0]);
         } else {
-            builder.field(Parser.MINUTE_FIELD.getPreferredName(), minutes);
+            builder.array(Parser.MINUTE_FIELD.getPreferredName(), minutes);
         }
         return builder.endObject();
     }

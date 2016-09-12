@@ -53,6 +53,7 @@ import static org.elasticsearch.xpack.security.audit.AuditLevel.RUN_AS_DENIED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.RUN_AS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.SYSTEM_ACCESS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.TAMPERED_REQUEST;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.AUTHENTICATION_SUCCESS;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.indices;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestContent;
@@ -117,6 +118,28 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail {
             prefix = resolvePrefix(settings, clusterService.localNode());
         }
         return prefix;
+    }
+
+    @Override
+    public void authenticationSuccess(String realm, User user, RestRequest request) {
+        if (events.contains(AUTHENTICATION_SUCCESS)) {
+            if (includeRequestBody) {
+                logger.info("{}[rest] [authentication_success]\t{}, realm=[{}], uri=[{}], params=[{}], request_body=[{}]", getPrefix(),
+                        principal(user), realm, request.uri(), request.params(), restRequestContent(request));
+            } else {
+                logger.info("{}[rest] [authentication_success]\t{}, realm=[{}], uri=[{}], params=[{}]", getPrefix(), principal(user), realm,
+                        request.uri(), request.params());
+            }
+        }
+    }
+
+    @Override
+    public void authenticationSuccess(String realm, User user, String action, TransportMessage message) {
+        if (events.contains(AUTHENTICATION_SUCCESS)) {
+            logger.info("{}[transport] [authentication_success]\t{}, {}, realm=[{}], action=[{}], request=[{}]", getPrefix(),
+                    originAttributes(message, clusterService.localNode(), threadContext), principal(user), realm, action,
+                    message.getClass().getSimpleName());
+        }
     }
 
     @Override

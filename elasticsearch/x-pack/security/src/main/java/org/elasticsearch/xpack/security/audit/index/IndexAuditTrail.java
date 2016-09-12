@@ -99,6 +99,7 @@ import static org.elasticsearch.xpack.security.audit.AuditLevel.RUN_AS_DENIED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.RUN_AS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.SYSTEM_ACCESS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.TAMPERED_REQUEST;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.AUTHENTICATION_SUCCESS;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.resolve;
 
@@ -135,7 +136,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             CONNECTION_GRANTED.toString(),
             TAMPERED_REQUEST.toString(),
             RUN_AS_DENIED.toString(),
-            RUN_AS_GRANTED.toString()
+            RUN_AS_GRANTED.toString(),
+            AUTHENTICATION_SUCCESS.toString()
     );
     private static final String FORBIDDEN_INDEX_SETTING = "index.mapper.dynamic";
 
@@ -312,10 +314,33 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
+    public void authenticationSuccess(String realm, User user, RestRequest request) {
+        if (events.contains(AUTHENTICATION_SUCCESS)) {
+            try {
+                enqueue(message("authentication_success", realm, user, request), "authentication_success");
+            } catch (Exception e) {
+                logger.warn("failed to index audit event: [authentication_success]", e);
+            }
+        }
+    }
+
+    @Override
+    public void authenticationSuccess(String realm, User user, String action, TransportMessage message) {
+        if (events.contains(AUTHENTICATION_SUCCESS)) {
+            try {
+                enqueue(message("authentication_success", action, user, realm, null, message), "authentication_success");
+            } catch (Exception e) {
+                logger.warn("failed to index audit event: [authentication_success]", e);
+            }
+        }
+    }
+
+    @Override
     public void anonymousAccessDenied(String action, TransportMessage message) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)) {
             try {
-                enqueue(message("anonymous_access_denied", action, null, null, indices(message), message), "anonymous_access_denied");
+                enqueue(message("anonymous_access_denied", action, (User) null, null, indices(message), message),
+                        "anonymous_access_denied");
             } catch (Exception e) {
                 logger.warn("failed to index audit event: [anonymous_access_denied]", e);
             }
@@ -337,7 +362,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     public void authenticationFailed(String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             try {
-                enqueue(message("authentication_failed", action, null, null, indices(message), message), "authentication_failed");
+                enqueue(message("authentication_failed", action, (User) null, null, indices(message), message), "authentication_failed");
             } catch (Exception e) {
                 logger.warn("failed to index audit event: [authentication_failed]", e);
             }
@@ -413,14 +438,14 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         if ((SystemUser.is(user) && SystemPrivilege.INSTANCE.predicate().test(action))) {
             if (events.contains(SYSTEM_ACCESS_GRANTED)) {
                 try {
-                    enqueue(message("access_granted", action, user, indices(message), message), "access_granted");
+                    enqueue(message("access_granted", action, user, null, indices(message), message), "access_granted");
                 } catch (Exception e) {
                     logger.warn("failed to index audit event: [access_granted]", e);
                 }
             }
         } else if (events.contains(ACCESS_GRANTED) && XPackUser.is(user) == false) {
             try {
-                enqueue(message("access_granted", action, user, indices(message), message), "access_granted");
+                enqueue(message("access_granted", action, user, null, indices(message), message), "access_granted");
             } catch (Exception e) {
                 logger.warn("failed to index audit event: [access_granted]", e);
             }
@@ -431,7 +456,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     public void accessDenied(User user, String action, TransportMessage message) {
         if (events.contains(ACCESS_DENIED) && XPackUser.is(user) == false) {
             try {
-                enqueue(message("access_denied", action, user, indices(message), message), "access_denied");
+                enqueue(message("access_denied", action, user, null, indices(message), message), "access_denied");
             } catch (Exception e) {
                 logger.warn("failed to index audit event: [access_denied]", e);
             }
@@ -453,7 +478,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     public void tamperedRequest(String action, TransportMessage message) {
         if (events.contains(TAMPERED_REQUEST)) {
             try {
-                enqueue(message("tampered_request", action, null, indices(message), message), "tampered_request");
+                enqueue(message("tampered_request", action, (User) null, null, indices(message), message), "tampered_request");
             } catch (Exception e) {
                 logger.warn("failed to index audit event: [tampered_request]", e);
             }
@@ -464,7 +489,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     public void tamperedRequest(User user, String action, TransportMessage request) {
         if (events.contains(TAMPERED_REQUEST) && XPackUser.is(user) == false) {
             try {
-                enqueue(message("tampered_request", action, user, indices(request), request), "tampered_request");
+                enqueue(message("tampered_request", action, user, null, indices(request), request), "tampered_request");
             } catch (Exception e) {
                 logger.warn("failed to index audit event: [tampered_request]", e);
             }
@@ -497,7 +522,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     public void runAsGranted(User user, String action, TransportMessage message) {
         if (events.contains(RUN_AS_GRANTED)) {
             try {
-                enqueue(message("run_as_granted", action, user, null, message), "run_as_granted");
+                enqueue(message("run_as_granted", action, user, null, null, message), "run_as_granted");
             } catch (Exception e) {
                 logger.warn("failed to index audit event: [run_as_granted]", e);
             }
@@ -508,7 +533,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     public void runAsDenied(User user, String action, TransportMessage message) {
         if (events.contains(RUN_AS_DENIED)) {
             try {
-                enqueue(message("run_as_denied", action, user, null, message), "run_as_denied");
+                enqueue(message("run_as_denied", action, user, null, null, message), "run_as_denied");
             } catch (Exception e) {
                 logger.warn("failed to index audit event: [run_as_denied]", e);
             }
@@ -519,14 +544,14 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     public void runAsDenied(User user, RestRequest request) {
         if (events.contains(RUN_AS_DENIED)) {
             try {
-                enqueue(message("run_as_denied", user, request), "run_as_denied");
+                enqueue(message("run_as_denied", null, user, request), "run_as_denied");
             } catch (Exception e) {
                 logger.warn("failed to index audit event: [run_as_denied]", e);
             }
         }
     }
 
-    private Message message(String type, @Nullable String action, @Nullable User user,
+    private Message message(String type, @Nullable String action, @Nullable User user, @Nullable String realm,
                             @Nullable Set<String> indices, TransportMessage message) throws Exception {
 
         Message msg = new Message().start();
@@ -551,6 +576,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         }
         if (indices != null) {
             msg.builder.array(Field.INDICES, indices.toArray(Strings.EMPTY_ARRAY));
+        }
+        if (realm != null) {
+            msg.builder.field(Field.REALM, realm);
         }
         msg.builder.field(Field.REQUEST, message.getClass().getSimpleName());
 
@@ -583,7 +611,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     private Message message(String type, @Nullable String action, @Nullable AuthenticationToken token,
-                            @Nullable String realm, @Nullable Set<String> indices, RestRequest request) throws Exception {
+            @Nullable String realm, @Nullable Set<String> indices, RestRequest request) throws Exception {
 
         Message msg = new Message().start();
         common("rest", type, msg.builder);
@@ -614,16 +642,25 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             msg.builder.field(Field.ORIGIN_ADDRESS, address);
         }
         msg.builder.field(Field.URI, request.uri());
-
         return msg.end();
     }
 
-    private Message message(String type, User user, RestRequest request) throws Exception {
+    private Message message(String type, String realm, User user, RestRequest request) throws Exception {
 
         Message msg = new Message().start();
         common("rest", type, msg.builder);
 
-        msg.builder.field(Field.PRINCIPAL, user.principal());
+        if (user != null) {
+            if (user.runAs() != null) {
+                msg.builder.field(Field.PRINCIPAL, user.runAs().principal());
+                msg.builder.field(Field.RUN_BY_PRINCIPAL, user.principal());
+            } else {
+                msg.builder.field(Field.PRINCIPAL, user.principal());
+            }
+        }
+        if (realm != null) {
+            msg.builder.field(Field.REALM, realm);
+        }
         if (includeRequestBody) {
             msg.builder.field(Field.REQUEST_BODY, restRequestContent(request));
         }

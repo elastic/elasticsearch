@@ -31,7 +31,8 @@ import java.util.Locale;
 public class License implements ToXContent {
     public static final int VERSION_START = 1;
     public static final int VERSION_NO_FEATURE_TYPE = 2;
-    public static final int VERSION_CURRENT = VERSION_NO_FEATURE_TYPE;
+    public static final int VERSION_START_DATE = 3;
+    public static final int VERSION_CURRENT = VERSION_START_DATE;
 
     /**
      * XContent param name to deserialize license(s) with
@@ -51,12 +52,7 @@ public class License implements ToXContent {
      */
     public static final String LICENSE_VERSION_MODE = "license_version";
 
-    public static final Comparator<License> LATEST_ISSUE_DATE_FIRST = new Comparator<License>() {
-        @Override
-        public int compare(License right, License left) {
-            return Long.compare(left.issueDate(), right.issueDate());
-        }
-    };
+    public static final Comparator<License> LATEST_ISSUE_DATE_FIRST = Comparator.comparing(License::issueDate).reversed();
 
     private final int version;
     private final String uid;
@@ -68,6 +64,7 @@ public class License implements ToXContent {
     private final String feature;
     private final String signature;
     private final long expiryDate;
+    private final long startDate;
     private final int maxNodes;
     private final OperationMode operationMode;
 
@@ -111,7 +108,7 @@ public class License implements ToXContent {
     }
 
     private License(int version, String uid, String issuer, String issuedTo, long issueDate, String type,
-                    String subscriptionType, String feature, String signature, long expiryDate, int maxNodes) {
+                    String subscriptionType, String feature, String signature, long expiryDate, int maxNodes, long startDate) {
         this.version = version;
         this.uid = uid;
         this.issuer = issuer;
@@ -123,6 +120,7 @@ public class License implements ToXContent {
         this.signature = signature;
         this.expiryDate = expiryDate;
         this.maxNodes = maxNodes;
+        this.startDate = startDate;
         if (version == VERSION_START) {
             // in 1.x: the acceptable values for 'subscription_type': none | dev | silver | gold | platinum
             this.operationMode = OperationMode.resolve(subscriptionType);
@@ -159,6 +157,13 @@ public class License implements ToXContent {
      */
     public long issueDate() {
         return issueDate;
+    }
+
+    /**
+     * @return the startDate in milliseconds
+     */
+    public long startDate() {
+        return startDate;
     }
 
     /**
@@ -290,6 +295,9 @@ public class License implements ToXContent {
         builder.issuedTo(in.readString());
         builder.issuer(in.readString());
         builder.signature(in.readOptionalString());
+        if (version >= VERSION_START_DATE) {
+            builder.startDate(in.readLong());
+        }
         return builder.build();
     }
 
@@ -309,6 +317,9 @@ public class License implements ToXContent {
         out.writeString(issuedTo);
         out.writeString(issuer);
         out.writeOptionalString(signature);
+        if (version >= VERSION_START_DATE) {
+            out.writeLong(startDate);
+        }
     }
 
     @Override
@@ -355,11 +366,11 @@ public class License implements ToXContent {
         if (version == VERSION_START) {
             builder.field(Fields.SUBSCRIPTION_TYPE, subscriptionType);
         }
-        builder.dateValueField(Fields.ISSUE_DATE_IN_MILLIS, Fields.ISSUE_DATE, issueDate);
+        builder.dateField(Fields.ISSUE_DATE_IN_MILLIS, Fields.ISSUE_DATE, issueDate);
         if (version == VERSION_START) {
             builder.field(Fields.FEATURE, feature);
         }
-        builder.dateValueField(Fields.EXPIRY_DATE_IN_MILLIS, Fields.EXPIRY_DATE, expiryDate);
+        builder.dateField(Fields.EXPIRY_DATE_IN_MILLIS, Fields.EXPIRY_DATE, expiryDate);
         builder.field(Fields.MAX_NODES, maxNodes);
         builder.field(Fields.ISSUED_TO, issuedTo);
         builder.field(Fields.ISSUER, issuer);
@@ -368,6 +379,9 @@ public class License implements ToXContent {
         }
         if (restViewMode) {
             builder.humanReadable(previouslyHumanReadable);
+        }
+        if (version >= VERSION_START_DATE) {
+            builder.dateField(Fields.START_DATE_IN_MILLIS, Fields.START_DATE, startDate);
         }
         return builder;
     }
@@ -394,6 +408,8 @@ public class License implements ToXContent {
                         builder.feature(parser.text());
                     } else if (Fields.EXPIRY_DATE.equals(currentFieldName)) {
                         builder.expiryDate(parseDate(parser, "expiration", true));
+                    } else if (Fields.START_DATE.equals(currentFieldName)) {
+                        builder.startDate(parseDate(parser, "start", false));
                     } else if (Fields.EXPIRY_DATE_IN_MILLIS.equals(currentFieldName)) {
                         builder.expiryDate(parser.longValue());
                     } else if (Fields.MAX_NODES.equals(currentFieldName)) {
@@ -508,6 +524,7 @@ public class License implements ToXContent {
 
         if (issueDate != license.issueDate) return false;
         if (expiryDate != license.expiryDate) return false;
+        if (startDate!= license.startDate) return false;
         if (maxNodes != license.maxNodes) return false;
         if (version != license.version) return false;
         if (uid != null ? !uid.equals(license.uid) : license.uid != null) return false;
@@ -532,6 +549,7 @@ public class License implements ToXContent {
         result = 31 * result + (feature != null ? feature.hashCode() : 0);
         result = 31 * result + (signature != null ? signature.hashCode() : 0);
         result = 31 * result + (int) (expiryDate ^ (expiryDate >>> 32));
+        result = 31 * result + (int) (startDate ^ (startDate>>> 32));
         result = 31 * result + maxNodes;
         result = 31 * result + version;
         return result;
@@ -547,6 +565,8 @@ public class License implements ToXContent {
         public static final String FEATURE = "feature";
         public static final String EXPIRY_DATE_IN_MILLIS = "expiry_date_in_millis";
         public static final String EXPIRY_DATE = "expiry_date";
+        public static final String START_DATE_IN_MILLIS = "start_date_in_millis";
+        public static final String START_DATE = "start_date";
         public static final String MAX_NODES = "max_nodes";
         public static final String ISSUED_TO = "issued_to";
         public static final String ISSUER = "issuer";
@@ -589,6 +609,7 @@ public class License implements ToXContent {
         private String feature;
         private String signature;
         private long expiryDate = -1;
+        private long startDate = -1;
         private int maxNodes = -1;
 
         public Builder uid(String uid) {
@@ -648,11 +669,17 @@ public class License implements ToXContent {
             return this;
         }
 
+        public Builder startDate(long startDate) {
+            this.startDate = startDate;
+            return this;
+        }
+
         public Builder fromLicenseSpec(License license, String signature) {
             return uid(license.uid())
                     .version(license.version())
                     .issuedTo(license.issuedTo())
                     .issueDate(license.issueDate())
+                    .startDate(license.startDate())
                     .type(license.type())
                     .subscriptionType(license.subscriptionType)
                     .feature(license.feature)
@@ -676,7 +703,7 @@ public class License implements ToXContent {
 
         public License build() {
             return new License(version, uid, issuer, issuedTo, issueDate, type,
-                    subscriptionType, feature, signature, expiryDate, maxNodes);
+                    subscriptionType, feature, signature, expiryDate, maxNodes, startDate);
         }
 
         public Builder validate() {

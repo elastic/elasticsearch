@@ -510,7 +510,7 @@ public class EmailActionTests extends ESTestCase {
 
     public void testThatOneFailedEmailAttachmentResultsInActionFailure() throws Exception {
         EmailService emailService = new AbstractWatcherIntegrationTestCase.NoopEmailService();
-        TextTemplateEngine engine = mock(TextTemplateEngine.class);
+        TextTemplateEngine engine = new MockTextTemplateEngine();
         HttpClient httpClient = mock(HttpClient.class);
 
         // setup mock response, second one is an error
@@ -542,7 +542,6 @@ public class EmailActionTests extends ESTestCase {
                 .endObject()
                 .endObject();
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
-        logger.info("JSON: {}", builder.string());
 
         parser.nextToken();
 
@@ -563,7 +562,8 @@ public class EmailActionTests extends ESTestCase {
         assertThat(result, instanceOf(EmailAction.Result.Failure.class));
         EmailAction.Result.Failure failure = (EmailAction.Result.Failure) result;
         assertThat(failure.reason(),
-                is("Unable to get attachment of type [http] with id [second] in watch [watch1] aborting watch execution"));
+                is("Watch[watch1] attachment[second] HTTP error status host[localhost], port[80], method[GET], path[/second], " +
+                        "status[403]"));
     }
 
     private EmailActionFactory createEmailActionFactory() {

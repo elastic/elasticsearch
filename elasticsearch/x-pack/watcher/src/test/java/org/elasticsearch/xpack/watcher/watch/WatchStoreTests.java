@@ -54,6 +54,7 @@ import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -66,8 +67,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- */
 public class WatchStoreTests extends ESTestCase {
     private WatchStore watchStore;
     private WatcherClientProxy clientProxy;
@@ -123,22 +122,7 @@ public class WatchStoreTests extends ESTestCase {
 
     public void testStartRefreshFailed() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        MetaData.Builder metaDateBuilder = MetaData.builder();
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        Settings settings = settings(Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
-        metaDateBuilder.put(IndexMetaData.builder(WatchStore.INDEX).settings(settings).numberOfShards(1).numberOfReplicas(1));
-        final Index index = metaDateBuilder.get(WatchStore.INDEX).getIndex();
-        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
-        indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(index, 0))
-                .addShard(TestShardRouting.newShardRouting(WatchStore.INDEX, 0, "_node_id", null, true, ShardRoutingState.STARTED))
-                .build());
-        indexRoutingTableBuilder.addReplica();
-        routingTableBuilder.add(indexRoutingTableBuilder.build());
-        csBuilder.metaData(metaDateBuilder);
-        csBuilder.routingTable(routingTableBuilder.build());
+        createWatchIndexMetaData(csBuilder);
 
         RefreshResponse refreshResponse = mockRefreshResponse(1, 0);
         when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
@@ -158,22 +142,7 @@ public class WatchStoreTests extends ESTestCase {
 
     public void testStartSearchFailed() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        MetaData.Builder metaDateBuilder = MetaData.builder();
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        Settings settings = settings(Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
-        metaDateBuilder.put(IndexMetaData.builder(WatchStore.INDEX).settings(settings).numberOfShards(1).numberOfReplicas(1));
-        final Index index = metaDateBuilder.get(WatchStore.INDEX).getIndex();
-        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
-        indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(index, 0))
-                .addShard(TestShardRouting.newShardRouting(WatchStore.INDEX, 0, "_node_id", null, true, ShardRoutingState.STARTED))
-                .build());
-        indexRoutingTableBuilder.addReplica();
-        routingTableBuilder.add(indexRoutingTableBuilder.build());
-        csBuilder.metaData(metaDateBuilder);
-        csBuilder.routingTable(routingTableBuilder.build());
+        createWatchIndexMetaData(csBuilder);
 
         RefreshResponse refreshResponse = mockRefreshResponse(1, 1);
         when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
@@ -197,22 +166,7 @@ public class WatchStoreTests extends ESTestCase {
 
     public void testStartNoWatchStored() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        MetaData.Builder metaDateBuilder = MetaData.builder();
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        Settings settings = settings(Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
-        metaDateBuilder.put(IndexMetaData.builder(WatchStore.INDEX).settings(settings).numberOfShards(1).numberOfReplicas(1));
-        final Index index = metaDateBuilder.get(WatchStore.INDEX).getIndex();
-        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
-        indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(index, 0))
-                .addShard(TestShardRouting.newShardRouting(WatchStore.INDEX, 0, "_node_id", null, true, ShardRoutingState.STARTED))
-                .build());
-        indexRoutingTableBuilder.addReplica();
-        routingTableBuilder.add(indexRoutingTableBuilder.build());
-        csBuilder.metaData(metaDateBuilder);
-        csBuilder.routingTable(routingTableBuilder.build());
+        createWatchIndexMetaData(csBuilder);
 
         RefreshResponse refreshResponse = mockRefreshResponse(1, 1);
         when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
@@ -234,22 +188,7 @@ public class WatchStoreTests extends ESTestCase {
 
     public void testStartWatchStored() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        MetaData.Builder metaDateBuilder = MetaData.builder();
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        Settings settings = settings(Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
-        metaDateBuilder.put(IndexMetaData.builder(WatchStore.INDEX).settings(settings).numberOfShards(1).numberOfReplicas(1));
-        final Index index = metaDateBuilder.get(WatchStore.INDEX).getIndex();
-        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
-        indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(index, 0))
-                .addShard(TestShardRouting.newShardRouting(WatchStore.INDEX, 0, "_node_id", null, true, ShardRoutingState.STARTED))
-                .build());
-        indexRoutingTableBuilder.addReplica();
-        routingTableBuilder.add(indexRoutingTableBuilder.build());
-        csBuilder.metaData(metaDateBuilder);
-        csBuilder.routingTable(routingTableBuilder.build());
+        createWatchIndexMetaData(csBuilder);
 
         RefreshResponse refreshResponse = mockRefreshResponse(1, 1);
         when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
@@ -280,10 +219,10 @@ public class WatchStoreTests extends ESTestCase {
         when(watch3.status()).thenReturn(status);
         Watch watch4 = mock(Watch.class);
         when(watch4.status()).thenReturn(status);
-        when(parser.parse("_id1", true, source)).thenReturn(watch1);
-        when(parser.parse("_id2", true, source)).thenReturn(watch2);
-        when(parser.parse("_id3", true, source)).thenReturn(watch3);
-        when(parser.parse("_id4", true, source)).thenReturn(watch4);
+        when(parser.parse("_id1", true, source, true)).thenReturn(watch1);
+        when(parser.parse("_id2", true, source, true)).thenReturn(watch2);
+        when(parser.parse("_id3", true, source, true)).thenReturn(watch3);
+        when(parser.parse("_id4", true, source, true)).thenReturn(watch4);
 
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 0));
 
@@ -300,22 +239,7 @@ public class WatchStoreTests extends ESTestCase {
 
     public void testUsageStats() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        MetaData.Builder metaDateBuilder = MetaData.builder();
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        Settings settings = settings(Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
-        metaDateBuilder.put(IndexMetaData.builder(WatchStore.INDEX).settings(settings).numberOfShards(1).numberOfReplicas(1));
-        final Index index = metaDateBuilder.get(WatchStore.INDEX).getIndex();
-        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
-        indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(index, 0))
-                .addShard(TestShardRouting.newShardRouting(WatchStore.INDEX, 0, "_node_id", null, true, ShardRoutingState.STARTED))
-                .build());
-        indexRoutingTableBuilder.addReplica();
-        routingTableBuilder.add(indexRoutingTableBuilder.build());
-        csBuilder.metaData(metaDateBuilder);
-        csBuilder.routingTable(routingTableBuilder.build());
+        createWatchIndexMetaData(csBuilder);
 
         RefreshResponse refreshResponse = mockRefreshResponse(1, 1);
         when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
@@ -377,7 +301,7 @@ public class WatchStoreTests extends ESTestCase {
             };
             when(watch.transform()).thenReturn(randomFrom(testTransform, null));
 
-            when(parser.parse("_id" + i, true, source)).thenReturn(watch);
+            when(parser.parse("_id" + i, true, source, true)).thenReturn(watch);
         }
 
         SearchResponse searchResponse = mockSearchResponse(1, 1, hitCount, hits.toArray(new InternalSearchHit[] {}));
@@ -419,6 +343,65 @@ public class WatchStoreTests extends ESTestCase {
         assertThat(stats.getValue("watch.transform.TYPE.active"), is(greaterThan(0)));
     }
 
+    public void testThatCleaningWatchesWorks() throws Exception {
+        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
+        createWatchIndexMetaData(csBuilder);
+
+        RefreshResponse refreshResponse = mockRefreshResponse(1, 1);
+        when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
+
+        BytesReference source = new BytesArray("{}");
+        InternalSearchHit hit = new InternalSearchHit(0, "_id1", new Text("type"), Collections.emptyMap());
+        hit.sourceRef(source);
+
+        SearchResponse searchResponse = mockSearchResponse(1, 1, 1, hit);
+        when(clientProxy.search(any(SearchRequest.class), any(TimeValue.class))).thenReturn(searchResponse);
+
+        SearchResponse finalSearchResponse = mockSearchResponse(1, 1, 0);
+        when(clientProxy.searchScroll(anyString(), any(TimeValue.class))).thenReturn(finalSearchResponse);
+
+        Watch watch = mock(Watch.class);
+        WatchStatus status = mock(WatchStatus.class);
+        when(watch.status()).thenReturn(status);
+        when(parser.parse("_id1", true, source, true)).thenReturn(watch);
+
+        when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 0));
+
+        ClusterState cs = csBuilder.build();
+        assertThat(watchStore.validate(cs), is(true));
+        watchStore.start(cs);
+        assertThat(watchStore.started(), is(true));
+        assertThat(watchStore.watches(), hasSize(1));
+
+        watchStore.clearWatchesInMemory();
+        assertThat(watchStore.started(), is(true));
+        assertThat(watchStore.watches(), hasSize(0));
+        assertThat(watchStore.activeWatches(), hasSize(0));
+    }
+
+    /*
+     * Creates the standard cluster state metadata for the watches index
+     * with shards/replicas being marked as started
+     */
+    private void createWatchIndexMetaData(ClusterState.Builder builder) {
+        MetaData.Builder metaDateBuilder = MetaData.builder();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        Settings settings = settings(Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build();
+        metaDateBuilder.put(IndexMetaData.builder(WatchStore.INDEX).settings(settings).numberOfShards(1).numberOfReplicas(1));
+        final Index index = metaDateBuilder.get(WatchStore.INDEX).getIndex();
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+        indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(index, 0))
+                .addShard(TestShardRouting.newShardRouting(WatchStore.INDEX, 0, "_node_id", null, true, ShardRoutingState.STARTED))
+                .build());
+        indexRoutingTableBuilder.addReplica();
+        routingTableBuilder.add(indexRoutingTableBuilder.build());
+        builder.metaData(metaDateBuilder);
+        builder.routingTable(routingTableBuilder.build());
+    }
+
     private RefreshResponse mockRefreshResponse(int total, int successful) {
         RefreshResponse refreshResponse = mock(RefreshResponse.class);
         when(refreshResponse.getTotalShards()).thenReturn(total);
@@ -431,7 +414,6 @@ public class WatchStoreTests extends ESTestCase {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.getTotalShards()).thenReturn(total);
         when(searchResponse.getSuccessfulShards()).thenReturn(successful);
-        when(searchResponse.getHits()).thenReturn(internalSearchHits);
         when(searchResponse.getHits()).thenReturn(internalSearchHits);
         return searchResponse;
     }

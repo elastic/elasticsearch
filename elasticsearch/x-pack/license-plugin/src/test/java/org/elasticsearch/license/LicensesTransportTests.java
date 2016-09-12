@@ -8,15 +8,17 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.UUID;
 
+import static org.elasticsearch.license.TestUtils.dateMath;
 import static org.elasticsearch.license.TestUtils.generateExpiredLicense;
 import static org.elasticsearch.license.TestUtils.generateSignedLicense;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -163,5 +165,49 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
         // get licenses (expected no licenses)
         getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).get();
         assertNull(getLicenseResponse.license());
+    }
+
+    public void testLicenseIsRejectWhenStartDateLaterThanNow() throws Exception {
+        long now = System.currentTimeMillis();
+        final License.Builder builder = License.builder()
+                .uid(UUID.randomUUID().toString())
+                .version(License.VERSION_CURRENT)
+                .expiryDate(dateMath("now+2h", now))
+                .startDate(dateMath("now+1h", now))
+                .issueDate(now)
+                .type(License.OperationMode.TRIAL.toString())
+                .issuedTo("customer")
+                .issuer("elasticsearch")
+                .maxNodes(5);
+        License license = TestUtils.generateSignedLicense(builder);
+
+        PutLicenseRequestBuilder putLicenseRequestBuilder =
+                new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE).setLicense(license)
+                        .setAcknowledge(true);
+        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
+        assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
+        assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.INVALID));
+    }
+
+    public void testLicenseIsAcceptedWhenStartDateBeforeThanNow() throws Exception {
+        long now = System.currentTimeMillis();
+        final License.Builder builder = License.builder()
+                .uid(UUID.randomUUID().toString())
+                .version(License.VERSION_CURRENT)
+                .expiryDate(dateMath("now+2h", now))
+                .startDate(now)
+                .issueDate(now)
+                .type(License.OperationMode.TRIAL.toString())
+                .issuedTo("customer")
+                .issuer("elasticsearch")
+                .maxNodes(5);
+        License license = TestUtils.generateSignedLicense(builder);
+
+        PutLicenseRequestBuilder putLicenseRequestBuilder =
+                new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE).setLicense(license)
+                        .setAcknowledge(true);
+        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
+        assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
+        assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
     }
 }

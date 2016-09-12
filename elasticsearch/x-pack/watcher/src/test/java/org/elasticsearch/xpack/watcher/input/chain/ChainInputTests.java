@@ -83,7 +83,7 @@ public class ChainInputTests extends ESTestCase {
         // first pass JSON and check for correct inputs
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
-        ChainInput chainInput = chainInputFactory.parseInput("test", parser);
+        ChainInput chainInput = chainInputFactory.parseInput("test", parser, false);
 
         assertThat(chainInput.getInputs(), hasSize(2));
         assertThat(chainInput.getInputs().get(0).v1(), is("first"));

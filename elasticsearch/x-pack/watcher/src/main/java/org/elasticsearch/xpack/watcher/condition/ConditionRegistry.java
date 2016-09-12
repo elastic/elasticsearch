@@ -40,9 +40,15 @@ public class ConditionRegistry {
      *         }
      *     }
      * </code></pre>
+     *
+     * @param watchId                   The id of the watch
+     * @param parser                    The parsing that contains the condition content
+     * @param upgradeConditionSource    Whether to upgrade the source related to condition if in legacy format
+     *                                  Note: depending on the version, only conditions implementations that have a
+     *                                  known legacy format will support this option, otherwise this is a noop.
      */
-    public ExecutableCondition parseExecutable(String watchId, XContentParser parser) throws IOException {
-        Condition condition = parseCondition(watchId, parser);
+    public ExecutableCondition parseExecutable(String watchId, XContentParser parser, boolean upgradeConditionSource) throws IOException {
+        Condition condition = parseCondition(watchId, parser, upgradeConditionSource);
         return factories.get(condition.type()).createExecutable(condition);
     }
 
@@ -56,7 +62,7 @@ public class ConditionRegistry {
      *     }
      * </code></pre>
      */
-    public Condition parseCondition(String watchId, XContentParser parser) throws IOException {
+    public Condition parseCondition(String watchId, XContentParser parser, boolean upgradeConditionSource) throws IOException {
         Condition condition = null;
         ConditionFactory factory = null;
 
@@ -74,7 +80,7 @@ public class ConditionRegistry {
                     throw new ElasticsearchParseException("could not parse condition for watch [{}]. unknown condition type [{}]",
                             watchId, type);
                 }
-                condition = factory.parseCondition(watchId, parser);
+                condition = factory.parseCondition(watchId, parser, upgradeConditionSource);
             }
         }
         if (condition == null) {

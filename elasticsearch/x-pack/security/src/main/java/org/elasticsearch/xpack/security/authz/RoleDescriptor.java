@@ -126,10 +126,10 @@ public class RoleDescriptor implements ToXContent {
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Fields.CLUSTER.getPreferredName(), (Object[]) clusterPrivileges);
-        builder.field(Fields.INDICES.getPreferredName(), (Object[]) indicesPrivileges);
+        builder.array(Fields.CLUSTER.getPreferredName(), clusterPrivileges);
+        builder.array(Fields.INDICES.getPreferredName(), (Object[]) indicesPrivileges);
         if (runAs != null) {
-            builder.field(Fields.RUN_AS.getPreferredName(), runAs);
+            builder.array(Fields.RUN_AS.getPreferredName(), runAs);
         }
         builder.field(Fields.METADATA.getPreferredName(), metadata);
         return builder.endObject();

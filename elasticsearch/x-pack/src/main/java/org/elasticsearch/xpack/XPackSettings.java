@@ -56,6 +56,10 @@ public class XPackSettings {
     /** Setting for enabling or disabling http ssl. Defaults to false. */
     public static final Setting<Boolean> HTTP_SSL_ENABLED = enabledSetting(XPackPlugin.SECURITY + ".http.ssl", false);
 
+    /** Setting for enabling or disabling the reserved realm. Defaults to true */
+    public static final Setting<Boolean> RESERVED_REALM_ENABLED_SETTING =
+            enabledSetting(XPackPlugin.SECURITY + ".authc.reserved_realm", true);
+
     /*
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them
      * but instead parse based on a prefix (eg *.ssl.*)

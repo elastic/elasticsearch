@@ -235,7 +235,7 @@ public abstract class WatchRecord implements ToXContent {
         @Override
         void innerToXContent(XContentBuilder builder, Params params) throws IOException {
             if (messages != null) {
-                builder.field(Field.MESSAGES.getPreferredName(), messages);
+                builder.array(Field.MESSAGES.getPreferredName(), messages);
             }
         }
     }

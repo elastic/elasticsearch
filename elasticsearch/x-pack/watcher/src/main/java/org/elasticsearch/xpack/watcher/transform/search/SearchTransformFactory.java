@@ -13,19 +13,17 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.transform.TransformFactory;
 
-/**
- *
- */
 public class SearchTransformFactory extends TransformFactory<SearchTransform, SearchTransform.Result, ExecutableSearchTransform> {
 
+    private final Settings settings;
     protected final WatcherClientProxy client;
     private final TimeValue defaultTimeout;
     private final SearchRequestParsers searchRequestParsers;
@@ -40,6 +38,7 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
     public SearchTransformFactory(Settings settings, WatcherClientProxy client,
                                   SearchRequestParsers searchRequestParsers, ScriptService scriptService) {
         super(Loggers.getLogger(ExecutableSearchTransform.class, settings));
+        this.settings = settings;
         this.client = client;
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.searchRequestParsers = searchRequestParsers;
@@ -53,9 +52,10 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
     }
 
     @Override
-    public SearchTransform parseTransform(String watchId, XContentParser parser) throws IOException {
-        QueryParseContext context = new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
-        return SearchTransform.parse(watchId, parser, context, searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
+    public SearchTransform parseTransform(String watchId, XContentParser parser, boolean upgradeTransformSource) throws IOException {
+        String defaultLegacyScriptLanguage = ScriptSettings.getLegacyDefaultLang(settings);
+        return SearchTransform.parse(transformLogger, watchId, parser, upgradeTransformSource, defaultLegacyScriptLanguage,
+                parseFieldMatcher, searchRequestParsers);
     }
 
     @Override

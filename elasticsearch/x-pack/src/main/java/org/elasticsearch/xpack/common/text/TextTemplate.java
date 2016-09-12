@@ -27,6 +27,8 @@ import java.util.Objects;
  */
 public class TextTemplate implements ToXContent {
 
+    public static final String DEFAULT_TEMPLATE_LANG = "mustache";
+
     private final Script script;
     private final String inlineTemplate;
 
@@ -37,7 +39,7 @@ public class TextTemplate implements ToXContent {
 
     public TextTemplate(String template, @Nullable XContentType contentType, ScriptType type,
                         @Nullable Map<String, Object> params) {
-        this.script = new Script(template, type, "mustache", params, contentType);
+        this.script = new Script(template, type, DEFAULT_TEMPLATE_LANG, params, contentType);
         this.inlineTemplate = null;
     }
 
@@ -95,7 +97,7 @@ public class TextTemplate implements ToXContent {
         if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
             return new TextTemplate(parser.text());
         } else {
-            return new TextTemplate(Script.parse(parser, ParseFieldMatcher.STRICT, "mustache"));
+            return new TextTemplate(Script.parse(parser, ParseFieldMatcher.STRICT, DEFAULT_TEMPLATE_LANG));
         }
     }
 }

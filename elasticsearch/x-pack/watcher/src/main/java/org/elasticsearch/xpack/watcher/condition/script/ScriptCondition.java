@@ -53,9 +53,15 @@ public class ScriptCondition implements Condition {
         return script.hashCode();
     }
 
-    public static ScriptCondition parse(String watchId, XContentParser parser) throws IOException {
+    public static ScriptCondition parse(String watchId, XContentParser parser, boolean upgradeConditionSource,
+                                        String defaultLegacyScriptLanguage) throws IOException {
         try {
-            Script script = Script.parse(parser, ParseFieldMatcher.STRICT);
+            Script script;
+            if (upgradeConditionSource) {
+                script = Script.parse(parser, ParseFieldMatcher.STRICT, defaultLegacyScriptLanguage);
+            } else {
+                script = Script.parse(parser, ParseFieldMatcher.STRICT);
+            }
             return new ScriptCondition(script);
         } catch (ElasticsearchParseException pe) {
             throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. failed to parse script", pe, TYPE,

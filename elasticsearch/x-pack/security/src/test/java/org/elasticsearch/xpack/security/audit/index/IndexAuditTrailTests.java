@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.joda.time.DateTime;
@@ -625,6 +624,61 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertThat(sourceMap.get("principal"), is("_username"));
         assertThat(sourceMap.get("run_as_principal"), is("running as"));
         assertEquals("_action", sourceMap.get("action"));
+        assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
+    }
+
+    public void testAuthenticationSuccessRest() throws Exception {
+        initialize();
+        RestRequest request = mockRestRequest();
+        final boolean runAs = randomBoolean();
+        User user;
+        if (runAs) {
+            user = new User("_username", new String[] { "r1" }, new User("running as", new String[] { "r2" }));
+        } else {
+            user = new User("_username", new String[] { "r1" });
+        }
+        String realm = "_realm";
+        auditor.authenticationSuccess(realm, user, request);
+        SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
+
+        assertAuditMessage(hit, "rest", "authentication_success");
+        Map<String, Object> sourceMap = hit.sourceAsMap();
+        assertThat("_uri", equalTo(sourceMap.get("uri")));
+        assertRequestBody(sourceMap);
+        if (runAs) {
+            assertThat(sourceMap.get("principal"), is("running as"));
+            assertThat(sourceMap.get("run_by_principal"), is("_username"));
+        } else {
+            assertEquals("_username", sourceMap.get("principal"));
+        }
+        assertEquals("_realm", sourceMap.get("realm"));
+    }
+
+    public void testAuthenticationSuccessTransport() throws Exception {
+        initialize();
+        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
+        final boolean runAs = randomBoolean();
+        User user;
+        if (runAs) {
+            user = new User("_username", new String[] { "r1" }, new User("running as", new String[] { "r2" }));
+        } else {
+            user = new User("_username", new String[] { "r1" });
+        }
+        String realm = "_realm";
+        auditor.authenticationSuccess(realm, user, "_action", message);
+
+        SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
+        Map<String, Object> sourceMap = hit.sourceAsMap();
+        assertAuditMessage(hit, "transport", "authentication_success");
+        assertEquals("transport", sourceMap.get("origin_type"));
+        if (runAs) {
+            assertThat(sourceMap.get("principal"), is("running as"));
+            assertThat(sourceMap.get("run_by_principal"), is("_username"));
+        } else {
+            assertEquals("_username", sourceMap.get("principal"));
+        }
+        assertEquals("_action", sourceMap.get("action"));
+        assertEquals("_realm", sourceMap.get("realm"));
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 

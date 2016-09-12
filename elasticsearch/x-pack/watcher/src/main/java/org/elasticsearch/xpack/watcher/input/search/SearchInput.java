@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.search;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -12,9 +13,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.suggest.Suggesters;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
@@ -109,9 +108,11 @@ public class SearchInput implements Input {
         return builder;
     }
 
-    public static SearchInput parse(String watchId, XContentParser parser, QueryParseContext context,
-                                    AggregatorParsers aggParsers, Suggesters suggesters)
-            throws IOException {
+    public static SearchInput parse(Logger inputLogger, String watchId, XContentParser parser,
+                                    boolean upgradeInputSource,
+                                    String defaultLegacyScriptLanguage,
+                                    ParseFieldMatcher parseFieldMatcher,
+                                    SearchRequestParsers searchRequestParsers) throws IOException {
         WatcherSearchTemplateRequest request = null;
         Set<String> extract = null;
         TimeValue timeout = null;
@@ -124,7 +125,8 @@ public class SearchInput implements Input {
                 currentFieldName = parser.currentName();
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.REQUEST)) {
                 try {
-                    request = WatcherSearchTemplateRequest.fromXContent(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE);
+                    request = WatcherSearchTemplateRequest.fromXContent(inputLogger, parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE,
+                            upgradeInputSource, defaultLegacyScriptLanguage, parseFieldMatcher, searchRequestParsers);
                 } catch (ElasticsearchParseException srpe) {
                     throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. failed to parse [{}]", srpe, TYPE,
                             watchId, currentFieldName);

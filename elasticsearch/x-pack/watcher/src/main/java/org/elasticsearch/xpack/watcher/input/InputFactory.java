@@ -28,16 +28,22 @@ public abstract class InputFactory<I extends Input, R extends Input.Result, E ex
 
     /**
      * Parses the given xcontent and creates a concrete input
+     *
+     * @param watchId               The id of the watch
+     * @param parser                The parser containing the input content of the watch
+     * @param upgradeInputSource    Whether to upgrade the source related to the inpit if that source is in legacy format
+     *                              Note: depending on the version, only input implementations that have a known legacy
+     *                              format will support this option, otherwise this is a noop.
      */
-    public abstract I parseInput(String watchId, XContentParser parser) throws IOException;
+    public abstract I parseInput(String watchId, XContentParser parser, boolean upgradeInputSource) throws IOException;
 
     /**
      * Creates an executable input out of the given input.
      */
     public abstract E createExecutable(I input);
 
-    public E parseExecutable(String watchId, XContentParser parser) throws IOException {
-        I input = parseInput(watchId, parser);
+    public E parseExecutable(String watchId, XContentParser parser, boolean upgradeInputSource) throws IOException {
+        I input = parseInput(watchId, parser, upgradeInputSource);
         return createExecutable(input);
     }
 }

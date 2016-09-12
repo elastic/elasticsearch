@@ -56,7 +56,8 @@ public class WatcherSearchTemplateService extends AbstractComponent {
         if (source.getParams() != null) {
             watcherContextParams.putAll(source.getParams());
         }
-        Script template = new Script(source.getScript(), source.getType(), source.getLang(), watcherContextParams,
+        // Templates are always of lang mustache:
+        Script template = new Script(source.getScript(), source.getType(), "mustache", watcherContextParams,
                 source.getContentType());
         CompiledScript compiledScript = scriptService.compile(template, Watcher.SCRIPT_CONTEXT, Collections.emptyMap());
         return (BytesReference) scriptService.executable(compiledScript, template.getParams()).run();
@@ -72,7 +73,7 @@ public class WatcherSearchTemplateService extends AbstractComponent {
         if (source != null && source.length() > 0) {
             try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
                 sourceBuilder.parseXContent(new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher),
-                        searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
+                        searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
                 searchRequest.source(sourceBuilder);
             }
         }

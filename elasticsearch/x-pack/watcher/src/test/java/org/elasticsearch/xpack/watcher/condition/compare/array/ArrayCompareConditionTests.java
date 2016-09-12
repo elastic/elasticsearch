@@ -185,7 +185,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        ArrayCompareCondition condition = factory.parseCondition("_id", parser);
+        ArrayCompareCondition condition = factory.parseCondition("_id", parser, false);
 
         assertThat(condition, notNullValue());
         assertThat(condition.getArrayPath(), is("key1.key2"));
@@ -221,7 +221,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         expectedException.expect(ElasticsearchParseException.class);
         expectedException.expectMessage("duplicate comparison operator");
 
-        factory.parseCondition("_id", parser);
+        factory.parseCondition("_id", parser, false);
     }
 
     public void testParseContainsUnknownOperator() throws IOException {
@@ -245,7 +245,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         expectedException.expect(ElasticsearchParseException.class);
         expectedException.expectMessage("unknown comparison operator");
 
-        factory.parseCondition("_id", parser);
+        factory.parseCondition("_id", parser, false);
     }
 
     public void testParseContainsDuplicateValue() throws IOException {
@@ -271,7 +271,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         expectedException.expect(ElasticsearchParseException.class);
         expectedException.expectMessage("duplicate field \"value\"");
 
-        factory.parseCondition("_id", parser);
+        factory.parseCondition("_id", parser, false);
     }
 
     public void testParseContainsDuplicateQuantifier() throws IOException {
@@ -297,7 +297,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         expectedException.expect(ElasticsearchParseException.class);
         expectedException.expectMessage("duplicate field \"quantifier\"");
 
-        factory.parseCondition("_id", parser);
+        factory.parseCondition("_id", parser, false);
     }
 
     public void testParseContainsUnknownQuantifier() throws IOException {
@@ -321,7 +321,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         expectedException.expect(ElasticsearchParseException.class);
         expectedException.expectMessage("unknown comparison quantifier");
 
-        factory.parseCondition("_id", parser);
+        factory.parseCondition("_id", parser, false);
     }
 
     public void testParseContainsUnexpectedFieldInComparisonOperator() throws IOException {
@@ -347,6 +347,6 @@ public class ArrayCompareConditionTests extends ESTestCase {
         expectedException.expect(ElasticsearchParseException.class);
         expectedException.expectMessage("expected a field indicating the comparison value or comparison quantifier");
 
-        factory.parseCondition("_id", parser);
+        factory.parseCondition("_id", parser, false);
     }
 }

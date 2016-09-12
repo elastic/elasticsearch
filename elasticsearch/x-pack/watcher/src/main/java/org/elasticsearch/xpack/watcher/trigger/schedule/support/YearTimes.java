@@ -124,7 +124,7 @@ public class YearTimes implements Times {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(MONTH_FIELD.getPreferredName(), months);
-        builder.field(DAY_FIELD.getPreferredName(), days);
+        builder.array(DAY_FIELD.getPreferredName(), days);
         builder.startArray(TIME_FIELD.getPreferredName());
         for (DayTimes dayTimes : times) {
             dayTimes.toXContent(builder, params);

@@ -32,7 +32,7 @@ public class NeverConditionFactory extends ConditionFactory<NeverCondition, Neve
     }
 
     @Override
-    public NeverCondition parseCondition(String watchId, XContentParser parser) throws IOException {
+    public NeverCondition parseCondition(String watchId, XContentParser parser, boolean upgradeConditionSource) throws IOException {
         return NeverCondition.parse(watchId, parser);
     }
 

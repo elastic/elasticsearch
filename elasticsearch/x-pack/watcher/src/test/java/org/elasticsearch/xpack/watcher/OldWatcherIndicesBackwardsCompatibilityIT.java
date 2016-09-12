@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.xpack.watcher;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.AbstractOldXPackIndicesBackwardsCompatibilityTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
@@ -24,8 +23,6 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule.Interva
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 
 import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -44,47 +41,23 @@ public class OldWatcherIndicesBackwardsCompatibilityIT extends AbstractOldXPackI
                 .build();
     }
 
-    public void testAllVersionsTested() throws Exception {
-        SortedSet<String> expectedVersions = new TreeSet<>();
-        for (Version v : VersionUtils.allVersions()) {
-            if (v.before(Version.V_2_0_0)) continue; // unsupported indexes
-            if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
-            if (v.isBeta() == true || v.isAlpha() == true || v.isRC() == true) continue; // don't check alphas etc
-            expectedVersions.add("x-pack-" + v.toString() + ".zip");
-        }
-        for (String index : dataFiles) {
-            if (expectedVersions.remove(index) == false) {
-                logger.warn("Old indexes tests contain extra index: {}", index);
-            }
-        }
-        if (expectedVersions.isEmpty() == false) {
-            StringBuilder msg = new StringBuilder("Old index tests are missing indexes:");
-            for (String expected : expectedVersions) {
-                msg.append("\n" + expected);
-            }
-            fail(msg.toString());
-        }
-    }
-
-    @Override
-    public void testOldIndexes() throws Exception {
-        super.testOldIndexes();
-        // Wait for watcher to fully start before shutting down
-        assertBusy(() -> {
-            assertEquals(WatcherState.STARTED, internalCluster().getInstance(WatcherService.class).state());
-        });
-        // Shutdown watcher on the last node so that the test can shutdown cleanly
-        internalCluster().getInstance(WatcherLifeCycleService.class).stop();
-    }
-
     @Override
     protected void checkVersion(Version version) throws Exception {
         // Wait for watcher to actually start....
         assertBusy(() -> {
             assertEquals(WatcherState.STARTED, internalCluster().getInstance(WatcherService.class).state());
         });
-        assertWatchIndexContentsWork(version);
-        assertBasicWatchInteractions();
+        try {
+            assertWatchIndexContentsWork(version);
+            assertBasicWatchInteractions();
+        } finally {
+            /* Shut down watcher after every test because watcher can be a bit finicky about shutting down when the node shuts down. This
+             * makes super sure it shuts down *and* causes the test to fail in a sensible spot if it doesn't shut down. */
+            internalCluster().getInstance(WatcherLifeCycleService.class).stop();
+            assertBusy(() -> {
+                assertEquals(WatcherState.STOPPED, internalCluster().getInstance(WatcherService.class).state());
+            });
+        }
     }
 
     void assertWatchIndexContentsWork(Version version) throws Exception {

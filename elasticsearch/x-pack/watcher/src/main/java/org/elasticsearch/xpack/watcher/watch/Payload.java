@@ -46,7 +46,7 @@ public interface Payload extends ToXContent {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.value(data);
+            return builder.map(data);
         }
 
         @Override

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
@@ -19,14 +20,17 @@ import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -76,6 +80,21 @@ public class ReservedRealmTests extends ESTestCase {
         verifyNoMoreInteractions(usersStore);
     }
 
+    public void testAuthenticationDisabled() throws Throwable {
+        Settings settings = Settings.builder().put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false).build();
+        final boolean securityIndexExists = randomBoolean();
+        if (securityIndexExists) {
+            when(usersStore.securityIndexExists()).thenReturn(true);
+        }
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings));
+        final User expected = randomFrom(new ElasticUser(true), new KibanaUser(true));
+        final String principal = expected.principal();
+
+        final User authenticated = reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, DEFAULT_PASSWORD));
+        assertNull(authenticated);
+        verifyZeroInteractions(usersStore);
+    }
+
     public void testAuthenticationWithStoredPassword() throws Throwable {
         final ReservedRealm reservedRealm =
                 new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore, new AnonymousUser(Settings.EMPTY));
@@ -118,6 +137,18 @@ public class ReservedRealmTests extends ESTestCase {
         verifyNoMoreInteractions(usersStore);
     }
 
+    public void testLookupDisabled() throws Exception {
+        Settings settings = Settings.builder().put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false).build();
+        final ReservedRealm reservedRealm =
+                new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings));
+        final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true));
+        final String principal = expectedUser.principal();
+
+        final User user = reservedRealm.doLookupUser(principal);
+        assertNull(user);
+        verifyZeroInteractions(usersStore);
+    }
+
     public void testLookupThrows() throws Exception {
         final ReservedRealm reservedRealm =
                 new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore, new AnonymousUser(Settings.EMPTY));
@@ -146,10 +177,35 @@ public class ReservedRealmTests extends ESTestCase {
         assertThat(ReservedRealm.isReserved(notExpected, Settings.EMPTY), is(false));
     }
 
+    public void testIsReservedDisabled() {
+        Settings settings = Settings.builder().put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false).build();
+        final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true));
+        final String principal = expectedUser.principal();
+        assertThat(ReservedRealm.isReserved(principal, settings), is(false));
+
+        final String notExpected = randomFrom("foobar", "", randomAsciiOfLengthBetween(1, 30));
+        assertThat(ReservedRealm.isReserved(notExpected, settings), is(false));
+    }
+
     public void testGetUsers() {
         final ReservedRealm reservedRealm =
                 new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore, new AnonymousUser(Settings.EMPTY));
         assertThat(reservedRealm.users(), containsInAnyOrder(new ElasticUser(true), new KibanaUser(true)));
+    }
+
+    public void testGetUsersDisabled() {
+        final boolean anonymousEnabled = randomBoolean();
+        Settings settings = Settings.builder()
+                .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false)
+                .put(AnonymousUser.ROLES_SETTING.getKey(), anonymousEnabled ? "user" : "")
+                .build();
+        final AnonymousUser anonymousUser = new AnonymousUser(settings);
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser);
+        if (anonymousEnabled) {
+            assertThat(reservedRealm.users(), contains(anonymousUser));
+        } else {
+            assertThat(reservedRealm.users(), empty());
+        }
     }
 
     public void testFailedAuthentication() {

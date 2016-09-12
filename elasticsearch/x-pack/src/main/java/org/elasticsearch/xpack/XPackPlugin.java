@@ -232,7 +232,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         HttpAuthRegistry httpAuthRegistry = new HttpAuthRegistry(httpAuthFactories);
         HttpRequestTemplate.Parser httpTemplateParser = new HttpRequestTemplate.Parser(httpAuthRegistry);
         components.add(httpTemplateParser);
-        final HttpClient httpClient = new HttpClient(settings, httpAuthRegistry, env, sslService);
+        final HttpClient httpClient = new HttpClient(settings, httpAuthRegistry, sslService);
         components.add(httpClient);
 
         components.addAll(createNotificationComponents(clusterService.getClusterSettings(), httpClient,

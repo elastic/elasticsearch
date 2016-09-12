@@ -20,6 +20,10 @@ public interface AuditTrail {
 
     String name();
 
+    void authenticationSuccess(String realm, User user, RestRequest request);
+
+    void authenticationSuccess(String realm, User user, String action, TransportMessage message);
+
     void anonymousAccessDenied(String action, TransportMessage message);
 
     void anonymousAccessDenied(RestRequest request);

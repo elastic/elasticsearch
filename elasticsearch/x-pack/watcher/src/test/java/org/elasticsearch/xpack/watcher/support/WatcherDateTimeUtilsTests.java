@@ -126,9 +126,6 @@ public class WatcherDateTimeUtilsTests extends ESTestCase {
     }
 
     public void testParseTimeValueWithFractional() {
-        assertEquals("This function exists so 5.x can be compatible with 2.x indices. It should be removed with 6.x", 5,
-                Version.CURRENT.major);
-
         // This code is lifted strait from 2.x's TimeValueTests.java
         assertEquals(new TimeValue(10, TimeUnit.MILLISECONDS), parseTimeValueSupportingFractional("10 ms", "test"));
         assertEquals(new TimeValue(10, TimeUnit.MILLISECONDS), parseTimeValueSupportingFractional("10ms", "test"));

@@ -166,7 +166,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     public void registerLicense(final PutLicenseRequest request, final ActionListener<PutLicenseResponse> listener) {
         final License newLicense = request.license();
         final long now = clock.millis();
-        if (!LicenseVerifier.verifyLicense(newLicense) || newLicense.issueDate() > now) {
+        if (!LicenseVerifier.verifyLicense(newLicense) || newLicense.issueDate() > now || newLicense.startDate() > now) {
             listener.onResponse(new PutLicenseResponse(true, LicensesStatus.INVALID));
         } else if (newLicense.expiryDate() < now) {
             listener.onResponse(new PutLicenseResponse(true, LicensesStatus.EXPIRED));

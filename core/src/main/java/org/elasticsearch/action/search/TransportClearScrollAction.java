@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.search.action.SearchTransportService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -53,11 +53,11 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
 
     @Inject
     public TransportClearScrollAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                      ClusterService clusterService, SearchTransportService searchTransportService,
+                                      ClusterService clusterService, SearchService searchService,
                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ClearScrollAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, ClearScrollRequest::new);
         this.clusterService = clusterService;
-        this.searchTransportService = searchTransportService;
+        this.searchTransportService = new SearchTransportService(settings, transportService, searchService);
     }
 
     @Override

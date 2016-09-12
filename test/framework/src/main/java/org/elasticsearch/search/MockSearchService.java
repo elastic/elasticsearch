@@ -20,9 +20,6 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.MockNode;
@@ -69,11 +66,10 @@ public class MockSearchService extends SearchService {
         ACTIVE_SEARCH_CONTEXTS.remove(context);
     }
 
-    @Inject
-    public MockSearchService(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService,
+    public MockSearchService(ClusterService clusterService,
             IndicesService indicesService, ThreadPool threadPool, ScriptService scriptService,
             BigArrays bigArrays, FetchPhase fetchPhase) {
-        super(settings, clusterSettings, clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase);
+        super(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase);
     }
 
     @Override

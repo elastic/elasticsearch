@@ -93,7 +93,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         }
 
         GetResult result = indexShard.getService().get(request.type(), request.id(), request.fields(),
-                request.realtime(), request.version(), request.versionType(), request.fetchSourceContext(), request.ignoreErrorsOnGeneratedFields());
+                request.realtime(), request.version(), request.versionType(), request.fetchSourceContext());
         return new GetResponse(result);
     }
 

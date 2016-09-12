@@ -930,36 +930,30 @@ public class GetActionIT extends ESIntegTestCase {
 
     private void assertGetFieldsAlwaysWorks(String index, String type, String docId, String[] fields, @Nullable String routing) {
         for (String field : fields) {
-            assertGetFieldWorks(index, type, docId, field, false, routing);
-            assertGetFieldWorks(index, type, docId, field, true, routing);
+            assertGetFieldWorks(index, type, docId, field, routing);
+            assertGetFieldWorks(index, type, docId, field, routing);
         }
     }
 
-    private void assertGetFieldWorks(String index, String type, String docId, String field, boolean ignoreErrors, @Nullable String routing) {
-        GetResponse response = getDocument(index, type, docId, field, ignoreErrors, routing);
+    private void assertGetFieldWorks(String index, String type, String docId, String field, @Nullable String routing) {
+        GetResponse response = getDocument(index, type, docId, field, routing);
         assertThat(response.getId(), equalTo(docId));
         assertTrue(response.isExists());
         assertNotNull(response.getField(field));
-        response = multiGetDocument(index, type, docId, field, ignoreErrors, routing);
+        response = multiGetDocument(index, type, docId, field, routing);
         assertThat(response.getId(), equalTo(docId));
         assertTrue(response.isExists());
         assertNotNull(response.getField(field));
-    }
-
-    protected void assertGetFieldsException(String index, String type, String docId, String[] fields) {
-        for (String field : fields) {
-            assertGetFieldException(index, type, docId, field);
-        }
     }
 
     private void assertGetFieldException(String index, String type, String docId, String field) {
         try {
-            client().prepareGet().setIndex(index).setType(type).setId(docId).setFields(field).setIgnoreErrorsOnGeneratedFields(false).get();
+            client().prepareGet().setIndex(index).setType(type).setId(docId).setFields(field).get();
             fail();
         } catch (ElasticsearchException e) {
             assertTrue(e.getMessage().contains("You can only get this field after refresh() has been called."));
         }
-        MultiGetResponse multiGetResponse = client().prepareMultiGet().add(new MultiGetRequest.Item(index, type, docId).fields(field)).setIgnoreErrorsOnGeneratedFields(false).get();
+        MultiGetResponse multiGetResponse = client().prepareMultiGet().add(new MultiGetRequest.Item(index, type, docId).fields(field)).get();
         assertNull(multiGetResponse.getResponses()[0].getResponse());
         assertTrue(multiGetResponse.getResponses()[0].getFailure().getMessage().contains("You can only get this field after refresh() has been called."));
     }
@@ -970,7 +964,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     protected void assertGetFieldsNull(String index, String type, String docId, String[] fields, @Nullable String routing) {
         for (String field : fields) {
-            assertGetFieldNull(index, type, docId, field, true, routing);
+            assertGetFieldNull(index, type, docId, field, routing);
         }
     }
 
@@ -980,37 +974,37 @@ public class GetActionIT extends ESIntegTestCase {
 
     protected void assertGetFieldsAlwaysNull(String index, String type, String docId, String[] fields, @Nullable String routing) {
         for (String field : fields) {
-            assertGetFieldNull(index, type, docId, field, true, routing);
-            assertGetFieldNull(index, type, docId, field, false, routing);
+            assertGetFieldNull(index, type, docId, field, routing);
+            assertGetFieldNull(index, type, docId, field, routing);
         }
     }
 
-    protected void assertGetFieldNull(String index, String type, String docId, String field, boolean ignoreErrors, @Nullable String routing) {
+    protected void assertGetFieldNull(String index, String type, String docId, String field, @Nullable String routing) {
         //for get
-        GetResponse response = getDocument(index, type, docId, field, ignoreErrors, routing);
+        GetResponse response = getDocument(index, type, docId, field, routing);
         assertTrue(response.isExists());
         assertNull(response.getField(field));
         assertThat(response.getId(), equalTo(docId));
         //same for multi get
-        response = multiGetDocument(index, type, docId, field, ignoreErrors, routing);
+        response = multiGetDocument(index, type, docId, field, routing);
         assertNull(response.getField(field));
         assertThat(response.getId(), equalTo(docId));
         assertTrue(response.isExists());
     }
 
-    private GetResponse multiGetDocument(String index, String type, String docId, String field, boolean ignoreErrors, @Nullable String routing) {
+    private GetResponse multiGetDocument(String index, String type, String docId, String field, @Nullable String routing) {
         MultiGetRequest.Item getItem = new MultiGetRequest.Item(index, type, docId).fields(field);
         if (routing != null) {
             getItem.routing(routing);
         }
-        MultiGetRequestBuilder multiGetRequestBuilder = client().prepareMultiGet().add(getItem).setIgnoreErrorsOnGeneratedFields(ignoreErrors);
+        MultiGetRequestBuilder multiGetRequestBuilder = client().prepareMultiGet().add(getItem);
         MultiGetResponse multiGetResponse = multiGetRequestBuilder.get();
         assertThat(multiGetResponse.getResponses().length, equalTo(1));
         return multiGetResponse.getResponses()[0].getResponse();
     }
 
-    private GetResponse getDocument(String index, String type, String docId, String field, boolean ignoreErrors, @Nullable String routing) {
-        GetRequestBuilder getRequestBuilder = client().prepareGet().setIndex(index).setType(type).setId(docId).setFields(field).setIgnoreErrorsOnGeneratedFields(ignoreErrors);
+    private GetResponse getDocument(String index, String type, String docId, String field, @Nullable String routing) {
+        GetRequestBuilder getRequestBuilder = client().prepareGet().setIndex(index).setType(type).setId(docId).setFields(field);
         if (routing != null) {
             getRequestBuilder.setRouting(routing);
         }

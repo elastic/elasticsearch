@@ -143,12 +143,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
                 bindMapperExtension();
             }
         };
-        SearchModule searchModule = new SearchModule(settings, false, emptyList()) {
-            @Override
-            protected void configureSearch() {
-                // Skip me
-            }
-        };
+        SearchModule searchModule = new SearchModule(settings, false, emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(indicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());

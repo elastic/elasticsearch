@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.internal;
+package org.elasticsearch.search;
 
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -53,8 +53,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchExtBuilder;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -64,6 +62,10 @@ import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.ScrollContext;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
@@ -80,7 +82,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class DefaultSearchContext extends SearchContext {
+final class DefaultSearchContext extends SearchContext {
 
     private final long id;
     private final ShardSearchRequest request;
@@ -123,10 +125,7 @@ public class DefaultSearchContext extends SearchContext {
      * things like the type filter or alias filters.
      */
     private ParsedQuery originalQuery;
-    /**
-     * Just like originalQuery but with the filters from types, aliases and slice applied.
-     */
-    private ParsedQuery filteredQuery;
+
     /**
      * The query to actually execute.
      */
@@ -151,7 +150,7 @@ public class DefaultSearchContext extends SearchContext {
     private final QueryShardContext queryShardContext;
     private FetchPhase fetchPhase;
 
-    public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget, Engine.Searcher engineSearcher,
+    DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget, Engine.Searcher engineSearcher,
             IndexService indexService, IndexShard indexShard, ScriptService scriptService,
             BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher, TimeValue timeout,
             FetchPhase fetchPhase) {
@@ -241,7 +240,7 @@ public class DefaultSearchContext extends SearchContext {
         if (queryBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
             parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new WeightFactorFunction(queryBoost)), parsedQuery()));
         }
-        filteredQuery(buildFilteredQuery());
+        this.query = buildFilteredQuery();
         try {
             this.query = searcher().rewrite(this.query);
         } catch (IOException e) {
@@ -249,10 +248,10 @@ public class DefaultSearchContext extends SearchContext {
         }
     }
 
-    private ParsedQuery buildFilteredQuery() {
+    private Query buildFilteredQuery() {
         Query searchFilter = searchFilter(queryShardContext.getTypes());
         if (searchFilter == null) {
-            return originalQuery;
+            return originalQuery.query();
         }
         Query result;
         if (Queries.isConstantMatchAllQuery(query())) {
@@ -263,7 +262,7 @@ public class DefaultSearchContext extends SearchContext {
                     .add(searchFilter, Occur.FILTER)
                     .build();
         }
-        return new ParsedQuery(result, originalQuery);
+        return result;
     }
 
     @Override
@@ -616,15 +615,6 @@ public class DefaultSearchContext extends SearchContext {
         this.originalQuery = query;
         this.query = query.query();
         return this;
-    }
-
-    public ParsedQuery filteredQuery() {
-        return filteredQuery;
-    }
-
-    private void filteredQuery(ParsedQuery filteredQuery) {
-        this.filteredQuery = filteredQuery;
-        this.query = filteredQuery.query();
     }
 
     @Override

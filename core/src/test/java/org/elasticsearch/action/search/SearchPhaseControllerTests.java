@@ -17,10 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.search.controller;
+package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;

@@ -61,7 +61,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     private VersionType versionType = VersionType.INTERNAL;
     private long version = Versions.MATCH_ANY;
-    private boolean ignoreErrorsOnGeneratedFields;
 
     public GetRequest() {
         type = "_all";
@@ -248,17 +247,8 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         return this;
     }
 
-    public GetRequest ignoreErrorsOnGeneratedFields(boolean ignoreErrorsOnGeneratedFields) {
-        this.ignoreErrorsOnGeneratedFields = ignoreErrorsOnGeneratedFields;
-        return this;
-    }
-
     public VersionType versionType() {
         return this.versionType;
-    }
-
-    public boolean ignoreErrorsOnGeneratedFields() {
-        return ignoreErrorsOnGeneratedFields;
     }
 
     @Override
@@ -278,7 +268,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
             }
         }
         realtime = in.readBoolean();
-        this.ignoreErrorsOnGeneratedFields = in.readBoolean();
 
         this.versionType = VersionType.fromValue(in.readByte());
         this.version = in.readLong();
@@ -304,7 +293,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
             }
         }
         out.writeBoolean(realtime);
-        out.writeBoolean(ignoreErrorsOnGeneratedFields);
         out.writeByte(versionType.getValue());
         out.writeLong(version);
         out.writeOptionalStreamable(fetchSourceContext);

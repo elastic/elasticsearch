@@ -78,10 +78,7 @@ public final class CustomQueryScorer extends QueryScorer {
         @Override
         protected void extractUnknownQuery(Query query,
                                            Map<String, WeightedSpanTerm> terms) throws IOException {
-            if (query instanceof FunctionScoreQuery) {
-                query = ((FunctionScoreQuery) query).getSubQuery();
-                extract(query, 1F, terms);
-            } else if (query instanceof FiltersFunctionScoreQuery) {
+            if (query instanceof FiltersFunctionScoreQuery) {
                 query = ((FiltersFunctionScoreQuery) query).getSubQuery();
                 extract(query, 1F, terms);
             } else if (terms.isEmpty()) {
@@ -97,9 +94,11 @@ public final class CustomQueryScorer extends QueryScorer {
             } else if (query instanceof HasChildQueryBuilder.LateParsingQuery) {
                 // skip has_child or has_parent queries, see: https://github.com/elastic/elasticsearch/issues/14999
                 return;
+            } else if (query instanceof FunctionScoreQuery) {
+                super.extract(((FunctionScoreQuery) query).getSubQuery(), boost, terms);
+            } else {
+                super.extract(query, boost, terms);
             }
-
-            super.extract(query, boost, terms);
         }
     }
 }

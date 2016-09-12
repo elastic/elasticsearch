@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.shard;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -410,7 +409,6 @@ public class IndexShardTests extends IndexShardTestCase {
     /***
      * test one can snapshot the store at various lifecycle stages
      */
-    @Seed("3FB6919BFA8BBCD6")
     public void testSnapshotStore() throws IOException {
         final IndexShard shard = newStartedShard(true);
         indexDoc(shard, "test", "0");

@@ -26,7 +26,7 @@ import java.util.Map;
  * Wrapper exception for checked exceptions thrown during the bootstrap process. Methods invoked
  * during bootstrap should explicitly declare the checked exceptions that they can throw, rather
  * than declaring the top-level checked exception {@link Exception}. This exception exists to wrap
- * these checked exceptions so that {@link Bootstrap#init(boolean, Path, Map)} does not have to
+ * these checked exceptions so that {@link Bootstrap#init(boolean, Path, boolean, Map)} does not have to
  * declare all of these checked exceptions.
  */
 class BootstrapException extends Exception {

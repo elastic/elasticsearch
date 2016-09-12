@@ -26,7 +26,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -85,7 +84,12 @@ import java.util.function.BiFunction;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 
-public class IndexShardTestCase extends ESTestCase {
+/**
+ * A base class for unit tests that need to create and shutdown {@link IndexShard} instances easily,
+ * containing utilities for shard creation and recoveries. See {{@link #newShard(boolean)}} and
+ * {@link #newStartedShard()} for a good starting points
+ */
+public abstract class IndexShardTestCase extends ESTestCase {
 
     protected static final PeerRecoveryTargetService.RecoveryListener recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
         @Override
@@ -95,7 +99,7 @@ public class IndexShardTestCase extends ESTestCase {
 
         @Override
         public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
-            fail(ExceptionsHelper.detailedMessage(e));
+            throw new AssertionError(e);
         }
     };
 
@@ -109,8 +113,11 @@ public class IndexShardTestCase extends ESTestCase {
 
     @Override
     public void tearDown() throws Exception {
-        super.tearDown();
-        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        try {
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        } finally {
+            super.tearDown();
+        }
     }
 
     private Store createStore(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
@@ -129,6 +136,12 @@ public class IndexShardTestCase extends ESTestCase {
         return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
     }
 
+    /**
+     * creates a new initializing shard. The shard will have its own unique data path.
+     *
+     * @param primary indicates whether to a primary shard (ready to recover from an empty store) or a replica
+     *                (ready to recover from another shard)
+     */
     protected IndexShard newShard(boolean primary) throws IOException {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("index", "_na_", 0), "n1", primary,
             ShardRoutingState.INITIALIZING,
@@ -136,7 +149,14 @@ public class IndexShardTestCase extends ESTestCase {
         return newShard(shardRouting);
     }
 
+    /**
+     * creates a new initializing shard. The shard will have its own unique data path.
+     *
+     * @param shardRouting the {@link ShardRouting} to use for this shard
+     * @param listeners    an optional set of listeners to add to the shard
+     */
     protected IndexShard newShard(ShardRouting shardRouting, IndexingOperationListener... listeners) throws IOException {
+        assert shardRouting.initializing() : shardRouting;
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -147,12 +167,29 @@ public class IndexShardTestCase extends ESTestCase {
         return newShard(shardRouting, metaData.build(), listeners);
     }
 
+    /**
+     * creates a new initializing shard. The shard will have its own unique data path.
+     *
+     * @param shardId   the shard id to use
+     * @param primary   indicates whether to a primary shard (ready to recover from an empty store) or a replica
+     *                  (ready to recover from another shard)
+     * @param listeners an optional set of listeners to add to the shard
+     */
     protected IndexShard newShard(ShardId shardId, boolean primary, IndexingOperationListener... listeners) throws IOException {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "n1", primary, ShardRoutingState.INITIALIZING,
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, randomAsciiOfLength(5), primary,
+            ShardRoutingState.INITIALIZING,
             primary ? RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
         return newShard(shardRouting, listeners);
     }
 
+    /**
+     * creates a new initializing shard. The shard will will be put in its proper path under the
+     * supplied node id.
+     *
+     * @param shardId the shard id to use
+     * @param primary indicates whether to a primary shard (ready to recover from an empty store) or a replica
+     *                (ready to recover from another shard)
+     */
     protected IndexShard newShard(ShardId shardId, boolean primary, String nodeId, IndexMetaData indexMetaData,
                                   @Nullable IndexSearcherWrapper searcherWrapper) throws IOException {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, nodeId, primary, ShardRoutingState.INITIALIZING,
@@ -160,12 +197,28 @@ public class IndexShardTestCase extends ESTestCase {
         return newShard(shardRouting, indexMetaData, searcherWrapper);
     }
 
-
+    /**
+     * creates a new initializing shard. The shard will will be put in its proper path under the
+     * current node id the shard is assigned to.
+     *
+     * @param routing       shard routing to use
+     * @param indexMetaData indexMetaData for the shard, including any mapping
+     * @param listeners     an optional set of listeners to add to the shard
+     */
     protected IndexShard newShard(ShardRouting routing, IndexMetaData indexMetaData, IndexingOperationListener... listeners)
         throws IOException {
         return newShard(routing, indexMetaData, null, listeners);
     }
 
+    /**
+     * creates a new initializing shard. The shard will will be put in its proper path under the
+     * current node id the shard is assigned to.
+     *
+     * @param routing              shard routing to use
+     * @param indexMetaData        indexMetaData for the shard, including any mapping
+     * @param indexSearcherWrapper an optional wrapper to be used during searchers
+     * @param listeners            an optional set of listeners to add to the shard
+     */
     protected IndexShard newShard(ShardRouting routing, IndexMetaData indexMetaData,
                                   @Nullable IndexSearcherWrapper indexSearcherWrapper, IndexingOperationListener... listeners)
         throws IOException {
@@ -176,48 +229,85 @@ public class IndexShardTestCase extends ESTestCase {
         return newShard(routing, shardPath, indexMetaData, indexSearcherWrapper, listeners);
     }
 
+    /**
+     * creates a new initializing shard.
+     *
+     * @param routing              shard routing to use
+     * @param shardPath            path to use for shard data
+     * @param indexMetaData        indexMetaData for the shard, including any mapping
+     * @param indexSearcherWrapper an optional wrapper to be used during searchers
+     * @param listeners            an optional set of listeners to add to the shard
+     */
     protected IndexShard newShard(ShardRouting routing, ShardPath shardPath, IndexMetaData indexMetaData,
                                   @Nullable IndexSearcherWrapper indexSearcherWrapper,
                                   IndexingOperationListener... listeners) throws IOException {
         final Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, nodeSettings);
-        Store store = createStore(indexSettings, shardPath);
-        IndexCache indexCache = new IndexCache(indexSettings, new DisabledQueryCache(indexSettings), null);
-        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), indexSettings.getSettings());
-        for (ObjectObjectCursor<String, MappingMetaData> typeMapping : indexMetaData.getMappings()) {
-            mapperService.merge(typeMapping.key, typeMapping.value.source(), MapperService.MergeReason.MAPPING_RECOVERY, true);
+        final IndexShard indexShard;
+        final Store store = createStore(indexSettings, shardPath);
+        boolean success = false;
+        try {
+            IndexCache indexCache = new IndexCache(indexSettings, new DisabledQueryCache(indexSettings), null);
+            MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), indexSettings.getSettings());
+            for (ObjectObjectCursor<String, MappingMetaData> typeMapping : indexMetaData.getMappings()) {
+                mapperService.merge(typeMapping.key, typeMapping.value.source(), MapperService.MergeReason.MAPPING_RECOVERY, true);
+            }
+            SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
+            final IndexEventListener indexEventListener = new IndexEventListener() {
+            };
+            final Engine.Warmer warmer = searcher -> {
+            };
+            IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
+            });
+            IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, indicesFieldDataCache,
+                new NoneCircuitBreakerService(), mapperService);
+            indexShard = new IndexShard(routing, indexSettings, shardPath, store, indexCache, mapperService, similarityService, indexFieldDataService,
+                null, indexEventListener, indexSearcherWrapper, threadPool, BigArrays.NON_RECYCLING_INSTANCE, warmer, Collections.emptyList(),
+                Arrays.asList(listeners));
+            success = true;
+        } finally {
+            if (success == false) {
+                IOUtils.close(store);
+            }
         }
-        SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
-        final IndexEventListener indexEventListener = new IndexEventListener() {
-        };
-        final Engine.Warmer warmer = searcher -> {
-        };
-        IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
-        });
-        IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, indicesFieldDataCache,
-            new NoneCircuitBreakerService(), mapperService);
-
-        return new IndexShard(routing, indexSettings, shardPath, store, indexCache, mapperService, similarityService, indexFieldDataService,
-            null, indexEventListener, indexSearcherWrapper, threadPool, BigArrays.NON_RECYCLING_INSTANCE, warmer, Collections.emptyList(),
-            Arrays.asList(listeners));
+        return indexShard;
     }
 
+    /**
+     * Takes an existing shard, closes it and and starts a new initialing shard at the same location
+     *
+     * @param listeners new listerns to use for the newly created shard
+     */
     protected IndexShard reinitShard(IndexShard current, IndexingOperationListener... listeners) throws IOException {
         final ShardRouting shardRouting = current.routingEntry();
         return reinitShard(current, ShardRoutingHelper.initWithSameId(shardRouting,
             shardRouting.primary() ? RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
-            ), listeners);
+        ), listeners);
     }
 
+    /**
+     * Takes an existing shard, closes it and and starts a new initialing shard at the same location
+     *
+     * @param routing   the shard routing to use for the newly created shard.
+     * @param listeners new listerns to use for the newly created shard
+     */
     protected IndexShard reinitShard(IndexShard current, ShardRouting routing, IndexingOperationListener... listeners) throws IOException {
         closeShards(current);
         return newShard(routing, current.shardPath(), current.indexSettings().getIndexMetaData(), null, listeners);
     }
 
+    /**
+     * creates a new empyu shard and starts it. The shard will be either a replica or a primary.
+     */
     protected IndexShard newStartedShard() throws IOException {
         return newStartedShard(randomBoolean());
     }
 
+    /**
+     * creates a new empty shard and starts it.
+     *
+     * @param primary controls whether the shard will be a primary or a replica.
+     */
     protected IndexShard newStartedShard(boolean primary) throws IOException {
         IndexShard shard = newShard(primary);
         if (primary) {
@@ -235,8 +325,11 @@ public class IndexShardTestCase extends ESTestCase {
     protected void closeShards(Iterable<IndexShard> shards) throws IOException {
         for (IndexShard shard : shards) {
             if (shard != null) {
-                shard.close("test", false);
-                IOUtils.close(shard.store());
+                try {
+                    shard.close("test", false);
+                } finally {
+                    IOUtils.close(shard.store());
+                }
             }
         }
     }
@@ -263,15 +356,24 @@ public class IndexShardTestCase extends ESTestCase {
         return new DiscoveryNode(id, new LocalTransportAddress("_fake_" + id), Version.CURRENT);
     }
 
+    /** recovers a replica from the given primary **/
     protected void recoverReplica(IndexShard replica, IndexShard primary) throws IOException {
         recoverReplica(replica, primary,
-            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener, version -> {}),
+            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener, version -> {
+            }),
             true);
     }
 
+    /**
+     * Recovers a replica from the give primary, allow the user to supply a custom recovery target.
+     * A typical usage of a custome recovery target is to assert things in the various stages of recovery
+     *
+     * @param markAsRecovering set to false if you have already marked the replica as recovering
+     * @throws IOException
+     */
     protected void recoverReplica(IndexShard replica, IndexShard primary,
-                               BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
-                               boolean markAsRecovering)
+                                  BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
+                                  boolean markAsRecovering)
         throws IOException {
         final DiscoveryNode pNode = getFakeDiscoNode(primary.routingEntry().currentNodeId());
         final DiscoveryNode rNode = getFakeDiscoNode(replica.routingEntry().currentNodeId());
@@ -285,7 +387,8 @@ public class IndexShardTestCase extends ESTestCase {
         RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
         StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), pNode, rNode,
             getMetadataSnapshotOrEmpty(replica), false, 0);
-        RecoverySourceHandler recovery = new RecoverySourceHandler(primary, recoveryTarget, request, () -> 0L, e -> () -> {},
+        RecoverySourceHandler recovery = new RecoverySourceHandler(primary, recoveryTarget, request, () -> 0L, e -> () -> {
+        },
             (int) ByteSizeUnit.MB.toKB(1), logger);
         recovery.recoverToTarget();
         recoveryTarget.markAsDone();
@@ -336,7 +439,7 @@ public class IndexShardTestCase extends ESTestCase {
 
 
     protected Engine.Index indexDoc(IndexShard shard, String type, String id) {
-       return indexDoc(shard, type, id, "{}");
+        return indexDoc(shard, type, id, "{}");
     }
 
     protected Engine.Index indexDoc(IndexShard shard, String type, String id, String source) {

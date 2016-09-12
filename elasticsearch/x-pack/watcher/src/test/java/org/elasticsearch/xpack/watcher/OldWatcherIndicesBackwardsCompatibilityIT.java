@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule.Interval;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
-import org.junit.After;
 
 import java.util.Map;
 
@@ -33,7 +32,6 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests for watcher indexes created before 5.0.
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "leaks trigger engine threads")
 public class OldWatcherIndicesBackwardsCompatibilityIT extends AbstractOldXPackIndicesBackwardsCompatibilityTestCase {
     @Override
     public Settings nodeSettings(int ord) {
@@ -43,24 +41,23 @@ public class OldWatcherIndicesBackwardsCompatibilityIT extends AbstractOldXPackI
                 .build();
     }
 
-    @After
-    public void shutDownWatcher() throws Exception {
-        // Wait for watcher to fully start before shutting down
-        assertBusy(() -> {
-            assertEquals(WatcherState.STARTED, internalCluster().getInstance(WatcherService.class).state());
-        });
-        // Shutdown watcher on the last node so that the test can shutdown cleanly
-        internalCluster().getInstance(WatcherLifeCycleService.class).stop();
-    }
-
     @Override
     protected void checkVersion(Version version) throws Exception {
         // Wait for watcher to actually start....
         assertBusy(() -> {
             assertEquals(WatcherState.STARTED, internalCluster().getInstance(WatcherService.class).state());
         });
-        assertWatchIndexContentsWork(version);
-        assertBasicWatchInteractions();
+        try {
+            assertWatchIndexContentsWork(version);
+            assertBasicWatchInteractions();
+        } finally {
+            /* Shut down watcher after every test because watcher can be a bit finicky about shutting down when the node shuts down. This
+             * makes super sure it shuts down *and* causes the test to fail in a sensible spot if it doesn't shut down. */
+            internalCluster().getInstance(WatcherLifeCycleService.class).stop();
+            assertBusy(() -> {
+                assertEquals(WatcherState.STOPPED, internalCluster().getInstance(WatcherService.class).state());
+            });
+        }
     }
 
     void assertWatchIndexContentsWork(Version version) throws Exception {

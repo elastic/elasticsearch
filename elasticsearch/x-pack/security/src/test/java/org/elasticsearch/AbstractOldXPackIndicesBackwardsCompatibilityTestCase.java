@@ -35,11 +35,30 @@ import static org.elasticsearch.test.OldIndexUtils.loadDataFilesList;
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0) // We'll start the nodes manually
 public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase extends SecurityIntegTestCase {
-    protected List<String> dataFiles;
+    /**
+     * Set to true when it is ok to start a node. We don't want to start nodes at unexpected times.
+     */
+    private boolean okToStartNode = false;
+    private List<String> dataFiles;
 
     @Override
     protected final boolean ignoreExternalCluster() {
         return true;
+    }
+
+    @Override
+    protected boolean shouldAssertXPackIsInstalled() {
+        return false; // Skip asserting that the xpack is installed because it tries to start the cluter.
+    }
+
+    @Override
+    protected void ensureClusterSizeConsistency() {
+        // We manage our nodes ourselves. At this point no node should be running anyway and this would start a new one!
+    }
+
+    @Override
+    protected void ensureClusterStateConsistency() throws IOException {
+        // We manage our nodes ourselves. At this point no node should be running anyway and this would start a new one!
     }
 
     @Before
@@ -49,6 +68,9 @@ public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase exte
 
     @Override
     public Settings nodeSettings(int ord) {
+        if (false == okToStartNode) {
+            throw new IllegalStateException("Starting nodes must only happen in setupCluster");
+        }
         // speed up recoveries
         return Settings.builder()
                 .put(super.nodeSettings(ord))
@@ -152,7 +174,9 @@ public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase exte
 
         // start the node
         logger.info("--> Data path for importing node: {}", dataPath);
+        okToStartNode = true;
         String importingNodeName = internalCluster().startNode(nodeSettings.build());
+        okToStartNode = false;
         Path[] nodePaths = internalCluster().getInstance(NodeEnvironment.class, importingNodeName).nodeDataPaths();
         assertEquals(1, nodePaths.length);
     }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.test;
 
+import org.elasticsearch.AbstractOldXPackIndicesBackwardsCompatibilityTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -159,6 +160,9 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     @Before
     //before methods from the superclass are run before this, which means that the current cluster is ready to go
     public void assertXPackIsInstalled() {
+        if (false == shouldAssertXPackIsInstalled()) {
+            return;
+        }
         NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setPlugins(true).get();
         for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
             // TODO: disable this assertion for now, due to random runs with mock plugins. perhaps run without mock plugins?
@@ -168,6 +172,17 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             assertThat("plugin [" + xpackPluginClass().getName() + "] not found in [" + pluginNames + "]", pluginNames,
                 hasItem(xpackPluginClass().getName()));
         }
+    }
+
+    /**
+     * Should this test assert that x-pack is installed? You might want to skip this assertion if the test itself validates the installation
+     * <strong>and</strong> running the assertion would significantly affect the performance or function of the test. For example
+     * {@link AbstractOldXPackIndicesBackwardsCompatibilityTestCase} disables the assertion because the assertion would force starting a
+     * node which it will then just shut down. That would slow the test down significantly and causes spurious failures because watcher
+     * needs to be shut down with kid gloves.
+     */
+    protected boolean shouldAssertXPackIsInstalled() {
+        return true;
     }
 
     @Override

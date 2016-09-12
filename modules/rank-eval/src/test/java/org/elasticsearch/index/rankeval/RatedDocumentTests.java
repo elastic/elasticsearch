@@ -33,7 +33,7 @@ public class RatedDocumentTests extends ESTestCase {
         String docId = randomAsciiOfLength(10);
         int rating = randomInt();
 
-        return new RatedDocument(new RatedDocumentKey(index, type, docId), rating);
+        return new RatedDocument(index, type, docId, rating);
     }
 
     public void testXContentParsing() throws IOException {

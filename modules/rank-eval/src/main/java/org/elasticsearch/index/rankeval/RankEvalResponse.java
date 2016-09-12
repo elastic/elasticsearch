@@ -117,13 +117,20 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
         builder.startObject("rank_eval");
         builder.field("spec_id", specId);
         builder.field("quality_level", qualityLevel);
-        builder.startArray("unknown_docs");
+        builder.startObject("unknown_docs");
         for (String key : unknownDocs.keySet()) {
-            builder.startObject();
-            builder.field(key, unknownDocs.get(key));
-            builder.endObject();
+            Collection<RatedDocumentKey> keys = unknownDocs.get(key);
+            builder.startArray(key);
+            for (RatedDocumentKey docKey : keys) {
+                builder.startObject();
+                builder.field(RatedDocument.INDEX_FIELD.getPreferredName(), docKey.getIndex());
+                builder.field(RatedDocument.TYPE_FIELD.getPreferredName(), docKey.getType());
+                builder.field(RatedDocument.DOC_ID_FIELD.getPreferredName(), docKey.getDocID());
+                builder.endObject();
+            }
+            builder.endArray();
         }
-        builder.endArray();
+        builder.endObject();
         builder.endObject();
         return builder;
     }

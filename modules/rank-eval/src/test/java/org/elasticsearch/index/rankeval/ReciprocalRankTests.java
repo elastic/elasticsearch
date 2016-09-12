@@ -56,13 +56,9 @@ public class ReciprocalRankTests extends ESTestCase {
         int relevantAt = 5;
         for (int i = 0; i < 10; i++) {
             if (i == relevantAt) {
-                ratedDocs.add(new RatedDocument(
-                        new RatedDocumentKey("test", "type", Integer.toString(i)),
-                        Rating.RELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", "type", Integer.toString(i), Rating.RELEVANT.ordinal()));
             } else {
-                ratedDocs.add(new RatedDocument(
-                        new RatedDocumentKey("test", "type", Integer.toString(i)),
-                        Rating.IRRELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", "type", Integer.toString(i), Rating.IRRELEVANT.ordinal()));
             }
         }
 
@@ -93,13 +89,9 @@ public class ReciprocalRankTests extends ESTestCase {
         int relevantAt = randomIntBetween(0, 9);
         for (int i = 0; i <= 20; i++) {
             if (i == relevantAt) {
-                ratedDocs.add(new RatedDocument(
-                        new RatedDocumentKey("test", "type", Integer.toString(i)),
-                        Rating.RELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", "type", Integer.toString(i), Rating.RELEVANT.ordinal()));
             } else {
-                ratedDocs.add(new RatedDocument(
-                        new RatedDocumentKey("test", "type", Integer.toString(i)),
-                        Rating.IRRELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", "type", Integer.toString(i), Rating.IRRELEVANT.ordinal()));
             }
         }
 
@@ -114,11 +106,11 @@ public class ReciprocalRankTests extends ESTestCase {
      */
     public void testPrecisionAtFiveRelevanceThreshold() throws IOException, InterruptedException, ExecutionException {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(new RatedDocument(new RatedDocumentKey("test", "testtype", "0"), 0));
-        rated.add(new RatedDocument(new RatedDocumentKey("test", "testtype", "1"), 1));
-        rated.add(new RatedDocument(new RatedDocumentKey("test", "testtype", "2"), 2));
-        rated.add(new RatedDocument(new RatedDocumentKey("test", "testtype", "3"), 3));
-        rated.add(new RatedDocument(new RatedDocumentKey("test", "testtype", "4"), 4));
+        rated.add(new RatedDocument("test", "testtype", "0", 0));
+        rated.add(new RatedDocument("test", "testtype", "1", 1));
+        rated.add(new RatedDocument("test", "testtype", "2", 2));
+        rated.add(new RatedDocument("test", "testtype", "3", 3));
+        rated.add(new RatedDocument("test", "testtype", "4", 4));
         InternalSearchHit[] hits = new InternalSearchHit[5];
         for (int i = 0; i < 5; i++) {
             hits[i] = new InternalSearchHit(i, i+"", new Text("testtype"), Collections.emptyMap());

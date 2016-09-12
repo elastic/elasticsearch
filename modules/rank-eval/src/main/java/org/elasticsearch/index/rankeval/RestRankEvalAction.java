@@ -69,7 +69,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
     "requests": [{
         "id": "amsterdam_query",
         "request": {
-                "query": {
+             "query": {
                     "bool": {
                         "must": [
                             {"match": {"beverage": "coffee"}},
@@ -78,15 +78,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
                             {"term": {"ip_location": {"value": "ams","boost": 10}}}]}
                 },
                 "size": 10
-            }
         },
-        "ratings": {
-            "1": 1,
-            "2": 0,
-            "3": 1,
-            "4": 1
-        }
-        }
+        "ratings": [
+             {\"index\": \"test\", \"type\": \"my_type\", \"doc_id\": \"1\", \"rating\" : 1 },
+             {\"index\": \"test\", \"type\": \"my_type\", \"doc_id\": \"2\", \"rating\" : 0 },
+             {\"index\": \"test\", \"type\": \"my_type\", \"doc_id\": \"3\", \"rating\" : 1 }
+         ]
     }, {
         "id": "berlin_query",
         "request": {
@@ -99,13 +96,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
                             {"term": {"ip_location": {"value": "ber","boost": 10}}}]}
                 },
                 "size": 10
-            }
         },
-        "ratings": {
-            "1": 0,
-            "5": 1,
-            "6": 1
-        }
+        "ratings": [ ... ]
     }],
     "metric": {
         "precisionAtN": {
@@ -129,7 +121,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
         "failed": 0
     },
     "quality_level": ... quality level ...,
-    "unknown_docs": [{"user_request_id": [... list of unknown docs ...]}]
+    "unknown_docs": {"user_request_id": [... list of unknown docs ...]}
 }
 
  *
@@ -148,11 +140,17 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
     "rank_eval": [{
         "spec_id": "huge_weight_on_location",
         "quality_level": 0.4,
-        "unknown_docs": [{
-            "amsterdam_query": [5, 10, 23]
+        "unknown_docs": {
+            "amsterdam_query": [
+                { "index" : "test", "type" : "my_type", "doc_id" : "21"},
+                { "index" : "test", "type" : "my_type", "doc_id" : "5"},
+                { "index" : "test", "type" : "my_type", "doc_id" : "9"}
+            ]
         }, {
-            "berlin_query": [42]
-        }]
+            "berlin_query": [
+                { "index" : "test", "type" : "my_type", "doc_id" : "42"}
+            ]
+        }
     }]
   }
 
@@ -188,8 +186,6 @@ public class RestRankEvalAction extends BaseRestHandler {
         }
         client.execute(RankEvalAction.INSTANCE, rankEvalRequest, new RestToXContentListener<RankEvalResponse>(channel));
     }
-
-
 
     public static void parseRankEvalRequest(RankEvalRequest rankEvalRequest, RestRequest request, RankEvalContext context)
             throws IOException {

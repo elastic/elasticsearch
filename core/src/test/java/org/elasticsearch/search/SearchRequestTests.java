@@ -56,12 +56,7 @@ public class SearchRequestTests extends ESTestCase {
             }
         };
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false,
-                Collections.singletonList(new FetchSubPhasePluginIT.FetchTermVectorsPlugin())) {
-            @Override
-            protected void configureSearch() {
-                // Skip me
-            }
-        };
+                Collections.singletonList(new FetchSubPhasePluginIT.FetchTermVectorsPlugin()));
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(indicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());

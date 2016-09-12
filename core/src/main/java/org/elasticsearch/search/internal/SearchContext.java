@@ -139,8 +139,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     /**
      * Should be called before executing the main query and after all other parameters have been set.
+     * @param rewrite if the set query should be rewritten against the searcher returned from {@link #searcher()}
      */
-    public abstract void preProcess();
+    public abstract void preProcess(boolean rewrite);
 
     public abstract Query searchFilter(String[] types);
 

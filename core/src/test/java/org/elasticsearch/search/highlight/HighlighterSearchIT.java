@@ -2764,13 +2764,12 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .get();
         refresh();
 
-        String highlighterType = randomFrom("plain", "fvh", "postings");
         QueryBuilder query = QueryBuilders.functionScoreQuery(QueryBuilders.boolQuery().filter(QueryBuilders.geoBoundingBoxQuery("loc")
             .bottomRight(-23.065941, 113.610741)
             .topLeft(48.934059, 41.610741)));
         SearchResponse search = client().prepareSearch().setSource(
             new SearchSourceBuilder().query(query)
-                .highlight(new HighlightBuilder().highlighterType(highlighterType).field("jd")).buildAsBytes()).get();
+                .highlight(new HighlightBuilder().highlighterType("plain").field("jd")).buildAsBytes()).get();
         assertNoFailures(search);
         assertThat(search.getHits().totalHits(), equalTo(1L));
     }

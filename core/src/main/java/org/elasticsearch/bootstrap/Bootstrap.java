@@ -227,12 +227,12 @@ final class Bootstrap {
     }
 
     /**
-     * This method is invoked by {@link Elasticsearch#main(String[])}
-     * to startup elasticsearch.
+     * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
      */
     static void init(
             final boolean foreground,
             final Path pidFile,
+            final boolean quiet,
             final Map<String, String> esSettings) throws BootstrapException, NodeValidationException {
         // Set the system property before anything has a chance to trigger its use
         initLoggerPrefix();
@@ -259,8 +259,9 @@ final class Bootstrap {
             }
         }
 
+        final boolean closeStandardStreams = (foreground == false) || quiet;
         try {
-            if (!foreground) {
+            if (closeStandardStreams) {
                 final Logger rootLogger = ESLoggerFactory.getRootLogger();
                 final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
                 if (maybeConsoleAppender != null) {
@@ -285,7 +286,7 @@ final class Bootstrap {
 
             INSTANCE.start();
 
-            if (!foreground) {
+            if (closeStandardStreams) {
                 closeSysError();
             }
         } catch (NodeValidationException | RuntimeException e) {

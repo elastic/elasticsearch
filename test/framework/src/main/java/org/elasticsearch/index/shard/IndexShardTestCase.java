@@ -261,9 +261,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
             });
             IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, indicesFieldDataCache,
                 new NoneCircuitBreakerService(), mapperService);
-            indexShard = new IndexShard(routing, indexSettings, shardPath, store, indexCache, mapperService, similarityService, indexFieldDataService,
-                null, indexEventListener, indexSearcherWrapper, threadPool, BigArrays.NON_RECYCLING_INSTANCE, warmer, Collections.emptyList(),
-                Arrays.asList(listeners));
+            indexShard = new IndexShard(routing, indexSettings, shardPath, store, indexCache, mapperService, similarityService,
+                indexFieldDataService, null, indexEventListener, indexSearcherWrapper, threadPool, BigArrays.NON_RECYCLING_INSTANCE, warmer,
+                Collections.emptyList(), Arrays.asList(listeners));
             success = true;
         } finally {
             if (success == false) {

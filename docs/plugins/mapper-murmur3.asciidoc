@@ -19,6 +19,9 @@ sudo bin/elasticsearch-plugin install mapper-murmur3
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
+This plugin can be downloaded for offline install from
+{plugin_url}/mapper-murmur3/{version}/mapper-murmur3-{version}.zip[elastic download service].
+
 [[mapper-murmur3-remove]]
 [float]
 ==== Removal

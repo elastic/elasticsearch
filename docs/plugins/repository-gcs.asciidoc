@@ -20,6 +20,9 @@ NOTE: The plugin requires new permission to be installed in order to work
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
+This plugin can be downloaded for offline install from
+{plugin_url}/repository-gcs/{version}/repository-gcs-{version}.zip[elastic download service].
+
 [[repository-gcs-remove]]
 [float]
 ==== Removal

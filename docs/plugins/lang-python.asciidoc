@@ -20,6 +20,9 @@ sudo bin/elasticsearch-plugin install lang-python
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
+This plugin can be downloaded for offline install from
+{plugin_url}/lang-python/{version}/lang-python-{version}.zip[elastic download service].
+
 [[lang-python-remove]]
 [float]
 ==== Removal

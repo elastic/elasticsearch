@@ -19,6 +19,9 @@ sudo bin/elasticsearch-plugin install mapper-size
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
+This plugin can be downloaded for offline install from
+{plugin_url}/mapper-size/{version}/mapper-size-{version}.zip[elastic download service].
+
 [[mapper-size-remove]]
 [float]
 ==== Removal

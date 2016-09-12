@@ -25,6 +25,9 @@ sudo bin/elasticsearch-plugin install ingest-attachment
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
+This plugin can be downloaded for offline install from
+{plugin_url}/ingest-attachment/{version}/ingest-attachment-{version}.zip[elastic download service].
+
 [[ingest-attachment-remove]]
 [float]
 ==== Removal

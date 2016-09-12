@@ -25,6 +25,9 @@ sudo bin/elasticsearch-plugin install ingest-geoip
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
+This plugin can be downloaded for offline install from
+{plugin_url}/ingest-geoip/{version}/ingest-geoip-{version}.zip[elastic download service].
+
 [[ingest-geoip-remove]]
 [float]
 ==== Removal

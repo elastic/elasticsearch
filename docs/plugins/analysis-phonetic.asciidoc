@@ -19,6 +19,9 @@ sudo bin/elasticsearch-plugin install analysis-phonetic
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
+This plugin can be downloaded for offline install from
+{plugin_url}/analysis-phonetic/{version}/analysis-phonetic-{version}.zip[elastic download service].
+
 [[analysis-phonetic-remove]]
 [float]
 ==== Removal

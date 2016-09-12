@@ -17,6 +17,9 @@ sudo bin/elasticsearch-plugin install discovery-gce
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
+This plugin can be downloaded for offline install from
+{plugin_url}/discovery-gce/{version}/discovery-gce-{version}.zip[elastic download service].
+
 [[discovery-gce-remove]]
 [float]
 ==== Removal

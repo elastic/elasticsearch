@@ -174,7 +174,7 @@ public final class AnalysisRegistry implements Closeable {
             Settings currentSettings = tokenizerSettings.get(tokenizer);
             return getAnalysisProvider("tokenizer", tokenizers, tokenizer, currentSettings.get("type"));
         } else {
-            return prebuiltAnalysis.tokenizerFactories.get(tokenizer);
+            return getTokenizerProvider(tokenizer);
         }
     }
 
@@ -202,7 +202,7 @@ public final class AnalysisRegistry implements Closeable {
                 return getAnalysisProvider("tokenfilter", tokenFilters, tokenFilter, typeName);
             }
         } else {
-            return prebuiltAnalysis.tokenFilterFactories.get(tokenFilter);
+            return getTokenFilterProvider(tokenFilter);
         }
     }
 
@@ -220,7 +220,7 @@ public final class AnalysisRegistry implements Closeable {
             Settings currentSettings = tokenFilterSettings.get(charFilter);
             return getAnalysisProvider("charfilter", charFilters, charFilter, currentSettings.get("type"));
         } else {
-            return prebuiltAnalysis.charFilterFactories.get(charFilter);
+            return getCharFilterProvider(charFilter);
         }
     }
 

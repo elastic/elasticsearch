@@ -1,2 +1,0 @@
-logger.level: INFO
-rootLogger: ${logger.level}, terminal

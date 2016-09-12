@@ -42,14 +42,11 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchRequestParsers;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.suggest.Suggesters;
 
 import java.io.IOException;
 import java.util.List;
@@ -87,7 +84,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             builder.map(source);
             try (XContentParser innerParser = parser.contentType().xContent().createParser(builder.bytes())) {
                 request.getSearchRequest().source().parseXContent(context.queryParseContext(innerParser),
-                    context.searchRequestParsers.aggParsers, context.searchRequestParsers.suggesters);
+                        context.searchRequestParsers.aggParsers, context.searchRequestParsers.suggesters,
+                        context.searchRequestParsers.searchExtParsers);
             }
         };
 

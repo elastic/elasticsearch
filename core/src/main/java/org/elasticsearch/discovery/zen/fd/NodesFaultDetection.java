@@ -41,6 +41,8 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -89,6 +91,14 @@ public class NodesFaultDetection extends FaultDetection {
 
     public void removeListener(Listener listener) {
         listeners.remove(listener);
+    }
+
+    /**
+     * Gets the current set of nodes involved in node fault detection.
+     * NB: For testing purposes.
+     */
+    public Set<DiscoveryNode> getNodes() {
+        return Collections.unmodifiableSet(nodesFD.keySet());
     }
 
     /**

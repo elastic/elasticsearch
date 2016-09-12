@@ -343,6 +343,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         nodesFD.updateNodesAndPing(clusterChangedEvent.state());
     }
 
+    /**
+     * Gets the current set of nodes involved in the node fault detection.
+     * NB: for testing purposes
+     */
+    public Set<DiscoveryNode> getFaultDetectionNodes() {
+        return nodesFD.getNodes();
+    }
+
     @Override
     public DiscoveryStats stats() {
         PendingClusterStateStats queueStats = publishClusterState.pendingStatesQueue().stats();

@@ -85,7 +85,7 @@ public class QueryPhase implements SearchPhase {
 
     @Override
     public void preProcess(SearchContext context) {
-        context.preProcess();
+        context.preProcess(true);
     }
 
     @Override

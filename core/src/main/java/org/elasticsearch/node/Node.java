@@ -113,6 +113,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskResultsService;
@@ -122,7 +123,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import javax.management.MBeanServerPermission;
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
@@ -133,13 +133,11 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -383,12 +381,8 @@ public class Node implements Closeable {
                     b.bind(MetaDataUpgrader.class).toInstance(metaDataUpgrader);
                     b.bind(MetaStateService.class).toInstance(metaStateService);
                     b.bind(IndicesService.class).toInstance(indicesService);
-                    Class<? extends SearchService> searchServiceImpl = pickSearchServiceImplementation();
-                    if (searchServiceImpl == SearchService.class) {
-                        b.bind(SearchService.class).asEagerSingleton();
-                    } else {
-                        b.bind(SearchService.class).to(searchServiceImpl).asEagerSingleton();
-                    }
+                    b.bind(SearchService.class).toInstance(newSearchService(clusterService, indicesService,
+                        threadPool, scriptModule.getScriptService(), bigArrays, searchModule.getFetchPhase()));
                     pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));
 
                 }
@@ -793,10 +787,12 @@ public class Node implements Closeable {
     }
 
     /**
-     * Select the search service implementation. Overrided by tests.
+     * Creates a new the SearchService. This method can be overwritten by tests to inject mock implementations.
      */
-    protected Class<? extends SearchService> pickSearchServiceImplementation() {
-        return SearchService.class;
+    protected SearchService newSearchService(ClusterService clusterService, IndicesService indicesService,
+                                             ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays,
+                                             FetchPhase fetchPhase) {
+        return new SearchService(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase);
     }
 
     /**

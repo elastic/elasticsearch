@@ -77,7 +77,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public void preProcess() {
+    public void preProcess(boolean rewrite) {
     }
 
     @Override

@@ -122,7 +122,7 @@ task stop {
 
 Set<String> getVersions() {
   Node xml
-  new URL('http://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
+  new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
     xml = new XmlParser().parse(s)
   }
   return new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /2\.\d\.\d/ })

@@ -525,9 +525,11 @@ public class IndexShardTests extends IndexShardTestCase {
         expectedSubSequence.append("\",\"data_path\":\"");
         expectedSubSequence.append(shard.shardPath().getRootDataPath().toString());
         expectedSubSequence.append("\",\"is_custom_data_path\":").append(shard.shardPath().isCustomDataPath()).append("}");
-        assumeFalse("Some path weirdness on windows", Constants.WINDOWS);
-        assertTrue(xContent.contains(expectedSubSequence));
-
+        if (Constants.WINDOWS) {
+            // Some path weirdness on windows
+        } else {
+            assertTrue(xContent.contains(expectedSubSequence));
+        }
         closeShards(shard);
     }
 
@@ -1014,7 +1016,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(before.getMemorySizeInBytes(), equalTo(0L));
         FieldDataStats after = null;
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            assumeTrue("we have to have more than one segment", searcher.getDirectoryReader().leaves().size() > 1);
+            assertThat("we have to have more than one segment", searcher.getDirectoryReader().leaves().size(), greaterThan(1));
             ifd.loadGlobal(searcher.getDirectoryReader());
             after = shard.fieldData().stats("foo");
             assertEquals(after.getEvictions(), before.getEvictions());

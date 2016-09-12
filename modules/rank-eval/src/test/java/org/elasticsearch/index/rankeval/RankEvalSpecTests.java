@@ -53,7 +53,7 @@ public class RankEvalSpecTests extends ESTestCase {
         searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         IndicesQueriesRegistry queriesRegistry = searchModule.getQueryParserRegistry();
         Suggesters suggesters = searchModule.getSuggesters();
-        searchRequestParsers = new SearchRequestParsers(queriesRegistry, aggsParsers, suggesters);
+        searchRequestParsers = new SearchRequestParsers(queriesRegistry, aggsParsers, suggesters, null);
     }
 
     @AfterClass
@@ -98,7 +98,7 @@ public class RankEvalSpecTests extends ESTestCase {
 
         RankEvalSpec parsedItem = RankEvalSpec.parse(itemParser, rankContext);
         // IRL these come from URL parameters - see RestRankEvalAction
-        parsedItem.getSpecifications().stream().forEach(e -> {e.setIndices(indices); e.setTypes(types);}); 
+        parsedItem.getSpecifications().stream().forEach(e -> {e.setIndices(indices); e.setTypes(types);});
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());

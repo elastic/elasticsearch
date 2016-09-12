@@ -37,7 +37,10 @@ import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.fieldstats.FieldStatsAction;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.action.support.replication.TransportReplicationActionTests;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -46,10 +49,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
@@ -71,7 +74,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -326,48 +328,35 @@ public class TasksIT extends ESIntegTestCase {
     }
 
     /**
-     * Very basic "is it plugged in" style test that indexes a document and
-     * makes sure that you can fetch the status of the process. The goal here is
-     * to verify that the large moving parts that make fetching task status work
-     * fit together rather than to verify any particular status results from
-     * indexing. For that, look at
-     * {@link org.elasticsearch.action.support.replication.TransportReplicationActionTests}
-     * . We intentionally don't use the task recording mechanism used in other
-     * places in this test so we can make sure that the status fetching works
-     * properly over the wire.
+     * Very basic "is it plugged in" style test that indexes a document and makes sure that you can fetch the status of the process. The
+     * goal here is to verify that the large moving parts that make fetching task status work fit together rather than to verify any
+     * particular status results from indexing. For that, look at {@link TransportReplicationActionTests}. We intentionally don't use the
+     * task recording mechanism used in other places in this test so we can make sure that the status fetching works properly over the wire.
      */
     public void testCanFetchIndexStatus() throws InterruptedException, ExecutionException, IOException {
-        /*
-         * We prevent any tasks from unregistering until the test is done so we
-         * can fetch them. This will gum up the server if we leave it enabled
-         * but we'll be quick so it'll be OK (TM).
-         */
-        ReentrantLock taskFinishLock = new ReentrantLock();
-        taskFinishLock.lock();
-        ListenableActionFuture<?> indexFuture = null;
+        /* We make sure all indexing tasks wait to start before this lock is *unlocked* so we can fetch their status with both the get and
+         * list APIs. */
+        CountDownLatch taskRegistered = new CountDownLatch(1);
+        CountDownLatch letTaskFinish = new CountDownLatch(1);
+        ListenableActionFuture<IndexResponse> indexFuture = null;
         try {
-            CountDownLatch taskRegistered = new CountDownLatch(1);
             for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
                 ((MockTaskManager) transportService.getTaskManager()).addListener(new MockTaskManagerListener() {
                     @Override
                     public void onTaskRegistered(Task task) {
                         if (task.getAction().startsWith(IndexAction.NAME)) {
                             taskRegistered.countDown();
+                            logger.debug("Blocking [{}] starting", task);
+                            try {
+                                letTaskFinish.await(10, TimeUnit.SECONDS);
+                            } catch (InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
                         }
                     }
 
                     @Override
                     public void onTaskUnregistered(Task task) {
-                        /*
-                         * We can't block all tasks here or the task listing task
-                         * would never return.
-                         */
-                        if (false == task.getAction().startsWith(IndexAction.NAME)) {
-                            return;
-                        }
-                        logger.debug("Blocking {} from being unregistered", task);
-                        taskFinishLock.lock();
-                        taskFinishLock.unlock();
                     }
 
                     @Override
@@ -390,16 +379,17 @@ public class TasksIT extends ESIntegTestCase {
                 assertEquals(task.getType(), fetchedWithGet.getType());
                 assertEquals(task.getAction(), fetchedWithGet.getAction());
                 assertEquals(task.getDescription(), fetchedWithGet.getDescription());
-                // The status won't always be equal - it might change between the list and the get.
+                assertEquals(task.getStatus(), fetchedWithGet.getStatus());
                 assertEquals(task.getStartTime(), fetchedWithGet.getStartTime());
                 assertThat(fetchedWithGet.getRunningTimeNanos(), greaterThanOrEqualTo(task.getRunningTimeNanos()));
                 assertEquals(task.isCancellable(), fetchedWithGet.isCancellable());
                 assertEquals(task.getParentTaskId(), fetchedWithGet.getParentTaskId());
             }
         } finally {
-            taskFinishLock.unlock();
+            letTaskFinish.countDown();
             if (indexFuture != null) {
-                indexFuture.get();
+                IndexResponse indexResponse = indexFuture.get();
+                assertArrayEquals(ReplicationResponse.EMPTY, indexResponse.getShardInfo().getFailures());
             }
         }
     }

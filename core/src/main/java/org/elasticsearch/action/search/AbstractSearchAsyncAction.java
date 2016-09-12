@@ -160,16 +160,16 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                     shard.index().getName(), request.indices());
                 sendExecuteFirstPhase(node, internalSearchRequest(shard, shardsIts.size(), request, filteringAliases,
                     startTime()), new ActionListener<FirstResult>() {
-                    @Override
-                    public void onResponse(FirstResult result) {
-                        onFirstPhaseResult(shardIndex, shard, result, shardIt);
-                    }
+                        @Override
+                        public void onResponse(FirstResult result) {
+                            onFirstPhaseResult(shardIndex, shard, result, shardIt);
+                        }
 
-                    @Override
-                    public void onFailure(Exception t) {
-                        onFirstPhaseResult(shardIndex, shard, node.getId(), shardIt, t);
-                    }
-                });
+                        @Override
+                        public void onFailure(Exception t) {
+                            onFirstPhaseResult(shardIndex, shard, node.getId(), shardIt, t);
+                        }
+                    });
             }
         }
     }

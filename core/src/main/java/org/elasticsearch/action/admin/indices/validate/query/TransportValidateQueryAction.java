@@ -40,6 +40,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
@@ -153,15 +154,11 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT, null);
         SearchContext.setCurrent(searchContext);
         try {
-            searchContext.parsedQuery(searchContext.getQueryShardContext().toQuery(request.query()));
-            searchContext.preProcess();
-
+            ParsedQuery parsedQuery = searchContext.getQueryShardContext().toQuery(request.query());
+            searchContext.parsedQuery(parsedQuery);
+            searchContext.preProcess(request.rewrite());
             valid = true;
-            if (request.rewrite()) {
-                explanation = getRewrittenQuery(searchContext.searcher(), searchContext.query());
-            } else if (request.explain()) {
-                explanation = searchContext.query().toString();
-            }
+            explanation = explain(searchContext, request.rewrite());
         } catch (QueryShardException|ParsingException e) {
             valid = false;
             error = e.getDetailedMessage();
@@ -175,12 +172,12 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         return new ShardValidateQueryResponse(request.shardId(), valid, explanation, error);
     }
 
-    private String getRewrittenQuery(IndexSearcher searcher, Query query) throws IOException {
-        Query queryRewrite = searcher.rewrite(query);
-        if (queryRewrite instanceof MatchNoDocsQuery) {
-            return query.toString();
+    private String explain(SearchContext context, boolean rewritten) throws IOException {
+        Query query = context.query();
+        if (rewritten && query instanceof MatchNoDocsQuery) {
+            return context.parsedQuery().query().toString();
         } else {
-            return queryRewrite.toString();
+            return query.toString();
         }
     }
 }

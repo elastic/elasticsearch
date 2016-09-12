@@ -186,7 +186,7 @@ final class DefaultSearchContext extends SearchContext {
      * Should be called before executing the main query and after all other parameters have been set.
      */
     @Override
-    public void preProcess() {
+    public void preProcess(boolean rewrite) {
         if (hasOnlySuggest() ) {
             return;
         }
@@ -241,19 +241,21 @@ final class DefaultSearchContext extends SearchContext {
             parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new WeightFactorFunction(queryBoost)), parsedQuery()));
         }
         this.query = buildFilteredQuery();
-        try {
-            this.query = searcher().rewrite(this.query);
-        } catch (IOException e) {
-            throw new QueryPhaseExecutionException(this, "Failed to rewrite main query", e);
+        if (rewrite) {
+            try {
+                this.query = searcher.rewrite(query);
+            } catch (IOException e) {
+                throw new QueryPhaseExecutionException(this, "Failed to rewrite main query", e);
+            }
         }
     }
 
     private Query buildFilteredQuery() {
-        Query searchFilter = searchFilter(queryShardContext.getTypes());
+        final Query searchFilter = searchFilter(queryShardContext.getTypes());
         if (searchFilter == null) {
             return originalQuery.query();
         }
-        Query result;
+        final Query result;
         if (Queries.isConstantMatchAllQuery(query())) {
             result = new ConstantScoreQuery(searchFilter);
         } else {

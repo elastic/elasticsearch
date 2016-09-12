@@ -369,7 +369,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * A typical usage of a custome recovery target is to assert things in the various stages of recovery
      *
      * @param markAsRecovering set to false if you have already marked the replica as recovering
-     * @throws IOException
      */
     protected void recoverReplica(IndexShard replica, IndexShard primary,
                                   BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,

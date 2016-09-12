@@ -50,17 +50,17 @@ import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseContext;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
@@ -80,9 +80,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class DefaultSearchContext extends SearchContext {
 
     private final long id;
@@ -110,6 +107,7 @@ public class DefaultSearchContext extends SearchContext {
     private StoredFieldsContext storedFields;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
+    private DocValueFieldsContext docValueFieldsContext;
     private int from = -1;
     private int size = -1;
     private SortAndFormats sort;
@@ -148,7 +146,7 @@ public class DefaultSearchContext extends SearchContext {
     private volatile long lastAccessTime = -1;
     private Profilers profilers;
 
-    private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
+    private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
     private final QueryShardContext queryShardContext;
     private FetchPhase fetchPhase;
@@ -388,14 +386,16 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory) {
-        String subPhaseName = contextFactory.getName();
-        if (subPhaseContexts.get(subPhaseName) == null) {
-            subPhaseContexts.put(subPhaseName, contextFactory.newContextInstance());
-        }
-        return (SubPhaseContext) subPhaseContexts.get(subPhaseName);
+    public void addSearchExt(SearchExtBuilder searchExtBuilder) {
+        //it's ok to use the writeable name here given that we enforce it to be the same as the name of the element that gets
+        //parsed by the corresponding parser. There is one single name and one single way to retrieve the parsed object from the context.
+        searchExtBuilders.put(searchExtBuilder.getWriteableName(), searchExtBuilder);
     }
 
+    @Override
+    public SearchExtBuilder getSearchExt(String name) {
+        return searchExtBuilders.get(name);
+    }
 
     @Override
     public SearchContextHighlight highlight() {
@@ -467,6 +467,17 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext) {
         this.fetchSourceContext = fetchSourceContext;
+        return this;
+    }
+
+    @Override
+    public DocValueFieldsContext docValueFieldsContext() {
+        return docValueFieldsContext;
+    }
+
+    @Override
+    public SearchContext docValueFieldsContext(DocValueFieldsContext docValueFieldsContext) {
+        this.docValueFieldsContext = docValueFieldsContext;
         return this;
     }
 

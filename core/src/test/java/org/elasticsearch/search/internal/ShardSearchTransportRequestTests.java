@@ -34,12 +34,14 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchRequestTests;
+import org.elasticsearch.search.fetch.FetchSubPhasePluginIT;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -56,7 +58,8 @@ public class ShardSearchTransportRequestTests extends ESTestCase {
                 bindMapperExtension();
             }
         };
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList()) {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false,
+                Collections.singletonList(new FetchSubPhasePluginIT.FetchTermVectorsPlugin())) {
             @Override
             protected void configureSearch() {
                 // Skip me

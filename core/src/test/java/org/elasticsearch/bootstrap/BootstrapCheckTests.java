@@ -24,6 +24,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -49,7 +50,7 @@ import static org.mockito.Mockito.when;
 
 public class BootstrapCheckTests extends ESTestCase {
 
-    public void testNonProductionMode() {
+    public void testNonProductionMode() throws NodeValidationException {
         // nothing should happen since we are in non-production mode
         final List<TransportAddress> transportAddresses = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 8); i++) {
@@ -66,13 +67,13 @@ public class BootstrapCheckTests extends ESTestCase {
         BootstrapCheck.check(Settings.EMPTY, boundTransportAddress);
     }
 
-    public void testNoLogMessageInNonProductionMode() {
+    public void testNoLogMessageInNonProductionMode() throws NodeValidationException {
         final Logger logger = mock(Logger.class);
         BootstrapCheck.check(false, randomBoolean(), Collections.emptyList(), logger);
         verifyNoMoreInteractions(logger);
     }
 
-    public void testLogMessageInProductionMode() {
+    public void testLogMessageInProductionMode() throws NodeValidationException {
         final Logger logger = mock(Logger.class);
         final boolean ignoreSystemChecks = randomBoolean();
         BootstrapCheck.check(true, ignoreSystemChecks, Collections.emptyList(), logger);
@@ -161,8 +162,8 @@ public class BootstrapCheckTests extends ESTestCase {
                 }
         );
 
-        final RuntimeException e =
-                expectThrows(RuntimeException.class, () -> BootstrapCheck.check(true, false, checks, "testExceptionAggregation"));
+        final NodeValidationException e =
+                expectThrows(NodeValidationException.class, () -> BootstrapCheck.check(true, false, checks, "testExceptionAggregation"));
         assertThat(e, hasToString(allOf(containsString("bootstrap checks failed"), containsString("first"), containsString("second"))));
         final Throwable[] suppressed = e.getSuppressed();
         assertThat(suppressed.length, equalTo(2));
@@ -172,7 +173,7 @@ public class BootstrapCheckTests extends ESTestCase {
         assertThat(suppressed[1], hasToString(containsString("second")));
     }
 
-    public void testHeapSizeCheck() {
+    public void testHeapSizeCheck() throws NodeValidationException {
         final int initial = randomIntBetween(0, Integer.MAX_VALUE - 1);
         final int max = randomIntBetween(initial + 1, Integer.MAX_VALUE);
         final AtomicLong initialHeapSize = new AtomicLong(initial);
@@ -190,9 +191,9 @@ public class BootstrapCheckTests extends ESTestCase {
             }
         };
 
-        final RuntimeException e =
+        final NodeValidationException e =
                 expectThrows(
-                        RuntimeException.class,
+                        NodeValidationException.class,
                         () -> BootstrapCheck.check(true, false, Collections.singletonList(check), "testHeapSizeCheck"));
         assertThat(
                 e.getMessage(),
@@ -213,7 +214,7 @@ public class BootstrapCheckTests extends ESTestCase {
         BootstrapCheck.check(true, false, Collections.singletonList(check), "testHeapSizeCheck");
     }
 
-    public void testFileDescriptorLimits() {
+    public void testFileDescriptorLimits() throws NodeValidationException {
         final boolean osX = randomBoolean(); // simulates OS X versus non-OS X
         final int limit = osX ? 10240 : 1 << 16;
         final AtomicLong maxFileDescriptorCount = new AtomicLong(randomIntBetween(1, limit - 1));
@@ -234,8 +235,8 @@ public class BootstrapCheckTests extends ESTestCase {
             };
         }
 
-        final RuntimeException e =
-                expectThrows(RuntimeException.class,
+        final NodeValidationException e =
+                expectThrows(NodeValidationException.class,
                         () -> BootstrapCheck.check(true, false, Collections.singletonList(check), "testFileDescriptorLimits"));
         assertThat(e.getMessage(), containsString("max file descriptors"));
 
@@ -257,7 +258,7 @@ public class BootstrapCheckTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("limit must be positive but was"));
     }
 
-    public void testMlockallCheck() {
+    public void testMlockallCheck() throws NodeValidationException {
         class MlockallCheckTestCase {
 
             private final boolean mlockallSet;
@@ -287,8 +288,8 @@ public class BootstrapCheckTests extends ESTestCase {
             };
 
             if (testCase.shouldFail) {
-                final RuntimeException e = expectThrows(
-                        RuntimeException.class,
+                final NodeValidationException e = expectThrows(
+                        NodeValidationException.class,
                         () -> BootstrapCheck.check(
                                 true,
                                 false,
@@ -304,7 +305,7 @@ public class BootstrapCheckTests extends ESTestCase {
         }
     }
 
-    public void testMaxNumberOfThreadsCheck() {
+    public void testMaxNumberOfThreadsCheck() throws NodeValidationException {
         final int limit = 1 << 11;
         final AtomicLong maxNumberOfThreads = new AtomicLong(randomIntBetween(1, limit - 1));
         final BootstrapCheck.MaxNumberOfThreadsCheck check = new BootstrapCheck.MaxNumberOfThreadsCheck() {
@@ -314,8 +315,8 @@ public class BootstrapCheckTests extends ESTestCase {
             }
         };
 
-        final RuntimeException e = expectThrows(
-                RuntimeException.class,
+        final NodeValidationException e = expectThrows(
+                NodeValidationException.class,
                 () -> BootstrapCheck.check(true, false, Collections.singletonList(check), "testMaxNumberOfThreadsCheck"));
         assertThat(e.getMessage(), containsString("max number of threads"));
 
@@ -329,7 +330,7 @@ public class BootstrapCheckTests extends ESTestCase {
         BootstrapCheck.check(true, false, Collections.singletonList(check), "testMaxNumberOfThreadsCheck");
     }
 
-    public void testMaxSizeVirtualMemory() {
+    public void testMaxSizeVirtualMemory() throws NodeValidationException {
         final long rlimInfinity = Constants.MAC_OS_X ? 9223372036854775807L : -1L;
         final AtomicLong maxSizeVirtualMemory = new AtomicLong(randomIntBetween(0, Integer.MAX_VALUE));
         final BootstrapCheck.MaxSizeVirtualMemoryCheck check = new BootstrapCheck.MaxSizeVirtualMemoryCheck() {
@@ -345,8 +346,8 @@ public class BootstrapCheckTests extends ESTestCase {
         };
 
 
-        final RuntimeException e = expectThrows(
-                RuntimeException.class,
+        final NodeValidationException e = expectThrows(
+                NodeValidationException.class,
                 () -> BootstrapCheck.check(true, false, Collections.singletonList(check), "testMaxSizeVirtualMemory"));
         assertThat(e.getMessage(), containsString("max size virtual memory"));
 
@@ -360,7 +361,7 @@ public class BootstrapCheckTests extends ESTestCase {
         BootstrapCheck.check(true, false, Collections.singletonList(check), "testMaxSizeVirtualMemory");
     }
 
-    public void testMaxMapCountCheck() {
+    public void testMaxMapCountCheck() throws NodeValidationException {
         final int limit = 1 << 18;
         final AtomicLong maxMapCount = new AtomicLong(randomIntBetween(1, limit - 1));
         final BootstrapCheck.MaxMapCountCheck check = new BootstrapCheck.MaxMapCountCheck() {
@@ -370,8 +371,8 @@ public class BootstrapCheckTests extends ESTestCase {
             }
         };
 
-        RuntimeException e = expectThrows(
-                RuntimeException.class,
+        final NodeValidationException e = expectThrows(
+                NodeValidationException.class,
                 () -> BootstrapCheck.check(true, false, Collections.singletonList(check), "testMaxMapCountCheck"));
         assertThat(e.getMessage(), containsString("max virtual memory areas vm.max_map_count"));
 
@@ -385,7 +386,7 @@ public class BootstrapCheckTests extends ESTestCase {
         BootstrapCheck.check(true, false, Collections.singletonList(check), "testMaxMapCountCheck");
     }
 
-    public void testClientJvmCheck() {
+    public void testClientJvmCheck() throws NodeValidationException {
         final AtomicReference<String> vmName = new AtomicReference<>("Java HotSpot(TM) 32-Bit Client VM");
         final BootstrapCheck.Check check = new BootstrapCheck.ClientJvmCheck() {
             @Override
@@ -394,8 +395,8 @@ public class BootstrapCheckTests extends ESTestCase {
             }
         };
 
-        final RuntimeException e = expectThrows(
-                RuntimeException.class,
+        final NodeValidationException e = expectThrows(
+                NodeValidationException.class,
                 () -> BootstrapCheck.check(true, false, Collections.singletonList(check), "testClientJvmCheck"));
         assertThat(
                 e.getMessage(),
@@ -406,7 +407,7 @@ public class BootstrapCheckTests extends ESTestCase {
         BootstrapCheck.check(true, false, Collections.singletonList(check), "testClientJvmCheck");
     }
 
-    public void testMightForkCheck() {
+    public void testMightForkCheck() throws NodeValidationException {
         final AtomicBoolean isSeccompInstalled = new AtomicBoolean();
         final AtomicBoolean mightFork = new AtomicBoolean();
         final BootstrapCheck.MightForkCheck check = new BootstrapCheck.MightForkCheck() {
@@ -434,7 +435,7 @@ public class BootstrapCheckTests extends ESTestCase {
             e -> assertThat(e.getMessage(), containsString("error")));
     }
 
-    public void testOnErrorCheck() {
+    public void testOnErrorCheck() throws NodeValidationException {
         final AtomicBoolean isSeccompInstalled = new AtomicBoolean();
         final AtomicReference<String> onError = new AtomicReference<>();
         final BootstrapCheck.MightForkCheck check = new BootstrapCheck.OnErrorCheck() {
@@ -462,7 +463,7 @@ public class BootstrapCheckTests extends ESTestCase {
                         + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError")));
     }
 
-    public void testOnOutOfMemoryErrorCheck() {
+    public void testOnOutOfMemoryErrorCheck() throws NodeValidationException {
         final AtomicBoolean isSeccompInstalled = new AtomicBoolean();
         final AtomicReference<String> onOutOfMemoryError = new AtomicReference<>();
         final BootstrapCheck.MightForkCheck check = new BootstrapCheck.OnOutOfMemoryErrorCheck() {
@@ -496,7 +497,7 @@ public class BootstrapCheckTests extends ESTestCase {
         final AtomicBoolean isSeccompInstalled,
         final Runnable disableMightFork,
         final Runnable enableMightFork,
-        final Consumer<RuntimeException> consumer) {
+        final Consumer<NodeValidationException> consumer) throws NodeValidationException {
 
         final String methodName = Thread.currentThread().getStackTrace()[2].getMethodName();
 
@@ -521,13 +522,13 @@ public class BootstrapCheckTests extends ESTestCase {
         isSeccompInstalled.set(true);
         enableMightFork.run();
 
-        final RuntimeException e = expectThrows(
-            RuntimeException.class,
+        final NodeValidationException e = expectThrows(
+            NodeValidationException.class,
             () -> BootstrapCheck.check(randomBoolean(), randomBoolean(), Collections.singletonList(check), methodName));
         consumer.accept(e);
     }
 
-    public void testIgnoringSystemChecks() {
+    public void testIgnoringSystemChecks() throws NodeValidationException {
         final BootstrapCheck.Check check = new BootstrapCheck.Check() {
             @Override
             public boolean check() {
@@ -545,8 +546,8 @@ public class BootstrapCheckTests extends ESTestCase {
             }
         };
 
-        final RuntimeException notIgnored = expectThrows(
-                RuntimeException.class,
+        final NodeValidationException notIgnored = expectThrows(
+            NodeValidationException.class,
                 () -> BootstrapCheck.check(true, false, Collections.singletonList(check), "testIgnoringSystemChecks"));
         assertThat(notIgnored, hasToString(containsString("error")));
 
@@ -589,8 +590,8 @@ public class BootstrapCheckTests extends ESTestCase {
             }
         };
 
-        final RuntimeException alwaysEnforced = expectThrows(
-            RuntimeException.class,
+        final NodeValidationException alwaysEnforced = expectThrows(
+            NodeValidationException.class,
             () -> BootstrapCheck.check(randomBoolean(), randomBoolean(), Collections.singletonList(check), "testAlwaysEnforcedChecks"));
         assertThat(alwaysEnforced, hasToString(containsString("error")));
     }

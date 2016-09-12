@@ -199,7 +199,7 @@ POST hockey/player/1/_update
 Painless's native support for regular expressions has syntax constructs:
 
 * `/pattern/`: Pattern literals create patterns. This is the only way to create
-a pattern in painless. The pattern inside the `/`s are just
+a pattern in painless. The pattern inside the ++/++'s are just
 http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java regular expressions].
 See <<modules-scripting-painless-regex-flags>> for more.
 * `=~`: The find operator return a `boolean`, `true` if a subsequence of the

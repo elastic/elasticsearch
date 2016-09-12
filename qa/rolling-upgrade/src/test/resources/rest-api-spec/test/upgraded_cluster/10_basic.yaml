@@ -1,7 +1,13 @@
 ---
 "Index data and search on the upgraded cluster":
-  - do:
-      bulk:
+ - do:
+     search:
+       index: test_index
+
+ - match: { hits.total: 10 } # no new indexed data, so expect the original 10 documents from the old and mixed clusters
+
+ - do:
+     bulk:
         refresh: true
         body:
           - '{"index": {"_index": "test_index", "_type": "test_type"}}'
@@ -19,4 +25,4 @@
      search:
         index: test_index
 
- - match: { hits.total: 15 }
+ - match: { hits.total: 15 } # 10 docs from previous clusters plus 5 new docs

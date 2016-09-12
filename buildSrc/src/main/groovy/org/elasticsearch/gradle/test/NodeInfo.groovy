@@ -206,6 +206,9 @@ class NodeInfo {
 
     /** Returns the data directory for this node */
     File getDataDir() {
+        if (!(dataDir instanceof File)) {
+            return new File(dataDir)
+        }
         return dataDir
     }
 

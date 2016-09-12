@@ -45,7 +45,6 @@ List projects = [
   'plugins:ingest-user-agent',
   'plugins:lang-javascript',
   'plugins:lang-python',
-  'plugins:mapper-attachments',
   'plugins:mapper-murmur3',
   'plugins:mapper-size',
   'plugins:repository-azure',

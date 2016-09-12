@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.notification.email.attachment;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
@@ -102,25 +100,22 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
                     return new Attachment.Bytes(attachment.id(), BytesReference.toBytes(response.body()), attachmentContentType,
                             attachment.inline());
                 } else {
-                    logger.error("Empty response body: [host[{}], port[{}], method[{}], path[{}]: response status [{}]", httpRequest.host(),
-                            httpRequest.port(), httpRequest.method(), httpRequest.path(), response.status());
+                    throw new ElasticsearchException("Watch[{}] attachment[{}] HTTP empty response body host[{}], port[{}], " +
+                            "method[{}], path[{}], status[{}]",
+                            context.watch().id(), attachment.id(), httpRequest.host(), httpRequest.port(), httpRequest.method(),
+                            httpRequest.path(), response.status());
                 }
             } else {
-                logger.error("Error getting http response: [host[{}], port[{}], method[{}], path[{}]: response status [{}]",
-                        httpRequest.host(), httpRequest.port(), httpRequest.method(), httpRequest.path(), response.status());
+                throw new ElasticsearchException("Watch[{}] attachment[{}] HTTP error status host[{}], port[{}], " +
+                        "method[{}], path[{}], status[{}]",
+                        context.watch().id(), attachment.id(), httpRequest.host(), httpRequest.port(), httpRequest.method(),
+                        httpRequest.path(), response.status());
             }
         } catch (IOException e) {
-            logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                            "Error executing HTTP request: [host[{}], port[{}], method[{}], path[{}]",
-                            httpRequest.host(),
-                            httpRequest.port(),
-                            httpRequest.method(),
-                            httpRequest.path()),
-                    e);
+            throw new ElasticsearchException("Watch[{}] attachment[{}] Error executing HTTP request host[{}], port[{}], " +
+                    "method[{}], path[{}], exception[{}]",
+                    context.watch().id(), attachment.id(), httpRequest.host(), httpRequest.port(), httpRequest.method(),
+                    httpRequest.path(), e.getMessage());
         }
-
-        throw new ElasticsearchException("Unable to get attachment of type [{}] with id [{}] in watch [{}] aborting watch execution",
-                type(), attachment.id(), context.watch().id());
     }
 }

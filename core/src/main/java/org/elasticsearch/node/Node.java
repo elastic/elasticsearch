@@ -787,7 +787,7 @@ public class Node implements Closeable {
     }
 
     /**
-     * Select the search service implementation. Overrided by tests.
+     * Creates a new the SearchService. This method can be overwritten by tests to inject mock implementations.
      */
     protected SearchService newSearchService(ClusterService clusterService, IndicesService indicesService,
                                              ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays,

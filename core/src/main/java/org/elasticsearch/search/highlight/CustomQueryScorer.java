@@ -38,6 +38,9 @@ public final class CustomQueryScorer extends QueryScorer {
 
     static {
         try {
+            // in extract() we need to check for GeoPointMultiTermQuery and skip extraction for queries that inherit from it.
+            // But GeoPointMultiTermQuerythat is package private in Lucene hence we cannot use an instanceof check. This is why
+            // we use this rather ugly workaround to get a Class and later be able to compare with isAssignableFrom().
             unsupportedGeoQuery = Class.forName("org.apache.lucene.spatial.geopoint.search.GeoPointMultiTermQuery");
         } catch (ClassNotFoundException e) {
             throw new AssertionError(e);

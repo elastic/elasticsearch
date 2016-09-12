@@ -48,7 +48,9 @@ public class LicenseOperationModeTests extends ESTestCase {
     }
 
     public void testResolveUnknown() {
-        String[] types = { "unknown", "fake" };
+        // 'enterprise' is a type that exists in cloud but should be rejected under normal operation
+        // See https://github.com/elastic/x-plugins/issues/3371
+        String[] types = { "unknown", "fake", "enterprise" };
 
         for (String type : types) {
             try {

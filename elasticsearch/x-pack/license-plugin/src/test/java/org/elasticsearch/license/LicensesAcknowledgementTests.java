@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.unit.TimeValue;
 
-import static org.elasticsearch.license.TestUtils.generateSignedLicense;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.any;

@@ -33,8 +33,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.ESTestCase.assertNotNull;
-import static org.elasticsearch.test.ESTestCase.awaitBusy;
 import static org.elasticsearch.test.ESTestCase.randomAsciiOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
@@ -272,6 +270,11 @@ public class TestUtils {
             builder.subscriptionType((type != null) ? type : randomFrom("dev", "gold", "platinum", "silver"));
             builder.feature(randomAsciiOfLength(10));
         }
+        LicenseSigner signer = new LicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
+        return signer.sign(builder.build());
+    }
+
+    public static License generateSignedLicense(License.Builder builder) throws Exception {
         LicenseSigner signer = new LicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
         return signer.sign(builder.build());
     }

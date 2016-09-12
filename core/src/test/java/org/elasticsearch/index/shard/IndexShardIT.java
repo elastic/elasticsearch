@@ -99,12 +99,14 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         return pluginList(InternalSettingsPlugin.class);
     }
 
-    private ParsedDocument testParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
+    private ParsedDocument testParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl,
+                                              ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
         Field uidField = new Field("_uid", uid, UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
         document.add(uidField);
         document.add(versionField);
-        return new ParsedDocument(versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingUpdate);
+        return new ParsedDocument(versionField, id, type, routing, timestamp, ttl, Collections.singletonList(document), source,
+            mappingUpdate);
     }
 
     public void testLockTryingToDelete() throws Exception {
@@ -369,9 +371,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         FlushStats flushStats = shard.flushStats();
         long total = flushStats.getTotal();
         client().prepareIndex("test", "test", "1").setSource("{}").get();
-        assertBusy(() -> {
-            assertEquals(total + 1, shard.flushStats().getTotal());
-        });
+        assertBusy(() -> assertEquals(total + 1, shard.flushStats().getTotal()));
         running.set(false);
         for (int i = 0; i < threads.length; i++) {
             threads[i].join();
@@ -442,7 +442,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         return newShard;
     }
 
-    public  static final IndexShard newIndexShard(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper, IndexingOperationListener... listeners) throws IOException {
+    public  static final IndexShard newIndexShard(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper,
+                                                  IndexingOperationListener... listeners) throws IOException {
         ShardRouting initializingShardRouting = getInitializingShardRouting(shard.routingEntry());
         IndexShard newShard = new IndexShard(initializingShardRouting, indexService.getIndexSettings(), shard.shardPath(),
             shard.store(), indexService.cache(), indexService.mapperService(), indexService.similarityService(),

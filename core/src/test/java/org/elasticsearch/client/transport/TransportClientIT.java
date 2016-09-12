@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -51,7 +52,7 @@ public class TransportClientIT extends ESIntegTestCase {
 
     }
 
-    public void testNodeVersionIsUpdated() throws IOException {
+    public void testNodeVersionIsUpdated() throws IOException, NodeValidationException {
         TransportClient client = (TransportClient)  internalCluster().client();
         try (Node node = new Node(Settings.builder()
                 .put(internalCluster().getDefaultSettings())

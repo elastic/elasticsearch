@@ -86,7 +86,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         // so because foo is no branch field but a value field the `foo.bar` field can't be expanded
         // into [foo].[bar], so foo should be renamed first into `[foo].[bar]:
         IngestDocument document = new IngestDocument(source, Collections.emptyMap());
-        Processor processor = new RenameProcessor("_tag", "foo", "foo.bar");
+        Processor processor = new RenameProcessor("_tag", "foo", "foo.bar", false);
         processor.execute(document);
         processor = new DotExpanderProcessor("_tag", null, "foo.bar");
         processor.execute(document);

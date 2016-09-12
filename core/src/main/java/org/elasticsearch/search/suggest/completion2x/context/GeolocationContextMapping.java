@@ -208,7 +208,7 @@ public class GeolocationContextMapping extends ContextMapping {
 
     @Override
     protected XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(FIELD_PRECISION, precision);
+        builder.array(FIELD_PRECISION, precision);
         builder.field(FIELD_NEIGHBORS, neighbors);
         if (defaultLocations != null) {
             builder.startArray(FIELD_MISSING);
@@ -741,7 +741,7 @@ public class GeolocationContextMapping extends ContextMapping {
             } else {
                 builder.startObject(name);
                 builder.field(FIELD_VALUE, location);
-                builder.field(FIELD_PRECISION, precisions);
+                builder.array(FIELD_PRECISION, precisions);
                 builder.endObject();
             }
             return builder;

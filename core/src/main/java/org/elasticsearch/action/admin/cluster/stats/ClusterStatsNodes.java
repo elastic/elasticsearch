@@ -83,7 +83,7 @@ public class ClusterStatsNodes implements ToXContent {
                 continue;
             }
             if (nodeResponse.nodeStats().getFs() != null) {
-                this.fs.add(nodeResponse.nodeStats().getFs().total());
+                this.fs.add(nodeResponse.nodeStats().getFs().getTotal());
             }
         }
         this.counts = new Counts(nodeInfos);

@@ -67,8 +67,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
         return Arrays.asList(InternalSettingsPlugin.class);
     }
 
-    public void testSimpleDistance() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+    public void testLegacyGeoDistanceRangeQuery() throws Exception {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_4_0);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("location").field("type", "geo_point");

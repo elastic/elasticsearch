@@ -64,3 +64,17 @@ will also make all other changes visible immediately. This can have an impact on
 performance if the same document is updated very frequently using a read modify update
 pattern since it might create many small segments. This behavior can be disabled by
 passing `realtime=false` to the get request.
+
+The `fields` field has been renamed to `stored_fields`
+
+==== mget API
+
+The `fields` field has been renamed to `stored_fields`
+
+==== update API
+
+The `fields` field has been deprecated. You should use `_source` to load the field from _source.
+
+==== bulk API
+
+The `fields` field has been deprecated. You should use `_source` to load the field from _source.

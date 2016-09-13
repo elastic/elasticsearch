@@ -172,12 +172,7 @@
         type: test
         id: 1
   - match: { _source.field1: "93.114.45.13" }
-  - length: { _source.geoip: 5 }
-  - is_false: _source.geoip.city_name
-  - is_false: _source.geoip.country_iso_code
-  - is_false: _source.geoip.location
-  - is_false: _source.geoip.region_name
-  - is_false: _source.geoip.continent_name
+  - is_false: _source.geoip
 
   - do:
       index:

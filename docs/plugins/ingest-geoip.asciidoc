@@ -157,11 +157,10 @@ returns this:
 
 
 Not all IP addresses find geo information from the database, When this
-occurs, all the fields are returned as `null` fields. The `location` field will
-be set to `null` with no nested `lat` or `lon` fields.
+occurs, no `target_field` is inserted into the document.
 
 Here is an example of what documents will be indexed as when information for "93.114.45.13"
-cannot be found.
+cannot be found:
 
 [source,js]
 --------------------------------------------------
@@ -195,14 +194,7 @@ Which returns:
   "_id": "my_id",
   "_version": 1,
   "_source": {
-    "ip": "93.114.45.13",
-    "geoip": {
-      "continent_name": null,
-      "country_iso_code": null,
-      "region_name": null,
-      "city_name": null,
-      "location": null
-    }
+    "ip": "93.114.45.13"
   }
 }
 --------------------------------------------------

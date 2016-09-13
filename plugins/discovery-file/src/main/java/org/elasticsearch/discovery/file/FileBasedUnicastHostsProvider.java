@@ -21,12 +21,10 @@ package org.elasticsearch.discovery.file;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.transport.TransportService;
@@ -36,10 +34,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing.resolveDiscoveryNodes;
 
 /**
  * An implementation of {@link UnicastHostsProvider} that reads hosts/ports
@@ -86,20 +85,8 @@ public class FileBasedUnicastHostsProvider extends AbstractComponent implements 
             hostsList = Collections.emptyList();
         }
 
-        final List<DiscoveryNode> discoNodes = new ArrayList<>();
-        for (final String host : hostsList) {
-            TransportAddress[] addresses;
-            try {
-                addresses = transportService.addressesFromString(host, 1);
-            } catch (Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("[discovery-file] Failed to parse transport address from [{}]",
-                                                                            host), e);
-                continue;
-            }
-            discoNodes.add(new DiscoveryNode(UNICAST_HOST_PREFIX + nodeIdGenerator.incrementAndGet() + "#",
-                                                addresses[0],
-                                                Version.CURRENT.minimumCompatibilityVersion()));
-        }
+        final List<DiscoveryNode> discoNodes = resolveDiscoveryNodes(hostsList, 1, transportService,
+            () -> UNICAST_HOST_PREFIX + nodeIdGenerator.incrementAndGet() + "#");
 
         logger.debug("[discovery-file] Using dynamic discovery nodes {}", discoNodes);
 

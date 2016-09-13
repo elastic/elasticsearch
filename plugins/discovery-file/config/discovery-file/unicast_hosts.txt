@@ -8,12 +8,13 @@
 # and (3) 66.77.88.99 running on port 10005, then this file should contain the
 # following text:
 #
-#66.77.88.99
-#66.77.88.100:9305
-#66.77.88.99:10005
+#10.10.10.5
+#10.10.10.6:9305
+#10.10.10.5:10005
 #
 # For IPv6 addresses, make sure to put a bracket around the host part of the address,
 # for example: [2001:cdba:0000:0000:0000:0000:3257:9652]:9301 (where 9301 is the port).
 #
-# IMPORTANT: all lines preceding with a `#` must be removed.  This file should
-# only contain the host/port entries with no comments or any other text.
+# NOTE: all lines starting with a `#` are comments, and comments must exist
+# on lines of their own (i.e. comments cannot begin in the middle of a line)
+#

@@ -77,9 +77,9 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
     }
 
     public void testBuildDynamicNodes() throws Exception {
-        final List<String> hostEntries = Arrays.asList("192.168.0.1", "192.168.0.2:9305", "255.255.23.15");
+        final List<String> hostEntries = Arrays.asList("#comment, should be ignored", "192.168.0.1", "192.168.0.2:9305", "255.255.23.15");
         final List<DiscoveryNode> nodes = setupAndRunHostProvider(hostEntries);
-        assertEquals(hostEntries.size(), nodes.size());
+        assertEquals(hostEntries.size() - 1, nodes.size()); // minus 1 because we are ignoring the first line that's a comment
         assertEquals("192.168.0.1", nodes.get(0).getAddress().getHost());
         assertEquals(9300, nodes.get(0).getAddress().getPort());
         assertEquals(UNICAST_HOST_PREFIX + "1#", nodes.get(0).getId());

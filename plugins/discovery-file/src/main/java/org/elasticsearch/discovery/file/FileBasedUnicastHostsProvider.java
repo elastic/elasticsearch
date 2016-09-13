@@ -38,6 +38,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing.resolveDiscoveryNodes;
 
@@ -74,8 +76,9 @@ public class FileBasedUnicastHostsProvider extends AbstractComponent implements 
     @Override
     public List<DiscoveryNode> buildDynamicNodes() {
         List<String> hostsList;
-        try {
-            hostsList = Files.readAllLines(unicastHostsFilePath);
+        try (Stream<String> lines = Files.lines(unicastHostsFilePath)) {
+            hostsList = lines.filter(line -> line.startsWith("#") == false) // lines starting with `#` are comments
+                             .collect(Collectors.toList());
         } catch (FileNotFoundException | NoSuchFileException e) {
             logger.warn((Supplier<?>) () -> new ParameterizedMessage("[discovery-file] Failed to find unicast hosts file [{}]",
                                                                         unicastHostsFilePath), e);

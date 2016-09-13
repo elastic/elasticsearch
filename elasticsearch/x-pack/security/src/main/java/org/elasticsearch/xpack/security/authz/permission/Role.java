@@ -11,10 +11,8 @@ import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.GeneralPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.Privilege;
-import org.elasticsearch.xpack.security.authz.privilege.Privilege.Name;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -93,12 +91,12 @@ public class Role extends GlobalPermission {
         }
 
         public Builder add(IndexPrivilege privilege, String... indices) {
-            groups.add(new IndicesPermission.Group(privilege, null, null, indices));
+            groups.add(new IndicesPermission.Group(privilege, new FieldPermissions(), null, indices));
             return this;
         }
 
-        public Builder add(List<String> fields, BytesReference query, IndexPrivilege privilege, String... indices) {
-            groups.add(new IndicesPermission.Group(privilege, fields, query, indices));
+        public Builder add(FieldPermissions fieldPermissions, BytesReference query, IndexPrivilege privilege, String... indices) {
+            groups.add(new IndicesPermission.Group(privilege, fieldPermissions, query, indices));
             return this;
         }
 
@@ -112,7 +110,7 @@ public class Role extends GlobalPermission {
             List<IndicesPermission.Group> list = new ArrayList<>(indicesPrivileges.length);
             for (RoleDescriptor.IndicesPrivileges privilege : indicesPrivileges) {
                 list.add(new IndicesPermission.Group(IndexPrivilege.get(new Privilege.Name(privilege.getPrivileges())),
-                        privilege.getFields() == null ? null : Arrays.asList(privilege.getFields()),
+                        privilege.getFieldPermissions(),
                         privilege.getQuery(),
                         privilege.getIndices()));
 

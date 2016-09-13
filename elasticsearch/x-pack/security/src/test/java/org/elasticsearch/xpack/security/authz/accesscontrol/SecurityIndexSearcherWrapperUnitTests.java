@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.Field.Store;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -78,6 +78,10 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.xpack.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -86,16 +90,16 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptySet;
-import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.security.authz.accesscontrol.SecurityIndexSearcherWrapper.intersectScorerAndRoleBits;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -161,7 +165,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true,
-                        emptySet(), null);
+                        new FieldPermissions(new String[]{}, null), null);
                 return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
             }
         };
@@ -203,12 +207,12 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
     public void testWildcards() throws Exception {
         XContentBuilder mappingSource = jsonBuilder().startObject().startObject("type").startObject("properties")
-                    .startObject("field1_a").field("type", "text").endObject()
-                    .startObject("field1_b").field("type", "text").endObject()
-                    .startObject("field1_c").field("type", "text").endObject()
-                    .startObject("field2_a").field("type", "text").endObject()
-                    .startObject("field2_b").field("type", "text").endObject()
-                    .startObject("field2_c").field("type", "text").endObject()
+                .startObject("field1_a").field("type", "text").endObject()
+                .startObject("field1_b").field("type", "text").endObject()
+                .startObject("field1_c").field("type", "text").endObject()
+                .startObject("field2_a").field("type", "text").endObject()
+                .startObject("field2_b").field("type", "text").endObject()
+                .startObject("field2_c").field("type", "text").endObject()
                 .endObject().endObject().endObject();
         mapperService.merge("type", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
 
@@ -219,25 +223,25 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
     public void testDotNotion() throws Exception {
         XContentBuilder mappingSource = jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("foo")
-                    .field("type", "object")
-                    .startObject("properties")
-                        .startObject("bar").field("type", "text").endObject()
-                        .startObject("baz").field("type", "text").endObject()
-                    .endObject()
+                .field("type", "object")
+                .startObject("properties")
+                .startObject("bar").field("type", "text").endObject()
+                .startObject("baz").field("type", "text").endObject()
+                .endObject()
                 .endObject()
                 .startObject("bar")
-                    .field("type", "object")
-                    .startObject("properties")
-                        .startObject("foo").field("type", "text").endObject()
-                        .startObject("baz").field("type", "text").endObject()
-                    .endObject()
+                .field("type", "object")
+                .startObject("properties")
+                .startObject("foo").field("type", "text").endObject()
+                .startObject("baz").field("type", "text").endObject()
+                .endObject()
                 .endObject()
                 .startObject("baz")
-                    .field("type", "object")
-                    .startObject("properties")
-                        .startObject("bar").field("type", "text").endObject()
-                        .startObject("foo").field("type", "text").endObject()
-                    .endObject()
+                .field("type", "object")
+                .startObject("properties")
+                .startObject("bar").field("type", "text").endObject()
+                .startObject("foo").field("type", "text").endObject()
+                .endObject()
                 .endObject()
                 .endObject().endObject().endObject();
         mapperService.merge("type", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
@@ -251,25 +255,25 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
     public void testParentChild() throws Exception {
         XContentBuilder mappingSource = jsonBuilder().startObject().startObject("parent1")
                 .startObject("properties")
-                    .startObject("field").field("type", "text").endObject()
+                .startObject("field").field("type", "text").endObject()
                 .endObject()
                 .endObject().endObject();
         mapperService.merge("parent1", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mappingSource = jsonBuilder().startObject().startObject("child1")
                 .startObject("properties")
-                    .startObject("field").field("type", "text").endObject()
+                .startObject("field").field("type", "text").endObject()
                 .endObject()
                 .startObject("_parent")
-                    .field("type", "parent1")
+                .field("type", "parent1")
                 .endObject()
                 .endObject().endObject();
         mapperService.merge("child1", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mappingSource = jsonBuilder().startObject().startObject("child2")
                 .startObject("properties")
-                    .startObject("field").field("type", "text").endObject()
+                .startObject("field").field("type", "text").endObject()
                 .endObject()
                 .startObject("_parent")
-                    .field("type", "parent1")
+                .field("type", "parent1")
                 .endObject()
                 .endObject().endObject();
         mapperService.merge("child2", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
@@ -281,15 +285,15 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         mapperService.merge("parent2", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mappingSource = jsonBuilder().startObject().startObject("child3")
                 .startObject("properties")
-                    .startObject("field").field("type", "text").endObject()
+                .startObject("field").field("type", "text").endObject()
                 .endObject()
                 .startObject("_parent")
-                    .field("type", "parent2")
+                .field("type", "parent2")
                 .endObject()
                 .endObject().endObject();
         mapperService.merge("child3", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
 
-        assertResolvedFields("field1", "field1", ParentFieldMapper.joinField("parent1"), ParentFieldMapper.joinField("parent2"));
+        assertResolvedFields("field", "field", ParentFieldMapper.joinField("parent1"), ParentFieldMapper.joinField("parent2"));
     }
 
     public void testDelegateSimilarity() throws Exception {
@@ -393,10 +397,142 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         directory.close();
     }
 
+    public void testFieldPermissionsWithFieldExceptions() throws Exception {
+        XContentBuilder mappingSource = jsonBuilder().startObject().startObject("some_type")
+                .startObject("properties")
+                .startObject("field1").field("type", "text").endObject()
+                .startObject("field2").field("type", "text").endObject()
+                .startObject("xfield3").field("type", "text").endObject()
+                .endObject()
+                .endObject().endObject();
+        mapperService.merge("some_type", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        securityIndexSearcherWrapper =
+                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, null);
+        Set<String> allowedMetaFields = securityIndexSearcherWrapper.getAllowedMetaFields();
+        String[] grantedFields = new String[]{};
+        String[] deniedFields;
+        // Presence of fields in a role with an empty array implies access to no fields except the meta fields
+        Set<String> resolvedAllowedFields = new FieldPermissions(grantedFields, randomBoolean() ? null : new String[]{})
+                .resolveAllowedFields(allowedMetaFields, mapperService);
+        Set<String> expectedResultSet = new HashSet<>(allowedMetaFields);
+        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
+        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+
+        // make sure meta fields cannot be denied access to
+        deniedFields = allowedMetaFields.toArray(new String[allowedMetaFields.size()]);
+        resolvedAllowedFields = new FieldPermissions(null, deniedFields)
+                .resolveAllowedFields(allowedMetaFields, mapperService);
+        expectedResultSet = new HashSet<>(allowedMetaFields);
+        expectedResultSet.addAll(Arrays.asList("field1", "field2", "xfield3"));
+        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
+        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+
+        // check we can add all fields with *
+        grantedFields = new String[]{"*"};
+        resolvedAllowedFields = new FieldPermissions(grantedFields, randomBoolean() ? null : new String[]{})
+                .resolveAllowedFields(allowedMetaFields, mapperService);
+        expectedResultSet = new HashSet<>(allowedMetaFields);
+        expectedResultSet.addAll(Arrays.asList("field1", "field2", "xfield3"));
+        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
+        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+
+        // same with null
+        resolvedAllowedFields = new FieldPermissions(grantedFields, randomBoolean() ? null : new String[]{})
+                .resolveAllowedFields(allowedMetaFields, mapperService);
+        expectedResultSet = new HashSet<>(allowedMetaFields);
+        expectedResultSet.addAll(Arrays.asList("field1", "field2", "xfield3"));
+        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
+        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+
+        // check we remove only excluded fields
+        grantedFields = new String[]{"*"};
+        deniedFields = new String[]{"xfield3"};
+        resolvedAllowedFields = new FieldPermissions(grantedFields, deniedFields)
+                .resolveAllowedFields(allowedMetaFields, mapperService);
+        expectedResultSet = new HashSet<>(allowedMetaFields);
+        expectedResultSet.addAll(Arrays.asList("field1", "field2"));
+        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
+        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+
+        // same with null
+        deniedFields = new String[]{"field1"};
+        resolvedAllowedFields = new FieldPermissions(null, deniedFields)
+                .resolveAllowedFields(allowedMetaFields, mapperService);
+        expectedResultSet = new HashSet<>(allowedMetaFields);
+        expectedResultSet.addAll(Arrays.asList("field2", "xfield3"));
+        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
+        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+
+        // some other checks
+        grantedFields = new String[]{"field*"};
+        deniedFields = new String[]{"field1", "field2"};
+        resolvedAllowedFields = new FieldPermissions(grantedFields, deniedFields)
+                .resolveAllowedFields(allowedMetaFields, mapperService);
+        expectedResultSet = new HashSet<>(allowedMetaFields);
+        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
+        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+
+        grantedFields = new String[]{"field1", "field2"};
+        deniedFields = new String[]{"field2"};
+        resolvedAllowedFields = new FieldPermissions(grantedFields, deniedFields)
+                .resolveAllowedFields(allowedMetaFields, mapperService);
+        expectedResultSet = new HashSet<>(allowedMetaFields);
+        expectedResultSet.addAll(Arrays.asList("field1"));
+        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
+        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+
+        grantedFields = new String[]{"field*"};
+        deniedFields = new String[]{"field2"};
+        resolvedAllowedFields = new FieldPermissions(grantedFields, deniedFields)
+                .resolveAllowedFields(allowedMetaFields, mapperService);
+        expectedResultSet = new HashSet<>(allowedMetaFields);
+        expectedResultSet.addAll(Arrays.asList("field1"));
+        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
+        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+
+        deniedFields = new String[]{"field*"};
+        resolvedAllowedFields = new FieldPermissions(null, deniedFields)
+                .resolveAllowedFields(allowedMetaFields, mapperService);
+        expectedResultSet = new HashSet<>(allowedMetaFields);
+        expectedResultSet.addAll(Arrays.asList("xfield3"));
+        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
+        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+
+        // empty array for allowed fields always means no field is allowed
+        grantedFields = new String[]{};
+        deniedFields = new String[]{};
+        resolvedAllowedFields = new FieldPermissions(grantedFields, deniedFields)
+                .resolveAllowedFields(allowedMetaFields, mapperService);
+        expectedResultSet = new HashSet<>(allowedMetaFields);
+        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
+        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+
+        // make sure all field can be explicitly allowed
+        grantedFields = new String[]{"_all", "*"};
+        deniedFields = randomBoolean() ? null : new String[]{};
+        resolvedAllowedFields = new FieldPermissions(grantedFields, deniedFields)
+                .resolveAllowedFields(allowedMetaFields, mapperService);
+        expectedResultSet = new HashSet<>(allowedMetaFields);
+        expectedResultSet.addAll(Arrays.asList("field1", "field2", "xfield3", "_all"));
+        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
+        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+
+        // make sure all field can be explicitly allowed
+        grantedFields = new String[]{"_all"};
+        deniedFields = randomBoolean() ? null : new String[]{};
+        resolvedAllowedFields = new FieldPermissions(grantedFields, deniedFields)
+                .resolveAllowedFields(allowedMetaFields, mapperService);
+        expectedResultSet = new HashSet<>(allowedMetaFields);
+        expectedResultSet.addAll(Arrays.asList("_all"));
+        assertThat(resolvedAllowedFields.size(), equalTo(expectedResultSet.size()));
+        assertThat(resolvedAllowedFields, containsInAnyOrder(expectedResultSet.toArray()));
+    }
+
     private SparseFixedBitSet query(LeafReaderContext leaf, String field, String value) throws IOException {
         SparseFixedBitSet sparseFixedBitSet = new SparseFixedBitSet(leaf.reader().maxDoc());
         TermsEnum tenum = leaf.reader().terms(field).iterator();
-        while (tenum.next().utf8ToString().equals(value) == false) {}
+        while (tenum.next().utf8ToString().equals(value) == false) {
+        }
         PostingsEnum penum = tenum.postings(null);
         sparseFixedBitSet.or(penum);
         return sparseFixedBitSet;
@@ -408,7 +544,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true,
-                        singleton(expression), null);
+                        new FieldPermissions(new String[]{expression}, null), null);
                 return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
             }
         };
@@ -496,7 +632,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
         private final Weight weight;
         private final Set<Object> seenLeaves = Collections.newSetFromMap(new IdentityHashMap<>());
-        
+
         protected CreateScorerOnceWeight(Weight weight) {
             super(weight.getQuery());
             this.weight = weight;
@@ -608,6 +744,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
             public void onCache(ShardId shardId, Accountable accountable) {
 
             }
+
             @Override
             public void onRemoval(ShardId shardId, Accountable accountable) {
 

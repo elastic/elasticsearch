@@ -8,6 +8,14 @@ package org.elasticsearch;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.XPackFeatureSet;
+import org.elasticsearch.xpack.action.XPackUsageRequestBuilder;
+import org.elasticsearch.xpack.action.XPackUsageResponse;
+import org.elasticsearch.xpack.security.SecurityFeatureSet;
+import org.elasticsearch.xpack.security.action.role.ClearRolesCacheRequestBuilder;
+import org.elasticsearch.xpack.security.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.action.user.GetUsersResponse;
@@ -15,16 +23,22 @@ import org.elasticsearch.xpack.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.user.User;
 
 import java.util.Collections;
+import java.util.List;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTokenTests.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Backwards compatibility test that loads some data from a pre-5.0 cluster and attempts to do some basic security stuff with it. It
@@ -57,12 +71,30 @@ public class OldSecurityIndexBackwardsCompatibilityIT extends AbstractOldXPackIn
     }
 
     protected void checkVersion(Version version) throws Exception {
-        // test that user and roles are there
-        logger.info("Getting roles...");
+       // wait for service to start
         SecurityClient securityClient = new SecurityClient(client());
         assertBusy(() -> {
             assertEquals(NativeRolesStore.State.STARTED, internalCluster().getInstance(NativeRolesStore.class).state());
         });
+
+        // make sure usage stats are still working even with old fls format
+        ClearRolesCacheResponse clearResponse = new ClearRolesCacheRequestBuilder(client()).get();
+        assertThat(clearResponse.failures().size(), equalTo(0));
+        XPackUsageResponse usageResponse = new XPackUsageRequestBuilder(client()).get();
+        List<XPackFeatureSet.Usage> usagesList = usageResponse.getUsages();
+        for (XPackFeatureSet.Usage usage : usagesList) {
+            if (usage instanceof SecurityFeatureSet.Usage) {
+                XContentBuilder builder = jsonBuilder();
+                usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                assertThat(builder.string(),
+                        anyOf(containsString("\"roles\":{\"native\":{\"size\":1,\"fls\":true,\"dls\":true}"),
+                                containsString("\"roles\":{\"native\":{\"size\":1,\"dls\":true,\"fls\":true}")));
+
+            }
+        }
+
+        // test that user and roles are there
+        logger.info("Getting roles...");
         GetRolesResponse getRolesResponse = securityClient.prepareGetRoles("bwc_test_role").get();
         assertThat(getRolesResponse.roles(), arrayWithSize(1));
         RoleDescriptor role = getRolesResponse.roles()[0];
@@ -71,12 +103,19 @@ public class OldSecurityIndexBackwardsCompatibilityIT extends AbstractOldXPackIn
         RoleDescriptor.IndicesPrivileges indicesPrivileges = role.getIndicesPrivileges()[0];
         assertThat(indicesPrivileges.getIndices(), arrayWithSize(2));
         assertArrayEquals(new String[] { "index1", "index2" }, indicesPrivileges.getIndices());
-        assertArrayEquals(new String[] { "title", "body" }, indicesPrivileges.getFields());
+        assertTrue(indicesPrivileges.getFieldPermissions().grantsAccessTo("title"));
+        assertTrue(indicesPrivileges.getFieldPermissions().grantsAccessTo("body"));
         assertArrayEquals(new String[] { "all" }, indicesPrivileges.getPrivileges());
         assertEquals("{\"match\": {\"title\": \"foo\"}}", indicesPrivileges.getQuery().utf8ToString());
         assertArrayEquals(new String[] { "all" }, role.getClusterPrivileges());
         assertArrayEquals(new String[] { "other_user" }, role.getRunAs());
         assertEquals("bwc_test_role", role.getName());
+        // check x-content is rendered in new format although it comes from an old index
+        XContentBuilder builder = jsonBuilder();
+        builder.startObject();
+        indicesPrivileges.getFieldPermissions().toXContent(builder, null);
+        builder.endObject();
+        assertThat(builder.string(), equalTo("{\"field_security\":{\"grant\":[\"title\",\"body\"]}}"));
 
         logger.info("Getting users...");
         assertBusy(() -> {
@@ -110,7 +149,7 @@ public class OldSecurityIndexBackwardsCompatibilityIT extends AbstractOldXPackIn
         PutRoleResponse roleResponse = securityClient.preparePutRole("test_role").addIndices(
                 new String[] { "index3" },
                 new String[] { "all" },
-                new String[] { "title", "body" },
+                new FieldPermissions(new String[]{"title", "body"}, null),
                 new BytesArray("{\"term\": {\"title\":\"not\"}}")).cluster("all")
                 .get();
         assertTrue(roleResponse.isCreated());

@@ -25,6 +25,7 @@ import static dk.brics.automaton.MinimizationOperations.minimize;
 public final class Automatons {
 
     public static final Automaton EMPTY = BasicAutomata.makeEmpty();
+    public static final Automaton MATCH_ALL = BasicAutomata.makeAnyString();
 
     static final char WILDCARD_STRING = '*';     // String equality with support for wildcards
     static final char WILDCARD_CHAR = '?';       // Char equality with support for wildcards

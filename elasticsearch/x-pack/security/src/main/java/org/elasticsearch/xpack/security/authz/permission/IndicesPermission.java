@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -107,7 +108,7 @@ public interface IndicesPermission extends Permission, Iterable<IndicesPermissio
             // by at least one indices permission group
 
             SortedMap<String, AliasOrIndex> allAliasesAndIndices = metaData.getAliasAndIndexLookup();
-            Map<String, Set<String>> rolesFieldsByIndex = new HashMap<>();
+            Map<String, Set<FieldPermissions>> fieldPermissionsByIndex = new HashMap<>();
             Map<String, Set<BytesReference>> roleQueriesByIndex = new HashMap<>();
             Map<String, Boolean> grantedBuilder = new HashMap<>();
 
@@ -125,14 +126,10 @@ public interface IndicesPermission extends Permission, Iterable<IndicesPermissio
                     if (group.check(action, indexOrAlias)) {
                         granted = true;
                         for (String index : concreteIndices) {
-                            if (group.hasFields()) {
-                                Set<String> roleFields = rolesFieldsByIndex.get(index);
-                                if (roleFields == null) {
-                                    roleFields = new HashSet<>();
-                                    rolesFieldsByIndex.put(index, roleFields);
-                                }
-                                roleFields.addAll(group.getFields());
+                            if (fieldPermissionsByIndex.get(index) == null) {
+                                fieldPermissionsByIndex.put(index, new HashSet<>());
                             }
+                            fieldPermissionsByIndex.get(index).add(group.getFieldPermissions());
                             if (group.hasQuery()) {
                                 Set<BytesReference> roleQueries = roleQueriesByIndex.get(index);
                                 if (roleQueries == null) {
@@ -161,15 +158,17 @@ public interface IndicesPermission extends Permission, Iterable<IndicesPermissio
                 if (roleQueries != null) {
                     roleQueries = unmodifiableSet(roleQueries);
                 }
-                Set<String> roleFields = rolesFieldsByIndex.get(index);
-                if (roleFields != null) {
-                    if (roleFields.contains("*")) {
-                        roleFields = null;
-                    } else {
-                        roleFields = unmodifiableSet(roleFields);
+
+                FieldPermissions fieldPermissions = new FieldPermissions();
+                Set<FieldPermissions> indexFieldPermissions = fieldPermissionsByIndex.get(index);
+                if (indexFieldPermissions != null) {
+                    // get the first field permission entry because we do not want the merge to overwrite granted fields with null
+                    fieldPermissions = indexFieldPermissions.iterator().next();
+                    for (FieldPermissions fp : indexFieldPermissions) {
+                        fieldPermissions = FieldPermissions.merge(fieldPermissions, fp);
                     }
                 }
-                indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(entry.getValue(), roleFields, roleQueries));
+                indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(entry.getValue(), fieldPermissions, roleQueries));
             }
             return unmodifiableMap(indexPermissions);
         }
@@ -291,16 +290,21 @@ public interface IndicesPermission extends Permission, Iterable<IndicesPermissio
         private final Predicate<String> actionMatcher;
         private final String[] indices;
         private final Predicate<String> indexNameMatcher;
-        private final List<String> fields;
+
+        public FieldPermissions getFieldPermissions() {
+            return fieldPermissions;
+        }
+
+        private final FieldPermissions fieldPermissions;
         private final BytesReference query;
 
-        public Group(IndexPrivilege privilege, @Nullable List<String> fields, @Nullable BytesReference query, String... indices) {
+        public Group(IndexPrivilege privilege, FieldPermissions fieldPermissions, @Nullable BytesReference query, String... indices) {
             assert indices.length != 0;
             this.privilege = privilege;
             this.actionMatcher = privilege.predicate();
             this.indices = indices;
             this.indexNameMatcher = new AutomatonPredicate(Automatons.patterns(indices));
-            this.fields = fields;
+            this.fieldPermissions = Objects.requireNonNull(fieldPermissions);
             this.query = query;
         }
 
@@ -310,11 +314,6 @@ public interface IndicesPermission extends Permission, Iterable<IndicesPermissio
 
         public String[] indices() {
             return indices;
-        }
-
-        @Nullable
-        public List<String> getFields() {
-            return fields;
         }
 
         @Nullable
@@ -329,10 +328,6 @@ public interface IndicesPermission extends Permission, Iterable<IndicesPermissio
         public boolean check(String action, String index) {
             assert index != null;
             return actionMatcher.test(action) && indexNameMatcher.test(index);
-        }
-
-        public boolean hasFields() {
-            return fields != null;
         }
 
         public boolean hasQuery() {

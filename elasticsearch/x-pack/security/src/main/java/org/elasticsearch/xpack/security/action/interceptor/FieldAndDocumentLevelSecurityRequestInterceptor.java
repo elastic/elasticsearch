@@ -55,7 +55,7 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor<Request> extends 
             for (String index : indicesRequest.indices()) {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
                 if (indexAccessControl != null) {
-                    boolean fieldLevelSecurityEnabled = indexAccessControl.getFields() != null;
+                    boolean fieldLevelSecurityEnabled = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                     boolean documentLevelSecurityEnabled = indexAccessControl.getQueries() != null;
                     if (fieldLevelSecurityEnabled || documentLevelSecurityEnabled) {
                         if (fieldLevelSecurityEnabled || documentLevelSecurityEnabled) {

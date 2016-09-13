@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.support.MetadataUtils;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,11 +65,12 @@ public class PutRoleRequest extends ActionRequest<PutRoleRequest> implements Wri
         this.indicesPrivileges.addAll(Arrays.asList(privileges));
     }
 
-    public void addIndex(String[] indices, String[] privileges, @Nullable String[] fields, @Nullable BytesReference query) {
+    public void addIndex(String[] indices, String[] privileges, FieldPermissions fieldPermissions,
+                         @Nullable BytesReference query) {
         this.indicesPrivileges.add(RoleDescriptor.IndicesPrivileges.builder()
                 .indices(indices)
                 .privileges(privileges)
-                .fields(fields)
+                .fieldPermissions(fieldPermissions)
                 .query(query)
                 .build());
     }

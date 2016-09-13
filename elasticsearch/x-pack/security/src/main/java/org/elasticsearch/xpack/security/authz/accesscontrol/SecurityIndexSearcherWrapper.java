@@ -170,15 +170,11 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                 reader = DocumentSubsetReader.wrap(reader, bitsetFilterCache, new ConstantScoreQuery(filter.build()));
             }
 
-            if (permissions.getFields() != null) {
+            if (permissions.getFieldPermissions().hasFieldLevelSecurity()) {
                 // now add the allowed fields based on the current granted permissions and :
-                Set<String> allowedFields = new HashSet<>(allowedMetaFields);
-                for (String field : permissions.getFields()) {
-                    allowedFields.addAll(mapperService.simpleMatchToIndexNames(field));
-                }
+                Set<String> allowedFields = permissions.getFieldPermissions().resolveAllowedFields(allowedMetaFields, mapperService);
                 resolveParentChildJoinFields(allowedFields);
-                // TODO: support 'denied' fields (pass true as the 3rd parameter in this case)
-                reader = FieldSubsetReader.wrap(reader, allowedFields, false);
+                reader = FieldSubsetReader.wrap(reader, allowedFields);
             }
 
             return reader;

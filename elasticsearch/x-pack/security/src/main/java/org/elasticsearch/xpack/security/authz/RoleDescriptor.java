@@ -21,9 +21,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.security.support.Validation;
-import org.elasticsearch.xpack.security.support.MetadataUtils;
 import org.elasticsearch.xpack.common.xcontent.XContentUtils;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.security.support.MetadataUtils;
+import org.elasticsearch.xpack.security.support.Validation;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -159,14 +160,14 @@ public class RoleDescriptor implements ToXContent {
         out.writeMap(descriptor.metadata);
     }
 
-    public static RoleDescriptor parse(String name, BytesReference source) throws IOException {
+    public static RoleDescriptor parse(String name, BytesReference source, boolean allow2xFormat) throws IOException {
         assert name != null;
         try (XContentParser parser = XContentHelper.createParser(source)) {
-            return parse(name, parser);
+            return parse(name, parser, allow2xFormat);
         }
     }
 
-    public static RoleDescriptor parse(String name, XContentParser parser) throws IOException {
+    public static RoleDescriptor parse(String name, XContentParser parser, boolean allow2xFormat) throws IOException {
         // validate name
         Validation.Error validationError = Validation.Roles.validateRoleName(name, true);
         if (validationError != null) {
@@ -189,7 +190,7 @@ public class RoleDescriptor implements ToXContent {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.INDICES)) {
-                indicesPrivileges = parseIndices(name, parser);
+                indicesPrivileges = parseIndices(name, parser, allow2xFormat);
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.RUN_AS)) {
                 runAsUsers = readStringArray(name, parser, true);
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.CLUSTER)) {
@@ -216,19 +217,21 @@ public class RoleDescriptor implements ToXContent {
         }
     }
 
-    private static RoleDescriptor.IndicesPrivileges[] parseIndices(String roleName, XContentParser parser) throws IOException {
+    private static RoleDescriptor.IndicesPrivileges[] parseIndices(String roleName, XContentParser parser,
+                                                                   boolean allow2xFormat) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected field [{}] value " +
                     "to be an array, but found [{}] instead", roleName, parser.currentName(), parser.currentToken());
         }
         List<RoleDescriptor.IndicesPrivileges> privileges = new ArrayList<>();
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            privileges.add(parseIndex(roleName, parser));
+            privileges.add(parseIndex(roleName, parser, allow2xFormat));
         }
         return privileges.toArray(new IndicesPrivileges[privileges.size()]);
     }
 
-    private static RoleDescriptor.IndicesPrivileges parseIndex(String roleName, XContentParser parser) throws IOException {
+    private static RoleDescriptor.IndicesPrivileges parseIndex(String roleName, XContentParser parser,
+                                                               boolean allow2xFormat) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected field [{}] value to " +
@@ -238,7 +241,8 @@ public class RoleDescriptor implements ToXContent {
         String[] names = null;
         String query = null;
         String[] privileges = null;
-        String[] fields = null;
+        String[] grantedFields = null;
+        String[] deniedFields = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -269,10 +273,58 @@ public class RoleDescriptor implements ToXContent {
                     throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected field [{}] " +
                             "value to be null, a string, or an object, but found [{}] instead", roleName, currentFieldName, token);
                 }
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.FIELD_PERMISSIONS)) {
+                if (token == XContentParser.Token.START_OBJECT) {
+                    token = parser.nextToken();
+                    do {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                            if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.GRANT_FIELDS)) {
+                                parser.nextToken();
+                                grantedFields = readStringArray(roleName, parser, true);
+                                if (grantedFields == null) {
+                                    throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. {} must not " +
+                                            "be null.", roleName, Fields.GRANT_FIELDS);
+                                }
+                            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.EXCEPT_FIELDS)) {
+                                parser.nextToken();
+                                deniedFields = readStringArray(roleName, parser, true);
+                                if (deniedFields == null) {
+                                    throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. {} must not " +
+                                            "be null.", roleName, Fields.EXCEPT_FIELDS);
+                                }
+                            } else {
+                                throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. " +
+                                        "\"{}\" only accepts options {} and {}, but got: {}",
+                                        roleName, Fields.FIELD_PERMISSIONS, Fields.GRANT_FIELDS, Fields.EXCEPT_FIELDS
+                                        , parser.currentName());
+                            }
+                        } else {
+                            if (token == XContentParser.Token.END_OBJECT) {
+                                throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. " +
+                                        "\"{}\" must not be empty.", roleName, Fields.FIELD_PERMISSIONS);
+                            } else {
+                                throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected {} but " +
+                                        "got {}.", roleName, XContentParser.Token.FIELD_NAME,
+                                        token);
+                            }
+                        }
+                    } while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT);
+                } else {
+                    throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected {} or {} but got {}" +
+                            " in \"{}\".", roleName, XContentParser.Token.START_OBJECT,
+                            XContentParser.Token.START_ARRAY, token, Fields.FIELD_PERMISSIONS);
+                }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.PRIVILEGES)) {
                 privileges = readStringArray(roleName, parser, true);
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.FIELDS)) {
-                fields = readStringArray(roleName, parser, true);
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.FIELD_PERMISSIONS_2X)) {
+                if (allow2xFormat) {
+                    grantedFields = readStringArray(roleName, parser, true);
+                } else {
+                    throw new ElasticsearchParseException("[\"fields\": [...]] format has changed for field" +
+                            " permissions in role [{}], use [\"{}\": {\"{}\":[...]," + "\"{}\":[...]}] instead",
+                            roleName, Fields.FIELD_PERMISSIONS, Fields.GRANT_FIELDS, Fields.EXCEPT_FIELDS, roleName);
+                }
             } else {
                 throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. unexpected field [{}]",
                         roleName, currentFieldName);
@@ -286,17 +338,21 @@ public class RoleDescriptor implements ToXContent {
             throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. missing required [{}] field",
                     roleName, Fields.PRIVILEGES.getPreferredName());
         }
+        if (deniedFields != null && grantedFields == null) {
+            throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. {} requires {} if {} is given",
+                    roleName, Fields.FIELD_PERMISSIONS, Fields.GRANT_FIELDS, Fields.EXCEPT_FIELDS);
+        }
         return RoleDescriptor.IndicesPrivileges.builder()
                 .indices(names)
                 .privileges(privileges)
-                .fields(fields)
+                .fieldPermissions(new FieldPermissions(grantedFields, deniedFields))
                 .query(query)
                 .build();
     }
 
     /**
      * A class representing permissions for a group of indices mapped to
-     * privileges, fields, and a query.
+     * privileges, field permissions, and a query.
      */
     public static class IndicesPrivileges implements ToXContent, Streamable {
 
@@ -304,7 +360,7 @@ public class RoleDescriptor implements ToXContent {
 
         private String[] indices;
         private String[] privileges;
-        private String[] fields;
+        private FieldPermissions fieldPermissions = new FieldPermissions();
         private BytesReference query;
 
         private IndicesPrivileges() {
@@ -322,9 +378,8 @@ public class RoleDescriptor implements ToXContent {
             return this.privileges;
         }
 
-        @Nullable
-        public String[] getFields() {
-            return this.fields;
+        public FieldPermissions getFieldPermissions() {
+            return fieldPermissions;
         }
 
         @Nullable
@@ -337,9 +392,10 @@ public class RoleDescriptor implements ToXContent {
             StringBuilder sb = new StringBuilder("IndicesPrivileges[");
             sb.append("indices=[").append(Strings.arrayToCommaDelimitedString(indices));
             sb.append("], privileges=[").append(Strings.arrayToCommaDelimitedString(privileges));
-            sb.append("], fields=[").append(Strings.arrayToCommaDelimitedString(fields));
+            sb.append("], ");
+            sb.append(fieldPermissions.toString());
             if (query != null) {
-                sb.append("], query=").append(query.utf8ToString());
+                sb.append(", query=").append(query.utf8ToString());
             }
             sb.append("]");
             return sb.toString();
@@ -354,7 +410,7 @@ public class RoleDescriptor implements ToXContent {
 
             if (!Arrays.equals(indices, that.indices)) return false;
             if (!Arrays.equals(privileges, that.privileges)) return false;
-            if (!Arrays.equals(fields, that.fields)) return false;
+            if (fieldPermissions.equals(that.fieldPermissions) == false) return false;
             return !(query != null ? !query.equals(that.query) : that.query != null);
         }
 
@@ -362,7 +418,7 @@ public class RoleDescriptor implements ToXContent {
         public int hashCode() {
             int result = Arrays.hashCode(indices);
             result = 31 * result + Arrays.hashCode(privileges);
-            result = 31 * result + Arrays.hashCode(fields);
+            result = 31 * result + fieldPermissions.hashCode();
             result = 31 * result + (query != null ? query.hashCode() : 0);
             return result;
         }
@@ -372,9 +428,7 @@ public class RoleDescriptor implements ToXContent {
             builder.startObject();
             builder.array("names", indices);
             builder.array("privileges", privileges);
-            if (fields != null) {
-                builder.array("fields", fields);
-            }
+            builder = fieldPermissions.toXContent(builder, params);
             if (query != null) {
                 builder.field("query", query.utf8ToString());
             }
@@ -390,7 +444,7 @@ public class RoleDescriptor implements ToXContent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             this.indices = in.readStringArray();
-            this.fields = in.readOptionalStringArray();
+            this.fieldPermissions = new FieldPermissions(in);
             this.privileges = in.readStringArray();
             this.query = in.readOptionalBytesReference();
         }
@@ -398,7 +452,7 @@ public class RoleDescriptor implements ToXContent {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringArray(indices);
-            out.writeOptionalStringArray(fields);
+            fieldPermissions.writeTo(out);
             out.writeStringArray(privileges);
             out.writeOptionalBytesReference(query);
         }
@@ -420,8 +474,8 @@ public class RoleDescriptor implements ToXContent {
                 return this;
             }
 
-            public Builder fields(@Nullable String... fields) {
-                indicesPrivileges.fields = fields;
+            public Builder fieldPermissions(FieldPermissions fieldPermissions) {
+                indicesPrivileges.fieldPermissions = fieldPermissions;
                 return this;
             }
 
@@ -453,7 +507,10 @@ public class RoleDescriptor implements ToXContent {
         ParseField NAMES = new ParseField("names");
         ParseField QUERY = new ParseField("query");
         ParseField PRIVILEGES = new ParseField("privileges");
-        ParseField FIELDS = new ParseField("fields");
+        ParseField FIELD_PERMISSIONS = new ParseField("field_security");
+        ParseField FIELD_PERMISSIONS_2X = new ParseField("fields");
+        ParseField GRANT_FIELDS = new ParseField("grant");
+        ParseField EXCEPT_FIELDS = new ParseField("except");
         ParseField METADATA = new ParseField("metadata");
     }
 }

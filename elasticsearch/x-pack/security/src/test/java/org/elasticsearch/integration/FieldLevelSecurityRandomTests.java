@@ -76,7 +76,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
 
         StringBuilder roleFields = new StringBuilder();
         for (String field : allowedFields) {
-            roleFields.append("        - ").append(field).append('\n');
+            roleFields.append("          - ").append(field).append('\n');
         }
 
         return super.configRoles() +
@@ -90,7 +90,8 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                 "  indices:\n" +
                 "    - names: '*'\n" +
                 "      privileges: [ ALL ]\n" +
-                "      fields:\n" +roleFields.toString() +
+                "      field_security:\n" +
+                "         grant:\n" + roleFields.toString() +
                 "role3:\n" +
                 "  cluster:\n" +
                 "    - all\n" +
@@ -98,22 +99,22 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                 "    - names: test\n" +
                 "      privileges:\n" +
                 "        - all\n" +
-                "      fields:\n" +
-                "        - field1\n" +
+                "      field_security:\n" +
+                "         grant: [ field1 ]\n" +
                 "role4:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "    - names: test\n" +
                 "      privileges: [ ALL ]\n" +
-                "      fields:\n" +
-                "        - field2\n" +
+                "      field_security:\n" +
+                "         grant: [ field2 ]\n" +
                 "role5:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "    - names: test\n" +
                 "      privileges: [ ALL ]\n" +
-                "      fields:\n" +
-                "        - field3\n";
+                "      field_security:\n" +
+                "         grant: [ field3 ]\n";
     }
 
     @Override

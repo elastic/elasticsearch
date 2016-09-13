@@ -42,7 +42,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.mockito.internal.matchers.Any;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 
 import java.util.Collections;
 import java.util.Optional;
@@ -68,7 +68,8 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, null,
+        IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, new
+                FieldPermissions(),
                 singleton(new BytesArray("{\"match_all\" : {}}")));
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
         IndicesQueriesRegistry indicesQueriesRegistry = mock(IndicesQueriesRegistry.class);

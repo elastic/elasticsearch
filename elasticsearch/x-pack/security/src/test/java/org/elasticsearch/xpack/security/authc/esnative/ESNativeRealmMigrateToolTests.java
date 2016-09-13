@@ -8,8 +8,9 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.security.authc.esnative.ESNativeRealmMigrateTool;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
+
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -33,7 +34,7 @@ public class ESNativeRealmMigrateToolTests extends CommandTestCase {
         RoleDescriptor.IndicesPrivileges ip = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(new String[]{"i1", "i2", "i3"})
                 .privileges(new String[]{"all"})
-                .fields(new String[]{"body"})
+                .fieldPermissions(new FieldPermissions(new String[]{"body"}, null))
                 .build();
         RoleDescriptor.IndicesPrivileges[] ips = new RoleDescriptor.IndicesPrivileges[1];
         ips[0] = ip;
@@ -42,8 +43,7 @@ public class ESNativeRealmMigrateToolTests extends CommandTestCase {
         RoleDescriptor rd = new RoleDescriptor("rolename", cluster, ips, runAs);
         assertThat(ESNativeRealmMigrateTool.MigrateUserOrRoles.createRoleJson(rd),
                 equalTo("{\"cluster\":[],\"indices\":[{\"names\":[\"i1\",\"i2\",\"i3\"]," +
-                                "\"privileges\":[\"all\"],\"fields\":[\"body\"]}],\"run_as\":[],\"metadata\":{}}"));
-
+                                "\"privileges\":[\"all\"],\"field_security\":{\"grant\":[\"body\"]}}],\"run_as\":[],\"metadata\":{}}"));
     }
 
 }

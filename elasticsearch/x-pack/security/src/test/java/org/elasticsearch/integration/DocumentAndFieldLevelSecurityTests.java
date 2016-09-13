@@ -65,21 +65,24 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                 "  indices:\n" +
                 "    - names: '*'\n" +
                 "      privileges: [ ALL ]\n" +
-                "      fields: [ field1 ]\n" +
+                "      field_security:\n" +
+                "         grant: [ field1 ]\n" +
                 "      query: '{\"term\" : {\"field1\" : \"value1\"}}'\n" +
                 "role3:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "    - names: '*'\n" +
                 "      privileges: [ ALL ]\n" +
-                "      fields: [ field2 ]\n" +
+                "      field_security:\n" +
+                "         grant: [ field2 ]\n" +
                 "      query: '{\"term\" : {\"field2\" : \"value2\"}}'\n" +
                 "role4:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "    - names: '*'\n" +
                 "      privileges: [ ALL ]\n" +
-                "      fields: [ field1 ]\n" +
+                "      field_security:\n" +
+                "         grant: [ field1 ]\n" +
                 "      query: '{\"term\" : {\"field2\" : \"value2\"}}'\n";
     }
 

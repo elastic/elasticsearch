@@ -11,6 +11,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 
 import java.util.Map;
 
@@ -29,7 +30,9 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
     }
 
     public PutRoleRequestBuilder source(String name, BytesReference source) throws Exception {
-        RoleDescriptor descriptor = RoleDescriptor.parse(name, source);
+        // we pass false as last parameter because we want to reject the request if field permissions
+        // are given in 2.x syntax
+        RoleDescriptor descriptor = RoleDescriptor.parse(name, source, false);
         assert name.equals(descriptor.getName());
         request.name(name);
         request.cluster(descriptor.getClusterPrivileges());
@@ -55,8 +58,8 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
     }
 
     public PutRoleRequestBuilder addIndices(String[] indices, String[] privileges,
-            @Nullable String[] fields, @Nullable BytesReference query) {
-        request.addIndex(indices, privileges, fields, query);
+                                            FieldPermissions fieldPermissions, @Nullable BytesReference query) {
+        request.addIndex(indices, privileges, fieldPermissions, query);
         return this;
     }
 

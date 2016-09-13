@@ -9,23 +9,26 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.security.authc.support.RefreshListener;
+import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.permission.RunAsPermission;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.BufferedWriter;
+import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,7 +40,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -163,7 +165,9 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(group.indices()[0], equalTo("field_idx"));
         assertThat(group.privilege(), notNullValue());
         assertThat(group.privilege().isAlias(IndexPrivilege.READ), is(true));
-        assertThat(group.getFields(), contains("foo", "boo"));
+        assertTrue(group.getFieldPermissions().grantsAccessTo("foo"));
+        assertTrue(group.getFieldPermissions().grantsAccessTo("boo"));
+        assertTrue(group.getFieldPermissions().hasFieldLevelSecurity());
 
         role = roles.get("role_query");
         assertThat(role, notNullValue());
@@ -181,7 +185,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(group.indices()[0], equalTo("query_idx"));
         assertThat(group.privilege(), notNullValue());
         assertThat(group.privilege().isAlias(IndexPrivilege.READ), is(true));
-        assertThat(group.getFields(), nullValue());
+        assertFalse(group.getFieldPermissions().hasFieldLevelSecurity());
         assertThat(group.getQuery(), notNullValue());
 
         role = roles.get("role_query_fields");
@@ -200,7 +204,9 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(group.indices()[0], equalTo("query_fields_idx"));
         assertThat(group.privilege(), notNullValue());
         assertThat(group.privilege().isAlias(IndexPrivilege.READ), is(true));
-        assertThat(group.getFields(), contains("foo", "boo"));
+        assertTrue(group.getFieldPermissions().grantsAccessTo("foo"));
+        assertTrue(group.getFieldPermissions().grantsAccessTo("boo"));
+        assertTrue(group.getFieldPermissions().hasFieldLevelSecurity());
         assertThat(group.getQuery(), notNullValue());
     }
 
@@ -394,5 +400,17 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(usageStats.get("size"), is(flsDlsEnabled ? 9 : 6));
         assertThat(usageStats.get("fls"), is(flsDlsEnabled));
         assertThat(usageStats.get("dls"), is(flsDlsEnabled));
+    }
+
+    // test that we can read a role where field permissions are stored in 2.x format (fields:...)
+    public void testBWCFieldPermissions() throws IOException {
+        Path path = getDataPath("roles2xformat.yml");
+        byte[] bytes = Files.readAllBytes(path);
+        String roleString = new String(bytes, Charset.defaultCharset());
+        RoleDescriptor role = FileRolesStore.parseRoleDescriptor(roleString, path, logger, true,
+                Settings.EMPTY);
+        RoleDescriptor.IndicesPrivileges indicesPrivileges = role.getIndicesPrivileges()[0];
+        assertTrue(indicesPrivileges.getFieldPermissions().grantsAccessTo("foo"));
+        assertTrue(indicesPrivileges.getFieldPermissions().grantsAccessTo("boo"));
     }
 }

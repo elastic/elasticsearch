@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.security.SecurityTemplateService;
 import org.elasticsearch.xpack.security.action.role.DeleteRoleResponse;
 import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.Before;
@@ -49,7 +50,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         for (String role : roles) {
             c.preparePutRole(role)
                     .cluster("none")
-                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null)
+                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, new FieldPermissions(), null)
                     .get();
             logger.debug("--> created role [{}]", role);
         }
@@ -82,7 +83,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         for (String role : toModify) {
             PutRoleResponse response = securityClient.preparePutRole(role)
                     .cluster("none")
-                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null)
+                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, new FieldPermissions(), null)
                     .runAs(role)
                     .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
                     .get();

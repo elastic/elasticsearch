@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -52,12 +53,12 @@ public class IndicesAccessControl {
     public static class IndexAccessControl {
 
         private final boolean granted;
-        private final Set<String> fields;
+        private final FieldPermissions fieldPermissions;
         private final Set<BytesReference> queries;
 
-        public IndexAccessControl(boolean granted, Set<String> fields, Set<BytesReference> queries) {
+        public IndexAccessControl(boolean granted, FieldPermissions fieldPermissions, Set<BytesReference> queries) {
             this.granted = granted;
-            this.fields = fields;
+            this.fieldPermissions = fieldPermissions;
             this.queries = queries;
         }
 
@@ -69,12 +70,10 @@ public class IndicesAccessControl {
         }
 
         /**
-         * @return The allowed fields for this index permissions. If <code>null</code> is returned then
-         *         this means that there are no field level restrictions
+         * @return The allowed fields for this index permissions.
          */
-        @Nullable
-        public Set<String> getFields() {
-            return fields;
+        public FieldPermissions getFieldPermissions() {
+            return fieldPermissions;
         }
 
         /**
@@ -99,21 +98,8 @@ public class IndicesAccessControl {
                 return other;
             }
 
-            // this code is a bit of a pita, but right now we can't just initialize an empty set,
-            // because an empty Set means no permissions on fields and
-            // <code>null</code> means no field level security
-            // Also, if one grants no access to fields and the other grants all access, merging should result in all access...
-            Set<String> fields = null;
-            if (this.fields != null && other.getFields() != null) {
-                fields = new HashSet<>();
-                if (this.fields != null) {
-                    fields.addAll(this.fields);
-                }
-                if (other.getFields() != null) {
-                    fields.addAll(other.getFields());
-                }
-                fields = unmodifiableSet(fields);
-            }
+            FieldPermissions newPermissions = FieldPermissions.merge(this.fieldPermissions, other.fieldPermissions);
+
             Set<BytesReference> queries = null;
             if (this.queries != null && other.getQueries() != null) {
                 queries = new HashSet<>();
@@ -125,9 +111,9 @@ public class IndicesAccessControl {
                 }
                 queries = unmodifiableSet(queries);
             }
-            return new IndexAccessControl(granted, fields, queries);
+            return new IndexAccessControl(granted, newPermissions, queries);
         }
 
-    }
 
+    }
 }

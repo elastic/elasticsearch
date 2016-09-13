@@ -46,7 +46,7 @@ public class BulkRequestInterceptor extends AbstractComponent implements Request
             for (String index : indicesRequest.indices()) {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
                 if (indexAccessControl != null) {
-                    boolean fls = indexAccessControl.getFields() != null;
+                    boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                     boolean dls = indexAccessControl.getQueries() != null;
                     if (fls || dls) {
                         if (indicesRequest instanceof UpdateRequest) {

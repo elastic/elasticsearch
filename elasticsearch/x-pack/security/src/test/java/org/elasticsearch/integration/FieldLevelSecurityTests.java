@@ -90,27 +90,29 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 "  indices:\n" +
                 "      - names: '*'\n" +
                 "        privileges: [ ALL ]\n" +
-                "        fields: [ field1 ]\n" +
+                "        field_security:\n" +
+                "           grant: [ field1 ]\n" +
                 "role3:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "      - names: '*'\n" +
                 "        privileges: [ ALL ]\n" +
-                "        fields: [ field2, query* ]\n" +
+                "        field_security:\n" +
+                "           grant: [ field2, query* ]\n" +
                 "role4:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "     - names: '*'\n" +
                 "       privileges: [ ALL ]\n" +
-                "       fields:\n" +
-                "         - field1\n" +
-                "         - field2\n" +
+                "       field_security:\n" +
+                "           grant: [ field1, field2]\n" +
                 "role5:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "      - names: '*'\n" +
                 "        privileges: [ ALL ]\n" +
-                "        fields: []\n" +
+                "        field_security:\n" +
+                "           grant: [ ]\n" +
                 "role6:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
@@ -121,7 +123,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 "  indices:\n" +
                 "      - names: '*'\n" +
                 "        privileges: [ ALL ]\n" +
-                "        fields: [ 'field*' ]\n";
+                "        field_security:\n" +
+                "           grant: [ 'field*' ]\n";
     }
 
     @Override

@@ -76,9 +76,10 @@ can_not_see_hidden_fields:
         - write
         - create_index
         - indices:admin/refresh
-      fields:
-         - foo
-         - bar
+      field_security:
+        grant:
+          - foo
+          - bar
     - names: dest
       privileges:
         - read

@@ -67,7 +67,7 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Qu
         }
 
         IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(indexName);
-        if (indexAccessControl != null && indexAccessControl.getFields() != null) {
+        if (indexAccessControl != null && indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()) {
             if (cachingIsSafe(weight, indexAccessControl)) {
                 logger.trace("not opting out of the query cache. request for index [{}] is safe to cache", indexName);
                 return indicesQueryCache.doCache(weight, policy);
@@ -98,7 +98,7 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Qu
         // we successfully extracted the set of fields: check each one
         for (String field : fields) {
             // don't cache any internal fields (e.g. _field_names), these are complicated.
-            if (field.startsWith("_") || permissions.getFields().contains(field) == false) {
+            if (field.startsWith("_") || permissions.getFieldPermissions().grantsAccessTo(field) == false) {
                 return false;
             }
         }

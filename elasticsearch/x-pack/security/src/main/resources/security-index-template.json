@@ -76,8 +76,15 @@
         "indices" : {
           "type" : "object",
           "properties" : {
-            "fields" : {
-              "type" : "keyword"
+            "field_security" : {
+              "properties" : {
+                "grant": {
+                  "type": "keyword"
+                },
+                "except": {
+                  "type": "keyword"
+                }
+              }
             },
             "names" : {
               "type" : "keyword"

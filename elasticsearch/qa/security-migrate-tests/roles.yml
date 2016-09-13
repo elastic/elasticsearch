@@ -5,9 +5,10 @@ actual_role:
   indices:
     - names: [ "index1", "index2" ]
       privileges: [ "read", "write", "create_index", "indices:admin/refresh" ]
-      fields:
-         - foo
-         - bar
+      field_security:
+        grant:
+          - foo
+          - bar
       query:
         bool:
           must_not:

@@ -16,6 +16,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.junit.BeforeClass;
@@ -106,7 +107,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
                     .cluster("all", "none")
                     .runAs("root", "nobody")
                     .addIndices(new String[]{"index"}, new String[]{"read"},
-                            new String[]{"body", "title"}, new BytesArray("{\"query\": {\"match_all\": {}}}"))
+                            new FieldPermissions(new String[]{"body", "title"}, null), new BytesArray("{\"query\": {\"match_all\": {}}}"))
                     .get();
             addedRoles.add(rname);
         }

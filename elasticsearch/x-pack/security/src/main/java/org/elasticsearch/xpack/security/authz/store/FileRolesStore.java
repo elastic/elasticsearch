@@ -100,7 +100,7 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
         boolean fls = false;
         for (Role role : permissions.values()) {
             for (Group group : role.indices()) {
-                fls = fls || group.hasFields();
+                fls = fls || group.getFieldPermissions().hasFieldLevelSecurity();
                 dls = dls || group.hasQuery();
             }
             if (fls && dls) {
@@ -205,7 +205,8 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
             String roleName = descriptor.getName();
             // first check if FLS/DLS is enabled on the role...
             for (RoleDescriptor.IndicesPrivileges privilege : descriptor.getIndicesPrivileges()) {
-                if ((privilege.getQuery() != null || privilege.getFields() != null)
+
+                if ((privilege.getQuery() != null || privilege.getFieldPermissions().hasFieldLevelSecurity())
                         && XPackSettings.DLS_FLS_ENABLED.get(settings) == false) {
                     logger.error("invalid role definition [{}] in roles file [{}]. document and field level security is not " +
                                     "enabled. set [{}] to [true] in the configuration file. skipping role...", roleName, path
@@ -220,7 +221,7 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
     }
 
     @Nullable
-    private static RoleDescriptor parseRoleDescriptor(String segment, Path path, Logger logger,
+    static RoleDescriptor parseRoleDescriptor(String segment, Path path, Logger logger,
                                                       boolean resolvePermissions, Settings settings) {
         String roleName = null;
         try {
@@ -243,7 +244,9 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
 
                     token = parser.nextToken();
                     if (token == XContentParser.Token.START_OBJECT) {
-                        RoleDescriptor descriptor = RoleDescriptor.parse(roleName, parser);
+                        // we pass true as last parameter because we do not want to reject files if field permissions
+                        // are given in 2.x syntax
+                        RoleDescriptor descriptor = RoleDescriptor.parse(roleName, parser, true);
                         return descriptor;
                     } else {
                         logger.error("invalid role definition [{}] in roles file [{}]. skipping role...", roleName, path.toAbsolutePath());

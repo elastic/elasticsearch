@@ -45,9 +45,10 @@ role_fields:
         - 'field_idx'
       privileges:
         - READ
-      fields:
-        - foo
-        - boo
+      field_security:
+        grant:
+          - foo
+          - boo
 
 role_query:
   indices:
@@ -65,6 +66,7 @@ role_query_fields:
         - READ
       query:
         match_all:
-      fields:
-        - foo
-        - boo
+      field_security:
+        grant:
+          - foo
+          - boo

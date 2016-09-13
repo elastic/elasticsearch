@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
@@ -69,6 +70,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.SecurityTemplateService.securityIndexMappingAndTemplateUpToDate;
 
@@ -207,7 +209,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
                     boolean hasHits = resp.getHits().getHits().length > 0;
                     if (hasHits) {
                         for (SearchHit hit : resp.getHits().getHits()) {
-                            RoleDescriptor rd = transformRole(hit.getId(), hit.getSourceRef());
+                            RoleDescriptor rd = transformRole(hit.getId(), hit.getSourceRef(), logger);
                             if (rd != null) {
                                 roles.add(rd);
                             }
@@ -345,7 +347,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
             for (RoleAndVersion rv : roleCache.values()) {
                 Role role = rv.getRole();
                 for (Group group : role.indices()) {
-                    fls = fls || group.hasFields();
+                    fls = fls || group.getFieldPermissions().hasFieldLevelSecurity();
                     dls = dls || group.hasQuery();
                 }
                 if (fls && dls) {
@@ -365,7 +367,11 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
             if (fls == false) {
                 builder.add(client.prepareSearch(SecurityTemplateService.SECURITY_INDEX_NAME)
                         .setTypes(ROLE_DOC_TYPE)
-                        .setQuery(QueryBuilders.existsQuery("indices.fields"))
+                        .setQuery(QueryBuilders.boolQuery()
+                                .should(existsQuery("indices.field_security.grant"))
+                                .should(existsQuery("indices.field_security.except"))
+                                // for backwardscompat with 2.x
+                                .should(existsQuery("indices.fields")))
                         .setSize(0)
                         .setTerminateAfter(1));
             }
@@ -373,7 +379,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
             if (dls == false) {
                 builder.add(client.prepareSearch(SecurityTemplateService.SECURITY_INDEX_NAME)
                         .setTypes(ROLE_DOC_TYPE)
-                        .setQuery(QueryBuilders.existsQuery("indices.query"))
+                        .setQuery(existsQuery("indices.query"))
                         .setSize(0)
                         .setTerminateAfter(1));
             }
@@ -560,13 +566,15 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
         if (response.isExists() == false) {
             return null;
         }
-        return transformRole(response.getId(), response.getSourceAsBytesRef());
+        return transformRole(response.getId(), response.getSourceAsBytesRef(), logger);
     }
 
     @Nullable
-    private RoleDescriptor transformRole(String name, BytesReference sourceBytes) {
+    static RoleDescriptor transformRole(String name, BytesReference sourceBytes, Logger logger) {
         try {
-            return RoleDescriptor.parse(name, sourceBytes);
+            // we pass true as last parameter because we do not want to reject permissions if the field permissions
+            // are given in 2.x syntax
+            return RoleDescriptor.parse(name, sourceBytes, true);
         } catch (Exception e) {
             logger.error((Supplier<?>) () -> new ParameterizedMessage("error in the format of data for role [{}]", name), e);
             return null;

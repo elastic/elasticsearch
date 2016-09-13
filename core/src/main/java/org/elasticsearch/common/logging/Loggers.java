@@ -97,7 +97,8 @@ public class Loggers {
     }
 
     public static Logger getLogger(Logger parentLogger, String s) {
-        return ESLoggerFactory.getLogger(parentLogger.<MessageFactory>getMessageFactory(), getLoggerName(parentLogger.getName() + s));
+        assert parentLogger instanceof PrefixLogger;
+        return ESLoggerFactory.getLogger(((PrefixLogger)parentLogger).prefix(), getLoggerName(parentLogger.getName() + s));
     }
 
     public static Logger getLogger(String s) {

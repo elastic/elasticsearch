@@ -45,8 +45,8 @@ is still the default `zen` plugin, so no changes are required to the
 to supply the unicast hosts list for zen discovery through an external
 file that can be updated at any time by a side process.  
 
-For example, this gives a convenient mechanism for Elasticsearch run 
-in docker containers to be dynamically supplied a list of IP addresses
+For example, this gives a convenient mechanism for Elasticsearch that is  
+run in docker containers to be dynamically supplied a list of IP addresses
 to connect to for zen discovery when those IP addresses may not be 
 known at node startup.  
 

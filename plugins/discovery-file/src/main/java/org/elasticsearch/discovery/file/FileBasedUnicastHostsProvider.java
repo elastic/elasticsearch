@@ -79,29 +79,22 @@ public class FileBasedUnicastHostsProvider extends AbstractComponent implements 
         } catch (FileNotFoundException | NoSuchFileException e) {
             logger.warn((Supplier<?>) () -> new ParameterizedMessage("[discovery-file] Failed to find unicast hosts file [{}]",
                                                                         unicastHostsFilePath), e);
-            return Collections.emptyList();
+            hostsList = Collections.emptyList();
         } catch (IOException e) {
             logger.warn((Supplier<?>) () -> new ParameterizedMessage("[discovery-file] Error reading unicast hosts file [{}]",
                                                                         unicastHostsFilePath), e);
-            return Collections.emptyList();
+            hostsList = Collections.emptyList();
         }
 
         final List<DiscoveryNode> discoNodes = new ArrayList<>();
-        final int hostsSize = hostsList.size();
-        for (int i = 0; i < hostsSize; i++) {
-            final String host = hostsList.get(i);
+        for (final String host : hostsList) {
             TransportAddress[] addresses;
             try {
                 addresses = transportService.addressesFromString(host, 1);
             } catch (Exception e) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("[discovery-file] Failed to parse transport address from [{}]",
                                                                             host), e);
-                return Collections.emptyList();
-            }
-            if (addresses.length != 1) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("[discovery-file] Failed to parse transport address from [{}]",
-                                                                            host));
-                return Collections.emptyList();
+                continue;
             }
             discoNodes.add(new DiscoveryNode(UNICAST_HOST_PREFIX + nodeIdGenerator.incrementAndGet() + "#",
                                                 addresses[0],

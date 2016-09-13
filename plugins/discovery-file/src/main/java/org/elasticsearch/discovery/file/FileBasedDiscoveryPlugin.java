@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -36,7 +35,6 @@ import org.elasticsearch.plugins.Plugin;
 public class FileBasedDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
     private static final Logger logger = Loggers.getLogger(FileBasedDiscoveryPlugin.class);
-    private static final String DISCOVERY_FILE = "file";
 
     private final Settings settings;
 
@@ -47,7 +45,7 @@ public class FileBasedDiscoveryPlugin extends Plugin implements DiscoveryPlugin 
 
     public void onModule(DiscoveryModule discoveryModule) {
         logger.trace("registering file-based unicast hosts provider");
-        discoveryModule.addDiscoveryType(DISCOVERY_FILE, ZenDiscovery.class);
-        discoveryModule.addUnicastHostProvider(DISCOVERY_FILE, FileBasedUnicastHostsProvider.class);
+        // using zen discovery for the discovery type and we're just adding a unicast host provider for it
+        discoveryModule.addUnicastHostProvider("zen", FileBasedUnicastHostsProvider.class);
     }
 }

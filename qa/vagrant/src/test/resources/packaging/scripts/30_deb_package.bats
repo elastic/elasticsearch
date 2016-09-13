@@ -127,7 +127,14 @@ setup() {
     # see postrm file
     assert_file_not_exist "/var/log/elasticsearch"
     assert_file_not_exist "/usr/share/elasticsearch/plugins"
+    assert_file_not_exist "/usr/share/elasticsearch/modules"
     assert_file_not_exist "/var/run/elasticsearch"
+
+    # Those directories are removed by the package manager
+    assert_file_not_exist "/usr/share/elasticsearch/bin"
+    assert_file_not_exist "/usr/share/elasticsearch/lib"
+    assert_file_not_exist "/usr/share/elasticsearch/modules"
+    assert_file_not_exist "/usr/share/elasticsearch/modules/lang-painless"
 
     # The configuration files are still here
     assert_file_exist "/etc/elasticsearch"

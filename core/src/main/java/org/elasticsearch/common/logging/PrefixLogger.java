@@ -31,28 +31,31 @@ import java.util.WeakHashMap;
 
 class PrefixLogger extends ExtendedLoggerWrapper {
 
-    private final String prefix;
+    // we can not use the built-in Marker tracking (MarkerManager) because the MarkerManager holds
+    // a permanent reference to the marker; however, we have transient markers from index-level and
+    // shard-level components so this would effectively be a memory leak
+    private static final WeakHashMap<String, WeakReference<Marker>> markers = new WeakHashMap<>();
+
     private final Marker marker;
 
     public String prefix() {
-        return prefix;
+        return marker.getName();
     }
-
-    private static final WeakHashMap<String, WeakReference<Marker>> markers = new WeakHashMap<>();
 
     PrefixLogger(final ExtendedLogger logger, final String name, final String prefix) {
         super(logger, name, null);
-        this.prefix = prefix;
 
         final String actualPrefix = (prefix == null ? "" : prefix).intern();
         final Marker actualMarker;
+        // markers is not thread-safe, so we synchronize access
         synchronized (markers) {
             final WeakReference<Marker> marker = markers.get(actualPrefix);
-            if (marker == null || marker.get() == null) {
+            final Marker maybeMarker = marker == null ? null : marker.get();
+            if (maybeMarker == null) {
                 actualMarker = new MarkerManager.Log4jMarker(actualPrefix);
                 markers.put(actualPrefix, new WeakReference<>(actualMarker));
             } else {
-                actualMarker = marker.get();
+                actualMarker = maybeMarker;
             }
         }
         this.marker = actualMarker;

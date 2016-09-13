@@ -109,11 +109,11 @@ PUT twitter
          "properties": {
             "counter": {
                "type": "integer",
-               "store": "no"
+               "store": "false"
             },
             "tags": {
                "type": "keyword",
-               "store": "yes"
+               "store": "true"
             }
          }
       }
@@ -182,8 +182,10 @@ PUT twitter/tweet/2?routing=user1
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/1?routing=user1,stored_fields=tags,counter
+GET twitter/tweet/2?routing=user1&stored_fields=tags,counter
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 The result of the above get operation is:
 
@@ -192,13 +194,13 @@ The result of the above get operation is:
 {
    "_index": "twitter",
    "_type": "tweet",
-   "_id": "1",
+   "_id": "2",
    "_version": 1,
    "_routing": "user1",
    "found": true,
    "fields": {
       "tags": [
-         "red"
+         "white"
       ]
    }
 }

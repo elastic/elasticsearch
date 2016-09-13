@@ -42,8 +42,6 @@ public class MultiGetShardRequestTests extends ESTestCase {
         if (randomBoolean()) {
             multiGetRequest.refresh(true);
         }
-        multiGetRequest.ignoreErrorsOnGeneratedFields(randomBoolean());
-
         MultiGetShardRequest multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, "index", 0);
         int numItems = iterations(10, 30);
         for (int i = 0; i < numItems; i++) {
@@ -79,7 +77,6 @@ public class MultiGetShardRequestTests extends ESTestCase {
         assertThat(multiGetShardRequest2.preference(), equalTo(multiGetShardRequest.preference()));
         assertThat(multiGetShardRequest2.realtime(), equalTo(multiGetShardRequest.realtime()));
         assertThat(multiGetShardRequest2.refresh(), equalTo(multiGetShardRequest.refresh()));
-        assertThat(multiGetShardRequest2.ignoreErrorsOnGeneratedFields(), equalTo(multiGetShardRequest.ignoreErrorsOnGeneratedFields()));
         assertThat(multiGetShardRequest2.items.size(), equalTo(multiGetShardRequest.items.size()));
         for (int i = 0; i < multiGetShardRequest2.items.size(); i++) {
             MultiGetRequest.Item item = multiGetShardRequest.items.get(i);

@@ -36,14 +36,16 @@ public final class FetchSourceSubPhase implements FetchSubPhase {
             return;
         }
         SourceLookup source = context.lookup().source();
-        if (source.internalSourceRef() == null) {
-            return; // source disabled in the mapping
-        }
         FetchSourceContext fetchSourceContext = context.fetchSourceContext();
         assert fetchSourceContext.fetchSource();
         if (fetchSourceContext.includes().length == 0 && fetchSourceContext.excludes().length == 0) {
             hitContext.hit().sourceRef(source.internalSourceRef());
             return;
+        }
+
+        if (source.internalSourceRef() == null) {
+            throw new IllegalArgumentException("unable to fetch fields from _source field: _source is disabled in the mappings " +
+                    "for index [" + context.indexShard().shardId().getIndexName() + "]");
         }
 
         Object value = source.filter(fetchSourceContext.includes(), fetchSourceContext.excludes());

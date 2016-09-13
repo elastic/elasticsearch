@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.internal;
+package org.elasticsearch.search;
 
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -50,20 +50,22 @@ import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseContext;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.ScrollContext;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
@@ -80,10 +82,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
-public class DefaultSearchContext extends SearchContext {
+final class DefaultSearchContext extends SearchContext {
 
     private final long id;
     private final ShardSearchRequest request;
@@ -110,6 +109,7 @@ public class DefaultSearchContext extends SearchContext {
     private StoredFieldsContext storedFields;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
+    private DocValueFieldsContext docValueFieldsContext;
     private int from = -1;
     private int size = -1;
     private SortAndFormats sort;
@@ -125,10 +125,7 @@ public class DefaultSearchContext extends SearchContext {
      * things like the type filter or alias filters.
      */
     private ParsedQuery originalQuery;
-    /**
-     * Just like originalQuery but with the filters from types, aliases and slice applied.
-     */
-    private ParsedQuery filteredQuery;
+
     /**
      * The query to actually execute.
      */
@@ -148,12 +145,12 @@ public class DefaultSearchContext extends SearchContext {
     private volatile long lastAccessTime = -1;
     private Profilers profilers;
 
-    private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
+    private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
     private final QueryShardContext queryShardContext;
     private FetchPhase fetchPhase;
 
-    public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget, Engine.Searcher engineSearcher,
+    DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget, Engine.Searcher engineSearcher,
             IndexService indexService, IndexShard indexShard, ScriptService scriptService,
             BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher, TimeValue timeout,
             FetchPhase fetchPhase) {
@@ -189,7 +186,7 @@ public class DefaultSearchContext extends SearchContext {
      * Should be called before executing the main query and after all other parameters have been set.
      */
     @Override
-    public void preProcess() {
+    public void preProcess(boolean rewrite) {
         if (hasOnlySuggest() ) {
             return;
         }
@@ -243,20 +240,22 @@ public class DefaultSearchContext extends SearchContext {
         if (queryBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
             parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new WeightFactorFunction(queryBoost)), parsedQuery()));
         }
-        filteredQuery(buildFilteredQuery());
-        try {
-            this.query = searcher().rewrite(this.query);
-        } catch (IOException e) {
-            throw new QueryPhaseExecutionException(this, "Failed to rewrite main query", e);
+        this.query = buildFilteredQuery();
+        if (rewrite) {
+            try {
+                this.query = searcher.rewrite(query);
+            } catch (IOException e) {
+                throw new QueryPhaseExecutionException(this, "Failed to rewrite main query", e);
+            }
         }
     }
 
-    private ParsedQuery buildFilteredQuery() {
-        Query searchFilter = searchFilter(queryShardContext.getTypes());
+    private Query buildFilteredQuery() {
+        final Query searchFilter = searchFilter(queryShardContext.getTypes());
         if (searchFilter == null) {
-            return originalQuery;
+            return originalQuery.query();
         }
-        Query result;
+        final Query result;
         if (Queries.isConstantMatchAllQuery(query())) {
             result = new ConstantScoreQuery(searchFilter);
         } else {
@@ -265,7 +264,7 @@ public class DefaultSearchContext extends SearchContext {
                     .add(searchFilter, Occur.FILTER)
                     .build();
         }
-        return new ParsedQuery(result, originalQuery);
+        return result;
     }
 
     @Override
@@ -388,14 +387,16 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory) {
-        String subPhaseName = contextFactory.getName();
-        if (subPhaseContexts.get(subPhaseName) == null) {
-            subPhaseContexts.put(subPhaseName, contextFactory.newContextInstance());
-        }
-        return (SubPhaseContext) subPhaseContexts.get(subPhaseName);
+    public void addSearchExt(SearchExtBuilder searchExtBuilder) {
+        //it's ok to use the writeable name here given that we enforce it to be the same as the name of the element that gets
+        //parsed by the corresponding parser. There is one single name and one single way to retrieve the parsed object from the context.
+        searchExtBuilders.put(searchExtBuilder.getWriteableName(), searchExtBuilder);
     }
 
+    @Override
+    public SearchExtBuilder getSearchExt(String name) {
+        return searchExtBuilders.get(name);
+    }
 
     @Override
     public SearchContextHighlight highlight() {
@@ -467,6 +468,17 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext) {
         this.fetchSourceContext = fetchSourceContext;
+        return this;
+    }
+
+    @Override
+    public DocValueFieldsContext docValueFieldsContext() {
+        return docValueFieldsContext;
+    }
+
+    @Override
+    public SearchContext docValueFieldsContext(DocValueFieldsContext docValueFieldsContext) {
+        this.docValueFieldsContext = docValueFieldsContext;
         return this;
     }
 
@@ -605,15 +617,6 @@ public class DefaultSearchContext extends SearchContext {
         this.originalQuery = query;
         this.query = query.query();
         return this;
-    }
-
-    public ParsedQuery filteredQuery() {
-        return filteredQuery;
-    }
-
-    private void filteredQuery(ParsedQuery filteredQuery) {
-        this.filteredQuery = filteredQuery;
-        this.query = filteredQuery.query();
     }
 
     @Override

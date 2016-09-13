@@ -116,6 +116,14 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         assertEquals(0, nodes.size());
     }
 
+    public void testSomeInvalidHostEntries() throws Exception {
+        List<String> hostEntries = Arrays.asList("192.168.0.1:9300:9300", "192.168.0.1:9301");
+        List<DiscoveryNode> nodes = setupAndRunHostProvider(hostEntries);
+        assertEquals(1, nodes.size()); // only one of the two is valid and will be used
+        assertEquals("192.168.0.1", nodes.get(0).getAddress().getHost());
+        assertEquals(9301, nodes.get(0).getAddress().getPort());
+    }
+
     // sets up the config dir, writes to the unicast hosts file in the config dir,
     // and then runs the file-based unicast host provider to get the list of discovery nodes
     private List<DiscoveryNode> setupAndRunHostProvider(final List<String> hostEntries) throws IOException {

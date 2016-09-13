@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -85,8 +86,17 @@ public class FileBasedUnicastHostsProvider extends AbstractComponent implements 
             hostsList = Collections.emptyList();
         }
 
-        final List<DiscoveryNode> discoNodes = resolveDiscoveryNodes(hostsList, 1, transportService,
-            () -> UNICAST_HOST_PREFIX + nodeIdGenerator.incrementAndGet() + "#");
+        final List<DiscoveryNode> discoNodes = new ArrayList<>();
+        for (final String host : hostsList) {
+            try {
+                discoNodes.addAll(resolveDiscoveryNodes(host, 1, transportService,
+                    () -> UNICAST_HOST_PREFIX + nodeIdGenerator.incrementAndGet() + "#"));
+            } catch (IllegalArgumentException e) {
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("[discovery-file] Failed to parse transport address from [{}]",
+                                                                            host), e);
+                continue;
+            }
+        }
 
         logger.debug("[discovery-file] Using dynamic discovery nodes {}", discoNodes);
 

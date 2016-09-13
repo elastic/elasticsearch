@@ -119,6 +119,7 @@ setup() {
     assert_file_not_exist "/var/run/elasticsearch"
 
     assert_file_not_exist "/etc/elasticsearch"
+    assert_file_not_exist "/etc/elasticsearch/scripts"
     assert_file_not_exist "/etc/elasticsearch/elasticsearch.yml"
     assert_file_not_exist "/etc/elasticsearch/jvm.options"
     assert_file_not_exist "/etc/elasticsearch/log4j2.properties"

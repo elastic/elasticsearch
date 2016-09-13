@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.ShardRoutingTests;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
@@ -126,6 +127,19 @@ import static org.hamcrest.Matchers.hasSize;
  * Simple unit-test IndexShard related operations.
  */
 public class IndexShardTests extends IndexShardTestCase {
+
+    public static ShardStateMetaData load(Logger logger, Path... shardPaths) throws IOException {
+        return ShardStateMetaData.FORMAT.loadLatestState(logger, shardPaths);
+    }
+
+    public static void write(ShardStateMetaData shardStateMetaData,
+                             Path... shardPaths) throws IOException {
+        ShardStateMetaData.FORMAT.write(shardStateMetaData, shardPaths);
+    }
+
+    public static Engine getEngineFromShard(IndexShard shard) {
+        return shard.getEngineOrNull();
+    }
 
     public void testWriteShardState() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
@@ -371,15 +385,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(indexShard);
     }
 
-    public static ShardStateMetaData load(Logger logger, Path... shardPaths) throws IOException {
-        return ShardStateMetaData.FORMAT.loadLatestState(logger, shardPaths);
-    }
-
-    public static void write(ShardStateMetaData shardStateMetaData,
-                             Path... shardPaths) throws IOException {
-        ShardStateMetaData.FORMAT.write(shardStateMetaData, shardPaths);
-    }
-
     public void testAcquireIndexCommit() throws IOException {
         final IndexShard shard = newStartedShard();
         int numDocs = randomInt(20);
@@ -443,7 +448,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
     }
 
-
     public void testAsyncFsync() throws InterruptedException, IOException {
         IndexShard shard = newStartedShard();
         Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
@@ -499,7 +503,6 @@ public class IndexShardTests extends IndexShardTestCase {
 
         closeShards(test);
     }
-
 
     public void testShardStats() throws IOException {
         IndexShard shard = newStartedShard();
@@ -662,6 +665,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testLockingBeforeAndAfterRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
+        shard.updateRoutingEntry(ShardRoutingHelper.relocate(shard.routingEntry(), "other_node"));
         CountDownLatch latch = new CountDownLatch(1);
         Thread recoveryThread = new Thread(() -> {
             latch.countDown();
@@ -692,6 +696,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testDelayedOperationsBeforeAndAfterRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
+        shard.updateRoutingEntry(ShardRoutingHelper.relocate(shard.routingEntry(), "other_node"));
         Thread recoveryThread = new Thread(() -> {
             try {
                 shard.relocated("simulated recovery");
@@ -725,6 +730,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testStressRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
+        shard.updateRoutingEntry(ShardRoutingHelper.relocate(shard.routingEntry(), "other_node"));
         final int numThreads = randomIntBetween(2, 4);
         Thread[] indexThreads = new Thread[numThreads];
         CountDownLatch allPrimaryOperationLocksAcquired = new CountDownLatch(numThreads);
@@ -1033,7 +1039,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-
     public void testIndexingOperationListenersIsInvokedOnRecovery() throws IOException {
         IndexShard shard = newStartedShard(true);
         indexDoc(shard, "test", "0", "{\"foo\" : \"bar\"}");
@@ -1086,7 +1091,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
     }
 
-
     public void testSearchIsReleaseIfWrapperFails() throws IOException {
         IndexShard shard = newStartedShard(true);
         indexDoc(shard, "test", "0", "{\"foo\" : \"bar\"}");
@@ -1116,7 +1120,6 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         closeShards(newShard);
     }
-
 
     public void testTranslogRecoverySyncsTranslog() throws IOException {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -1361,9 +1364,5 @@ public class IndexShardTests extends IndexShardTestCase {
         @Override
         public void verify(String verificationToken, DiscoveryNode localNode) {
         }
-    }
-
-    public static Engine getEngineFromShard(IndexShard shard) {
-        return shard.getEngineOrNull();
     }
 }

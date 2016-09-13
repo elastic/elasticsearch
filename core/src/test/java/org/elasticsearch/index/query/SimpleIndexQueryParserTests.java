@@ -2624,7 +2624,37 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertThat(termQuery.getTerm(), equalTo(new Term(MetaData.ALL, queryText)));
     }
 
-    private void assertGeoDistanceRangeQuery(IndexQueryParserService queryParser, Query query, double lat, double lon, double distance, DistanceUnit distanceUnit) throws IOException {
+    @Test
+    public void testMatchQueryParseFailsWithTermsArray() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String json1 = "{\n" +
+                "  \"match\" : {\n" +
+                "    \"message1\" : {\n" +
+                "      \"query\" : [\"term1\", \"term2\"]\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        try {
+            queryParser.parse(json1);
+            fail("parse should have failed");
+        } catch(QueryParsingException e) {
+            //all good
+        }
+
+        String json2 = "{\n" +
+                "  \"match\" : {\n" +
+                "    \"message1\" : [\"term1\", \"term2\"]\n" +
+                "  }\n" +
+                "}";
+        try {
+            queryParser.parse(json2);
+            fail("parse should have failed");
+        } catch(QueryParsingException e) {
+            //all good
+        }
+    }
+
+    private static void assertGeoDistanceRangeQuery(IndexQueryParserService queryParser, Query query, double lat, double lon, double distance, DistanceUnit distanceUnit) throws IOException {
         if (queryParser.getIndexCreatedVersion().before(Version.V_2_2_0)) {
             assertThat(query, instanceOf(GeoDistanceRangeQuery.class));
             GeoDistanceRangeQuery q = (GeoDistanceRangeQuery) query;
@@ -2643,7 +2673,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         }
     }
 
-    private void assertGeoBBoxQuery(IndexQueryParserService queryParser,  Query query, double maxLat, double minLon, double minLat, double maxLon) {
+    private static void assertGeoBBoxQuery(IndexQueryParserService queryParser,  Query query, double maxLat, double minLon, double minLat, double maxLon) {
         if (queryParser.getIndexCreatedVersion().before(Version.V_2_2_0)) {
             assertThat(query, instanceOf(InMemoryGeoBoundingBoxQuery.class));
             InMemoryGeoBoundingBoxQuery filter = (InMemoryGeoBoundingBoxQuery) query;
@@ -2671,7 +2701,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         }
     }
 
-    private void assertGeoPolygonQuery(IndexQueryParserService queryParser, Query query) {
+    private static void assertGeoPolygonQuery(IndexQueryParserService queryParser, Query query) {
         if (queryParser.getIndexCreatedVersion().before(Version.V_2_2_0)) {
             assertThat(query, instanceOf(GeoPolygonQuery.class));
             GeoPolygonQuery filter = (GeoPolygonQuery) query;

@@ -175,7 +175,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         PARSER.declareObject(RatedRequest::setTestRequest, (p, c) -> {
             try {
                 logger.error("Building search source builder");
-                return SearchSourceBuilder.fromXContent(c.getParseContext(), c.getAggs(),  c.getSuggesters());
+                return SearchSourceBuilder.fromXContent(c.getParseContext(), c.getAggs(),  c.getSuggesters(), c.getSearchExtParsers());
             } catch (IOException ex) {
                 throw new ParsingException(p.getTokenLocation(), "error parsing request", ex);
             }
@@ -239,7 +239,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         builder.endObject();
         return builder;
     }
-    
+
     @Override
     public final boolean equals(Object obj) {
         if (this == obj) {
@@ -255,7 +255,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
                 Objects.equals(types, other.types) &&
                 Objects.equals(ratedDocs, other.ratedDocs);
     }
-    
+
     @Override
     public final int hashCode() {
         return Objects.hash(specId, testRequest, indices.hashCode(), types.hashCode(), ratedDocs.hashCode());

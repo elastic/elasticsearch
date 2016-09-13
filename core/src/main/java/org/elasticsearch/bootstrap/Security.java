@@ -114,13 +114,13 @@ final class Security {
      * @param environment configuration for generating dynamic permissions
      * @param filterBadDefaults true if we should filter out bad java defaults in the system policy.
      */
-    static void configure(Environment environment, boolean filterBadDefaults) throws Exception {
+    static void configure(Environment environment, boolean filterBadDefaults) throws IOException, NoSuchAlgorithmException {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Policy.setPolicy(new ESPolicy(createPermissions(environment), getPluginPermissions(environment), filterBadDefaults));
 
         // enable security manager
-        System.setSecurityManager(new SecureSM(new String[] { "org.elasticsearch.bootstrap." }));
+        System.setSecurityManager(new SecureSM(new String[] { "org.elasticsearch.bootstrap.", "org.elasticsearch.cli" }));
 
         // do some basic tests
         selfTest();
@@ -258,7 +258,7 @@ final class Security {
             addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
         }
         // TODO: this should be removed in ES 6.0! We will no longer support data paths with the cluster as a folder
-        assert Version.CURRENT.major < 6 : "cluster name is no longer used in data path";
+        // https://github.com/elastic/elasticsearch/issues/20391
         for (Path path : environment.dataWithClusterFiles()) {
             addPathIfExists(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
         }

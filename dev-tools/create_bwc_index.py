@@ -58,19 +58,32 @@ def assert_sort(hits):
 
 # Indexes the given number of document into the given index
 # and randomly runs refresh, optimize and flush commands
-def index_documents(es, index_name, type, num_docs):
+def index_documents(es, index_name, type, num_docs, supports_dots_in_field_names):
   logging.info('Indexing %s docs' % num_docs)
-  for id in range(0, num_docs):
-    es.index(index=index_name, doc_type=type, id=id, body={'string': str(random.randint(0, 100)),
-                                                           'long_sort': random.randint(0, 100),
-                                                           'double_sort' : float(random.randint(0, 100)),
-                                                           'bool' : random.choice([True, False])})
-    if rarely():
-      es.indices.refresh(index=index_name)
-    if rarely():
-      es.indices.flush(index=index_name, force=frequently())
+  index(es, index_name, type, num_docs, supports_dots_in_field_names, True)
   logging.info('Flushing index')
   es.indices.flush(index=index_name)
+
+def index(es, index_name, type, num_docs, supports_dots_in_field_names, flush=False):
+  for id in range(0, num_docs):
+    body = {'string': str(random.randint(0, 100)),
+            'long_sort': random.randint(0, 100),
+            'double_sort' : float(random.randint(0, 100)),
+            'bool' : random.choice([True, False])}
+    if supports_dots_in_field_names:
+      body['field.with.dots'] = str(random.randint(0, 100))
+
+    es.index(index=index_name, doc_type=type, id=id, body=body)
+
+    if rarely():
+      es.indices.refresh(index=index_name)
+    if rarely() and flush:
+      es.indices.flush(index=index_name, force=frequently())
+
+def reindex_docs(es, index_name, type, num_docs, supports_dots_in_field_names):
+  logging.info('Re-indexing %s docs' % num_docs)
+  # reindex some docs after the flush such that we have something in the translog
+  index(es, index_name, type, num_docs, supports_dots_in_field_names)
 
 def delete_by_query(es, version, index_name, doc_type):
 
@@ -149,7 +162,8 @@ def start_node(version, release_dir, data_dir, repo_dir, tcp_port=DEFAULT_TRANSP
   ]
   if version.startswith('0.') or version.startswith('1.0.0.Beta') :
     cmd.append('-f') # version before 1.0 start in background automatically
-  return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          env=dict(os.environ, ES_JAVA_OPTS='-Dmapper.allow_dots_in_name=true'))
 
 def install_plugin(version, release_dir, plugin_name):
   run_plugin(version, release_dir, 'install', [plugin_name])
@@ -248,6 +262,16 @@ def generate_index(client, version, index_name):
         'auto_boost': True
       }
     }
+  mappings['doc'] = {'properties' : {}}
+  supports_dots_in_field_names = parse_version(version) >= parse_version("2.4.0")
+  if supports_dots_in_field_names:
+    mappings["doc"]['properties'].update({
+        'field.with.dots': {
+          'type': 'string',
+          'boost': 4
+        }
+      })
+
   if parse_version(version) < parse_version("5.0.0-alpha1"):
     mappings['norms'] = {
       'properties': {
@@ -291,14 +315,12 @@ def generate_index(client, version, index_name):
         }
       }
     }
-    mappings['doc'] = {
-      'properties': {
+    mappings['doc']['properties'].update({
         'string': {
           'type': 'text',
           'boost': 4
         }
-      }
-    }
+    })
 
   settings = {
     'number_of_shards': 1,
@@ -326,9 +348,10 @@ def generate_index(client, version, index_name):
     # lighter index for it to keep bw tests reasonable
     # see https://github.com/elastic/elasticsearch/issues/5817
     num_docs = int(num_docs / 10)
-  index_documents(client, index_name, 'doc', num_docs)
+  index_documents(client, index_name, 'doc', num_docs, supports_dots_in_field_names)
   logging.info('Running basic asserts on the data added')
   run_basic_asserts(client, index_name, 'doc', num_docs)
+  return num_docs, supports_dots_in_field_names
 
 def snapshot_index(client, version, repo_dir):
   persistent = {
@@ -438,7 +461,7 @@ def create_bwc_index(cfg, version):
     node = start_node(version, release_dir, data_dir, repo_dir, cfg.tcp_port, cfg.http_port)
     client = create_client(cfg.http_port)
     index_name = 'index-%s' % version.lower()
-    generate_index(client, version, index_name)
+    num_docs, supports_dots_in_field_names = generate_index(client, version, index_name)
     if snapshot_supported:
       snapshot_index(client, version, repo_dir)
 
@@ -447,6 +470,7 @@ def create_bwc_index(cfg, version):
     # will already have the deletions applied on upgrade.
     if version.startswith('0.') or version.startswith('1.'):
       delete_by_query(client, version, index_name, 'doc')
+    reindex_docs(client, index_name, 'doc', min(100, num_docs), supports_dots_in_field_names)
 
     shutdown_node(node)
     node = None
@@ -464,7 +488,7 @@ def create_bwc_index(cfg, version):
 
 def shutdown_node(node):
   logging.info('Shutting down node with pid %d', node.pid)
-  node.terminate()
+  node.kill() # don't use terminate otherwise we flush the translog
   node.wait()
 
 def parse_version(version):

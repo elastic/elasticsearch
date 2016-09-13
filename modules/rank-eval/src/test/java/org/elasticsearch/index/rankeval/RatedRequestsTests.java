@@ -57,7 +57,7 @@ public class RatedRequestsTests extends ESTestCase {
         searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         IndicesQueriesRegistry queriesRegistry = searchModule.getQueryParserRegistry();
         Suggesters suggesters = searchModule.getSuggesters();
-        searchRequestParsers = new SearchRequestParsers(queriesRegistry, aggsParsers, suggesters);
+        searchRequestParsers = new SearchRequestParsers(queriesRegistry, aggsParsers, suggesters, null);
     }
 
     @AfterClass
@@ -78,7 +78,7 @@ public class RatedRequestsTests extends ESTestCase {
         for (int i = 0; i < size; i++) {
             ratedDocs.add(RatedDocumentTests.createTestItem());
         }
-        
+
         return new RatedRequest(specId, testRequest, indices, types, ratedDocs);
     }
 
@@ -146,6 +146,6 @@ public class RatedRequestsTests extends ESTestCase {
         assertEquals("3", ratedDocs.get(2).getKey().getDocID());
         assertEquals(1, ratedDocs.get(2).getRating());
     }
-    
-    
+
+
 }

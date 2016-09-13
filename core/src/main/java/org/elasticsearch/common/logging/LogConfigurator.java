@@ -78,7 +78,6 @@ public class LogConfigurator {
                 }
             });
             context.start(new CompositeConfiguration(configurations));
-            warnIfOldConfigurationFilePresent(environment);
         }
 
         if (ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.exists(settings)) {
@@ -90,30 +89,6 @@ public class LogConfigurator {
             final Level level = ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings);
             Loggers.setLevel(Loggers.getLogger(key.substring("logger.".length())), level);
         }
-    }
-
-    private static void warnIfOldConfigurationFilePresent(final Environment environment) throws IOException {
-        // TODO: the warning for unsupported logging configurations can be removed in 6.0.0
-        assert Version.CURRENT.major < 6;
-        final List<String> suffixes = Arrays.asList(".yml", ".yaml", ".json", ".properties");
-        final Set<FileVisitOption> options = EnumSet.of(FileVisitOption.FOLLOW_LINKS);
-        Files.walkFileTree(environment.configFile(), options, Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                final String fileName = file.getFileName().toString();
-                if (fileName.startsWith("logging")) {
-                    for (final String suffix : suffixes) {
-                        if (fileName.endsWith(suffix)) {
-                            Loggers.getLogger(LogConfigurator.class).warn(
-                                "ignoring unsupported logging configuration file [{}], logging is configured via [{}]",
-                                file.toString(),
-                                file.getParent().resolve("log4j2.properties"));
-                        }
-                    }
-                }
-                return FileVisitResult.CONTINUE;
-            }
-        });
     }
 
     @SuppressForbidden(reason = "sets system property for logging configuration")

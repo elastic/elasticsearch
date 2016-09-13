@@ -39,6 +39,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
@@ -111,7 +112,7 @@ public class TribeIT extends ESIntegTestCase {
         }
     }
 
-    private void setupTribeNode(Settings settings) {
+    private void setupTribeNode(Settings settings) throws NodeValidationException {
         Map<String,String> asMap = internalCluster().getDefaultSettings().getAsMap();
         Settings.Builder tribe1Defaults = Settings.builder();
         Settings.Builder tribe2Defaults = Settings.builder();

@@ -23,8 +23,8 @@ import java.util.Locale;
 
 public class LowercaseProcessorTests extends AbstractStringProcessorTestCase {
     @Override
-    protected AbstractStringProcessor newProcessor(String field) {
-        return new LowercaseProcessor(randomAsciiOfLength(10), field);
+    protected AbstractStringProcessor newProcessor(String field, boolean ignoreMissing) {
+        return new LowercaseProcessor(randomAsciiOfLength(10), field, ignoreMissing);
     }
 
     @Override

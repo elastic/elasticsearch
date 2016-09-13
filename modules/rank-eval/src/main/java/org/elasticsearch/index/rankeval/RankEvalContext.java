@@ -24,6 +24,7 @@ import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchExtRegistry;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
@@ -57,6 +58,10 @@ public class RankEvalContext implements ParseFieldMatcherSupplier {
 
     public ScriptService getScriptService() {
         return scriptService;
+    }
+
+    public SearchExtRegistry getSearchExtParsers() {
+        return searchRequestParsers.searchExtParsers;
     }
 
     @Override

@@ -90,7 +90,7 @@ public class ShardStats implements Streamable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         shardRouting = new ShardRouting(in);
-        commonStats = CommonStats.readCommonStats(in);
+        commonStats = new CommonStats(in);
         commitStats = CommitStats.readOptionalCommitStatsFrom(in);
         statePath = in.readString();
         dataPath = in.readString();

@@ -23,6 +23,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.Loggers;
@@ -32,6 +34,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeValidationException;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -62,7 +65,7 @@ final class BootstrapCheck {
      * @param settings              the current node settings
      * @param boundTransportAddress the node network bindings
      */
-    static void check(final Settings settings, final BoundTransportAddress boundTransportAddress) {
+    static void check(final Settings settings, final BoundTransportAddress boundTransportAddress) throws NodeValidationException {
         check(
                 enforceLimits(boundTransportAddress),
                 BootstrapSettings.IGNORE_SYSTEM_BOOTSTRAP_CHECKS.get(settings),
@@ -82,7 +85,11 @@ final class BootstrapCheck {
      * @param nodeName           the node name to be used as a logging prefix
      */
     // visible for testing
-    static void check(final boolean enforceLimits, final boolean ignoreSystemChecks, final List<Check> checks, final String nodeName) {
+    static void check(
+        final boolean enforceLimits,
+        final boolean ignoreSystemChecks,
+        final List<Check> checks,
+        final String nodeName) throws NodeValidationException {
         check(enforceLimits, ignoreSystemChecks, checks, Loggers.getLogger(BootstrapCheck.class, nodeName));
     }
 
@@ -101,7 +108,7 @@ final class BootstrapCheck {
             final boolean enforceLimits,
             final boolean ignoreSystemChecks,
             final List<Check> checks,
-            final Logger logger) {
+            final Logger logger) throws NodeValidationException {
         final List<String> errors = new ArrayList<>();
         final List<String> ignoredErrors = new ArrayList<>();
 
@@ -130,9 +137,9 @@ final class BootstrapCheck {
             final List<String> messages = new ArrayList<>(1 + errors.size());
             messages.add("bootstrap checks failed");
             messages.addAll(errors);
-            final RuntimeException re = new RuntimeException(String.join("\n", messages));
-            errors.stream().map(IllegalStateException::new).forEach(re::addSuppressed);
-            throw re;
+            final NodeValidationException ne = new NodeValidationException(String.join("\n", messages));
+            errors.stream().map(IllegalStateException::new).forEach(ne::addSuppressed);
+            throw ne;
         }
 
     }

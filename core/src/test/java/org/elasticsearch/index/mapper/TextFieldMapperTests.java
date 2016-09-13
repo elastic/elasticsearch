@@ -208,7 +208,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
-                .field("field", new String[] {"a", "b"})
+                .array("field", new String[] {"a", "b"})
                 .endObject()
                 .bytes());
 
@@ -247,7 +247,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
-                .field("field", new String[] {"a", "b"})
+                .array("field", new String[] {"a", "b"})
                 .endObject()
                 .bytes());
 

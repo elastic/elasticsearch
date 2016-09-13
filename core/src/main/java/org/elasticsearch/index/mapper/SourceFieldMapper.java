@@ -275,15 +275,15 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         if (includes != null) {
-            builder.field("includes", includes);
+            builder.array("includes", includes);
         } else if (includeDefaults) {
-            builder.field("includes", Strings.EMPTY_ARRAY);
+            builder.array("includes", Strings.EMPTY_ARRAY);
         }
 
         if (excludes != null) {
-            builder.field("excludes", excludes);
+            builder.array("excludes", excludes);
         } else if (includeDefaults) {
-            builder.field("excludes", Strings.EMPTY_ARRAY);
+            builder.array("excludes", Strings.EMPTY_ARRAY);
         }
 
         builder.endObject();

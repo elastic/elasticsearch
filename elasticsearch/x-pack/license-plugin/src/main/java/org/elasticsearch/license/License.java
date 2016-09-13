@@ -408,10 +408,12 @@ public class License implements ToXContent {
                         builder.feature(parser.text());
                     } else if (Fields.EXPIRY_DATE.equals(currentFieldName)) {
                         builder.expiryDate(parseDate(parser, "expiration", true));
-                    } else if (Fields.START_DATE.equals(currentFieldName)) {
-                        builder.startDate(parseDate(parser, "start", false));
                     } else if (Fields.EXPIRY_DATE_IN_MILLIS.equals(currentFieldName)) {
                         builder.expiryDate(parser.longValue());
+                    } else if (Fields.START_DATE.equals(currentFieldName)) {
+                        builder.startDate(parseDate(parser, "start", false));
+                    } else if (Fields.START_DATE_IN_MILLIS.equals(currentFieldName)) {
+                        builder.startDate(parser.longValue());
                     } else if (Fields.MAX_NODES.equals(currentFieldName)) {
                         builder.maxNodes(parser.intValue());
                     } else if (Fields.ISSUED_TO.equals(currentFieldName)) {

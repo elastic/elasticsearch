@@ -45,9 +45,9 @@ is still the default `zen` plugin, so no changes are required to the
 to supply the unicast hosts list for zen discovery through an external
 file that can be updated at any time by a side process.  
 
-For example, this gives a convenient mechanism for Elasticsearch that is  
-run in docker containers to be dynamically supplied a list of IP addresses
-to connect to for zen discovery when those IP addresses may not be 
+For example, this gives a convenient mechanism for an Elasticsearch instance 
+that is  run in docker containers to be dynamically supplied a list of IP 
+addresses to connect to for zen discovery when those IP addresses may not be 
 known at node startup.  
 
 Note that the file-based discovery plugin is meant to augment the unicast
@@ -61,9 +61,9 @@ new hosts list will be used for the next pinging round for master election.
 
 Upon installation of the plugin, a default `unicast_hosts.txt` file will
 be found in the `$CONFIG_DIR/discovery-file` directory.  This default file
-will just contain some comments about what the file should contain.  All
-comments should be removed from this file before starting the node and 
-should be replaced with the actual unicast host entries.
+will contain some comments about what the file should contain.  All comments
+for this file must appear on their lines starting with `#` (i.e. comments
+cannot start in the middle of a line).
 
 [[discovery-file-format]]
 [float]
@@ -71,7 +71,7 @@ should be replaced with the actual unicast host entries.
 
 The format of the file is to specify one unicast host entry per line.  
 Each unicast host entry consists of the host (host name or IP address) and
-an optional port number.  If the port number is specified, is must 
+an optional transport port number.  If the port number is specified, is must 
 come immediately after the host (on the same line) separated by a `:`. 
 If the port number is not specified, a default value of 9300 is used.  
 
@@ -81,11 +81,12 @@ running on the default port:
 
 [source,txt]
 ----------------------------------------------------------------
-66.77.88.99
-66.77.88.100:9305
-66.77.88.99:10005
+10.10.10.5
+10.10.10.6:9305
+10.10.10.5:10005
+[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:9301
 ----------------------------------------------------------------
 
 Host names are allowed instead of IP addresses (similar to 
 `discovery.zen.ping.unicast.hosts`), and IPv6 addresses must be 
-specified in brackets. 
+specified in brackets with the port coming after the brackets. 

@@ -44,11 +44,15 @@ export_elasticsearch_paths() {
 install_package() {
     local version=$(cat version)
     local rpmCommand='-i'
-    while getopts ":uv:" opt; do
+    while getopts ":fuv:" opt; do
         case $opt in
             u)
                 rpmCommand='-U'
                 dpkgCommand='--force-confnew'
+                ;;
+            f)
+                rpmCommand='-U --force'
+                dpkgCommand='--force-conflicts'
                 ;;
             v)
                 version=$OPTARG

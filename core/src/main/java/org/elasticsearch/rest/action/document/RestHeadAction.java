@@ -91,7 +91,7 @@ public abstract class RestHeadAction extends BaseRestHandler {
         getRequest.preference(request.param("preference"));
         getRequest.realtime(request.paramAsBoolean("realtime", getRequest.realtime()));
         // don't get any fields back...
-        getRequest.fields(Strings.EMPTY_ARRAY);
+        getRequest.storedFields(Strings.EMPTY_ARRAY);
         // TODO we can also just return the document size as Content-Length
 
         client.get(getRequest, new RestResponseListener<GetResponse>(channel) {

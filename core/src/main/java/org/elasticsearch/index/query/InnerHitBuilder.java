@@ -94,7 +94,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
                 ObjectParser.ValueType.OBJECT_ARRAY);
         PARSER.declareField((p, i, c) -> {
             try {
-                i.setFetchSourceContext(FetchSourceContext.parse(c));
+                i.setFetchSourceContext(FetchSourceContext.parse(c.parser()));
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner _source definition", e);
             }
@@ -219,7 +219,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
                 scriptFields.add(new ScriptField(in));
             }
         }
-        fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         if (in.readBoolean()) {
             int size = in.readVInt();
             sorts = new ArrayList<>(size);
@@ -258,7 +258,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
                 scriptField.writeTo(out);
             }
         }
-        out.writeOptionalStreamable(fetchSourceContext);
+        out.writeOptionalWriteable(fetchSourceContext);
         boolean hasSorts = sorts != null;
         out.writeBoolean(hasSorts);
         if (hasSorts) {

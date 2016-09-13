@@ -298,7 +298,8 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             builder.add(
                     client().prepareUpdate()
-                            .setIndex("test").setType("type1").setId(Integer.toString(i)).setFields("counter")
+                            .setIndex("test").setType("type1").setId(Integer.toString(i))
+                            .setFields("counter")
                             .setScript(script)
                             .setUpsert(jsonBuilder().startObject().field("counter", 1).endObject()));
         }
@@ -408,8 +409,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
             assertThat(response.getItems()[i].getType(), equalTo("type1"));
             assertThat(response.getItems()[i].getOpType(), equalTo("update"));
             for (int j = 0; j < 5; j++) {
-                GetResponse getResponse = client().prepareGet("test", "type1", Integer.toString(i)).setFields("counter").execute()
-                        .actionGet();
+                GetResponse getResponse = client().prepareGet("test", "type1", Integer.toString(i)).get();
                 assertThat(getResponse.isExists(), equalTo(false));
             }
         }

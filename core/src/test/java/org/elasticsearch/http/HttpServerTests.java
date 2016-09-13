@@ -21,6 +21,8 @@ package org.elasticsearch.http;
 import java.util.Collections;
 import java.util.Map;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,6 +43,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.usage.UsageService;
 import org.junit.Before;
 
 public class HttpServerTests extends ESTestCase {
@@ -60,7 +63,9 @@ public class HttpServerTests extends ESTestCase {
         inFlightRequestsBreaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
 
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
-        RestController restController = new RestController(settings, Collections.emptySet());
+        DiscoveryNode discoveryNode = new DiscoveryNode("foo", new LocalTransportAddress("bar"), Version.CURRENT);
+        UsageService usageService = new UsageService(() -> discoveryNode, settings);
+        RestController restController = new RestController(settings, Collections.emptySet(), usageService);
         restController.registerHandler(RestRequest.Method.GET, "/",
             (request, channel, client) -> channel.sendResponse(
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));

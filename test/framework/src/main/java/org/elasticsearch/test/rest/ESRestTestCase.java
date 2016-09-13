@@ -120,7 +120,14 @@ public class ESRestTestCase extends ESTestCase {
     public final void after() throws Exception {
         wipeCluster();
         logIfThereAreRunningTasks();
+        // Need to wipe usage stats here as logIfThereAreRunningTasks performs
+        // requests
+        wipeUsageStats();
         closeClients();
+    }
+
+    private void wipeUsageStats() throws IOException {
+        adminClient().performRequest("POST", "_nodes/usage/_clear");
     }
 
     /**

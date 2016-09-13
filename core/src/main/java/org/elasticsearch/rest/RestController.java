@@ -30,6 +30,7 @@ import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -58,9 +59,12 @@ public class RestController extends AbstractLifecycleComponent {
     // non volatile since the assumption is that pre processors are registered on startup
     private RestFilter[] filters = new RestFilter[0];
 
-    public RestController(Settings settings, Set<String> headersToCopy) {
+    private UsageService usageService;
+
+    public RestController(Settings settings, Set<String> headersToCopy, UsageService usageService) {
         super(settings);
         this.headersToCopy = headersToCopy;
+        this.usageService = usageService;
     }
 
     @Override
@@ -239,6 +243,9 @@ public class RestController extends AbstractLifecycleComponent {
     void executeHandler(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         final RestHandler handler = getHandler(request);
         if (handler != null) {
+            if (usageService != null) {
+                usageService.addRestCall(handler.getClass().getName());
+            }
             handler.handleRequest(request, channel, client);
         } else {
             if (request.method() == RestRequest.Method.OPTIONS) {

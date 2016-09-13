@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -28,12 +29,14 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.usage.UsageService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -50,7 +53,9 @@ public class RestRecoveryActionTests extends ESTestCase {
 
     public void testRestRecoveryAction() {
         final Settings settings = Settings.EMPTY;
-        final RestController restController = new RestController(settings, Collections.emptySet());
+        DiscoveryNode discoveryNode = new DiscoveryNode("foo", new LocalTransportAddress("bar"), Version.CURRENT);
+        UsageService usageService = new UsageService(() -> discoveryNode, settings);
+        final RestController restController = new RestController(settings, Collections.emptySet(), usageService);
         final RestRecoveryAction action = new RestRecoveryAction(settings, restController, restController);
         final int totalShards = randomIntBetween(1, 32);
         final int successfulShards = Math.max(0, totalShards - randomIntBetween(1, 2));

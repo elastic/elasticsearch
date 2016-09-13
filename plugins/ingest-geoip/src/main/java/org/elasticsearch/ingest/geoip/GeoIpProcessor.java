@@ -167,9 +167,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     geoData.put("timezone", location.getTimeZone());
                     break;
                 case LOCATION:
-                    Map<String, Object> locationObject = new HashMap<>();
-                    locationObject.put("lat", location.getLatitude());
-                    locationObject.put("lon", location.getLongitude());
+                    Map<String, Object> locationObject = null;
+                    if (location.getLatitude() != null && location.getLongitude() != null) {
+                        locationObject = new HashMap<>();
+                        locationObject.put("lat", location.getLatitude());
+                        locationObject.put("lon", location.getLongitude());
+                    }
                     geoData.put("location", locationObject);
                     break;
             }

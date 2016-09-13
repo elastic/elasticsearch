@@ -154,3 +154,56 @@ returns this:
 }
 --------------------------------------------------
 // TESTRESPONSE
+
+
+Not all IP addresses find geo information from the database, When this
+occurs, all the fields are returned as `null` fields. The `location` field will
+be set to `null` with no nested `lat` or `lon` fields.
+
+Here is an example of what documents will be indexed as when information for "93.114.45.13"
+cannot be found.
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/geoip
+{
+  "description" : "Add geoip info",
+  "processors" : [
+    {
+      "geoip" : {
+        "field" : "ip"
+      }
+    }
+  ]
+}
+PUT my_index/my_type/my_id?pipeline=geoip
+{
+  "ip": "93.114.45.13"
+}
+GET my_index/my_type/my_id
+--------------------------------------------------
+// CONSOLE
+
+Which returns:
+
+[source,js]
+--------------------------------------------------
+{
+  "found": true,
+  "_index": "my_index",
+  "_type": "my_type",
+  "_id": "my_id",
+  "_version": 1,
+  "_source": {
+    "ip": "93.114.45.13",
+    "geoip": {
+      "continent_name": null,
+      "country_iso_code": null,
+      "region_name": null,
+      "city_name": null,
+      "location": null
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE

@@ -114,7 +114,7 @@ public class EvilLoggerTests extends ESTestCase {
     public void testPrefixLogger() throws IOException, IllegalAccessException {
         setupLogging("prefix");
 
-        final String prefix = randomAsciiOfLength(16);
+        final String prefix = randomBoolean() ? null : randomAsciiOfLength(16);
         final Logger logger = Loggers.getLogger("prefix", prefix);
         logger.info("test");
         logger.info("{}", "test");
@@ -131,7 +131,11 @@ public class EvilLoggerTests extends ESTestCase {
         final int expectedLogLines = 3;
         assertThat(events.size(), equalTo(expectedLogLines + stackTraceLength));
         for (int i = 0; i < expectedLogLines; i++) {
-            assertThat(events.get(i), startsWith("[" + prefix + "]"));
+            if (prefix == null) {
+                assertThat(events.get(i), startsWith("test"));
+            } else {
+                assertThat(events.get(i), startsWith("[" + prefix + "] test"));
+            }
         }
     }
 

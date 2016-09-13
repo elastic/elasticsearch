@@ -44,7 +44,7 @@ class PrefixLogger extends ExtendedLoggerWrapper {
         super(logger, name, null);
         this.prefix = prefix;
 
-        final String actualPrefix = (prefix == null ? "[] " : prefix).intern();
+        final String actualPrefix = (prefix == null ? "" : prefix).intern();
         final Marker actualMarker;
         synchronized (markers) {
             final WeakReference<Marker> marker = markers.get(actualPrefix);

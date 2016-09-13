@@ -431,4 +431,22 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
+
+    public void testParseFailsWithTermsArray() throws Exception {
+        String json1 = "{\n" +
+                "  \"match\" : {\n" +
+                "    \"message1\" : {\n" +
+                "      \"query\" : [\"term1\", \"term2\"]\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        expectThrows(ParsingException.class, () -> parseQuery(json1));
+
+        String json2 = "{\n" +
+                "  \"match\" : {\n" +
+                "    \"message1\" : [\"term1\", \"term2\"]\n" +
+                "  }\n" +
+                "}";
+        expectThrows(IllegalStateException.class, () -> parseQuery(json2));
+    }
 }

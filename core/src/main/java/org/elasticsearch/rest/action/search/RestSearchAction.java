@@ -67,10 +67,10 @@ public class RestSearchAction extends BaseRestHandler {
     public RestSearchAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers) {
         super(settings);
         this.searchRequestParsers = searchRequestParsers;
-        controller.registerHandler(GET, "/_search", this);
-        controller.registerHandler(POST, "/_search", this);
-        controller.registerHandler(GET, "/{index}/_search", this);
-        controller.registerHandler(POST, "/{index}/_search", this);
+        controller.registerWithDeprecatedHandler(GET, "/_search", this, GET, "/_suggest", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, "/_search", this, POST, "/_suggest", deprecationLogger);
+        controller.registerWithDeprecatedHandler(GET, "/{index}/_search", this, GET, "/{index}/_suggest", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, "/{index}/_search", this, POST, "/{index}/_suggest", deprecationLogger);
         controller.registerHandler(GET, "/{index}/{type}/_search", this);
         controller.registerHandler(POST, "/{index}/{type}/_search", this);
     }
@@ -102,8 +102,13 @@ public class RestSearchAction extends BaseRestHandler {
         if (restContent != null) {
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 QueryParseContext context = new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
-                searchRequest.source().parseXContent(context, searchRequestParsers.aggParsers, searchRequestParsers.suggesters,
-                        searchRequestParsers.searchExtParsers);
+                if (request.uri().endsWith("_suggest")) {
+                    // BWC for _suggest endpoint, we expect the request body to only have suggestions defined
+                    searchRequest.source().suggest(SuggestBuilder.fromXContent(context, searchRequestParsers.suggesters));
+                } else {
+                    searchRequest.source().parseXContent(context, searchRequestParsers.aggParsers, searchRequestParsers.suggesters,
+                            searchRequestParsers.searchExtParsers);
+                }
             }
         }
 

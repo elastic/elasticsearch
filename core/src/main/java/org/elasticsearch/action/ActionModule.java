@@ -308,7 +308,6 @@ import org.elasticsearch.rest.action.search.RestExplainAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
-import org.elasticsearch.rest.action.search.RestSuggestAction;
 
 import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
@@ -546,7 +545,6 @@ public class ActionModule extends AbstractModule {
         registerRestHandler(handlers, RestMultiGetAction.class);
         registerRestHandler(handlers, RestDeleteAction.class);
         registerRestHandler(handlers, org.elasticsearch.rest.action.document.RestCountAction.class);
-        registerRestHandler(handlers, RestSuggestAction.class);
         registerRestHandler(handlers, RestTermVectorsAction.class);
         registerRestHandler(handlers, RestMultiTermVectorsAction.class);
         registerRestHandler(handlers, RestBulkAction.class);

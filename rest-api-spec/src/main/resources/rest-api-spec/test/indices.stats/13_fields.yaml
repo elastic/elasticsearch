@@ -38,22 +38,24 @@ setup:
       indices.refresh: {}
 
   - do:
-      suggest:
+      search:
         index: test1
         body:
-          result:
-            text: "b"
-            completion:
-              field: bar.completion
+          suggest:
+            result:
+              text: "b"
+              completion:
+                field: bar.completion
 
   - do:
-      suggest:
+      search:
         index: test1
         body:
-          result:
-            text: "b"
-            completion:
-              field: baz.completion
+          suggest:
+            result:
+              text: "b"
+              completion:
+                field: baz.completion
 
   - do:
       indices.refresh: {}

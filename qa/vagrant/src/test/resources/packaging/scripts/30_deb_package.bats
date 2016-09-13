@@ -131,6 +131,7 @@ setup() {
 
     # The configuration files are still here
     assert_file_exist "/etc/elasticsearch"
+    assert_file_exist "/etc/elasticsearch/scripts"
     assert_file_exist "/etc/elasticsearch/elasticsearch.yml"
     assert_file_exist "/etc/elasticsearch/jvm.options"
     assert_file_exist "/etc/elasticsearch/log4j2.properties"
@@ -152,6 +153,7 @@ setup() {
 @test "[DEB] verify package purge" {
     # all remaining files are deleted by the purge
     assert_file_not_exist "/etc/elasticsearch"
+    assert_file_not_exist "/etc/elasticsearch/scripts"
     assert_file_not_exist "/etc/elasticsearch/elasticsearch.yml"
     assert_file_not_exist "/etc/elasticsearch/jvm.options"
     assert_file_not_exist "/etc/elasticsearch/log4j2.properties"

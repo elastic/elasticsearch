@@ -452,7 +452,11 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         // doc values are enabled by default, but in this test we disable them; we should only have 2 points
         assertThat(doc.rootDoc().getFields("point"), notNullValue());
-        assertThat(doc.rootDoc().getFields("point").length, equalTo(2));
+        if (version.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            assertThat(doc.rootDoc().getFields("point").length, equalTo(4));
+        } else {
+            assertThat(doc.rootDoc().getFields("point").length, equalTo(2));
+        }
         if (version.before(Version.V_5_0_0_alpha2)) {
             assertThat(doc.rootDoc().getFields("point.lat").length, equalTo(2));
             assertThat(doc.rootDoc().getFields("point.lon").length, equalTo(2));

@@ -87,7 +87,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
 
     public void testDefaults() throws IOException {
         final Path configDir = getDataPath("config");
-        final String level = randomFrom(Level.values()).toString();
+        final String level = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR).toString();
         final Settings settings = Settings.builder()
             .put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())

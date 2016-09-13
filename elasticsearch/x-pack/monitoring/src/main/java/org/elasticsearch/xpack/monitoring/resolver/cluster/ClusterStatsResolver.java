@@ -31,6 +31,8 @@ public class ClusterStatsResolver extends MonitoringIndexNameResolver.Timestampe
             "cluster_stats.nodes.count.total",
             "cluster_stats.indices.count",
             "cluster_stats.indices.shards.total",
+            "cluster_stats.indices.shards.primaries",
+            "cluster_stats.indices.shards.replication",
             "cluster_stats.indices.shards.index.replication.min",
             "cluster_stats.indices.docs.count",
             "cluster_stats.indices.store.size_in_bytes",

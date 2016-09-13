@@ -42,7 +42,7 @@
         },
         "stored_fields": {
           "type" : "list",
-          "description" : "A comma-separated list of fields to return as part of a hit"
+          "description" : "A comma-separated list of stored fields to return as part of a hit"
         },
         "docvalue_fields": {
           "type" : "list",

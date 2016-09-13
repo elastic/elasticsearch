@@ -94,7 +94,7 @@ POST test/type1/1/_update
 // TEST[continued]
 
 And, we can even change the operation that is executed.  This example deletes
-the doc if the `tags` field contain `blue`, otherwise it does nothing
+the doc if the `tags` field contain `green`, otherwise it does nothing
 (`noop`):
 
 [source,js]

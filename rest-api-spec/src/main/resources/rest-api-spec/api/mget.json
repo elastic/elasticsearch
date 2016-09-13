@@ -18,7 +18,7 @@
       "params": {
         "stored_fields": {
           "type": "list",
-          "description" : "A comma-separated list of fields to return in the response"
+          "description" : "A comma-separated list of stored fields to return in the response"
         },
         "preference": {
           "type" : "string",

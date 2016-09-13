@@ -52,7 +52,7 @@ public class MultiGetShardRequestTests extends ESTestCase {
                 for (int j = 0; j < fields.length; j++) {
                     fields[j] = randomAsciiOfLength(randomIntBetween(1, 10));
                 }
-                item.fields(fields);
+                item.storedFields(fields);
             }
             if (randomBoolean()) {
                 item.version(randomIntBetween(1, Integer.MAX_VALUE));
@@ -84,7 +84,7 @@ public class MultiGetShardRequestTests extends ESTestCase {
                 assertThat(item2.index(), equalTo(item.index()));
             assertThat(item2.type(), equalTo(item.type()));
             assertThat(item2.id(), equalTo(item.id()));
-            assertThat(item2.fields(), equalTo(item.fields()));
+            assertThat(item2.storedFields(), equalTo(item.storedFields()));
             assertThat(item2.version(), equalTo(item.version()));
             assertThat(item2.versionType(), equalTo(item.versionType()));
             assertThat(item2.fetchSourceContext(), equalTo(item.fetchSourceContext()));

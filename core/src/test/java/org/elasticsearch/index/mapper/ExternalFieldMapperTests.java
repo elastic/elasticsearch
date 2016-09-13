@@ -86,8 +86,10 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.point"), notNullValue());
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
-        } else if (version.after(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
-            assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoPointField.encodeLatLon(42.0, 51.0)));
+        } else if (version.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            GeoPoint point = new GeoPoint().resetFromIndexableField(doc.rootDoc().getField("field.point"));
+            assertThat(point.lat(), closeTo(42.0, 1e-5));
+            assertThat(point.lon(), closeTo(51.0, 1e-5));
         }
 
         assertThat(doc.rootDoc().getField("field.shape"), notNullValue());

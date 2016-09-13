@@ -791,7 +791,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertTrue(inFlight.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
     }
 
-    @TestLogging(value = "test.transport.tracer:TRACE")
+    @TestLogging(value = "org.elasticsearch.test.transport.tracer:TRACE")
     public void testTracerLog() throws InterruptedException {
         TransportRequestHandler handler = new TransportRequestHandler<StringMessageRequest>() {
             @Override

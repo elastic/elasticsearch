@@ -42,21 +42,23 @@ public final class ESLoggerFactory {
             Property.Dynamic, Property.NodeScope);
 
     public static Logger getLogger(String prefix, String name) {
-        name = name.intern();
-        final Logger logger = LogManager.getLogger(name);
-        return new PrefixLogger((ExtendedLogger)logger, name, prefix);
+        return getLogger(prefix, LogManager.getLogger(name));
+    }
+
+    public static Logger getLogger(String prefix, Class<?> clazz) {
+        return getLogger(prefix, LogManager.getLogger(clazz));
+    }
+
+    public static Logger getLogger(String prefix, Logger logger) {
+        return new PrefixLogger((ExtendedLogger)logger, logger.getName(), prefix);
+    }
+
+    public static Logger getLogger(Class<?> clazz) {
+        return getLogger(null, clazz);
     }
 
     public static Logger getLogger(String name) {
         return getLogger(null, name);
-    }
-
-    public static DeprecationLogger getDeprecationLogger(String name) {
-        return new DeprecationLogger(getLogger(name));
-    }
-
-    public static DeprecationLogger getDeprecationLogger(String prefix, String name) {
-        return new DeprecationLogger(getLogger(prefix, name));
     }
 
     public static Logger getRootLogger() {

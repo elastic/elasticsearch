@@ -36,8 +36,8 @@ public final class LoggerInfoStream extends InfoStream {
     private final Logger ifdLogger;
 
     public LoggerInfoStream(Logger parentLogger) {
-        logger = Loggers.getLogger(parentLogger, ".lucene.iw");
-        ifdLogger = Loggers.getLogger(parentLogger, ".lucene.iw.ifd");
+        logger = Loggers.getLogger(parentLogger, "$IndexWriter");
+        ifdLogger = Loggers.getLogger(parentLogger, "$IndexFileDeleter");
     }
 
     @Override

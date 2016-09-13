@@ -96,7 +96,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         final Environment environment = new Environment(settings);
         LogConfigurator.configure(environment, true);
 
-        final String loggerName = Loggers.commonPrefix + "test";
+        final String loggerName = "test";
         final Logger logger = ESLoggerFactory.getLogger(loggerName);
         assertThat(logger.getLevel().toString(), equalTo(level));
     }
@@ -113,7 +113,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         LogConfigurator.configure(environment, true);
 
         // args should overwrite whatever is in the config
-        final String loggerName = Loggers.commonPrefix + "test_resolve_order";
+        final String loggerName = "test_resolve_order";
         final Logger logger = ESLoggerFactory.getLogger(loggerName);
         assertTrue(logger.isTraceEnabled());
     }

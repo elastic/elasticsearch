@@ -39,7 +39,7 @@ task mixedClusterTest(type: RestIntegTestTask) {
     distribution = 'zip'
     clusterName = 'rolling-upgrade'
     unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
-    dataDir = "${-> oldClusterTest.nodes[1].getDataDir()}"
+    dataDir = "${-> oldClusterTest.nodes[1].dataDir}"
   }
   systemProperty 'tests.rest.suite', 'mixed_cluster'
 
@@ -51,7 +51,7 @@ task upgradedClusterTest(type: RestIntegTestTask) {
     distribution = 'zip'
     clusterName = 'rolling-upgrade'
     unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
-    dataDir = "${-> oldClusterTest.nodes[0].getDataDir()}"
+    dataDir = "${-> oldClusterTest.nodes[0].dataDir}"
   }
   systemProperty 'tests.rest.suite', 'upgraded_cluster'
 }

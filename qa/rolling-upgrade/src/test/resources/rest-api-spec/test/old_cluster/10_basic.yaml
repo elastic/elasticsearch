@@ -16,6 +16,10 @@
           - '{"f1": "v5_old", "f2": 4}'
 
  - do:
+     indices.flush:
+        index: test_index
+
+ - do:
      search:
         index: test_index
 

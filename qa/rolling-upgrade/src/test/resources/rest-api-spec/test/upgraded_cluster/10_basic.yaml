@@ -22,6 +22,10 @@
           - '{"f1": "v5_upgraded", "f2": 14}'
 
  - do:
+     indices.flush:
+        index: test_index
+
+ - do:
      search:
         index: test_index
 

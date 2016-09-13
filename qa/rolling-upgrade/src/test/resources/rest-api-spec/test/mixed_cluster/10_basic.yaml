@@ -22,6 +22,10 @@
           - '{"f1": "v5_mixed", "f2": 9}'
 
  - do:
+     indices.flush:
+        index: test_index
+
+ - do:
      search:
         index: test_index
 

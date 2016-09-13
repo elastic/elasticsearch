@@ -110,10 +110,6 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         List<String> hostEntries = Arrays.asList("192.168.0.1:9300:9300");
         List<DiscoveryNode> nodes = setupAndRunHostProvider(hostEntries);
         assertEquals(0, nodes.size());
-
-        hostEntries = Arrays.asList("abc");
-        nodes = setupAndRunHostProvider(hostEntries);
-        assertEquals(0, nodes.size());
     }
 
     public void testSomeInvalidHostEntries() throws Exception {

@@ -33,6 +33,19 @@ import java.util.Map;
 
 public final class CustomQueryScorer extends QueryScorer {
 
+    private static final Class<?> unsupportedGeoQuery;
+
+    static {
+        try {
+            // in extract() we need to check for GeoPointMultiTermQuery and skip extraction for queries that inherit from it.
+            // But GeoPointMultiTermQuerythat is package private in Lucene hence we cannot use an instanceof check. This is why
+            // we use this rather ugly workaround to get a Class and later be able to compare with isAssignableFrom().
+            unsupportedGeoQuery = Class.forName("org.apache.lucene.spatial.geopoint.search.GeoPointMultiTermQuery");
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     public CustomQueryScorer(Query query, IndexReader reader, String field,
                              String defaultField) {
         super(query, reader, field, defaultField);
@@ -89,9 +102,12 @@ public final class CustomQueryScorer extends QueryScorer {
         }
 
         protected void extract(Query query, float boost, Map<String, WeightedSpanTerm> terms) throws IOException {
-            // skip all geo queries, see https://issues.apache.org/jira/browse/LUCENE-7293 and
-            // https://github.com/elastic/elasticsearch/issues/17537
-            if (query instanceof GeoPointInBBoxQuery == false) {
+
+            if (query instanceof GeoPointInBBoxQuery || unsupportedGeoQuery.isAssignableFrom(query.getClass())) {
+                // skip all geo queries, see https://issues.apache.org/jira/browse/LUCENE-7293 and
+                // https://github.com/elastic/elasticsearch/issues/17537
+                return;
+            } else {
                 super.extract(query, boost, terms);
             }
         }

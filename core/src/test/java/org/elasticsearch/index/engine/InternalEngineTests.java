@@ -1509,13 +1509,13 @@ public class InternalEngineTests extends ESTestCase {
         public boolean sawIndexWriterIFDMessage;
 
         public MockAppender(final String name) throws IllegalAccessException {
-            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], true, null, null), null);
+            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
         }
 
         @Override
         public void append(LogEvent event) {
             final String formattedMessage = event.getMessage().getFormattedMessage();
-            if (event.getLevel() == Level.TRACE && formattedMessage.contains("[index][1] ")) {
+            if (event.getLevel() == Level.TRACE && event.getMarker().getName().contains("[index][1] ")) {
                 if (event.getLoggerName().endsWith("lucene.iw") &&
                     formattedMessage.contains("IW: apply all deletes during flush")) {
                     sawIndexWriterMessage = true;
@@ -1555,7 +1555,7 @@ public class InternalEngineTests extends ESTestCase {
 
         } finally {
             Loggers.removeAppender(rootLogger, mockAppender);
-            Loggers.setLevel(rootLogger, savedLevel.toString());
+            Loggers.setLevel(rootLogger, savedLevel);
         }
     }
 

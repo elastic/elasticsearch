@@ -305,18 +305,20 @@ public class UpdateHelper extends AbstractComponent {
         }
 
         BytesReference sourceFilteredAsBytes = sourceAsBytes;
-        if (request.fetchSource() != null) {
+        if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
             sourceRequested = true;
-            Object value = sourceLookup.filter(request.fetchSource().includes(), request.fetchSource().excludes());
-            try {
-                final int initialCapacity = Math.min(1024, sourceAsBytes.length());
-                BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
-                try (XContentBuilder builder = new XContentBuilder(sourceContentType.xContent(), streamOutput)) {
-                    builder.value(value);
-                    sourceFilteredAsBytes = builder.bytes();
+            if (request.fetchSource().includes().length > 0 || request.fetchSource().excludes().length > 0) {
+                Object value = sourceLookup.filter(request.fetchSource().includes(), request.fetchSource().excludes());
+                try {
+                    final int initialCapacity = Math.min(1024, sourceAsBytes.length());
+                    BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
+                    try (XContentBuilder builder = new XContentBuilder(sourceContentType.xContent(), streamOutput)) {
+                        builder.value(value);
+                        sourceFilteredAsBytes = builder.bytes();
+                    }
+                } catch (IOException e) {
+                    throw new ElasticsearchException("Error filtering source", e);
                 }
-            } catch (IOException e) {
-                throw new ElasticsearchException("Error filtering source", e);
             }
         }
 

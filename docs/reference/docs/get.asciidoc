@@ -109,11 +109,11 @@ PUT twitter
          "properties": {
             "counter": {
                "type": "integer",
-               "store": "false"
+               "store": false
             },
             "tags": {
                "type": "keyword",
-               "store": "true"
+               "store": true
             }
          }
       }

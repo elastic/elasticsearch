@@ -243,8 +243,8 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                     .addSort("_uid", SortOrder.ASC)
                     .setQuery(multiMatchQueryBuilder).get();
             MatchQueryBuilder matchQueryBuilder = QueryBuilders.matchQuery(field, builder.toString());
-            if (getType(multiMatchQueryBuilder) != null) {
-                matchQueryBuilder.type(MatchQueryBuilder.Type.valueOf(getType(multiMatchQueryBuilder).matchQueryType().toString()));
+            if (multiMatchQueryBuilder.getType() != null) {
+                matchQueryBuilder.type(MatchQueryBuilder.Type.valueOf(multiMatchQueryBuilder.getType().matchQueryType().toString()));
             }
             SearchResponse matchResp = client().prepareSearch("test")
                     // _uid tie sort
@@ -321,10 +321,8 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("theother"));
     }
 
-
     @Test
     public void testEquivalence() {
-
         final int numDocs = (int) client().prepareCount("test")
                 .setQuery(matchAllQuery()).get().getCount();
         int numIters = scaledRandomIntBetween(5, 10);
@@ -558,6 +556,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .setQuery(randomizeType(multiMatchQuery("the ultimate", "full_name", "first_name", "last_name^2", "category")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .operator(MatchQueryBuilder.Operator.AND))).get();
+        assertHitCount(searchResponse, 2L);
         assertFirstHit(searchResponse, hasId("ultimate1"));   // has ultimate in the last_name and that is boosted
         assertSecondHit(searchResponse, hasId("ultimate2"));
         assertThat(searchResponse.getHits().hits()[0].getScore(), greaterThan(searchResponse.getHits().hits()[1].getScore()));
@@ -568,6 +567,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .setQuery(randomizeType(multiMatchQuery("the ultimate", "full_name", "first_name", "last_name", "category")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .operator(MatchQueryBuilder.Operator.AND))).get();
+        assertHitCount(searchResponse, 2L);
         assertFirstHit(searchResponse, hasId("ultimate2"));
         assertSecondHit(searchResponse, hasId("ultimate1"));
         assertThat(searchResponse.getHits().hits()[0].getScore(), greaterThan(searchResponse.getHits().hits()[1].getScore()));
@@ -576,28 +576,33 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("15", "skill")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))).get();
+        assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("15", "skill", "first_name")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))).get();
+        assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         // Two numeric fields together caused trouble at one point!
         searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("15", "int-field", "skill")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))).get();
+        assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("15", "int-field", "first_name", "skill")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))).get();
+        assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("alpha 15", "first_name", "skill")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .lenient(true))).get();
+        assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("ultimate1"));
         /*
          * Doesn't find theone because "alpha 15" isn't a number and we don't
@@ -610,10 +615,11 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .setQuery(randomizeType(multiMatchQuery("alpha 15", "int-field", "first_name", "skill")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .lenient(true))).get();
+        assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("ultimate1"));
     }
 
-    private static final void assertEquivalent(String query, SearchResponse left, SearchResponse right) {
+    private static void assertEquivalent(String query, SearchResponse left, SearchResponse right) {
         assertNoFailures(left);
         assertNoFailures(right);
         SearchHits leftHits = left.getHits();
@@ -633,22 +639,21 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         }
     }
 
-
-    public static List<String> fill(List<String> list, String value, int times) {
+    private static List<String> fill(List<String> list, String value, int times) {
         for (int i = 0; i < times; i++) {
             list.add(value);
         }
         return list;
     }
 
-    public List<String> fillRandom(List<String> list, int times) {
+    private static List<String> fillRandom(List<String> list, int times) {
         for (int i = 0; i < times; i++) {
-            list.add(randomRealisticUnicodeOfCodepointLengthBetween(1, 5));
+            list.add(randomAsciiOfLength(5));
         }
         return list;
     }
 
-    public <T> T randomPickExcept(List<T> fromList, T butNot) {
+    private static <T> T randomPickExcept(List<T> fromList, T butNot) {
         while (true) {
             T t = RandomPicks.randomFrom(getRandom(), fromList);
             if (t.equals(butNot)) {
@@ -658,9 +663,9 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         }
     }
 
-    public MultiMatchQueryBuilder randomizeType(MultiMatchQueryBuilder builder) {
+    private static MultiMatchQueryBuilder randomizeType(MultiMatchQueryBuilder builder) {
         try {
-            MultiMatchQueryBuilder.Type type = getType(builder);
+            MultiMatchQueryBuilder.Type type = builder.getType();
             if (type == null && randomBoolean()) {
                 return builder;
             }
@@ -701,9 +706,5 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
-    }
-
-    private MultiMatchQueryBuilder.Type getType(MultiMatchQueryBuilder builder) throws NoSuchFieldException, IllegalAccessException {
-        return builder.getType();
     }
 }

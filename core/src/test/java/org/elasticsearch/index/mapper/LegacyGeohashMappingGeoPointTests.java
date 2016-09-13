@@ -54,7 +54,7 @@ public class LegacyGeohashMappingGeoPointTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true)
                 .endObject().endObject().endObject().endObject().string();
 
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_5_0_0_alpha5);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_4_0);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
@@ -67,7 +67,7 @@ public class LegacyGeohashMappingGeoPointTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getField("point.lat"), nullValue());
         assertThat(doc.rootDoc().getField("point.lon"), nullValue());
-        assertThat(doc.rootDoc().get("point.geohash"), equalTo(stringEncode(1.3, 1.2)));
+        assertThat(doc.rootDoc().getField("point.geohash").stringValue(), equalTo(stringEncode(1.3, 1.2)));
         assertThat(doc.rootDoc().get("point"), notNullValue());
     }
 
@@ -76,7 +76,7 @@ public class LegacyGeohashMappingGeoPointTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true)
                 .field("geohash_precision", 10).endObject().endObject().endObject().endObject().string();
 
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_5_0_0_alpha5);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_4_0);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
@@ -92,7 +92,7 @@ public class LegacyGeohashMappingGeoPointTests extends ESSingleNodeTestCase {
             .field("geohash_precision", "5m").endObject().endObject()
                 .endObject().endObject().string();
 
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_5_0_0_alpha5);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_4_0);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));

@@ -49,6 +49,10 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testX*", "kuku"))), equalTo(newHashSet("testXXX", "testXYY", "kuku")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("*"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY", "kuku")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("*", "-kuku"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "+testYYY"))), equalTo(newHashSet("testXXX", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "-testXXX"))).size(), equalTo(0));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "+testY*"))), equalTo(newHashSet("testXXX", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "-testX*"))).size(), equalTo(0));
     }
 
     public void testConvertWildcardsTests() {

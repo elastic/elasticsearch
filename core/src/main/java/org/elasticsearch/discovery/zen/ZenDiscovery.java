@@ -318,7 +318,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         if (!clusterChangedEvent.state().getNodes().isLocalNodeElectedMaster()) {
             throw new IllegalStateException("Shouldn't publish state when not master");
         }
-        nodesFD.updateNodesAndPing(clusterChangedEvent.state());
+
         try {
             publishClusterState.publish(clusterChangedEvent, electMaster.minimumMasterNodes(), ackListener);
         } catch (FailedToCommitClusterStateException t) {
@@ -338,6 +338,17 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             });
             throw t;
         }
+
+        // update the set of nodes to ping after the new cluster state has been published
+        nodesFD.updateNodesAndPing(clusterChangedEvent.state());
+    }
+
+    /**
+     * Gets the current set of nodes involved in the node fault detection.
+     * NB: for testing purposes
+     */
+    public Set<DiscoveryNode> getFaultDetectionNodes() {
+        return nodesFD.getNodes();
     }
 
     @Override

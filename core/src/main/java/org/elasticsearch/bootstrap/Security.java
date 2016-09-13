@@ -257,11 +257,6 @@ final class Security {
         for (Path path : environment.dataFiles()) {
             addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
         }
-        // TODO: this should be removed in ES 6.0! We will no longer support data paths with the cluster as a folder
-        // https://github.com/elastic/elasticsearch/issues/20391
-        for (Path path : environment.dataWithClusterFiles()) {
-            addPathIfExists(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
-        }
         for (Path path : environment.repoFiles()) {
             addPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete");
         }

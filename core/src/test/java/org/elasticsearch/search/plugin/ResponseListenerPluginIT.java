@@ -31,6 +31,7 @@ import org.junit.Before;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 import static java.util.Collections.singletonList;
@@ -39,14 +40,15 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class ResponseListenerPluginIT extends ESIntegTestCase {
 
-    static boolean hookWasFired = false;
+    static AtomicBoolean hookWasFired = new AtomicBoolean(false);
 
     public static class FooResponseListenerPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<BiConsumer<SearchRequest, SearchResponse>> getSearchResponseListeners() {
             return singletonList((BiConsumer<SearchRequest, SearchResponse>) (searchRequest, response) -> {
                 assertThat(response.getTookInMillis(), greaterThan(0L));
-                hookWasFired = true;
+                boolean alreadyFired = hookWasFired.getAndSet(true);
+                assertFalse(alreadyFired);
             });
         }
     }
@@ -68,7 +70,8 @@ public class ResponseListenerPluginIT extends ESIntegTestCase {
 
     public void testSearchResponseHook() {
         assertHitCount(client().prepareSearch("index").setQuery(QueryBuilders.matchAllQuery()).get(), 1L);
-        assertEquals(hookWasFired, true);
+        boolean alreadyFired = hookWasFired.get();
+        assertTrue(alreadyFired);
     }
 
 }

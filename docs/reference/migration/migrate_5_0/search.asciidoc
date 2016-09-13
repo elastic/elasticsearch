@@ -210,3 +210,7 @@ also supports specifying multiple nodes.
 ==== Default similarity
 
 The default similarity has been changed to `BM25`.
+
+==== explain API
+
+The `fields` field has been renamed to `stored_fields`

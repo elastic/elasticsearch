@@ -202,7 +202,8 @@ POST twitter/_update_by_query?pipeline=set-foo
 === URL Parameters
 
 In addition to the standard parameters like `pretty`, the Update By Query API
-also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, and `timeout`.
+also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`,
+`timeout`, `requests_per_second`, and `max_reported_bulk_failures`.
 
 Sending the `refresh` will update all shards in the index being updated when
 the request completes. This is different than the Index API's `refresh`
@@ -217,7 +218,7 @@ to keep or remove as you see fit. When you are done with it, delete it so
 Elasticsearch can reclaim the space it uses.
 
 `wait_for_active_shards` controls how many copies of a shard must be active
-before proceeding with the request. See <<index-wait-for-active-shards,here>> 
+before proceeding with the request. See <<index-wait-for-active-shards,here>>
 for details. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
 <<docs-bulk,Bulk API>>.
@@ -231,6 +232,13 @@ the time `requests_per_second * requests_in_the_batch`. Since the batch isn't
 broken into multiple bulk requests large batch sizes will cause Elasticsearch
 to create many requests and then wait for a while before starting the next set.
 This is "bursty" instead of "smooth". The default is `-1`.
+
+`max_reported_bulk_failures` is the maximum number of indexing error that
+are returned when a bulk operation fails. This defaults to `50` to prevent
+interactive users of `_update_by_query` from being buried under an avalanche
+of errors if the entire request fails. Extra errors are logged. Clients should
+set this to a `-1` to have all errors returned if they can handle as many
+errors as the request batch size which defaults to `1000`.
 
 [float]
 [[docs-update-by-query-response-body]]

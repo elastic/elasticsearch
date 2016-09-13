@@ -98,6 +98,11 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     private boolean shouldStoreResult;
 
+    /**
+     * How many bulk failures should this return by default? Defaults to {@link Integer#MAX_VALUE} to return as many as it finds.
+     */
+    private int maxReportedBulkFailures = Integer.MAX_VALUE;
+
     public AbstractBulkByScrollRequest() {
     }
 
@@ -313,6 +318,26 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         return shouldStoreResult;
     }
 
+    /**
+     * How many bulk failures should this return by default? Defaults to {@link Integer#MAX_VALUE} to return as many as it finds.
+     */
+    public Self setMaxReportedBulkFailures(int maxReportedBulkFailures) {
+        if (maxReportedBulkFailures == -1) {
+            maxReportedBulkFailures = Integer.MAX_VALUE;
+        } else if (maxReportedBulkFailures < 0) {
+            throw new IllegalArgumentException("[max_reported_bulk_failures] must be >= -1 but was [" + maxReportedBulkFailures + "]");
+        }
+        this.maxReportedBulkFailures = maxReportedBulkFailures;
+        return self();
+    }
+
+    /**
+     * How many bulk failures should this return by default? Defaults to {@link Integer#MAX_VALUE} to return as many as it finds.
+     */
+    public int getMaxReportedBulkFailures() {
+        return maxReportedBulkFailures;
+    }
+
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId) {
         return new BulkByScrollTask(id, type, action, getDescription(), parentTaskId, requestsPerSecond);
@@ -331,6 +356,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         retryBackoffInitialTime = new TimeValue(in);
         maxRetries = in.readVInt();
         requestsPerSecond = in.readFloat();
+        maxReportedBulkFailures = in.readInt();
     }
 
     @Override
@@ -345,6 +371,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         retryBackoffInitialTime.writeTo(out);
         out.writeVInt(maxRetries);
         out.writeFloat(requestsPerSecond);
+        out.writeInt(maxReportedBulkFailures);
     }
 
     /**

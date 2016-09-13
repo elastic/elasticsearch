@@ -117,14 +117,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     /**
-     * Build the response for reindex actions.
-     */
-    protected BulkIndexByScrollResponse buildResponse(TimeValue took, List<BulkItemResponse.Failure> indexingFailures,
-                                                      List<SearchFailure> searchFailures, boolean timedOut) {
-        return new BulkIndexByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut);
-    }
-
-    /**
      * Start the action by firing the initial search request.
      */
     public void start() {
@@ -325,7 +317,12 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 return;
             }
         }
-        failures.add(failure);
+        if (failures.size() < mainRequest.getMaxReportedBulkFailures()) {
+            failures.add(failure);
+        } else {
+            // Don't return more than the number of requested failures
+            logger.warn("Reindexing failure that can't be returned for [{}] {}", task.getId(), failure);
+        }
     }
 
     /**
@@ -371,8 +368,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     void finishHim(Exception failure, List<Failure> indexingFailures, List<SearchFailure> searchFailures, boolean timedOut) {
         scrollSource.close();
         if (failure == null) {
-            listener.onResponse(
-                    buildResponse(timeValueNanos(System.nanoTime() - startTime.get()), indexingFailures, searchFailures, timedOut));
+            listener.onResponse(new BulkIndexByScrollResponse(timeValueNanos(System.nanoTime() - startTime.get()),
+                    task.getStatus(), indexingFailures, searchFailures, timedOut));
         } else {
             listener.onFailure(failure);
         }

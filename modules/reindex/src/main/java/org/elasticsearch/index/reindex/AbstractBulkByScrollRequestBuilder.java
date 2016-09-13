@@ -141,4 +141,12 @@ public abstract class AbstractBulkByScrollRequestBuilder<
         request.setShouldStoreResult(shouldStoreResult);
         return self();
     }
+
+    /**
+     * How many bulk failures should this return by default? Defaults to {@link Integer#MAX_VALUE} to return as many as it finds.
+     */
+    public Self setMaxReportedBulkFailures(int maxReportedBulkFailures) {
+        request.setMaxReportedBulkFailures(maxReportedBulkFailures);
+        return self();
+    }
 }

@@ -110,6 +110,7 @@ public class RoundTripTests extends ESTestCase {
         request.setWaitForActiveShards(randomIntBetween(0, 10));
         request.setScript(random().nextBoolean() ? null : randomScript());
         request.setRequestsPerSecond(between(0, Integer.MAX_VALUE));
+        request.setMaxReportedBulkFailures(randomBoolean() ? Integer.MAX_VALUE : between(1, Integer.MAX_VALUE));
     }
 
     private void assertRequestEquals(AbstractBulkIndexByScrollRequest<?> request,
@@ -124,6 +125,7 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(request.getRetryBackoffInitialTime(), tripped.getRetryBackoffInitialTime());
         assertEquals(request.getMaxRetries(), tripped.getMaxRetries());
         assertEquals(request.getRequestsPerSecond(), tripped.getRequestsPerSecond(), 0d);
+        assertEquals(request.getMaxReportedBulkFailures(), tripped.getMaxReportedBulkFailures());
     }
 
     public void testBulkByTaskStatus() throws IOException {

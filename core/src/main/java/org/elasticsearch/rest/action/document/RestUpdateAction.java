@@ -25,6 +25,8 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -33,12 +35,15 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  */
 public class RestUpdateAction extends BaseRestHandler {
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(RestUpdateAction.class));
 
     @Inject
     public RestUpdateAction(Settings settings, RestController controller) {
@@ -58,13 +63,19 @@ public class RestUpdateAction extends BaseRestHandler {
             updateRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
         updateRequest.docAsUpsert(request.paramAsBoolean("doc_as_upsert", updateRequest.docAsUpsert()));
+        FetchSourceContext fetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
         String sField = request.param("fields");
-        if (sField != null) {
-            String[] sFields = Strings.splitStringByCommaToArray(sField);
-            if (sFields != null) {
-                updateRequest.fields(sFields);
-            }
+        if (sField != null && fetchSourceContext != null) {
+            throw new IllegalArgumentException("[fields] and [_source] cannot be used in the same request");
         }
+        if (sField != null) {
+            DEPRECATION_LOGGER.deprecated("Deprecated field [fields] used, expected [_source] instead");
+            String[] sFields = Strings.splitStringByCommaToArray(sField);
+            updateRequest.fields(sFields);
+        } else if (fetchSourceContext != null) {
+            updateRequest.fetchSource(fetchSourceContext);
+        }
+
         updateRequest.retryOnConflict(request.paramAsInt("retry_on_conflict", updateRequest.retryOnConflict()));
         updateRequest.version(RestActions.parseVersion(request));
         updateRequest.versionType(VersionType.fromString(request.param("version_type"), updateRequest.versionType()));
@@ -72,7 +83,7 @@ public class RestUpdateAction extends BaseRestHandler {
 
         // see if we have it in the body
         if (request.hasContent()) {
-            updateRequest.source(request.content());
+            updateRequest.fromXContent(request.content());
             IndexRequest upsertRequest = updateRequest.upsertRequest();
             if (upsertRequest != null) {
                 upsertRequest.routing(request.param("routing"));

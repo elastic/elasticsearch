@@ -469,7 +469,7 @@ public class UpdateIT extends ESIntegTestCase {
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values", Collections.singletonMap("extra", "foo")))
-                .setFields("_source")
+                .setFetchSource(true)
                 .execute().actionGet();
 
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -549,7 +549,7 @@ public class UpdateIT extends ESIntegTestCase {
         UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values", Collections.singletonMap("extra", "foo")))
-                .setFields("_source")
+                .setFetchSource(true)
                 .execute().actionGet();
 
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -624,13 +624,29 @@ public class UpdateIT extends ESIntegTestCase {
         // check fields parameter
         client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
-                .setScript(new Script("field", ScriptService.ScriptType.INLINE, "field_inc", null)).setFields("_source", "field")
-                .execute().actionGet();
+            .setScript(new Script("field", ScriptService.ScriptType.INLINE, "field_inc", null))
+            .setFields("field")
+            .setFetchSource(true)
+            .execute().actionGet();
         assertThat(updateResponse.getIndex(), equalTo("test"));
         assertThat(updateResponse.getGetResult(), notNullValue());
         assertThat(updateResponse.getGetResult().getIndex(), equalTo("test"));
         assertThat(updateResponse.getGetResult().sourceRef(), notNullValue());
         assertThat(updateResponse.getGetResult().field("field").getValue(), notNullValue());
+
+        // check _source parameter
+        client().prepareIndex("test", "type1", "1").setSource("field1", 1, "field2", 2).execute().actionGet();
+        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+            .setScript(new Script("field1", ScriptService.ScriptType.INLINE, "field_inc", null))
+            .setFetchSource("field1", "field2")
+            .get();
+        assertThat(updateResponse.getIndex(), equalTo("test"));
+        assertThat(updateResponse.getGetResult(), notNullValue());
+        assertThat(updateResponse.getGetResult().getIndex(), equalTo("test"));
+        assertThat(updateResponse.getGetResult().sourceRef(), notNullValue());
+        assertThat(updateResponse.getGetResult().field("field1"), nullValue());
+        assertThat(updateResponse.getGetResult().sourceAsMap().size(), equalTo(1));
+        assertThat(updateResponse.getGetResult().sourceAsMap().get("field1"), equalTo(2));
 
         // check updates without script
         // add new field

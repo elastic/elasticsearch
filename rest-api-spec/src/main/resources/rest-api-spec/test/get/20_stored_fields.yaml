@@ -1,5 +1,5 @@
 ---
-"Fields":
+"Stored fields":
 
   - do:
       indices.create:
@@ -26,7 +26,7 @@
         index:  test_1
         type:   test
         id:     1
-        fields: foo
+        stored_fields: foo
 
   - match:   { _index:   test_1  }
   - match:   { _type:    test    }
@@ -39,7 +39,7 @@
         index:  test_1
         type:   test
         id:     1
-        fields: [foo, count]
+        stored_fields: [foo, count]
 
   - match:   { fields.foo:  [bar] }
   - match:   { fields.count:  [1] }
@@ -50,7 +50,7 @@
         index:  test_1
         type:   test
         id:     1
-        fields: [foo, count, _source]
+        stored_fields: [foo, count, _source]
 
   - match: { fields.foo:  [bar] }
   - match: { fields.count:  [1] }

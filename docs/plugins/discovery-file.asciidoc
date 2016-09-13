@@ -76,7 +76,7 @@ come immediately after the host (on the same line) separated by a `:`.
 If the port number is not specified, a default value of 9300 is used.  
 
 For example, this is an example of `unicast_hosts.txt` for a cluster with
-three nodes that participate in unicast discovery, some of which are not
+four nodes that participate in unicast discovery, some of which are not
 running on the default port:
 
 [source,txt]
@@ -84,6 +84,7 @@ running on the default port:
 10.10.10.5
 10.10.10.6:9305
 10.10.10.5:10005
+# an IPv6 address
 [2001:0db8:85a3:0000:0000:8a2e:0370:7334]:9301
 ----------------------------------------------------------------
 

@@ -358,7 +358,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         public boolean sawUpdateAutoThrottle;
 
         public MockAppender(final String name) throws IllegalAccessException {
-            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], true, null, null), null);
+            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
         }
 
         @Override

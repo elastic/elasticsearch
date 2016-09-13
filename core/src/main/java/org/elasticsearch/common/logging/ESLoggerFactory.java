@@ -22,17 +22,18 @@ package org.elasticsearch.common.logging;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.MessageFactory;
+import org.apache.logging.log4j.spi.ExtendedLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-
-import java.util.Locale;
-import java.util.function.Function;
 
 /**
  * Factory to get {@link Logger}s
  */
-public abstract class ESLoggerFactory {
+public final class ESLoggerFactory {
+
+    private ESLoggerFactory() {
+
+    }
 
     public static final Setting<Level> LOG_DEFAULT_LEVEL_SETTING =
         new Setting<>("logger.level", Level.INFO.name(), Level::valueOf, Property.NodeScope);
@@ -42,23 +43,12 @@ public abstract class ESLoggerFactory {
 
     public static Logger getLogger(String prefix, String name) {
         name = name.intern();
-        final Logger logger = getLogger(new PrefixMessageFactory(), name);
-        final MessageFactory factory = logger.getMessageFactory();
-        // in some cases, we initialize the logger before we are ready to set the prefix
-        // we can not re-initialize the logger, so the above getLogger might return an existing
-        // instance without the prefix set; thus, we hack around this by resetting the prefix
-        if (prefix != null && factory instanceof PrefixMessageFactory) {
-            ((PrefixMessageFactory) factory).setPrefix(prefix.intern());
-        }
-        return logger;
-    }
-
-    public static Logger getLogger(MessageFactory messageFactory, String name) {
-        return LogManager.getLogger(name, messageFactory);
+        final Logger logger = LogManager.getLogger(name);
+        return new PrefixLogger((ExtendedLogger)logger, name, prefix);
     }
 
     public static Logger getLogger(String name) {
-        return getLogger((String)null, name);
+        return getLogger(null, name);
     }
 
     public static DeprecationLogger getDeprecationLogger(String name) {
@@ -71,10 +61,6 @@ public abstract class ESLoggerFactory {
 
     public static Logger getRootLogger() {
         return LogManager.getRootLogger();
-    }
-
-    private ESLoggerFactory() {
-        // Utility class can't be built.
     }
 
 }

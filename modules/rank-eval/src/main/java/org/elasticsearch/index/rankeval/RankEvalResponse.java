@@ -44,8 +44,6 @@ import java.util.Objects;
  **/
 //TODO instead of just returning averages over complete results, think of other statistics, micro avg, macro avg, partial results
 public class RankEvalResponse extends ActionResponse implements ToXContent {
-    /**ID of QA specification this result was generated for.*/
-    private String specId;
     /**Average precision observed when issuing query intents with this specification.*/
     private double qualityLevel;
     /**Mapping from intent id to all documents seen for this intent that were not annotated.*/
@@ -54,15 +52,9 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
     public RankEvalResponse() {
     }
 
-    public RankEvalResponse(String specId, double qualityLevel, Map<String, Collection<RatedDocumentKey>> unknownDocs) {
-        this.specId = specId;
+    public RankEvalResponse(double qualityLevel, Map<String, Collection<RatedDocumentKey>> unknownDocs) {
         this.qualityLevel = qualityLevel;
         this.unknownDocs = unknownDocs;
-    }
-
-
-    public String getSpecId() {
-        return specId;
     }
 
     public double getQualityLevel() {
@@ -75,13 +67,12 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
 
     @Override
     public String toString() {
-        return "RankEvalResponse, ID :[" + specId + "], quality: " + qualityLevel + ", unknown docs: " + unknownDocs;
+        return "RankEvalResponse, quality: " + qualityLevel + ", unknown docs: " + unknownDocs;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(specId);
         out.writeDouble(qualityLevel);
         out.writeVInt(unknownDocs.size());
         for (String queryId : unknownDocs.keySet()) {
@@ -97,7 +88,6 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        this.specId = in.readString();
         this.qualityLevel = in.readDouble();
         int unknownDocumentSets = in.readVInt();
         this.unknownDocs = new HashMap<>(unknownDocumentSets);
@@ -115,7 +105,6 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("rank_eval");
-        builder.field("spec_id", specId);
         builder.field("quality_level", qualityLevel);
         builder.startObject("unknown_docs");
         for (String key : unknownDocs.keySet()) {
@@ -144,13 +133,12 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
             return false;
         }
         RankEvalResponse other = (RankEvalResponse) obj;
-        return Objects.equals(specId, other.specId) &&
-                Objects.equals(qualityLevel, other.qualityLevel) &&
+        return Objects.equals(qualityLevel, other.qualityLevel) &&
                 Objects.equals(unknownDocs, other.unknownDocs);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), specId, qualityLevel, unknownDocs);
+        return Objects.hash(getClass(), qualityLevel, unknownDocs);
     }
 }

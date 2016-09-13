@@ -80,7 +80,6 @@ public class RankEvalSpecTests extends ESTestCase {
             specs.add(RatedRequestsTests.createTestItem(indices, types));
         }
 
-        String specId = randomAsciiOfLengthBetween(1, 10); // TODO we should reject zero length ids ...
         RankedListQualityMetric metric;
         if (randomBoolean()) {
             metric = PrecisionAtNTests.createTestItem();
@@ -88,7 +87,7 @@ public class RankEvalSpecTests extends ESTestCase {
             metric = DiscountedCumulativeGainAtTests.createTestItem();
         }
 
-        RankEvalSpec testItem = new RankEvalSpec(specId, specs, metric);
+        RankEvalSpec testItem = new RankEvalSpec(specs, metric);
 
         XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
 

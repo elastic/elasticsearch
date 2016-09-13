@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -47,7 +48,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.ShardRoutingTests;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
@@ -60,6 +60,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.NodeEnvironment;
@@ -110,6 +111,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
@@ -122,6 +124,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Simple unit-test IndexShard related operations.
@@ -779,6 +783,76 @@ public class IndexShardTests extends IndexShardTestCase {
             indexThread.join();
         }
 
+        closeShards(shard);
+    }
+
+    public void testRelocatedShardCanNotBeRevived() throws IOException, InterruptedException {
+        final IndexShard shard = newStartedShard(true);
+        final ShardRouting originalRouting = shard.routingEntry();
+        shard.updateRoutingEntry(ShardRoutingHelper.relocate(originalRouting, "other_node"));
+        shard.relocated("test");
+        expectThrows(IllegalIndexShardStateException.class, () -> shard.updateRoutingEntry(originalRouting));
+        closeShards(shard);
+    }
+
+    public void testShardCanNotBeMarkedAsRelocatedIfRelocationCancelled() throws IOException, InterruptedException {
+        final IndexShard shard = newStartedShard(true);
+        final ShardRouting originalRouting = shard.routingEntry();
+        shard.updateRoutingEntry(ShardRoutingHelper.relocate(originalRouting, "other_node"));
+        shard.updateRoutingEntry(originalRouting);
+        expectThrows(IllegalIndexShardStateException.class, () ->  shard.relocated("test"));
+        closeShards(shard);
+    }
+
+    @Repeat(iterations = 200)
+    public void testRelocatedShardCanNotBeRevivedConcurrently() throws IOException, InterruptedException, BrokenBarrierException {
+        final IndexShard shard = newStartedShard(true);
+        final ShardRouting originalRouting = shard.routingEntry();
+        shard.updateRoutingEntry(ShardRoutingHelper.relocate(originalRouting, "other_node"));
+        CyclicBarrier cyclicBarrier = new CyclicBarrier(3);
+        AtomicReference<Exception> relocationException = new AtomicReference<>();
+        Thread relocationThread = new Thread(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                relocationException.set(e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                cyclicBarrier.await();
+                shard.relocated("test");
+            }
+        });
+        relocationThread.start();
+        AtomicReference<Exception> cancellingException = new AtomicReference<>();
+        Thread cancellingThread = new Thread(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                cancellingException.set(e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                cyclicBarrier.await();
+                shard.updateRoutingEntry(originalRouting);
+            }
+        });
+        cancellingThread.start();
+        cyclicBarrier.await();
+        relocationThread.join();
+        cancellingThread.join();
+        if (shard.state() == IndexShardState.RELOCATED) {
+            logger.debug("shard was relocated successfully");
+            assertThat(cancellingException.get(), instanceOf(IllegalIndexShardStateException.class));
+            assertThat("current routing:" + shard.routingEntry(), shard.routingEntry().relocating(), equalTo(true));
+            assertThat(relocationException.get(), nullValue());
+        } else {
+            logger.debug("shard relocation was cancelled");
+            assertThat(relocationException.get(), instanceOf(IllegalIndexShardStateException.class));
+            assertThat("current routing:" + shard.routingEntry(), shard.routingEntry().relocating(), equalTo(false));
+            assertThat(cancellingException.get(), nullValue());
+
+        }
         closeShards(shard);
     }
 

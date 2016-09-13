@@ -1,0 +1,19 @@
+# The unicast_hosts.txt file contains the list of unicast hosts to connect to
+# for pinging during the discovery process, when using the file-based discovery
+# mechanism.  This file should contain one entry per line, where an entry is a
+# host/port combination.  The host and port should be separated by a `:`.  If
+# the port is left off, a default port of 9300 is assumed.  For example, if the
+# cluster has three nodes that participate in the discovery process:
+# (1) 66.77.88.99 running on port 9300 (2) 66.77.88.100 running on port 9305
+# and (3) 66.77.88.99 running on port 10005, then this file should contain the
+# following text:
+#
+#66.77.88.99
+#66.77.88.100:9305
+#66.77.88.99:10005
+#
+# For IPv6 addresses, make sure to put a bracket around the host part of the address,
+# for example: [2001:cdba:0000:0000:0000:0000:3257:9652]:9301 (where 9301 is the port).
+#
+# IMPORTANT: all lines preceding with a `#` must be removed.  This file should
+# only contain the host/port entries with no comments or any other text.

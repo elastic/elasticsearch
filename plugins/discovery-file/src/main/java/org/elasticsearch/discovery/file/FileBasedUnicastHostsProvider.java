@@ -68,7 +68,7 @@ public class FileBasedUnicastHostsProvider extends AbstractComponent implements 
     public FileBasedUnicastHostsProvider(Settings settings, TransportService transportService) {
         super(settings);
         this.transportService = transportService;
-        this.unicastHostsFilePath = new Environment(settings).configFile().resolve(UNICAST_HOSTS_FILE);
+        this.unicastHostsFilePath = new Environment(settings).configFile().resolve("discovery-file").resolve(UNICAST_HOSTS_FILE);
     }
 
     @Override

@@ -30,7 +30,7 @@ import org.elasticsearch.plugins.Plugin;
 /**
  * Plugin for providing file-based unicast hosts discovery. The list of unicast hosts
  * is obtained by reading the {@link FileBasedUnicastHostsProvider#UNICAST_HOSTS_FILE} in
- * the {@link Environment#configFile()} directory.
+ * the {@link Environment#configFile()}/discovery-file directory.
  */
 public class FileBasedDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 

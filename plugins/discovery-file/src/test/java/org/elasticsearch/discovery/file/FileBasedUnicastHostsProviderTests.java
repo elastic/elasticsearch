@@ -123,8 +123,8 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         final Settings settings = Settings.builder()
                                       .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
                                       .build();
-        final Path configDir = homeDir.resolve("config");
-        Files.createDirectory(configDir);
+        final Path configDir = homeDir.resolve("config").resolve("discovery-file");
+        Files.createDirectories(configDir);
         final Path unicastHostsPath = configDir.resolve(UNICAST_HOSTS_FILE);
         try (BufferedWriter writer = Files.newBufferedWriter(unicastHostsPath)) {
             writer.write(String.join("\n", hostEntries));

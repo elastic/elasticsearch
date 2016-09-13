@@ -73,7 +73,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
 
         logger.debug("relocating index...");
         client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder().put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node2)).get();
-        client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).get();
+        client().admin().cluster().prepareHealth().setWaitForNoRelocatingShards(true).get();
         ensureGreen();
         assertIndexDirectoryDeleted(node1, resolveIndex);
         assertIndexInMetaState(node2, index);
@@ -161,8 +161,8 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
             logger.info("checking if meta state exists...");
             try {
                 assertTrue("Expecting meta state of index " + indexName + " to be on node " + nodeName, getIndicesMetaDataOnNode(nodeName).containsKey(indexName));
-            } catch (Throwable t) {
-                logger.info("failed to load meta state", t);
+            } catch (Exception e) {
+                logger.info("failed to load meta state", e);
                 fail("could not load meta state");
             }
         }

@@ -73,7 +73,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             List<Document> docs = new ArrayList<>(numChildren + 1);
             for (int j = 0; j < numChildren; ++j) {
                 Document doc = new Document();
-                doc.add(new StringField("f", TestUtil.randomSimpleString(getRandom(), 2), Field.Store.NO));
+                doc.add(new StringField("f", TestUtil.randomSimpleString(random(), 2), Field.Store.NO));
                 doc.add(new StringField("__type", "child", Field.Store.NO));
                 docs.add(doc);
             }
@@ -96,7 +96,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
         PagedBytesIndexFieldData indexFieldData1 = getForField("f");
         IndexFieldData<?> indexFieldData2 = NoOrdinalsStringFieldDataTests.hideOrdinals(indexFieldData1);
-        final String missingValue = randomBoolean() ? null : TestUtil.randomSimpleString(getRandom(), 2);
+        final String missingValue = randomBoolean() ? null : TestUtil.randomSimpleString(random(), 2);
         final int n = randomIntBetween(1, numDocs + 2);
         final boolean reverse = randomBoolean();
 

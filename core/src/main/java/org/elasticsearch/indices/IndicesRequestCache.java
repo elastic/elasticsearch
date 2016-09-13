@@ -72,7 +72,7 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
     public static final Setting<Boolean> INDEX_CACHE_REQUEST_ENABLED_SETTING =
         Setting.boolSetting("index.requests.cache.enable", true, Property.Dynamic, Property.IndexScope);
     public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE =
-        Setting.byteSizeSetting("indices.requests.cache.size", "1%", Property.NodeScope);
+        Setting.memorySizeSetting("indices.requests.cache.size", "1%", Property.NodeScope);
     public static final Setting<TimeValue> INDICES_CACHE_QUERY_EXPIRE =
         Setting.positiveTimeSetting("indices.requests.cache.expire", new TimeValue(0), Property.NodeScope);
 
@@ -328,11 +328,11 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
     /**
      * Returns the current size of the cache
      */
-    final int count() {
+    int count() {
         return cache.count();
     }
 
-    final int numRegisteredCloseListeners() { // for testing
+    int numRegisteredCloseListeners() { // for testing
         return registeredClosedListeners.size();
     }
 }

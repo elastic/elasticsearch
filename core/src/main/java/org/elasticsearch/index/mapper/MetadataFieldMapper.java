@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -31,7 +30,7 @@ import java.util.Map;
  */
 public abstract class MetadataFieldMapper extends FieldMapper {
 
-    public static interface TypeParser extends Mapper.TypeParser {
+    public interface TypeParser extends Mapper.TypeParser {
 
         @Override
         MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;

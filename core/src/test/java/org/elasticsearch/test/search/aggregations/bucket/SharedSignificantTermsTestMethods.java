@@ -48,7 +48,7 @@ public class SharedSignificantTermsTestMethods {
     public static final String CLASS_FIELD = "class";
 
     public static void aggregateAndCheckFromSeveralShards(ESIntegTestCase testCase) throws ExecutionException, InterruptedException {
-        String type = ESTestCase.randomBoolean() ? "text" : "long";
+        String type = ESTestCase.randomBoolean() ? "text" : "keyword";
         String settings = "{\"index.number_of_shards\": 5, \"index.number_of_replicas\": 0}";
         index01Docs(type, settings, testCase);
         testCase.ensureGreen();
@@ -76,8 +76,12 @@ public class SharedSignificantTermsTestMethods {
     }
 
     public static void index01Docs(String type, String settings, ESIntegTestCase testCase) throws ExecutionException, InterruptedException {
-        String mappings = "{\"doc\": {\"properties\":{\"text\": {\"type\":\"" + type + "\"}}}}";
-        assertAcked(testCase.prepareCreate(INDEX_NAME).setSettings(settings).addMapping("doc", mappings));
+        String textMappings = "type=" + type;
+        if (type.equals("text")) {
+            textMappings += ",fielddata=true";
+        }
+        assertAcked(testCase.prepareCreate(INDEX_NAME).setSettings(settings)
+                .addMapping("doc", "text", textMappings, CLASS_FIELD, "type=keyword"));
         String[] gb = {"0", "1"};
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
         indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "1")

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -93,11 +95,11 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             }
 
             @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
+            public void onAllNodesAcked(@Nullable Exception e) {
                 if (changed) {
                     reroute(true);
                 } else {
-                    super.onAllNodesAcked(t);
+                    super.onAllNodesAcked(e);
                 }
             }
 
@@ -114,7 +116,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                 // We're about to send a second update task, so we need to check if we're still the elected master
                 // For example the minimum_master_node could have been breached and we're no longer elected master,
                 // so we should *not* execute the reroute.
-                if (!clusterService.state().nodes().localNodeMaster()) {
+                if (!clusterService.state().nodes().isLocalNodeElectedMaster()) {
                     logger.debug("Skipping reroute after cluster update settings, because node is no longer master");
                     listener.onResponse(new ClusterUpdateSettingsResponse(updateSettingsAcked, updater.getTransientUpdates(), updater.getPersistentUpdate()));
                     return;
@@ -146,10 +148,10 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                     }
 
                     @Override
-                    public void onFailure(String source, Throwable t) {
+                    public void onFailure(String source, Exception e) {
                         //if the reroute fails we only log
-                        logger.debug("failed to perform [{}]", t, source);
-                        listener.onFailure(new ElasticsearchException("reroute after update settings failed", t));
+                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to perform [{}]", source), e);
+                        listener.onFailure(new ElasticsearchException("reroute after update settings failed", e));
                     }
 
                     @Override
@@ -165,9 +167,9 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.debug("failed to perform [{}]", t, source);
-                super.onFailure(source, t);
+            public void onFailure(String source, Exception e) {
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to perform [{}]", source), e);
+                super.onFailure(source, e);
             }
 
             @Override

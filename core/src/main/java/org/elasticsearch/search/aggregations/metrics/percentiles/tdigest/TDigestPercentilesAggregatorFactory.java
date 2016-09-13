@@ -53,14 +53,14 @@ public class TDigestPercentilesAggregatorFactory
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        return new TDigestPercentilesAggregator(name, null, context, parent, percents, compression, keyed, config.formatter(),
+        return new TDigestPercentilesAggregator(name, null, context, parent, percents, compression, keyed, config.format(),
                 pipelineAggregators, metaData);
     }
 
     @Override
     protected Aggregator doCreateInternal(Numeric valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new TDigestPercentilesAggregator(name, valuesSource, context, parent, percents, compression, keyed, config.formatter(),
+        return new TDigestPercentilesAggregator(name, valuesSource, context, parent, percents, compression, keyed, config.format(),
                 pipelineAggregators, metaData);
     }
 

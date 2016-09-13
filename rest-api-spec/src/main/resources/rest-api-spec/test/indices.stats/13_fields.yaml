@@ -10,11 +10,13 @@ setup:
                       properties:
                           bar:
                               type: text
+                              fielddata: true
                               fields:
                                   completion:
                                       type: completion
                           baz:
                               type: text
+                              fielddata: true
                               fields:
                                   completion:
                                       type: completion

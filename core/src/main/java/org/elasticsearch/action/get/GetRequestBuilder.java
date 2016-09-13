@@ -24,7 +24,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 /**
  * A get document action request builder.
@@ -150,13 +150,8 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
         return this;
     }
 
-    public GetRequestBuilder setRealtime(Boolean realtime) {
+    public GetRequestBuilder setRealtime(boolean realtime) {
         request.realtime(realtime);
-        return this;
-    }
-
-    public GetRequestBuilder setIgnoreErrorsOnGeneratedFields(Boolean ignoreErrorsOnGeneratedFields) {
-        request.ignoreErrorsOnGeneratedFields(ignoreErrorsOnGeneratedFields);
         return this;
     }
 

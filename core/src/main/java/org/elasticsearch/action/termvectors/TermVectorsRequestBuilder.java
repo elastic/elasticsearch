@@ -161,7 +161,7 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
     /**
      * Sets whether term vectors are generated real-time.
      */
-    public TermVectorsRequestBuilder setRealtime(Boolean realtime) {
+    public TermVectorsRequestBuilder setRealtime(boolean realtime) {
         request.realtime(realtime);
         return this;
     }

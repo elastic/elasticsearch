@@ -56,7 +56,7 @@ public class RegexOptionsTests extends WritableTestCase<RegexOptions> {
 
     @Override
     protected RegexOptions readFrom(StreamInput in) throws IOException {
-        return RegexOptions.readRegexOptions(in);
+        return new RegexOptions(in);
     }
 
     public void testIllegalArgument() {

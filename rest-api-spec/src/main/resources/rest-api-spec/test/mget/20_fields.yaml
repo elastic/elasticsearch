@@ -2,15 +2,25 @@
 "Fields":
 
   - do:
+      indices.create:
+        index: test_1
+        body:
+          mappings:
+            test:
+              properties:
+                foo:
+                  type: keyword
+                  store: true
+                count:
+                  type: integer
+                  store: true
+
+  - do:
       index:
           index:  test_1
           type:   test
           id:     1
           body:   { foo: bar }
-
-  - do:
-      cluster.health:
-          wait_for_status: yellow
 
   - do:
       mget:

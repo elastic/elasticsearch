@@ -13,6 +13,14 @@ The queries in this group are:
     The standard query for performing full text queries, including fuzzy matching
     and phrase or proximity queries.
 
+<<query-dsl-match-query-phrase,`match_phrase` query>>::
+
+    Like the `match` query but used for matching exact phrases or word proximity matches.
+    
+<<query-dsl-match-query-phrase-prefix,`match_phrase_prefix` query>>::
+
+    The poor man's _search-as-you-type_.  Like the `match_phrase` query, but does a wildcard search on the final word.
+    
 <<query-dsl-multi-match-query,`multi_match` query>>::
 
     The multi-field version of the `match` query.
@@ -34,6 +42,10 @@ The queries in this group are:
 
 include::match-query.asciidoc[]
 
+include::match-phrase-query.asciidoc[]
+
+include::match-phrase-prefix-query.asciidoc[]
+
 include::multi-match-query.asciidoc[]
 
 include::common-terms-query.asciidoc[]
@@ -41,4 +53,3 @@ include::common-terms-query.asciidoc[]
 include::query-string-query.asciidoc[]
 
 include::simple-query-string-query.asciidoc[]
-

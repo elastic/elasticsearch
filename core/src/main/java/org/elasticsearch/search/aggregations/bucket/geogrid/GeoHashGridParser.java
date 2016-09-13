@@ -19,11 +19,11 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -45,19 +45,10 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    public String type() {
-        return InternalGeoHashGrid.TYPE.name();
-    }
-    @Override
-    public GeoGridAggregatorBuilder getFactoryPrototypes() {
-        return GeoGridAggregatorBuilder.PROTOTYPE;
-    }
-
-    @Override
-    protected GeoGridAggregatorBuilder createFactory(
+    protected GeoGridAggregationBuilder createFactory(
             String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        GeoGridAggregatorBuilder factory = new GeoGridAggregatorBuilder(aggregationName);
+        GeoGridAggregationBuilder factory = new GeoGridAggregationBuilder(aggregationName);
         Integer precision = (Integer) otherOptions.get(GeoHashGridParams.FIELD_PRECISION);
         if (precision != null) {
             factory.precision(precision);
@@ -74,16 +65,17 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
-            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+    protected boolean token(String aggregationName, String currentFieldName, Token token,
+                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
+        XContentParser parser = context.getParser();
         if (token == XContentParser.Token.VALUE_NUMBER || token == XContentParser.Token.VALUE_STRING) {
-            if (parseFieldMatcher.match(currentFieldName, GeoHashGridParams.FIELD_PRECISION)) {
+            if (context.matchField(currentFieldName, GeoHashGridParams.FIELD_PRECISION)) {
                 otherOptions.put(GeoHashGridParams.FIELD_PRECISION, parser.intValue());
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, GeoHashGridParams.FIELD_SIZE)) {
+            } else if (context.matchField(currentFieldName, GeoHashGridParams.FIELD_SIZE)) {
                 otherOptions.put(GeoHashGridParams.FIELD_SIZE, parser.intValue());
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, GeoHashGridParams.FIELD_SHARD_SIZE)) {
+            } else if (context.matchField(currentFieldName, GeoHashGridParams.FIELD_SHARD_SIZE)) {
                 otherOptions.put(GeoHashGridParams.FIELD_SHARD_SIZE, parser.intValue());
                 return true;
             }

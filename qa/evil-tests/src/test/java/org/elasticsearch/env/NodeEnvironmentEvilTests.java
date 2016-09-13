@@ -63,7 +63,7 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
         assumeTrue("posix filesystem", isPosix);
         final String[] tempPaths = tmpPaths();
         Path path = PathUtils.get(randomFrom(tempPaths));
-        Path fooIndex = path.resolve("elasticsearch").resolve("nodes").resolve("0").resolve(NodeEnvironment.INDICES_FOLDER)
+        Path fooIndex = path.resolve("nodes").resolve("0").resolve(NodeEnvironment.INDICES_FOLDER)
             .resolve("foo");
         Files.createDirectories(fooIndex);
         try (PosixPermissionsResetter attr = new PosixPermissionsResetter(fooIndex)) {
@@ -83,7 +83,7 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
         assumeTrue("posix filesystem", isPosix);
         final String[] tempPaths = tmpPaths();
         Path path = PathUtils.get(randomFrom(tempPaths));
-        Path fooIndex = path.resolve("elasticsearch").resolve("nodes").resolve("0").resolve(NodeEnvironment.INDICES_FOLDER)
+        Path fooIndex = path.resolve("nodes").resolve("0").resolve(NodeEnvironment.INDICES_FOLDER)
             .resolve("foo");
         Path fooShard = fooIndex.resolve("0");
         Path fooShardIndex = fooShard.resolve("index");

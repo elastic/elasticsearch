@@ -30,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.transport.TransportRequest;
@@ -113,10 +112,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     public long nowInMillis() {
         return shardSearchLocalRequest.nowInMillis();
     }
-    @Override
-    public Template template() {
-        return shardSearchLocalRequest.template();
-    }
 
     @Override
     public Boolean requestCache() {
@@ -161,12 +156,5 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     @Override
     public void rewrite(QueryShardContext context) throws IOException {
         shardSearchLocalRequest.rewrite(context);
-    }
-
-    private ShardSearchTransportRequest shallowCopy(ShardSearchLocalRequest rewritten) {
-        ShardSearchTransportRequest newRequest = new ShardSearchTransportRequest();
-        newRequest.originalIndices = originalIndices;
-        newRequest.shardSearchLocalRequest = rewritten;
-        return newRequest;
     }
 }

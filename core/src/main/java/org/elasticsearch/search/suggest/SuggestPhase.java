@@ -21,9 +21,7 @@ package org.elasticsearch.search.suggest;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
@@ -36,22 +34,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
-
 /**
+ * Suggest phase of a search request, used to collect suggestions
  */
 public class SuggestPhase extends AbstractComponent implements SearchPhase {
 
-    @Inject
     public SuggestPhase(Settings settings) {
         super(settings);
-    }
-
-    @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        // this is used to parse SearchSourceBuilder.ext() bytes
-        // we don't allow any suggestion parsing for the extension
-        return emptyMap();
     }
 
     @Override

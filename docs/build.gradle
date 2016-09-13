@@ -1,0 +1,146 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+apply plugin: 'elasticsearch.docs-test'
+
+integTest {
+  cluster {
+    setting 'script.inline', 'true'
+    setting 'script.stored', 'true'
+    setting 'script.max_compilations_per_minute', '1000'
+    /* Enable regexes in painless so our tests don't complain about example
+     * snippets that use them. */
+    setting 'script.painless.regex.enabled', 'true'
+    Closure configFile = {
+      extraConfigFile it, "src/test/cluster/config/$it"
+    }
+    configFile 'scripts/my_script.js'
+    configFile 'scripts/my_script.py'
+    configFile 'userdict_ja.txt'
+    configFile 'KeywordTokenizer.rbbi'
+    // Whitelist reindexing from the local node so we can test it.
+    setting 'reindex.remote.whitelist', 'myself'
+  }
+}
+
+// Build the cluser with all plugins
+
+project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
+  /* Skip repositories. We just aren't going to be able to test them so it
+   * doesn't make sense to waste time installing them. */
+  if (subproj.path.startsWith(':plugins:repository-')) {
+    return
+  }
+  subproj.afterEvaluate { // need to wait until the project has been configured
+    integTest {
+      cluster {
+        plugin subproj.path
+      }
+    }
+  }
+}
+
+buildRestTests.docs = fileTree(projectDir) {
+  // No snippets in here!
+  exclude 'build.gradle'
+  // That is where the snippets go, not where they come from!
+  exclude 'build'
+  // This file simply doesn't pass yet. We should figure out how to fix it.
+  exclude 'reference/modules/snapshots.asciidoc'
+}
+
+Closure setupTwitter = { String name, int count ->
+  buildRestTests.setups[name] = '''
+  - do:
+    indices.create:
+      index: twitter
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 1
+  - do:
+    bulk:
+      index: twitter
+      type: tweet
+      refresh: true
+      body: |'''
+    for (int i = 0; i < count; i++) {
+      String user, text
+      if (i == 0) {
+        user = 'kimchy'
+        text = 'trying out Elasticsearch'
+      } else {
+        user = 'test'
+        text = "some message with the number $i"
+      }
+      buildRestTests.setups[name] += """
+        {"index":{"_id": "$i"}}
+        {"user": "$user", "message": "$text", "date": "2009-11-15T14:12:12", "likes": $i}"""
+    }
+  }
+setupTwitter('twitter', 5)
+setupTwitter('big_twitter', 120)
+setupTwitter('huge_twitter', 1200)
+
+buildRestTests.setups['host'] = '''
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+'''
+
+// Used by pipeline aggregation docs
+buildRestTests.setups['sales'] = '''
+  - do:
+    indices.create:
+      index: sales
+      body:
+        settings:
+          number_of_shards: 2
+          number_of_replicas: 1
+        mappings:
+          sale:
+            properties:
+              type:
+                type: keyword
+  - do:
+    bulk:
+      index: sales
+      type: sale
+      refresh: true
+      body: |
+        {"index":{}}
+        {"date": "2015/01/01 00:00:00", "price": 200, "type": "hat"}
+        {"index":{}}
+        {"date": "2015/01/01 00:00:00", "price": 200, "type": "t-shirt"}
+        {"index":{}}
+        {"date": "2015/01/01 00:00:00", "price": 150, "type": "bag"}
+        {"index":{}}
+        {"date": "2015/02/01 00:00:00", "price": 50, "type": "hat"}
+        {"index":{}}
+        {"date": "2015/02/01 00:00:00", "price": 10, "type": "t-shirt"}
+        {"index":{}}
+        {"date": "2015/03/01 00:00:00", "price": 200, "type": "hat"}
+        {"index":{}}
+        {"date": "2015/03/01 00:00:00", "price": 175, "type": "t-shirt"}'''

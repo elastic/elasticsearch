@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cli;
 
+import joptsimple.OptionException;
 import joptsimple.OptionSet;
 import org.elasticsearch.test.ESTestCase;
 
@@ -30,7 +31,17 @@ public class CommandTests extends ESTestCase {
         }
         @Override
         protected void execute(Terminal terminal, OptionSet options) throws Exception {
-            throw new UserError(ExitCodes.DATA_ERROR, "Bad input");
+            throw new UserException(ExitCodes.DATA_ERROR, "Bad input");
+        }
+    }
+
+    static class UsageErrorCommand extends Command {
+        UsageErrorCommand() {
+            super("Throws a usage error");
+        }
+        @Override
+        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+            throw new UserException(ExitCodes.USAGE, "something was no good");
         }
     }
 
@@ -77,10 +88,11 @@ public class CommandTests extends ESTestCase {
         MockTerminal terminal = new MockTerminal();
         NoopCommand command = new NoopCommand();
         String[] args = {"-v", "-s"};
-        UserError e = expectThrows(UserError.class, () -> {
+        OptionException e = expectThrows(OptionException.class, () -> {
             command.mainWithoutErrorHandling(args, terminal);
         });
-        assertTrue(e.getMessage(), e.getMessage().contains("Cannot specify -s and -v together"));
+        assertTrue(e.getMessage(),
+                e.getMessage().contains("Option(s) [v/verbose] are unavailable given other options on the command line"));
     }
 
     public void testSilentVerbosity() throws Exception {
@@ -119,5 +131,16 @@ public class CommandTests extends ESTestCase {
         String output = terminal.getOutput();
         assertEquals(output, ExitCodes.DATA_ERROR, status);
         assertTrue(output, output.contains("ERROR: Bad input"));
+    }
+
+    public void testUsageError() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        UsageErrorCommand command = new UsageErrorCommand();
+        String[] args = {};
+        int status = command.main(args, terminal);
+        String output = terminal.getOutput();
+        assertEquals(output, ExitCodes.USAGE, status);
+        assertTrue(output, output.contains("Throws a usage error"));
+        assertTrue(output, output.contains("ERROR: something was no good"));
     }
 }

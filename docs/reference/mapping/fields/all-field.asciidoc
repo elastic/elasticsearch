@@ -1,14 +1,14 @@
 [[mapping-all-field]]
 === `_all` field
 
-The `_all` field is a special _catch-all_ field which concatenates the values
-of all of the other fields into one big string, using space as a delimiter, which is then
-<<analysis,analyzed>> and indexed, but not stored.  This means that it can be
-searched, but not retrieved.
+The `_all` field is a special _catch-all_ field which concatenates the values of
+all of the other string fields into one big string, using space as a delimiter,
+which is then <<analysis,analyzed>> and indexed, but not stored. This means that
+it can be searched, but not retrieved.
 
-The `_all` field allows you to search for values in documents without knowing
-which field contains the value.  This makes it a useful option when getting
-started with a new dataset. For instance:
+The `_all` field allows you to search for string values in documents without
+knowing which field contains the value. This makes it a useful option when
+getting started with a new dataset. For instance:
 
 [source,js]
 --------------------------------
@@ -16,29 +16,28 @@ PUT my_index/user/1 <1>
 {
   "first_name":    "John",
   "last_name":     "Smith",
-  "date_of_birth": "1970-10-24"
+  "place_of_birth": "New York City"
 }
 
 GET my_index/_search
 {
   "query": {
     "match": {
-      "_all": "john smith 1970"
+      "_all": "john smith new york"
     }
   }
 }
 --------------------------------
-// AUTOSENSE
-<1> The `_all` field will contain the terms: [ `"john"`, `"smith"`, `"1970"`, `"10"`, `"24"` ]
+// CONSOLE
+<1> The `_all` field will contain the terms: [ `"john"`, `"smith"`, `"new"`, `"york"`, `"city"` ]
 
 [NOTE]
-.All values treated as strings
+.Only string values are added to _all
 =============================================================================
 
-The `date_of_birth` field in the above example is recognised as a `date` field
-and so will index a single term representing `1970-10-24 00:00:00 UTC`. The
-`_all` field, however, treats all values as strings, so the date value is
-indexed as the three string terms: `"1970"`, `"24"`, `"10"`.
+If a `date_of_birth` field mapped as a date were used, or an `age` field that
+was an integer were added, they would not be included in the `_all` field, as
+`_all` only contains content from _string_ fields.
 
 It is important to note that the `_all` field combines the original values
 from each field as a string. It does not combine the _terms_ from each field.
@@ -72,19 +71,19 @@ GET _search
 {
   "query": {
     "query_string": {
-      "query": "john smith 1970"
+      "query": "john smith new york"
     }
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The same goes for the `?q=` parameter in <<search-uri-request, URI search
 requests>> (which is rewritten to a `query_string` query internally):
 
 [source,js]
 --------------------------------
-GET _search?q=john+smith+1970
+GET _search?q=john+smith+new+york
 --------------------------------
 
 Other queries, such as the <<query-dsl-match-query,`match`>> and
@@ -115,7 +114,8 @@ PUT my_index
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[s/\.\.\.//]
 
 <1> The `_all` field in `type_1` is enabled.
 <2> The `_all` field in `type_2` is completely disabled.
@@ -143,10 +143,10 @@ PUT my_index
   },
   "settings": {
     "index.query.default_field": "content" <2>
-  },
+  }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The `_all` field is disabled for the `my_type` type.
 <2> The `query_string` query will default to querying the `content` field in this index.
@@ -183,7 +183,7 @@ PUT myindex
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> When querying the `_all` field, words that originated in the
     `title` field are twice as relevant as words that originated in
@@ -240,7 +240,7 @@ GET myindex/_search
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The `first_name` and `last_name` values are copied to the `full_name` field.
 
@@ -295,7 +295,7 @@ GET _search
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Of course, storing the `_all` field will use significantly more disk space
 and, because it is a combination of other fields, it may result in odd
@@ -337,16 +337,14 @@ GET _search
   "highlight": {
     "fields": {
       "*_name": { <2>
-        "require_field_match": "false"  <3>
+        "require_field_match": false  <3>
       }
     }
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The query inspects the `_all` field to find matching documents.
 <2> Highlighting is performed on the two name fields, which are available from the `_source`.
 <3> The query wasn't run against the name fields, so set `require_field_match` to `false`.
-
-

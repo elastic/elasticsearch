@@ -28,8 +28,10 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -60,12 +62,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * </pre>
  *
  */
-public final class ThreadContext implements Closeable, Writeable<ThreadContext.ThreadContextStruct>{
+public final class ThreadContext implements Closeable, Writeable {
 
     public static final String PREFIX = "request.headers";
     public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", Property.NodeScope);
+    private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
     private final Map<String, String> defaultHeader;
-    private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct(Collections.emptyMap());
     private final ContextThreadLocal threadLocal;
 
     /**
@@ -98,9 +100,7 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
     public StoredContext stashContext() {
         final ThreadContextStruct context = threadLocal.get();
         threadLocal.set(null);
-        return () -> {
-            threadLocal.set(context);
-        };
+        return () -> threadLocal.set(context);
     }
 
     /**
@@ -110,11 +110,9 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
     public StoredContext stashAndMergeHeaders(Map<String, String> headers) {
         final ThreadContextStruct context = threadLocal.get();
         Map<String, String> newHeader = new HashMap<>(headers);
-        newHeader.putAll(context.headers);
+        newHeader.putAll(context.requestHeaders);
         threadLocal.set(DEFAULT_CONTEXT.putHeaders(newHeader));
-        return () -> {
-            threadLocal.set(context);
-        };
+        return () -> threadLocal.set(context);
     }
 
     /**
@@ -122,9 +120,7 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
      */
     public StoredContext newStoredContext() {
         final ThreadContextStruct context = threadLocal.get();
-        return () -> {
-            threadLocal.set(context);
-        };
+        return () -> threadLocal.set(context);
     }
 
     @Override
@@ -132,24 +128,18 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
         threadLocal.get().writeTo(out, defaultHeader);
     }
 
-    @Override
-    public ThreadContextStruct readFrom(StreamInput in) throws IOException {
-        return DEFAULT_CONTEXT.readFrom(in);
-    }
-
     /**
      * Reads the headers from the stream into the current context
      */
     public void readHeaders(StreamInput in) throws IOException {
-        threadLocal.set(readFrom(in));
+        threadLocal.set(new ThreadContext.ThreadContextStruct(in));
     }
-
 
     /**
      * Returns the header for the given key or <code>null</code> if not present
      */
     public String getHeader(String key) {
-        String value = threadLocal.get().headers.get(key);
+        String value = threadLocal.get().requestHeaders.get(key);
         if (value == null)  {
             return defaultHeader.get(key);
         }
@@ -157,11 +147,27 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
     }
 
     /**
-     * Returns all of the current contexts headers
+     * Returns all of the request contexts headers
      */
     public Map<String, String> getHeaders() {
         HashMap<String, String> map = new HashMap<>(defaultHeader);
-        map.putAll(threadLocal.get().headers);
+        map.putAll(threadLocal.get().requestHeaders);
+        return Collections.unmodifiableMap(map);
+    }
+
+    /**
+     * Get a copy of all <em>response</em> headers.
+     *
+     * @return Never {@code null}.
+     */
+    public Map<String, List<String>> getResponseHeaders() {
+        Map<String, List<String>> responseHeaders = threadLocal.get().responseHeaders;
+        HashMap<String, List<String>> map = new HashMap<>(responseHeaders.size());
+
+        for (Map.Entry<String, List<String>> entry : responseHeaders.entrySet()) {
+            map.put(entry.getKey(), Collections.unmodifiableList(entry.getValue()));
+        }
+
         return Collections.unmodifiableMap(map);
     }
 
@@ -176,7 +182,7 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
      * Puts a header into the context
      */
     public void putHeader(String key, String value) {
-        threadLocal.set(threadLocal.get().putPersistent(key, value));
+        threadLocal.set(threadLocal.get().putRequest(key, value));
     }
 
     /**
@@ -196,8 +202,18 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
     /**
      * Returns a transient header object or <code>null</code> if there is no header for the given key
      */
+    @SuppressWarnings("unchecked") // (T)object
     public <T> T getTransient(String key) {
         return (T) threadLocal.get().transientHeaders.get(key);
+    }
+
+    /**
+     * Add the <em>unique</em> response {@code value} for the specified {@code key}.
+     * <p>
+     * Any duplicate {@code value} is ignored.
+     */
+    public void addResponseHeader(String key, String value) {
+        threadLocal.set(threadLocal.get().putResponse(key, value));
     }
 
     /**
@@ -230,6 +246,7 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
         return command;
     }
 
+    @FunctionalInterface
     public interface StoredContext extends AutoCloseable {
         @Override
         void close();
@@ -239,38 +256,46 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
         }
     }
 
-    static final class ThreadContextStruct implements Writeable<ThreadContextStruct> {
-        private final Map<String,String> headers;
+    private static final class ThreadContextStruct {
+        private final Map<String, String> requestHeaders;
         private final Map<String, Object> transientHeaders;
+        private final Map<String, List<String>> responseHeaders;
 
         private ThreadContextStruct(StreamInput in) throws IOException {
-            int numValues = in.readVInt();
-            Map<String, String> headers = numValues == 0 ? Collections.emptyMap() : new HashMap<>(numValues);
-            for (int i = 0; i < numValues; i++) {
-                headers.put(in.readString(), in.readString());
+            final int numRequest = in.readVInt();
+            Map<String, String> requestHeaders = numRequest == 0 ? Collections.emptyMap() : new HashMap<>(numRequest);
+            for (int i = 0; i < numRequest; i++) {
+                requestHeaders.put(in.readString(), in.readString());
             }
-            this.headers = headers;
+
+            this.requestHeaders = requestHeaders;
+            this.responseHeaders = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
             this.transientHeaders = Collections.emptyMap();
         }
 
-        private ThreadContextStruct(Map<String, String> headers, Map<String, Object> transientHeaders) {
-            this.headers = headers;
+        private ThreadContextStruct(Map<String, String> requestHeaders,
+                                    Map<String, List<String>> responseHeaders,
+                                    Map<String, Object> transientHeaders) {
+            this.requestHeaders = requestHeaders;
+            this.responseHeaders = responseHeaders;
             this.transientHeaders = transientHeaders;
         }
 
-        private ThreadContextStruct(Map<String, String> headers) {
-            this(headers, Collections.emptyMap());
+        /**
+         * This represents the default context and it should only ever be called by {@link #DEFAULT_CONTEXT}.
+         */
+        private ThreadContextStruct() {
+            this(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
         }
 
-        private ThreadContextStruct putPersistent(String key, String value) {
-            Map<String, String> newHeaders = new HashMap<>(this.headers);
-            putSingleHeader(key, value, newHeaders);
-            return new ThreadContextStruct(newHeaders, transientHeaders);
+        private ThreadContextStruct putRequest(String key, String value) {
+            Map<String, String> newRequestHeaders = new HashMap<>(this.requestHeaders);
+            putSingleHeader(key, value, newRequestHeaders);
+            return new ThreadContextStruct(newRequestHeaders, responseHeaders, transientHeaders);
         }
 
         private void putSingleHeader(String key, String value, Map<String, String> newHeaders) {
-            final String existingValue;
-            if ((existingValue = newHeaders.putIfAbsent(key, value)) != null) {
+            if (newHeaders.putIfAbsent(key, value) != null) {
                 throw new IllegalArgumentException("value for key [" + key + "] already present");
             }
         }
@@ -283,9 +308,31 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
                 for (Map.Entry<String, String> entry : headers.entrySet()) {
                     putSingleHeader(entry.getKey(), entry.getValue(), newHeaders);
                 }
-                newHeaders.putAll(this.headers);
-                return new ThreadContextStruct(newHeaders, transientHeaders);
+                newHeaders.putAll(this.requestHeaders);
+                return new ThreadContextStruct(newHeaders, responseHeaders, transientHeaders);
             }
+        }
+
+        private ThreadContextStruct putResponse(String key, String value) {
+            assert value != null;
+
+            final Map<String, List<String>> newResponseHeaders = new HashMap<>(this.responseHeaders);
+            final List<String> existingValues = newResponseHeaders.get(key);
+
+            if (existingValues != null) {
+                if (existingValues.contains(value)) {
+                    return this;
+                }
+
+                final List<String> newValues = new ArrayList<>(existingValues);
+                newValues.add(value);
+
+                newResponseHeaders.put(key, Collections.unmodifiableList(newValues));
+            } else {
+                newResponseHeaders.put(key, Collections.singletonList(value));
+            }
+
+            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders);
         }
 
         private ThreadContextStruct putTransient(String key, Object value) {
@@ -293,13 +340,12 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
             if (newTransient.putIfAbsent(key, value) != null) {
                 throw new IllegalArgumentException("value for key [" + key + "] already present");
             }
-            return new ThreadContextStruct(headers, newTransient);
+            return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient);
         }
 
         boolean isEmpty() {
-            return headers.isEmpty() && transientHeaders.isEmpty();
+            return requestHeaders.isEmpty() && responseHeaders.isEmpty() && transientHeaders.isEmpty();
         }
-
 
         private ThreadContextStruct copyHeaders(Iterable<Map.Entry<String, String>> headers) {
             Map<String, String> newHeaders = new HashMap<>();
@@ -309,33 +355,23 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
             return putHeaders(newHeaders);
         }
 
-        @Override
-        public ThreadContextStruct readFrom(StreamInput in) throws IOException {
-            return new ThreadContextStruct(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            throw new UnsupportedOperationException("use the other write to");
-        }
-
-        public void writeTo(StreamOutput out, Map<String, String> defaultHeaders) throws IOException {
-            final Map<String, String> headers;
+        private void writeTo(StreamOutput out, Map<String, String> defaultHeaders) throws IOException {
+            final Map<String, String> requestHeaders;
             if (defaultHeaders.isEmpty()) {
-                headers = this.headers;
+                requestHeaders = this.requestHeaders;
             } else {
-                headers = new HashMap<>(defaultHeaders);
-                headers.putAll(this.headers);
+                requestHeaders = new HashMap<>(defaultHeaders);
+                requestHeaders.putAll(this.requestHeaders);
             }
 
-            int keys = headers.size();
-            out.writeVInt(keys);
-            for (Map.Entry<String, String> entry : headers.entrySet()) {
+            out.writeVInt(requestHeaders.size());
+            for (Map.Entry<String, String> entry : requestHeaders.entrySet()) {
                 out.writeString(entry.getKey());
                 out.writeString(entry.getValue());
             }
-        }
 
+            out.writeMapOfLists(responseHeaders, StreamOutput::writeString, StreamOutput::writeString);
+        }
     }
 
     private static class ContextThreadLocal extends CloseableThreadLocal<ThreadContextStruct> {
@@ -390,11 +426,11 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
     /**
      * Wraps a Runnable to preserve the thread context.
      */
-    class ContextPreservingRunnable implements Runnable {
+    private class ContextPreservingRunnable implements Runnable {
         private final Runnable in;
         private final ThreadContext.StoredContext ctx;
 
-        ContextPreservingRunnable(Runnable in) {
+        private ContextPreservingRunnable(Runnable in) {
             ctx = newStoredContext();
             this.in = in;
         }
@@ -402,7 +438,7 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
         @Override
         public void run() {
             boolean whileRunning = false;
-            try (ThreadContext.StoredContext ingore = stashContext()){
+            try (ThreadContext.StoredContext ignore = stashContext()){
                 ctx.restore();
                 whileRunning = true;
                 in.run();
@@ -430,7 +466,7 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
     /**
      * Wraps an AbstractRunnable to preserve the thread context.
      */
-    public class ContextPreservingAbstractRunnable extends AbstractRunnable {
+    private class ContextPreservingAbstractRunnable extends AbstractRunnable {
         private final AbstractRunnable in;
         private final ThreadContext.StoredContext ctx;
 
@@ -450,19 +486,19 @@ public final class ThreadContext implements Closeable, Writeable<ThreadContext.T
         }
 
         @Override
-        public void onFailure(Throwable t) {
-            in.onFailure(t);
+        public void onFailure(Exception e) {
+            in.onFailure(e);
         }
 
         @Override
-        public void onRejection(Throwable t) {
-            in.onRejection(t);
+        public void onRejection(Exception e) {
+            in.onRejection(e);
         }
 
         @Override
         protected void doRun() throws Exception {
             boolean whileRunning = false;
-            try (ThreadContext.StoredContext ingore = stashContext()){
+            try (ThreadContext.StoredContext ignore = stashContext()){
                 ctx.restore();
                 whileRunning = true;
                 in.doRun();

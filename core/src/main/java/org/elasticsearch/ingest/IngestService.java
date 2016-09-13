@@ -19,31 +19,44 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.core.IngestInfo;
-import org.elasticsearch.ingest.core.Processor;
-import org.elasticsearch.ingest.core.ProcessorInfo;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ThreadPool;
-
-import java.io.Closeable;
-import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * Holder class for several ingest related services.
  */
-public class IngestService implements Closeable {
+public class IngestService {
 
     private final PipelineStore pipelineStore;
     private final PipelineExecutionService pipelineExecutionService;
-    private final ProcessorsRegistry.Builder processorsRegistryBuilder;
 
-    public IngestService(Settings settings, ThreadPool threadPool, ProcessorsRegistry.Builder processorsRegistryBuilder) {
-        this.processorsRegistryBuilder = processorsRegistryBuilder;
-        this.pipelineStore = new PipelineStore(settings);
+    public IngestService(Settings settings, ThreadPool threadPool,
+                         Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,
+                         List<IngestPlugin> ingestPlugins) {
+
+        final TemplateService templateService = new InternalTemplateService(scriptService);
+        Processor.Parameters parameters = new Processor.Parameters(env, scriptService, templateService,
+            analysisRegistry, threadPool.getThreadContext());
+        Map<String, Processor.Factory> processorFactories = new HashMap<>();
+        for (IngestPlugin ingestPlugin : ingestPlugins) {
+            Map<String, Processor.Factory> newProcessors = ingestPlugin.getProcessors(parameters);
+            for (Map.Entry<String, Processor.Factory> entry : newProcessors.entrySet()) {
+                if (processorFactories.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Ingest processor [" + entry.getKey() + "] is already registered");
+                }
+            }
+        }
+        this.pipelineStore = new PipelineStore(settings, Collections.unmodifiableMap(processorFactories));
         this.pipelineExecutionService = new PipelineExecutionService(pipelineStore, threadPool);
     }
 
@@ -55,22 +68,12 @@ public class IngestService implements Closeable {
         return pipelineExecutionService;
     }
 
-    public void setScriptService(ScriptService scriptService) {
-        pipelineStore.buildProcessorFactoryRegistry(processorsRegistryBuilder, scriptService);
-    }
-
     public IngestInfo info() {
-        Map<String, Processor.Factory> processorFactories = pipelineStore.getProcessorRegistry().getProcessorFactories();
+        Map<String, Processor.Factory> processorFactories = pipelineStore.getProcessorFactories();
         List<ProcessorInfo> processorInfoList = new ArrayList<>(processorFactories.size());
         for (Map.Entry<String, Processor.Factory> entry : processorFactories.entrySet()) {
             processorInfoList.add(new ProcessorInfo(entry.getKey()));
         }
         return new IngestInfo(processorInfoList);
     }
-
-    @Override
-    public void close() throws IOException {
-        pipelineStore.close();
-    }
-
 }

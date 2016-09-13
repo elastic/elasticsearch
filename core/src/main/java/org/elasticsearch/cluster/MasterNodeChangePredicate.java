@@ -30,7 +30,7 @@ public enum MasterNodeChangePredicate implements ClusterStateObserver.ChangePred
         ClusterState.ClusterStateStatus newStatus) {
         // checking if the masterNodeId changed is insufficient as the
         // same master node might get re-elected after a disruption
-        return newState.nodes().masterNodeId() != null && newState != previousState;
+        return newState.nodes().getMasterNodeId() != null && newState != previousState;
     }
 
     @Override

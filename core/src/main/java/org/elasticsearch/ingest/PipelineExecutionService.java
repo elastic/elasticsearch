@@ -19,22 +19,19 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.ingest.core.IngestDocument;
-import org.elasticsearch.ingest.core.Pipeline;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -54,13 +51,13 @@ public class PipelineExecutionService implements ClusterStateListener {
         this.threadPool = threadPool;
     }
 
-    public void executeIndexRequest(IndexRequest request, Consumer<Throwable> failureHandler, Consumer<Boolean> completionHandler) {
+    public void executeIndexRequest(IndexRequest request, Consumer<Exception> failureHandler, Consumer<Boolean> completionHandler) {
         Pipeline pipeline = getPipeline(request.getPipeline());
         threadPool.executor(ThreadPool.Names.INDEX).execute(new AbstractRunnable() {
 
             @Override
-            public void onFailure(Throwable t) {
-                failureHandler.accept(t);
+            public void onFailure(Exception e) {
+                failureHandler.accept(e);
             }
 
             @Override
@@ -72,13 +69,13 @@ public class PipelineExecutionService implements ClusterStateListener {
     }
 
     public void executeBulkRequest(Iterable<ActionRequest<?>> actionRequests,
-                                   BiConsumer<IndexRequest, Throwable> itemFailureHandler,
-                                   Consumer<Throwable> completionHandler) {
+                                   BiConsumer<IndexRequest, Exception> itemFailureHandler,
+                                   Consumer<Exception> completionHandler) {
         threadPool.executor(ThreadPool.Names.BULK).execute(new AbstractRunnable() {
 
             @Override
-            public void onFailure(Throwable t) {
-                completionHandler.accept(t);
+            public void onFailure(Exception e) {
+                completionHandler.accept(e);
             }
 
             @Override
@@ -89,9 +86,10 @@ public class PipelineExecutionService implements ClusterStateListener {
                         if (Strings.hasText(indexRequest.getPipeline())) {
                             try {
                                 innerExecute(indexRequest, getPipeline(indexRequest.getPipeline()));
-                                //this shouldn't be needed here but we do it for consistency with index api which requires it to prevent double execution
+                                //this shouldn't be needed here but we do it for consistency with index api
+                                // which requires it to prevent double execution
                                 indexRequest.setPipeline(null);
-                            } catch (Throwable e) {
+                            } catch (Exception e) {
                                 itemFailureHandler.accept(indexRequest, e);
                             }
                         }
@@ -124,9 +122,11 @@ public class PipelineExecutionService implements ClusterStateListener {
     void updatePipelineStats(IngestMetadata ingestMetadata) {
         boolean changed = false;
         Map<String, StatsHolder> newStatsPerPipeline = new HashMap<>(statsHolderPerPipeline);
-        for (String pipeline : newStatsPerPipeline.keySet()) {
+        Iterator<String> iterator = newStatsPerPipeline.keySet().iterator();
+        while (iterator.hasNext()) {
+            String pipeline = iterator.next();
             if (ingestMetadata.getPipelines().containsKey(pipeline) == false) {
-                newStatsPerPipeline.remove(pipeline);
+                iterator.remove();
                 changed = true;
             }
         }
@@ -143,6 +143,10 @@ public class PipelineExecutionService implements ClusterStateListener {
     }
 
     private void innerExecute(IndexRequest indexRequest, Pipeline pipeline) throws Exception {
+        if (pipeline.getProcessors().isEmpty()) {
+            return;
+        }
+
         long startTimeInNanos = System.nanoTime();
         // the pipeline specific stat holder may not exist and that is fine:
         // (e.g. the pipeline may have been removed while we're ingesting a document

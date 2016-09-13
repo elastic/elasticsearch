@@ -22,7 +22,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> This `_meta` info can be retrieved with the
     <<indices-get-mapping,GET mapping>> API.
 

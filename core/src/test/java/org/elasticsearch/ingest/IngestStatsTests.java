@@ -21,7 +21,6 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -60,10 +59,10 @@ public class IngestStatsTests extends ESTestCase {
         assertEquals(leftStats.getIngestCurrent(), rightStats.getIngestCurrent());
     }
 
-    private <T> T serialize(Writeable<T> writeable) throws IOException {
+    private IngestStats serialize(IngestStats stats) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        writeable.writeTo(out);
-        StreamInput in = StreamInput.wrap(out.bytes());
-        return writeable.readFrom(in);
+        stats.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        return new IngestStats(in);
     }
 }

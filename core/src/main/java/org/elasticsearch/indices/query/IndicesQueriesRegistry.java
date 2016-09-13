@@ -19,24 +19,14 @@
 
 package org.elasticsearch.indices.query;
 
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.index.query.QueryParser;
 
-import java.util.Map;
-
-public class IndicesQueriesRegistry extends AbstractComponent {
-    private Map<String, QueryParser<?>> queryParsers;
-
-    public IndicesQueriesRegistry(Settings settings, Map<String, QueryParser<?>> queryParsers) {
-        super(settings);
-        this.queryParsers = queryParsers;
-    }
-
-    /**
-     * Returns all the registered query parsers
-     */
-    public Map<String, QueryParser<?>> queryParsers() {
-        return queryParsers;
+/**
+ * Extensions to ParseFieldRegistry to make Guice happy.
+ */
+public class IndicesQueriesRegistry extends ParseFieldRegistry<QueryParser<?>> {
+    public IndicesQueriesRegistry() {
+        super("query");
     }
 }

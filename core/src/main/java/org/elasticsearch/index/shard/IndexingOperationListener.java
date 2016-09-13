@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.index.engine.Engine;
 
 import java.util.List;
@@ -38,12 +40,12 @@ public interface IndexingOperationListener {
     /**
      * Called after the indexing operation occurred.
      */
-    default void postIndex(Engine.Index index) {}
+    default void postIndex(Engine.Index index, boolean created) {}
 
     /**
      * Called after the indexing operation occurred with exception.
      */
-    default void postIndex(Engine.Index index, Throwable ex) {}
+    default void postIndex(Engine.Index index, Exception ex) {}
 
     /**
      * Called before the delete occurs.
@@ -61,16 +63,16 @@ public interface IndexingOperationListener {
     /**
      * Called after the delete operation occurred with exception.
      */
-    default void postDelete(Engine.Delete delete, Throwable ex) {}
+    default void postDelete(Engine.Delete delete, Exception ex) {}
 
     /**
      * A Composite listener that multiplexes calls to each of the listeners methods.
      */
     final class CompositeListener implements IndexingOperationListener{
         private final List<IndexingOperationListener> listeners;
-        private final ESLogger logger;
+        private final Logger logger;
 
-        public CompositeListener(List<IndexingOperationListener> listeners, ESLogger logger) {
+        public CompositeListener(List<IndexingOperationListener> listeners, Logger logger) {
             this.listeners = listeners;
             this.logger = logger;
         }
@@ -81,33 +83,34 @@ public interface IndexingOperationListener {
             for (IndexingOperationListener listener : listeners) {
                 try {
                     listener.preIndex(operation);
-                } catch (Throwable t) {
-                    logger.warn("preIndex listener [{}] failed", t, listener);
+                } catch (Exception e) {
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("preIndex listener [{}] failed", listener), e);
                 }
             }
             return operation;
         }
 
         @Override
-        public void postIndex(Engine.Index index) {
+        public void postIndex(Engine.Index index, boolean created) {
             assert index != null;
             for (IndexingOperationListener listener : listeners) {
                 try {
-                    listener.postIndex(index);
-                } catch (Throwable t) {
-                    logger.warn("postIndex listener [{}] failed", t, listener);
+                    listener.postIndex(index, created);
+                } catch (Exception e) {
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("postIndex listener [{}] failed", listener), e);
                 }
             }
         }
 
         @Override
-        public void postIndex(Engine.Index index, Throwable ex) {
+        public void postIndex(Engine.Index index, Exception ex) {
             assert index != null && ex != null;
             for (IndexingOperationListener listener : listeners) {
                 try {
                     listener.postIndex(index, ex);
-                } catch (Throwable t) {
-                    logger.warn("postIndex listener [{}] failed", t, listener);
+                } catch (Exception inner) {
+                    inner.addSuppressed(ex);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("postIndex listener [{}] failed", listener), inner);
                 }
             }
         }
@@ -118,8 +121,8 @@ public interface IndexingOperationListener {
             for (IndexingOperationListener listener : listeners) {
                 try {
                     listener.preDelete(delete);
-                } catch (Throwable t) {
-                    logger.warn("preDelete listener [{}] failed", t, listener);
+                } catch (Exception e) {
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("preDelete listener [{}] failed", listener), e);
                 }
             }
             return delete;
@@ -131,20 +134,21 @@ public interface IndexingOperationListener {
             for (IndexingOperationListener listener : listeners) {
                 try {
                     listener.postDelete(delete);
-                } catch (Throwable t) {
-                    logger.warn("postDelete listener [{}] failed", t, listener);
+                } catch (Exception e) {
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("postDelete listener [{}] failed", listener), e);
                 }
             }
         }
 
         @Override
-        public void postDelete(Engine.Delete delete, Throwable ex) {
+        public void postDelete(Engine.Delete delete, Exception ex) {
             assert delete != null && ex != null;
             for (IndexingOperationListener listener : listeners) {
                 try {
                     listener.postDelete(delete, ex);
-                } catch (Throwable t) {
-                    logger.warn("postDelete listener [{}] failed", t, listener);
+                } catch (Exception inner) {
+                    inner.addSuppressed(ex);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("postDelete listener [{}] failed", listener), inner);
                 }
             }
         }

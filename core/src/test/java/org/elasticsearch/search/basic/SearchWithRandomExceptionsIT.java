@@ -24,6 +24,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -32,7 +33,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
@@ -44,18 +44,19 @@ import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class, MockEngineFactoryPlugin.class);
+        return Arrays.asList(RandomExceptionDirectoryReaderWrapper.TestPlugin.class, MockEngineFactoryPlugin.class);
     }
 
     public void testRandomExceptions() throws IOException, InterruptedException, ExecutionException {
@@ -90,7 +91,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
             lowLevelRate = 0d;
         }
 
-        Builder settings = settingsBuilder()
+        Builder settings = Settings.builder()
                 .put(indexSettings())
                 .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
                 .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
@@ -106,7 +107,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             try {
                 IndexResponse indexResponse = client().prepareIndex("test", "type", "" + i).setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", English.intToEnglish(i)).get();
-                if (indexResponse.isCreated()) {
+                if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
                     numCreated++;
                     added[i] = true;
                 }
@@ -158,16 +159,8 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
             public static final Setting<Double> EXCEPTION_LOW_LEVEL_RATIO_SETTING =
                 Setting.doubleSetting(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
             @Override
-            public String name() {
-                return "random-exception-reader-wrapper";
-            }
-            public void onModule(SettingsModule module) {
-                module.registerSetting(EXCEPTION_TOP_LEVEL_RATIO_SETTING);
-                module.registerSetting(EXCEPTION_LOW_LEVEL_RATIO_SETTING);
-            }
-            @Override
-            public String description() {
-                return "a mock reader wrapper that throws random exceptions for testing";
+            public List<Setting<?>> getSettings() {
+                return Arrays.asList(EXCEPTION_TOP_LEVEL_RATIO_SETTING, EXCEPTION_LOW_LEVEL_RATIO_SETTING);
             }
             public void onModule(MockEngineFactoryPlugin.MockEngineReaderModule module) {
                 module.setReaderClass(RandomExceptionDirectoryReaderWrapper.class);

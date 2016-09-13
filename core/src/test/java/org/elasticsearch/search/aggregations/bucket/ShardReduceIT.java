@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.spatial.util.GeoHashUtils;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -78,7 +78,8 @@ public class ShardReduceIT extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("idx")
-                .addMapping("type", "nested", "type=nested", "ip", "type=ip", "location", "type=geo_point"));
+                .addMapping("type", "nested", "type=nested", "ip", "type=ip",
+                        "location", "type=geo_point", "term-s", "type=keyword"));
 
         indexRandom(true,
                 indexDoc("2014-01-01", 1),
@@ -234,6 +235,7 @@ public class ShardReduceIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/17700")
     public void testIpRange() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())

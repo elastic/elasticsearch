@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # This file contains some utilities to test the elasticsearch scripts,
 # the .deb/.rpm packages and the SysV/Systemd scripts.
@@ -84,20 +84,16 @@ install_jvm_example() {
     bin_user=$(find "$ESHOME/bin" -maxdepth 0 -printf "%u")
     bin_owner=$(find "$ESHOME/bin" -maxdepth 0 -printf "%g")
     bin_privileges=$(find "$ESHOME/bin" -maxdepth 0 -printf "%m")
-    assert_file "$ESHOME/bin/jvm-example" d $bin_user $bin_owner $bin_privileges
-    assert_file "$ESHOME/bin/jvm-example/test" f $bin_user $bin_owner $bin_privileges
+    assert_file "$ESHOME/bin/jvm-example" d $bin_user $bin_owner 755
+    assert_file "$ESHOME/bin/jvm-example/test" f $bin_user $bin_owner 755
 
     #owner group and permissions vary depending on how es was installed
     #just make sure that everything is the same as $CONFIG_DIR, which was properly set up during install
     config_user=$(find "$ESCONFIG" -maxdepth 0 -printf "%u")
     config_owner=$(find "$ESCONFIG" -maxdepth 0 -printf "%g")
     # directories should user the user file-creation mask
-    config_privileges=$(executable_privileges_for_user_from_umask $ESPLUGIN_COMMAND_USER)
-    assert_file "$ESCONFIG/jvm-example" d $config_user $config_owner $(printf "%o" $config_privileges)
-    # config files should not be executable and otherwise use the user
-    # file-creation mask
-    expected_file_privileges=$(file_privileges_for_user_from_umask $ESPLUGIN_COMMAND_USER)
-    assert_file "$ESCONFIG/jvm-example/example.yaml" f $config_user $config_owner $(printf "%o" $expected_file_privileges)
+    assert_file "$ESCONFIG/jvm-example" d $config_user $config_owner 755
+    assert_file "$ESCONFIG/jvm-example/example.yaml" f $config_user $config_owner 644
 
     echo "Running jvm-example's bin script...."
     "$ESHOME/bin/jvm-example/test" | grep test

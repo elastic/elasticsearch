@@ -20,6 +20,7 @@
 package org.elasticsearch.search.suggest.term;
 
 import org.elasticsearch.common.io.stream.AbstractWriteableEnumTestCase;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.suggest.SortBy;
 
 import java.io.IOException;
@@ -30,6 +31,9 @@ import static org.hamcrest.Matchers.equalTo;
  * Test the {@link SortBy} enum.
  */
 public class SortByTests extends AbstractWriteableEnumTestCase {
+    public SortByTests() {
+        super(SortBy::readFromStream);
+    }
 
     @Override
     public void testValidOrdinals() {
@@ -66,5 +70,4 @@ public class SortByTests extends AbstractWriteableEnumTestCase {
         assertReadFromStream(0, SortBy.SCORE);
         assertReadFromStream(1, SortBy.FREQUENCY);
     }
-
 }

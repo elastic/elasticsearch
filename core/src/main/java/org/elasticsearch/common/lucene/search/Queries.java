@@ -29,7 +29,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
 
 import java.util.List;
 import java.util.regex.Pattern;
@@ -44,8 +44,8 @@ public class Queries {
     }
 
     /** Return a query that matches no document. */
-    public static Query newMatchNoDocsQuery() {
-        return new BooleanQuery.Builder().build();
+    public static Query newMatchNoDocsQuery(String reason) {
+        return new MatchNoDocsQuery(reason);
     }
 
     public static Query newNestedFilter() {

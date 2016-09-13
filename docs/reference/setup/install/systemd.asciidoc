@@ -1,0 +1,30 @@
+==== Running Elasticsearch with `systemd`
+
+To configure Elasticsearch to start automatically when the system boots up,
+run the following commands:
+
+[source,sh]
+--------------------------------------------------
+sudo /bin/systemctl daemon-reload
+sudo /bin/systemctl enable elasticsearch.service
+--------------------------------------------------
+
+Elasticsearch can be started and stopped as follows:
+
+[source,sh]
+--------------------------------------------
+sudo systemctl start elasticsearch.service
+sudo systemctl stop elasticsearch.service
+--------------------------------------------
+
+These commands provide no feedback as to whether Elasticsearch was started
+successfully or not.  Instead, this information will be written to the
+`systemd` journal, which can be tailed as follows:
+
+[source,sh]
+--------------------------------------------
+sudo journalctl -f
+--------------------------------------------
+
+Log files can be found in `/var/log/elasticsearch/`.
+

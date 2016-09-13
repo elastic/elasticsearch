@@ -19,15 +19,14 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import java.util.Locale;
+
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-
-import java.util.Locale;
 
 /**
  * This {@link AllocationDecider} controls re-balancing operations based on the
@@ -85,7 +84,6 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
 
     private volatile ClusterRebalanceType type;
 
-    @Inject
     public ClusterRebalanceAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         try {

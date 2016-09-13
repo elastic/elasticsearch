@@ -69,7 +69,7 @@ public class LineStringBuilderTests extends AbstractShapeBuilderTestCase<LineStr
     }
 
     static LineStringBuilder createRandomShape() {
-        LineStringBuilder lsb = (LineStringBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.LINESTRING);
+        LineStringBuilder lsb = (LineStringBuilder) RandomShapeGenerator.createShape(random(), ShapeType.LINESTRING);
         if (randomBoolean()) {
             lsb.close();
         }

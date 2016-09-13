@@ -34,6 +34,9 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -49,8 +52,9 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
     @BeforeClass
     public static void init() {
         if (namedWriteableRegistry == null) {
-            namedWriteableRegistry = new NamedWriteableRegistry();
-            ShapeBuilders.register(namedWriteableRegistry);
+            List<NamedWriteableRegistry.Entry> shapes = new ArrayList<>();
+            ShapeBuilders.register(shapes);
+            namedWriteableRegistry = new NamedWriteableRegistry(shapes);
         }
     }
 
@@ -80,7 +84,8 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
                 contentBuilder.prettyPrint();
             }
             XContentBuilder builder = testShape.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
-            XContentParser shapeParser = XContentHelper.createParser(builder.bytes());
+            XContentBuilder shuffled = shuffleXContent(builder);
+            XContentParser shapeParser = XContentHelper.createParser(shuffled.bytes());
             shapeParser.nextToken();
             ShapeBuilder parsedShape = ShapeBuilder.parse(shapeParser);
             assertNotSame(testShape, parsedShape);
@@ -137,7 +142,7 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
     static ShapeBuilder copyShape(ShapeBuilder original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 return namedWriteableRegistry.getReader(ShapeBuilder.class, original.getWriteableName()).read(in);
             }
         }

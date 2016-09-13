@@ -1,37 +1,264 @@
 [[analysis-pattern-replace-charfilter]]
 === Pattern Replace Char Filter
 
-The `pattern_replace` char filter allows the use of a regex to
-manipulate the characters in a string before analysis. The regular
-expression is defined using the `pattern` parameter, and the replacement
-string can be provided using the `replacement` parameter (supporting
-referencing the original text, as explained
-http://docs.oracle.com/javase/6/docs/api/java/util/regex/Matcher.html#appendReplacement(java.lang.StringBuffer,%20java.lang.String)[here]).
-For more information check the
-http://lucene.apache.org/core/4_3_1/analyzers-common/org/apache/lucene/analysis/pattern/PatternReplaceCharFilter.html[lucene
-documentation]
+The `pattern_replace` character filter uses a regular expression to match
+characters which should be replaced with the specified replacement string.
+The replacement string can refer to capture groups in the regular expression.
 
-Here is a sample configuration:
+[WARNING]
+.Beware of Pathological Regular Expressions
+========================================
+
+The pattern replace character filter uses
+http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java Regular Expressions].
+
+A badly written regular expression could run very slowly or even throw a
+StackOverflowError and cause the node it is running on to exit suddenly.
+
+Read more about http://www.regular-expressions.info/catastrophic.html[pathological regular expressions and how to avoid them].
+
+========================================
+
+[float]
+=== Configuration
+
+The `pattern_replace` character filter accepts the following parameters:
+
+[horizontal]
+`pattern`::
+
+    A http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java regular expression]. Required.
+
+`replacement`::
+
+    The replacement string, which can reference capture groups using the
+    `$1`..`$9` syntax, as explained
+    http://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#appendReplacement-java.lang.StringBuffer-java.lang.String-[here].
+
+`flags`::
+
+    Java regular expression http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html#field.summary[flags].
+    Flags should be pipe-separated, eg `"CASE_INSENSITIVE|COMMENTS"`.
+
+[float]
+=== Example configuration
+
+In this example, we configure the `pattern_replace` character filter to
+replace any embedded dashes in numbers with underscores, i.e `123-456-789` ->
+`123_456_789`:
 
 [source,js]
---------------------------------------------------
+----------------------------
+PUT my_index
 {
-    "index" : {
-        "analysis" : {
-            "char_filter" : {
-                "my_pattern":{
-                    "type":"pattern_replace",
-                    "pattern":"sample(.*)",
-                    "replacement":"replacedSample $1"
-                }
-            },
-            "analyzer" : {
-                "custom_with_char_filter" : {
-                    "tokenizer" : "standard",
-                    "char_filter" : ["my_pattern"]
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "standard",
+          "char_filter": [
+            "my_char_filter"
+          ]
         }
+      },
+      "char_filter": {
+        "my_char_filter": {
+          "type": "pattern_replace",
+          "pattern": "(\\d+)-(?=\\d)",
+          "replacement": "$1_"
+        }
+      }
     }
+  }
 }
---------------------------------------------------
+
+POST my_index/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "My credit card is 123-456-789"
+}
+----------------------------
+// CONSOLE
+// TEST[skip:Test interprets $1 as a stashed variable]
+
+The above example produces the following term:
+
+[source,text]
+---------------------------
+[ My, credit, card, is 123_456_789 ]
+---------------------------
+
+
+WARNING: Using a replacement string that changes the length of the original
+text will work for search purposes, but will result in incorrect highlighting,
+as can be seen in the following example.
+
+This example inserts a space whenever it encounters a lower-case letter
+followed by an upper-case letter (i.e. `fooBarBaz` -> `foo Bar Baz`), allowing
+camelCase words to be queried individually:
+
+[source,js]
+----------------------------
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "standard",
+          "char_filter": [
+            "my_char_filter"
+          ],
+          "filter": [
+            "lowercase"
+          ]
+        }
+      },
+      "char_filter": {
+        "my_char_filter": {
+          "type": "pattern_replace",
+          "pattern": "(?<=\\p{Lower})(?=\\p{Upper})",
+          "replacement": " "
+        }
+      }
+    }
+  },
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "text": {
+          "type": "text",
+          "analyzer": "my_analyzer"
+        }
+      }
+    }
+  }
+}
+
+POST my_index/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "The fooBarBaz method"
+}
+----------------------------
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "the",
+      "start_offset": 0,
+      "end_offset": 3,
+      "type": "<ALPHANUM>",
+      "position": 0
+    },
+    {
+      "token": "foo",
+      "start_offset": 4,
+      "end_offset": 6,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "bar",
+      "start_offset": 7,
+      "end_offset": 9,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "baz",
+      "start_offset": 10,
+      "end_offset": 13,
+      "type": "<ALPHANUM>",
+      "position": 3
+    },
+    {
+      "token": "method",
+      "start_offset": 14,
+      "end_offset": 20,
+      "type": "<ALPHANUM>",
+      "position": 4
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+The above returns the following terms:
+
+[source,js]
+----------------------------
+[ the, foo, bar, baz, method ]
+----------------------------
+
+Querying for `bar` will find the document correctly, but highlighting on the
+result will produce incorrect highlights, because our character filter changed
+the length of the original text:
+
+[source,js]
+----------------------------
+PUT my_index/my_doc/1?refresh
+{
+  "text": "The fooBarBaz method"
+}
+
+GET my_index/_search
+{
+  "query": {
+    "match": {
+      "text": "bar"
+    }
+  },
+  "highlight": {
+    "fields": {
+      "text": {}
+    }
+  }
+}
+----------------------------
+// CONSOLE
+// TEST[continued]
+
+The output from the above is:
+
+[source,js]
+----------------------------
+{
+  "timed_out": false,
+  "took": $body.took,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "failed": 0
+  },
+  "hits": {
+    "total": 1,
+    "max_score": 0.2824934,
+    "hits": [
+      {
+        "_index": "my_index",
+        "_type": "my_doc",
+        "_id": "1",
+        "_score": 0.2824934,
+        "_source": {
+          "text": "The fooBarBaz method"
+        },
+        "highlight": {
+          "text": [
+            "The foo<em>Ba</em>rBaz method" <1>
+          ]
+        }
+      }
+    ]
+  }
+}
+----------------------------
+// TESTRESPONSE[s/"took".*/"took": "$body.took",/]
+<1> Note the incorrect highlight.

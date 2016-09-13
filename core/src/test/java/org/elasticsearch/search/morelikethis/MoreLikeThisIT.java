@@ -38,7 +38,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.client.Requests.indexAliasesRequest;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -108,8 +107,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                         .startObject("text").field("type", "text").endObject()
                         .endObject().endObject().endObject()));
         logger.info("Creating aliases alias release");
-        client().admin().indices().aliases(indexAliasesRequest().addAlias("release", termQuery("text", "release"), "test")).actionGet();
-        client().admin().indices().aliases(indexAliasesRequest().addAlias("beta", termQuery("text", "beta"), "test")).actionGet();
+        client().admin().indices().prepareAliases()
+            .addAlias("test", "release", termQuery("text", "release"))
+            .addAlias("test", "beta", termQuery("text", "beta")).get();
 
         logger.info("Running Cluster Health");
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
@@ -139,9 +139,35 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).id(), equalTo("2"));
 
         logger.info("Running moreLikeThis on alias with node client");
-        response = internalCluster().clientNodeClient().prepareSearch("beta").setQuery(
+        response = internalCluster().coordOnlyNodeClient().prepareSearch("beta").setQuery(
                 new MoreLikeThisQueryBuilder(null, new Item[] {new Item("test", "type1", "1")}).minTermFreq(1).minDocFreq(1)).get();
         assertHitCount(response, 1L);
+        assertThat(response.getHits().getAt(0).id(), equalTo("3"));
+    }
+
+    // Issue #14944
+    public void testMoreLikeThisWithAliasesInLikeDocuments() throws Exception {
+        String indexName = "foo";
+        String aliasName = "foo_name";
+        String typeName = "bar";
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("bar")
+                .startObject("properties")
+                .endObject()
+                .endObject().endObject().string();
+        client().admin().indices().prepareCreate(indexName).addMapping(typeName, mapping).get();
+        client().admin().indices().prepareAliases().addAlias(indexName, aliasName).get();
+
+        assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
+
+        client().index(indexRequest(indexName).type(typeName).id("1").source(jsonBuilder().startObject().field("text", "elasticsearch index").endObject())).actionGet();
+        client().index(indexRequest(indexName).type(typeName).id("2").source(jsonBuilder().startObject().field("text", "lucene index").endObject())).actionGet();
+        client().index(indexRequest(indexName).type(typeName).id("3").source(jsonBuilder().startObject().field("text", "elasticsearch index").endObject())).actionGet();
+        refresh(indexName);
+
+        SearchResponse response = client().prepareSearch().setQuery(
+                new MoreLikeThisQueryBuilder(null, new Item[] {new Item(aliasName, typeName, "1")}).minTermFreq(1).minDocFreq(1)).get();
+        assertHitCount(response, 2L);
         assertThat(response.getHits().getAt(0).id(), equalTo("3"));
     }
 
@@ -153,7 +179,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .endObject().endObject().string();
         client().admin().indices().prepareCreate("foo").addMapping("bar", mapping).execute().actionGet();
         client().prepareIndex("foo", "bar", "1")
-                .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject())
+                .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
                 .execute().actionGet();
         client().admin().indices().prepareRefresh("foo").execute().actionGet();
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
@@ -178,7 +204,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         ensureGreen();
 
         client().prepareIndex("foo", "bar", "1")
-                .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject())
+                .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
                 .setRouting("2")
                 .execute().actionGet();
         client().admin().indices().prepareRefresh("foo").execute().actionGet();
@@ -201,7 +227,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         ensureGreen();
 
         client().prepareIndex("foo", "bar", "1")
-                .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject())
+                .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
                 .setRouting("4000")
                 .execute().actionGet();
         client().admin().indices().prepareRefresh("foo").execute().actionGet();
@@ -496,17 +522,6 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertSearchResponse(response);
         assertHitCount(response, 0);
 
-        logger.info("Checking when document is malformed ...");
-        XContentBuilder malformedDoc = jsonBuilder().startObject();
-        mltQuery = moreLikeThisQuery(null, new Item[] {new Item("test", "type1", malformedDoc)})
-                .minTermFreq(0)
-                .minDocFreq(0)
-                .minimumShouldMatch("0%");
-        response = client().prepareSearch("test").setTypes("type1")
-                .setQuery(mltQuery).get();
-        assertSearchResponse(response);
-        assertHitCount(response, 0);
-
         logger.info("Checking the document matches otherwise ...");
         XContentBuilder normalDoc = jsonBuilder()
                 .startObject()
@@ -564,6 +579,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                     .maxQueryTerms(100)
                     .include(true)
                     .minimumShouldMatch("0%");
+
             response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
             assertSearchResponse(response);
             assertHitCount(response, numFields - (i + 1));

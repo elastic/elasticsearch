@@ -19,14 +19,14 @@
 
 package org.elasticsearch.cli;
 
+import org.elasticsearch.common.SuppressForbidden;
+
 import java.io.BufferedReader;
 import java.io.Console;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.nio.charset.Charset;
-
-import org.elasticsearch.common.SuppressForbidden;
 
 /**
  * A Terminal wraps access to reading input and writing output for a cli.
@@ -81,8 +81,13 @@ public abstract class Terminal {
 
     /** Prints a line to the terminal at {@code verbosity} level. */
     public final void println(Verbosity verbosity, String msg) {
+        print(verbosity, msg + lineSeparator);
+    }
+
+    /** Prints message to the terminal at {@code verbosity} level, without a newline. */
+    public final void print(Verbosity verbosity, String msg) {
         if (this.verbosity.ordinal() >= verbosity.ordinal()) {
-            getWriter().print(msg + lineSeparator);
+            getWriter().print(msg);
             getWriter().flush();
         }
     }

@@ -16,7 +16,7 @@ PUT my_index/my_type/1
   "text": "Document with ID 1"
 }
 
-PUT my_index/my_type/2
+PUT my_index/my_type/2?refresh=true
 {
   "text": "Document with ID 2"
 }
@@ -45,15 +45,17 @@ GET my_index/_search
   ],
   "script_fields": {
     "UID": {
-      "script": "doc['_uid']" <4>
+      "script": {
+         "lang": "painless",
+         "inline": "doc['_uid']" <4>
+      }
     }
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Querying on the `_uid` field (also see the <<query-dsl-ids-query,`ids` query>>)
 <2> Aggregating on the `_uid` field
 <3> Sorting on the `_uid` field
-<4> Accessing the `_uid` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)
-
+<4> Accessing the `_uid` field in scripts

@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 
 import java.io.IOException;
@@ -52,10 +51,10 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        clusterName = ClusterName.readClusterName(in);
+        clusterName = new ClusterName(in);
         nodes = new DiscoveryNode[in.readVInt()];
         for (int i=0; i<nodes.length; i++){
-            nodes[i] = DiscoveryNode.readNode(in);
+            nodes[i] = new DiscoveryNode(in);
         }
     }
 
@@ -78,16 +77,16 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     }
 
     static final class Fields {
-        static final XContentBuilderString NODES = new XContentBuilderString("nodes");
-        static final XContentBuilderString NAME = new XContentBuilderString("name");
+        static final String NODES = "nodes";
+        static final String NAME = "name";
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.NODES);
         for (DiscoveryNode node : nodes) {
-            builder.startObject(node.id(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field(Fields.NAME, node.name(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(node.getId());
+            builder.field(Fields.NAME, node.getName());
             builder.endObject();
         }
         builder.endObject();

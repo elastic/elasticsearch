@@ -111,15 +111,15 @@ public class JarHellTests extends ESTestCase {
         }
     }
 
-    public void testLog4jLeniency() throws Exception {
+    public void testLog4jThrowableProxyLeniency() throws Exception {
         Path dir = createTempDir();
-        URL[] jars = {makeJar(dir, "foo.jar", null, "org/apache/log4j/DuplicateClass.class"), makeJar(dir, "bar.jar", null, "org/apache/log4j/DuplicateClass.class")};
+        URL[] jars = {makeJar(dir, "foo.jar", null, "org.apache.logging.log4j.core.impl.ThrowableProxy.class"), makeJar(dir, "bar.jar", null, "org.apache.logging.log4j.core.impl.ThrowableProxy.class")};
         JarHell.checkJarHell(jars);
     }
 
-    public void testBaseDateTimeLeniency() throws Exception {
+    public void testLog4jServerLeniency() throws Exception {
         Path dir = createTempDir();
-        URL[] jars = {makeJar(dir, "foo.jar", null, "org/joda/time/base/BaseDateTime.class"), makeJar(dir, "bar.jar", null, "org/joda/time/base/BaseDateTime.class")};
+        URL[] jars = {makeJar(dir, "foo.jar", null, "org.apache.logging.log4j.core.jmx.Server.class"), makeJar(dir, "bar.jar", null, "org.apache.logging.log4j.core.jmx.Server.class")};
         JarHell.checkJarHell(jars);
     }
 
@@ -180,6 +180,17 @@ public class JarHellTests extends ESTestCase {
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage().equals("version string must be a sequence of nonnegative decimal integers separated by \".\"'s and may have leading zeros but was bogus"));
         }
+    }
+
+    public void testRequiredJDKVersionIsOK() throws Exception {
+        Path dir = createTempDir();
+        Manifest manifest = new Manifest();
+        Attributes attributes = manifest.getMainAttributes();
+        attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
+        attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "1.7");
+        URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
+
+        JarHell.checkJarHell(jars);
     }
 
     /** make sure if a plugin is compiled against the same ES version, it works */

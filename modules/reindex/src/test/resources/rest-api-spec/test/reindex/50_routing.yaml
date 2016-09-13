@@ -35,7 +35,7 @@
         type:         test
         id:           1
         body:         { "company": "cat" }
-        routing:
+        routing:      null
   - do:
       indices.refresh: {}
 

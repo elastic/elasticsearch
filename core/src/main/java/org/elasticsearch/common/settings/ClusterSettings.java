@@ -19,11 +19,11 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.bootstrap.BootstrapSettings;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.cluster.ClusterModule;
@@ -32,22 +32,24 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNodeService;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -61,9 +63,9 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
 import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
@@ -79,19 +81,20 @@ import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.repositories.uri.URLRepository;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
-import org.elasticsearch.transport.netty.NettyTransport;
 import org.elasticsearch.tribe.TribeService;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -130,7 +133,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     if (ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).exists(settings) == false) {
                         builder.putNull(key);
                     } else {
-                        builder.put(key, ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings).name());
+                        builder.put(key, ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings));
                     }
                 }
             }
@@ -142,12 +145,18 @@ public final class ClusterSettings extends AbstractScopedSettings {
             for (String key : value.getAsMap().keySet()) {
                 assert loggerPredicate.test(key);
                 String component = key.substring("logger.".length());
+                if ("level".equals(component)) {
+                    continue;
+                }
                 if ("_root".equals(component)) {
                     final String rootLevel = value.get(key);
-                    ESLoggerFactory.getRootLogger().setLevel(rootLevel == null ? ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings)
-                            .name() : rootLevel);
+                    if (rootLevel == null) {
+                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings));
+                    } else {
+                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), rootLevel);
+                    }
                 } else {
-                    ESLoggerFactory.getLogger(component).setLevel(value.get(key));
+                    Loggers.setLevel(ESLoggerFactory.getLogger(component), value.get(key));
                 }
             }
         }
@@ -178,6 +187,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING,
                     IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
                     IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
+                    IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,
                     IndicesTTLService.INDICES_TTL_INTERVAL_SETTING,
                     MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING,
                     MetaData.SETTING_READ_ONLY_SETTING,
@@ -187,16 +197,16 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
                     RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING,
                     RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING,
-                    ThreadPool.THREADPOOL_GROUP_SETTING,
                     ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING,
                     ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
                     ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
                     ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING,
-                    DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
-                    DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
-                    DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
-                    DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
-                    DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING,
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING,
+                    SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING,
                     InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING,
                     InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING,
                     SnapshotInProgressAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED_SETTING,
@@ -213,6 +223,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     GatewayService.RECOVER_AFTER_NODES_SETTING,
                     GatewayService.RECOVER_AFTER_TIME_SETTING,
                     NetworkModule.HTTP_ENABLED,
+                    NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
+                    NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
                     NetworkModule.HTTP_TYPE_SETTING,
                     NetworkModule.TRANSPORT_SERVICE_TYPE_SETTING,
                     NetworkModule.TRANSPORT_TYPE_SETTING,
@@ -238,26 +250,17 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE,
                     HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH,
                     HttpTransportSettings.SETTING_HTTP_RESET_COOKIES,
-                    NettyHttpServerTransport.SETTING_HTTP_NETTY_MAX_CUMULATION_BUFFER_CAPACITY,
-                    NettyHttpServerTransport.SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
-                    NettyHttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE,
-                    NettyHttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MIN,
-                    NettyHttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MAX,
-                    NettyHttpServerTransport.SETTING_HTTP_WORKER_COUNT,
-                    NettyHttpServerTransport.SETTING_HTTP_TCP_NO_DELAY,
-                    NettyHttpServerTransport.SETTING_HTTP_TCP_KEEP_ALIVE,
-                    NettyHttpServerTransport.SETTING_HTTP_TCP_BLOCKING_SERVER,
-                    NettyHttpServerTransport.SETTING_HTTP_TCP_REUSE_ADDRESS,
-                    NettyHttpServerTransport.SETTING_HTTP_TCP_SEND_BUFFER_SIZE,
-                    NettyHttpServerTransport.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,
                     HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+                    HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING,
+                    HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING,
                     HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING,
                     ClusterService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                     SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
                     ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
+                    TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                     TransportService.TRACE_LOG_EXCLUDE_SETTING,
                     TransportService.TRACE_LOG_INCLUDE_SETTING,
                     TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
@@ -272,28 +275,21 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     TransportSettings.BIND_HOST,
                     TransportSettings.PUBLISH_PORT,
                     TransportSettings.PORT,
-                    NettyTransport.WORKER_COUNT,
-                    NettyTransport.CONNECTIONS_PER_NODE_RECOVERY,
-                    NettyTransport.CONNECTIONS_PER_NODE_BULK,
-                    NettyTransport.CONNECTIONS_PER_NODE_REG,
-                    NettyTransport.CONNECTIONS_PER_NODE_STATE,
-                    NettyTransport.CONNECTIONS_PER_NODE_PING,
-                    NettyTransport.PING_SCHEDULE,
-                    NettyTransport.TCP_BLOCKING_CLIENT,
-                    NettyTransport.TCP_CONNECT_TIMEOUT,
-                    NettyTransport.NETTY_MAX_CUMULATION_BUFFER_CAPACITY,
-                    NettyTransport.NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
-                    NettyTransport.NETTY_RECEIVE_PREDICTOR_SIZE,
-                    NettyTransport.NETTY_RECEIVE_PREDICTOR_MIN,
-                    NettyTransport.NETTY_RECEIVE_PREDICTOR_MAX,
+                    TcpTransport.CONNECTIONS_PER_NODE_RECOVERY,
+                    TcpTransport.CONNECTIONS_PER_NODE_BULK,
+                    TcpTransport.CONNECTIONS_PER_NODE_REG,
+                    TcpTransport.CONNECTIONS_PER_NODE_STATE,
+                    TcpTransport.CONNECTIONS_PER_NODE_PING,
+                    TcpTransport.PING_SCHEDULE,
+                    TcpTransport.TCP_BLOCKING_CLIENT,
+                    TcpTransport.TCP_CONNECT_TIMEOUT,
                     NetworkService.NETWORK_SERVER,
-                    NettyTransport.NETTY_BOSS_COUNT,
-                    NettyTransport.TCP_NO_DELAY,
-                    NettyTransport.TCP_KEEP_ALIVE,
-                    NettyTransport.TCP_REUSE_ADDRESS,
-                    NettyTransport.TCP_SEND_BUFFER_SIZE,
-                    NettyTransport.TCP_RECEIVE_BUFFER_SIZE,
-                    NettyTransport.TCP_BLOCKING_SERVER,
+                    TcpTransport.TCP_NO_DELAY,
+                    TcpTransport.TCP_KEEP_ALIVE,
+                    TcpTransport.TCP_REUSE_ADDRESS,
+                    TcpTransport.TCP_SEND_BUFFER_SIZE,
+                    TcpTransport.TCP_RECEIVE_BUFFER_SIZE,
+                    TcpTransport.TCP_BLOCKING_SERVER,
                     NetworkService.GLOBAL_NETWORK_HOST_SETTING,
                     NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING,
                     NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING,
@@ -312,6 +308,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ScriptService.SCRIPT_CACHE_SIZE_SETTING,
                     ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
                     ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING,
+                    ScriptService.SCRIPT_MAX_SIZE_IN_BYTES,
+                    ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE,
                     IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING,
                     IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_SIZE_KEY,
                     IndicesRequestCache.INDICES_CACHE_QUERY_SIZE,
@@ -324,12 +322,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Environment.PATH_DATA_SETTING,
                     Environment.PATH_HOME_SETTING,
                     Environment.PATH_LOGS_SETTING,
-                    Environment.PATH_PLUGINS_SETTING,
                     Environment.PATH_REPO_SETTING,
                     Environment.PATH_SCRIPTS_SETTING,
                     Environment.PATH_SHARED_DATA_SETTING,
                     Environment.PIDFILE_SETTING,
-                    DiscoveryNodeService.NODE_ID_SEED_SETTING,
+                    NodeEnvironment.NODE_ID_SEED_SETTING,
                     DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING,
                     DiscoveryModule.DISCOVERY_TYPE_SETTING,
                     DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING,
@@ -352,15 +349,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     SearchService.KEEPALIVE_INTERVAL_SETTING,
                     Node.WRITE_PORTS_FIELD_SETTING,
                     Node.NODE_NAME_SETTING,
-                    Node.NODE_CLIENT_SETTING,
                     Node.NODE_DATA_SETTING,
                     Node.NODE_MASTER_SETTING,
-                    Node.NODE_LOCAL_SETTING,
-                    Node.NODE_MODE_SETTING,
                     Node.NODE_INGEST_SETTING,
                     Node.NODE_ATTRIBUTES,
+                    Node.NODE_LOCAL_STORAGE_SETTING,
                     URLRepository.ALLOWED_URLS_SETTING,
-                    URLRepository.REPOSITORIES_LIST_DIRECTORIES_SETTING,
                     URLRepository.REPOSITORIES_URL_SETTING,
                     URLRepository.SUPPORTED_PROTOCOLS_SETTING,
                     TransportMasterNodeReadAction.FORCE_LOCAL_SETTING,
@@ -368,7 +362,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,
                     ClusterName.CLUSTER_NAME_SETTING,
                     Client.CLIENT_TYPE_SETTING_S,
-                    InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING,
                     ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
                     EsExecutors.PROCESSORS_SETTING,
                     ThreadContext.DEFAULT_HEADERS_SETTING,
@@ -383,7 +376,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     TribeService.TRIBE_NAME_SETTING,
                     NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
                     NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING,
-                    NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH,
+                    NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH,
                     OsService.REFRESH_INTERVAL_SETTING,
                     ProcessService.REFRESH_INTERVAL_SETTING,
                     JvmService.REFRESH_INTERVAL_SETTING,
@@ -391,6 +384,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     JvmGcMonitorService.ENABLED_SETTING,
                     JvmGcMonitorService.REFRESH_INTERVAL_SETTING,
                     JvmGcMonitorService.GC_SETTING,
+                    JvmGcMonitorService.GC_OVERHEAD_WARN_SETTING,
+                    JvmGcMonitorService.GC_OVERHEAD_INFO_SETTING,
+                    JvmGcMonitorService.GC_OVERHEAD_DEBUG_SETTING,
                     PageCacheRecycler.LIMIT_HEAP_SETTING,
                     PageCacheRecycler.WEIGHT_BYTES_SETTING,
                     PageCacheRecycler.WEIGHT_INT_SETTING,
@@ -399,8 +395,21 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     PageCacheRecycler.TYPE_SETTING,
                     PluginsService.MANDATORY_SETTING,
                     BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING,
-                    BootstrapSettings.MLOCKALL_SETTING,
+                    BootstrapSettings.MEMORY_LOCK_SETTING,
                     BootstrapSettings.SECCOMP_SETTING,
-                    BootstrapSettings.CTRLHANDLER_SETTING
+                    BootstrapSettings.CTRLHANDLER_SETTING,
+                    BootstrapSettings.IGNORE_SYSTEM_BOOTSTRAP_CHECKS,
+                    IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,
+                    IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING,
+                    IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING,
+                    IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING,
+                    IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING,
+                    ResourceWatcherService.ENABLED,
+                    ResourceWatcherService.RELOAD_INTERVAL_HIGH,
+                    ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
+                    ResourceWatcherService.RELOAD_INTERVAL_LOW,
+                    SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING,
+                    ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
+                    Node.BREAKER_TYPE_KEY
             )));
 }

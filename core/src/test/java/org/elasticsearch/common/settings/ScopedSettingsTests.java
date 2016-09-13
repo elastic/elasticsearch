@@ -18,11 +18,13 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
@@ -98,7 +100,7 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(0, aC.get());
         assertEquals(0, bC.get());
         try {
-            service.dryRun(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", -15).build());
+            service.validateUpdate(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", -15).build());
             fail("invalid value");
         } catch (IllegalArgumentException ex) {
             assertEquals("illegal value can't update [foo.bar.baz] from [1] to [-15]", ex.getMessage());
@@ -108,7 +110,7 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(0, consumer2.get());
         assertEquals(0, aC.get());
         assertEquals(0, bC.get());
-        service.dryRun(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", 15).build());
+        service.validateUpdate(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", 15).build());
         assertEquals(0, consumer.get());
         assertEquals(0, consumer2.get());
         assertEquals(0, aC.get());
@@ -170,7 +172,8 @@ public class ScopedSettingsTests extends ESTestCase {
         ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         AtomicReference<List<String>> ref = new AtomicReference<>();
         settings.addSettingsUpdateConsumer(TransportService.TRACE_LOG_INCLUDE_SETTING, ref::set);
-        settings.applySettings(Settings.builder().putArray("transport.tracer.include", "internal:index/shard/recovery/*", "internal:gateway/local*").build());
+        settings.applySettings(Settings.builder()
+                .putArray("transport.tracer.include", "internal:index/shard/recovery/*", "internal:gateway/local*").build());
         assertNotNull(ref.get().size());
         assertEquals(ref.get().size(), 2);
         assertTrue(ref.get().contains("internal:index/shard/recovery/*"));
@@ -181,7 +184,8 @@ public class ScopedSettingsTests extends ESTestCase {
         IndexScopedSettings settings = new IndexScopedSettings(
            Settings.EMPTY,
             IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
-        IndexScopedSettings copy = settings.copy(Settings.builder().put("index.store.type", "boom").build(), newIndexMeta("foo", Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 3).build()));
+        IndexScopedSettings copy = settings.copy(Settings.builder().put("index.store.type", "boom").build(),
+                newIndexMeta("foo", Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 3).build()));
         assertEquals(3, copy.get(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING).intValue());
         assertEquals(1, copy.get(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING).intValue());
         assertEquals("boom", copy.get(IndexModule.INDEX_STORE_TYPE_SETTING)); // test fallback to node settings
@@ -200,20 +204,22 @@ public class ScopedSettingsTests extends ESTestCase {
         IndexScopedSettings settings = new IndexScopedSettings(
             Settings.EMPTY,
             IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        String unknownMsgSuffix = " please check that any required plugins are installed, or check the breaking changes documentation for" +
+            " removed settings";
         settings.validate(Settings.builder().put("index.store.type", "boom"));
         settings.validate(Settings.builder().put("index.store.type", "boom").build());
         try {
             settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true));
             fail();
         } catch (IllegalArgumentException e) {
-            assertEquals("unknown setting [i.am.not.a.setting]", e.getMessage());
+            assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
         }
 
         try {
             settings.validate(Settings.builder().put("index.store.type", "boom", "i.am.not.a.setting", true).build());
             fail();
         } catch (IllegalArgumentException e) {
-            assertEquals("unknown setting [i.am.not.a.setting]", e.getMessage());
+            assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
         }
 
         try {
@@ -240,7 +246,7 @@ public class ScopedSettingsTests extends ESTestCase {
 
 
     public static IndexMetaData newIndexMeta(String name, Settings indexSettings) {
-        Settings build = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+        Settings build = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(indexSettings)
@@ -298,47 +304,44 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public void testLoggingUpdates() {
-        final String level = ESLoggerFactory.getRootLogger().getLevel();
-        final String testLevel = ESLoggerFactory.getLogger("test").getLevel();
-        String property = System.getProperty("es.logger.level");
-        Settings.Builder builder = Settings.builder();
-        if (property != null) {
-            builder.put("logger.level", property);
-        }
+        final Level level = ESLoggerFactory.getRootLogger().getLevel();
+        final Level testLevel = ESLoggerFactory.getLogger("test").getLevel();
+        Level property = randomFrom(Level.values());
+        Settings.Builder builder = Settings.builder().put("logger.level", property);
         try {
             ClusterSettings settings = new ClusterSettings(builder.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            try {
-                settings.validate(Settings.builder().put("logger._root", "boom").build());
-                fail();
-            } catch (IllegalArgumentException ex) {
-                assertEquals("No enum constant org.elasticsearch.common.logging.ESLoggerFactory.LogLevel.BOOM", ex.getMessage());
-            }
+            IllegalArgumentException ex =
+                expectThrows(
+                    IllegalArgumentException.class,
+                    () -> settings.validate(Settings.builder().put("logger._root", "boom").build()));
+            assertEquals("Unknown level constant [BOOM].", ex.getMessage());
             assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
-            assertEquals("TRACE", ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(Level.TRACE, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().build());
-            assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(property, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger.test", "TRACE").build());
-            assertEquals("TRACE", ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals(Level.TRACE, ESLoggerFactory.getLogger("test").getLevel());
             settings.applySettings(Settings.builder().build());
-            assertEquals(testLevel, ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals(property, ESLoggerFactory.getLogger("test").getLevel());
         } finally {
-            ESLoggerFactory.getRootLogger().setLevel(level);
-            ESLoggerFactory.getLogger("test").setLevel(testLevel);
+            Loggers.setLevel(ESLoggerFactory.getRootLogger(), level);
+            Loggers.setLevel(ESLoggerFactory.getLogger("test"), testLevel);
         }
     }
 
     public void testFallbackToLoggerLevel() {
-        final String level = ESLoggerFactory.getRootLogger().getLevel();
+        final Level level = ESLoggerFactory.getRootLogger().getLevel();
         try {
-            ClusterSettings settings = new ClusterSettings(Settings.builder().put("logger.level", "ERROR").build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            ClusterSettings settings =
+                new ClusterSettings(Settings.builder().put("logger.level", "ERROR").build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
-            assertEquals("TRACE", ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(Level.TRACE, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().build()); // here we fall back to 'logger.level' which is our default.
-            assertEquals("ERROR", ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(Level.ERROR, ESLoggerFactory.getRootLogger().getLevel());
         } finally {
-            ESLoggerFactory.getRootLogger().setLevel(level);
+            Loggers.setLevel(ESLoggerFactory.getRootLogger(), level);
         }
     }
 

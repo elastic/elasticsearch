@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -50,7 +51,7 @@ public abstract class WritableTestCase<M extends Writeable> extends ESTestCase {
     protected abstract M createMutation(M original) throws IOException;
 
     /**
-     * model prototype to read serialized format
+     * Read from a stream.
      */
     protected abstract M readFrom(StreamInput in) throws IOException;
 
@@ -103,13 +104,13 @@ public abstract class WritableTestCase<M extends Writeable> extends ESTestCase {
     private M copyModel(M original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), provideNamedWritableRegistry())) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), provideNamedWritableRegistry())) {
                 return readFrom(in);
             }
         }
     }
 
     protected NamedWriteableRegistry provideNamedWritableRegistry() {
-        return new NamedWriteableRegistry();
+        return new NamedWriteableRegistry(Collections.emptyList());
     }
 }

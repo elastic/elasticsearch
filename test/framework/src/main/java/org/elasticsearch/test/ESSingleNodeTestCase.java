@@ -19,20 +19,17 @@
 package org.elasticsearch.test;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -44,7 +41,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
@@ -55,13 +52,13 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -78,7 +75,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         startNode();
     }
 
-    private void startNode() {
+    protected void startNode() {
         assert NODE == null;
         NODE = newNode();
         // we must wait for the node to actually be up and running. otherwise the node might have started, elected itself master but might not yet have removed the
@@ -93,7 +90,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
     }
 
-    private static void stopNode() throws IOException {
+    protected static void stopNode() throws IOException {
         Node node = NODE;
         NODE = null;
         IOUtils.close(node);
@@ -149,10 +146,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return false;
     }
 
-    /** The version of elasticsearch the node should act like. */
-    protected Version getVersion() {
-        return Version.CURRENT;
-    }
 
     /** The plugin classes that should be added to the node. */
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -172,26 +165,31 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     private Node newNode() {
+        final Path tempDir = createTempDir();
         Settings settings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
+            .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo"))
             // TODO: use a consistent data path for custom paths
             // This needs to tie into the ESIntegTestCase#indexSettings() method
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
             .put("node.name", nodeName())
-
             .put("script.inline", "true")
-            .put("script.indexed", "true")
+            .put("script.stored", "true")
+            .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 1000)
             .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
-            .put("http.enabled", false)
-            .put(Node.NODE_LOCAL_SETTING.getKey(), true)
+            .put(NetworkModule.HTTP_ENABLED.getKey(), false)
+            .put("discovery.type", "local")
+            .put("transport.type", "local")
             .put(Node.NODE_DATA_SETTING.getKey(), true)
-            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true) // make sure we get what we set :)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
-        Node build = new MockNode(settings, getVersion(), getPlugins());
-        build.start();
-        assertThat(DiscoveryNode.localNode(build.settings()), is(true));
+        Node build = new MockNode(settings, getPlugins());
+        try {
+            build.start();
+        } catch (NodeValidationException e) {
+            throw new RuntimeException(e);
+        }
         return build;
     }
 
@@ -264,7 +262,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         // Wait for the index to be allocated so that cluster state updates don't override
         // changes that would have been done locally
         ClusterHealthResponse health = client().admin().cluster()
-                .health(Requests.clusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
+                .health(Requests.clusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID).waitForNoRelocatingShards(true)).actionGet();
         assertThat(health.getStatus(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW));
         assertThat("Cluster must be a single node cluster", health.getNumberOfDataNodes(), equalTo(1));
         IndicesService instanceFromNode = getInstanceFromNode(IndicesService.class);
@@ -284,9 +282,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     protected SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.getBigArrays();
         ThreadPool threadPool = indexService.getThreadPool();
-        PageCacheRecycler pageCacheRecycler = node().injector().getInstance(PageCacheRecycler.class);
         ScriptService scriptService = node().injector().getInstance(ScriptService.class);
-        return new TestSearchContext(threadPool, pageCacheRecycler, bigArrays, scriptService, indexService);
+        return new TestSearchContext(threadPool, bigArrays, scriptService, indexService);
     }
 
     /**
@@ -308,7 +305,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      */
     public ClusterHealthStatus ensureGreen(TimeValue timeout, String... indices) {
         ClusterHealthResponse actionGet = client().admin().cluster()
-                .health(Requests.clusterHealthRequest(indices).timeout(timeout).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
+                .health(Requests.clusterHealthRequest(indices).timeout(timeout).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForNoRelocatingShards(true)).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info("ensureGreen timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
             assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));

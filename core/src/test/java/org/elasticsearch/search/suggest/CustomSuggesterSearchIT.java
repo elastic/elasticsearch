@@ -38,6 +38,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -45,18 +46,24 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /**
- *
+ * Integration test for registering a custom suggester.
  */
 @ClusterScope(scope= Scope.SUITE, numDataNodes =1)
 public class CustomSuggesterSearchIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(CustomSuggesterPlugin.class);
+        return Arrays.asList(CustomSuggesterPlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return Arrays.asList(CustomSuggesterPlugin.class);
     }
 
     public void testThatCustomSuggestersCanBeRegisteredAndWork() throws Exception {
@@ -65,8 +72,7 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
                 .startObject()
                 .field("name", "arbitrary content")
                 .endObject())
-                .setRefresh(true).execute().actionGet();
-        ensureYellow();
+                .setRefreshPolicy(IMMEDIATE).get();
 
         String randomText = randomAsciiOfLength(10);
         String randomField = randomAsciiOfLength(10);
@@ -91,8 +97,6 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
     }
 
     public static class CustomSuggestionBuilder extends SuggestionBuilder<CustomSuggestionBuilder> {
-
-        public final static CustomSuggestionBuilder PROTOTYPE = new CustomSuggestionBuilder("_na_", "_na_");
         protected static final ParseField RANDOM_SUFFIX_FIELD = new ParseField("suffix");
 
         private String randomSuffix;
@@ -100,6 +104,19 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         public CustomSuggestionBuilder(String randomField, String randomSuffix) {
             super(randomField);
             this.randomSuffix = randomSuffix;
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public CustomSuggestionBuilder(StreamInput in) throws IOException {
+            super(in);
+            this.randomSuffix = in.readString();
+        }
+
+        @Override
+        public void doWriteTo(StreamOutput out) throws IOException {
+            out.writeString(randomSuffix);
         }
 
         @Override
@@ -114,16 +131,6 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        public void doWriteTo(StreamOutput out) throws IOException {
-            out.writeString(randomSuffix);
-        }
-
-        @Override
-        public CustomSuggestionBuilder doReadFrom(StreamInput in, String field) throws IOException {
-            return new CustomSuggestionBuilder(field, in.readString());
-        }
-
-        @Override
         protected boolean doEquals(CustomSuggestionBuilder other) {
             return Objects.equals(randomSuffix, other.randomSuffix);
         }
@@ -133,10 +140,9 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
             return Objects.hash(randomSuffix);
         }
 
-        @Override
-        protected CustomSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
+        static CustomSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
             XContentParser parser = parseContext.parser();
-            ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
+            ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
             XContentParser.Token token;
             String currentFieldName = null;
             String fieldname = null;

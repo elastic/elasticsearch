@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -49,7 +49,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -124,8 +124,8 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         }
 
         @Override
-        public Task createTask(long id, String type, String action) {
-            return new CancellableTask(id, type, action, getDescription());
+        public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId);
         }
     }
 
@@ -139,10 +139,10 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
         final CountDownLatch actionStartedLatch;
 
-        CancellableTestNodesAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
+        CancellableTestNodesAction(Settings settings, String actionName, ThreadPool threadPool,
                                    ClusterService clusterService, TransportService transportService, boolean shouldBlock, CountDownLatch
                                        actionStartedLatch) {
-            super(settings, actionName, clusterName, threadPool, clusterService, transportService, CancellableNodesRequest::new,
+            super(settings, actionName, threadPool, clusterService, transportService, CancellableNodesRequest::new,
                 CancellableNodeRequest::new);
             this.shouldBlock = shouldBlock;
             this.actionStartedLatch = actionStartedLatch;
@@ -201,7 +201,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         for (int i = 0; i < testNodes.length; i++) {
             boolean shouldBlock = blockOnNodes.contains(testNodes[i]);
             logger.info("The action in the node [{}] should block: [{}]", testNodes[i].discoveryNode.getId(), shouldBlock);
-            actions[i] = new CancellableTestNodesAction(Settings.EMPTY, "testAction", clusterName, threadPool, testNodes[i]
+            actions[i] = new CancellableTestNodesAction(CLUSTER_SETTINGS, "testAction", threadPool, testNodes[i]
                 .clusterService, testNodes[i].transportService, shouldBlock, actionLatch);
         }
         Task task = actions[0].execute(request, listener);
@@ -230,7 +230,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 throwableReference.set(e);
                 responseLatch.countDown();
             }
@@ -254,12 +254,12 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             // Make sure that the request was successful
             assertNull(throwableReference.get());
             assertNotNull(responseReference.get());
-            assertEquals(nodesCount, responseReference.get().getNodes().length);
+            assertEquals(nodesCount, responseReference.get().getNodes().size());
             assertEquals(0, responseReference.get().failureCount());
         } else {
             // We canceled the request, in this case it should have fail, but we should get partial response
             assertNull(throwableReference.get());
-            assertEquals(nodesCount, responseReference.get().failureCount() + responseReference.get().getNodes().length);
+            assertEquals(nodesCount, responseReference.get().failureCount() + responseReference.get().getNodes().size());
             // and we should have at least as many failures as the number of blocked operations
             // (we might have cancelled some non-blocked operations before they even started and that's ok)
             assertThat(responseReference.get().failureCount(), greaterThanOrEqualTo(blockedNodesCount));
@@ -267,6 +267,10 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             // We should have the information about the cancelled task in the cancel operation response
             assertEquals(1, response.getTasks().size());
             assertEquals(mainTask.getId(), response.getTasks().get(0).getId());
+            // Verify that all cancelled tasks reported that they support cancellation
+            for(TaskInfo taskInfo : response.getTasks()) {
+                assertTrue(taskInfo.isCancellable());
+            }
         }
 
         // Make sure that tasks are no longer running
@@ -304,7 +308,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 throwableReference.set(e);
                 responseLatch.countDown();
             }

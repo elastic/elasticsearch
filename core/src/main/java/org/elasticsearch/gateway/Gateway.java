@@ -21,7 +21,7 @@ package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.apache.lucene.util.IOUtils;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,23 +33,16 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.indices.IndicesService;
 
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.function.Supplier;
 
-/**
- *
- */
 public class Gateway extends AbstractComponent implements ClusterStateListener {
 
     private final ClusterService clusterService;
-
-    private final NodeEnvironment nodeEnv;
 
     private final GatewayMetaState metaState;
 
@@ -59,14 +52,13 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
     private final IndicesService indicesService;
     private final NodeServicesProvider nodeServicesProvider;
 
-    public Gateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv, GatewayMetaState metaState,
+    public Gateway(Settings settings, ClusterService clusterService, GatewayMetaState metaState,
                    TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery,
                    NodeServicesProvider nodeServicesProvider, IndicesService indicesService) {
         super(settings);
         this.nodeServicesProvider = nodeServicesProvider;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
-        this.nodeEnv = nodeEnv;
         this.metaState = metaState;
         this.listGatewayMetaState = listGatewayMetaState;
         this.minimumMasterNodesProvider = discovery::getMinimumMasterNodes;
@@ -74,7 +66,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
     }
 
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
-        String[] nodesIds = clusterService.state().nodes().masterNodes().keys().toArray(String.class);
+        String[] nodesIds = clusterService.state().nodes().getMasterNodes().keys().toArray(String.class);
         logger.trace("performing state recovery from {}", Arrays.toString(nodesIds));
         TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
 
@@ -82,7 +74,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
         int requiredAllocation = Math.max(1, minimumMasterNodesProvider.get());
 
 
-        if (nodesState.failures().length > 0) {
+        if (nodesState.hasFailures()) {
             for (FailedNodeException failedNodeException : nodesState.failures()) {
                 logger.warn("failed to fetch state from node", failedNodeException);
             }
@@ -91,7 +83,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
         ObjectFloatHashMap<Index> indices = new ObjectFloatHashMap<>();
         MetaData electedGlobalState = null;
         int found = 0;
-        for (TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState) {
+        for (TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState.getNodes()) {
             if (nodeState.metaData() == null) {
                 continue;
             }
@@ -119,7 +111,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                 Index index = (Index) keys[i];
                 IndexMetaData electedIndexMetaData = null;
                 int indexMetaDataCount = 0;
-                for (TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState) {
+                for (TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState.getNodes()) {
                     if (nodeState.metaData() == null) {
                         continue;
                     }
@@ -141,10 +133,13 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                     try {
                         if (electedIndexMetaData.getState() == IndexMetaData.State.OPEN) {
                             // verify that we can actually create this index - if not we recover it as closed with lots of warn logs
-                            indicesService.verifyIndexMetadata(nodeServicesProvider, electedIndexMetaData);
+                            indicesService.verifyIndexMetadata(nodeServicesProvider, electedIndexMetaData, electedIndexMetaData);
                         }
                     } catch (Exception e) {
-                        logger.warn("recovering index {} failed - recovering as closed", e, electedIndexMetaData.getIndex());
+                        final Index electedIndex = electedIndexMetaData.getIndex();
+                        logger.warn(
+                            (org.apache.logging.log4j.util.Supplier<?>)
+                                () -> new ParameterizedMessage("recovering index {} failed - recovering as closed", electedIndex), e);
                         electedIndexMetaData = IndexMetaData.builder(electedIndexMetaData).state(IndexMetaData.State.CLOSE).build();
                     }
 
@@ -155,18 +150,9 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         metaDataBuilder.persistentSettings(clusterSettings.archiveUnknownOrBrokenSettings(metaDataBuilder.persistentSettings()));
         metaDataBuilder.transientSettings(clusterSettings.archiveUnknownOrBrokenSettings(metaDataBuilder.transientSettings()));
-        ClusterState.Builder builder = ClusterState.builder(clusterService.state().getClusterName());
+        ClusterState.Builder builder = ClusterState.builder(clusterService.getClusterName());
         builder.metaData(metaDataBuilder);
         listener.onSuccess(builder.build());
-    }
-    public void reset() throws Exception {
-        try {
-            Path[] dataPaths = nodeEnv.nodeDataPaths();
-            logger.trace("removing node data paths: [{}]", (Object)dataPaths);
-            IOUtils.rm(dataPaths);
-        } catch (Exception ex) {
-            logger.debug("failed to delete shard locations", ex);
-        }
     }
 
     @Override

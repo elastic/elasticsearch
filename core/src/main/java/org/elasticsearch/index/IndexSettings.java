@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -32,8 +32,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.node.Node;
 
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
@@ -92,6 +93,12 @@ public final class IndexSettings {
      */
     public static final Setting<Integer> MAX_RESULT_WINDOW_SETTING =
         Setting.intSetting("index.max_result_window", 10000, 1, Property.Dynamic, Property.IndexScope);
+    /**
+     * Index setting describing the maximum size of the rescore window. Defaults to {@link #MAX_RESULT_WINDOW_SETTING}
+     * because they both do the same thing: control the size of the heap of hits.
+     */
+    public static final Setting<Integer> MAX_RESCORE_WINDOW_SETTING =
+            Setting.intSetting("index.max_rescore_window", MAX_RESULT_WINDOW_SETTING, 1, Property.Dynamic, Property.IndexScope);
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("index.refresh_interval", DEFAULT_REFRESH_INTERVAL, new TimeValue(-1, TimeUnit.MILLISECONDS),
@@ -109,10 +116,21 @@ public final class IndexSettings {
     public static final Setting<TimeValue> INDEX_GC_DELETES_SETTING =
         Setting.timeSetting("index.gc_deletes", DEFAULT_GC_DELETES, new TimeValue(-1, TimeUnit.MILLISECONDS), Property.Dynamic,
             Property.IndexScope);
+    /**
+     * The maximum number of refresh listeners allows on this shard.
+     */
+    public static final Setting<Integer> MAX_REFRESH_LISTENERS_PER_SHARD = Setting.intSetting("index.max_refresh_listeners", 1000, 0,
+            Property.Dynamic, Property.IndexScope);
+
+    /**
+     * The maximum number of slices allowed in a scroll request
+     */
+    public static final Setting<Integer> MAX_SLICES_PER_SCROLL = Setting.intSetting("index.max_slices_per_scroll",
+        1024, 1, Property.Dynamic, Property.IndexScope);
 
     private final Index index;
     private final Version version;
-    private final ESLogger logger;
+    private final Logger logger;
     private final String nodeName;
     private final Settings nodeSettings;
     private final int numberOfShards;
@@ -137,7 +155,17 @@ public final class IndexSettings {
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
+    private volatile int maxRescoreWindow;
     private volatile boolean TTLPurgeDisabled;
+    /**
+     * The maximum number of refresh listeners allows on this shard.
+     */
+    private volatile int maxRefreshListeners;
+    /**
+     * The maximum number of slices allowed in a scroll request.
+     */
+    private volatile int maxSlicesPerScroll;
+
 
     /**
      * Returns the default search field for this index.
@@ -200,7 +228,7 @@ public final class IndexSettings {
         this.index = indexMetaData.getIndex();
         version = Version.indexCreated(settings);
         logger = Loggers.getLogger(getClass(), settings, index);
-        nodeName = settings.get("node.name", "");
+        nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
         isShadowReplicaIndex = IndexMetaData.isIndexUsingShadowReplicas(settings);
@@ -220,7 +248,10 @@ public final class IndexSettings {
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
+        maxRescoreWindow = scopedSettings.get(MAX_RESCORE_WINDOW_SETTING);
         TTLPurgeDisabled = scopedSettings.get(INDEX_TTL_DISABLE_PURGE_SETTING);
+        maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
+        maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         assert indexNameMatcher.test(indexMetaData.getIndex().getName());
 
@@ -232,16 +263,21 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING, mergePolicyConfig::setMaxMergedSegment);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING, mergePolicyConfig::setSegmentsPerTier);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING, mergePolicyConfig::setReclaimDeletesWeight);
-        scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING, mergeSchedulerConfig::setMaxThreadCount);
-        scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING, mergeSchedulerConfig::setMaxMergeCount);
+
+        scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING, MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
+            mergeSchedulerConfig::setMaxThreadAndMergeCount);
         scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.AUTO_THROTTLE_SETTING, mergeSchedulerConfig::setAutoThrottle);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TTL_DISABLE_PURGE_SETTING, this::setTTLPurgeDisabled);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
+        scopedSettings.addSettingsUpdateConsumer(MAX_RESCORE_WINDOW_SETTING, this::setMaxRescoreWindow);
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
         scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING, this::setTranslogFlushThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
+        scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
+        scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
+
     }
 
     private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {
@@ -371,9 +407,9 @@ public final class IndexSettings {
      *
      * @return <code>true</code> iff any setting has been updated otherwise <code>false</code>.
      */
-    synchronized boolean updateIndexMetaData(IndexMetaData indexMetaData) {
+    public synchronized boolean updateIndexMetaData(IndexMetaData indexMetaData) {
         final Settings newSettings = indexMetaData.getSettings();
-        if (Version.indexCreated(newSettings) != version) {
+        if (version.equals(Version.indexCreated(newSettings)) == false) {
             throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + Version.indexCreated(newSettings));
         }
         final String newUUID = newSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
@@ -449,6 +485,16 @@ public final class IndexSettings {
         this.maxResultWindow = maxResultWindow;
     }
 
+    /**
+     * Returns the maximum rescore window for search requests.
+     */
+    public int getMaxRescoreWindow() {
+        return maxRescoreWindow;
+    }
+
+    private void setMaxRescoreWindow(int maxRescoreWindow) {
+        this.maxRescoreWindow = maxRescoreWindow;
+    }
 
     /**
      * Returns the GC deletes cycle in milliseconds.
@@ -480,6 +526,27 @@ public final class IndexSettings {
         return scopedSettings.get(setting);
     }
 
+    /**
+     * The maximum number of refresh listeners allows on this shard.
+     */
+    public int getMaxRefreshListeners() {
+        return maxRefreshListeners;
+    }
 
-    IndexScopedSettings getScopedSettings() { return scopedSettings;}
+    private void setMaxRefreshListeners(int maxRefreshListeners) {
+        this.maxRefreshListeners = maxRefreshListeners;
+    }
+
+    /**
+     * The maximum number of slices allowed in a scroll request.
+     */
+    public int getMaxSlicesPerScroll() {
+        return maxSlicesPerScroll;
+    }
+
+    private void setMaxSlicesPerScroll(int value) {
+        this.maxSlicesPerScroll = value;
+    }
+
+    public IndexScopedSettings getScopedSettings() { return scopedSettings;}
 }

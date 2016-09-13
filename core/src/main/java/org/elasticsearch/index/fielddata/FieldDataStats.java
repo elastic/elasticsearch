@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
@@ -54,7 +53,7 @@ public class FieldDataStats implements Streamable, ToXContent {
         this.memorySize += stats.memorySize;
         this.evictions += stats.evictions;
         if (stats.fields != null) {
-            if (fields == null) { 
+            if (fields == null) {
                 fields = stats.fields.clone();
             } else {
                 assert !stats.fields.containsKey(null);
@@ -138,7 +137,7 @@ public class FieldDataStats implements Streamable, ToXContent {
             final long[] values = fields.values;
             for (int i = 0; i < keys.length; i++) {
                 if (keys[i] != null) {
-                    builder.startObject((String) keys[i], XContentBuilder.FieldCaseConversion.NONE);
+                    builder.startObject((String) keys[i]);
                     builder.byteSizeField(Fields.MEMORY_SIZE_IN_BYTES, Fields.MEMORY_SIZE, values[i]);
                     builder.endObject();
                 }
@@ -150,10 +149,10 @@ public class FieldDataStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString FIELDDATA = new XContentBuilderString("fielddata");
-        static final XContentBuilderString MEMORY_SIZE = new XContentBuilderString("memory_size");
-        static final XContentBuilderString MEMORY_SIZE_IN_BYTES = new XContentBuilderString("memory_size_in_bytes");
-        static final XContentBuilderString EVICTIONS = new XContentBuilderString("evictions");
-        static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
+        static final String FIELDDATA = "fielddata";
+        static final String MEMORY_SIZE = "memory_size";
+        static final String MEMORY_SIZE_IN_BYTES = "memory_size_in_bytes";
+        static final String EVICTIONS = "evictions";
+        static final String FIELDS = "fields";
     }
 }

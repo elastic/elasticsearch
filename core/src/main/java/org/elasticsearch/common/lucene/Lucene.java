@@ -19,6 +19,9 @@
 
 package org.elasticsearch.common.lucene;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
@@ -67,7 +70,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -88,7 +90,7 @@ import java.util.Objects;
 public class Lucene {
     public static final String LATEST_DOC_VALUES_FORMAT = "Lucene54";
     public static final String LATEST_POSTINGS_FORMAT = "Lucene50";
-    public static final String LATEST_CODEC = "Lucene60";
+    public static final String LATEST_CODEC = "Lucene62";
 
     static {
         Deprecated annotation = PostingsFormat.forName(LATEST_POSTINGS_FORMAT).getClass().getAnnotation(Deprecated.class);
@@ -104,14 +106,14 @@ public class Lucene {
 
     public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(0, EMPTY_SCORE_DOCS, 0.0f);
 
-    public static Version parseVersion(@Nullable String version, Version defaultVersion, ESLogger logger) {
+    public static Version parseVersion(@Nullable String version, Version defaultVersion, Logger logger) {
         if (version == null) {
             return defaultVersion;
         }
         try {
             return Version.parse(version);
         } catch (ParseException e) {
-            logger.warn("no version match {}, default to {}", e, version, defaultVersion);
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("no version match {}, default to {}", version, defaultVersion), e);
             return defaultVersion;
         }
     }
@@ -245,14 +247,14 @@ public class Lucene {
     /**
      * Wraps <code>delegate</code> with count based early termination collector with a threshold of <code>maxCountHits</code>
      */
-    public final static EarlyTerminatingCollector wrapCountBasedEarlyTerminatingCollector(final Collector delegate, int maxCountHits) {
+    public static final EarlyTerminatingCollector wrapCountBasedEarlyTerminatingCollector(final Collector delegate, int maxCountHits) {
         return new EarlyTerminatingCollector(delegate, maxCountHits);
     }
 
     /**
      * Wraps <code>delegate</code> with a time limited collector with a timeout of <code>timeoutInMillis</code>
      */
-    public final static TimeLimitingCollector wrapTimeLimitingCollector(final Collector delegate, final Counter counter, long timeoutInMillis) {
+    public static final TimeLimitingCollector wrapTimeLimitingCollector(final Collector delegate, final Counter counter, long timeoutInMillis) {
         return new TimeLimitingCollector(delegate, counter, timeoutInMillis);
     }
 
@@ -510,7 +512,7 @@ public class Lucene {
      * This exception is thrown when {@link org.elasticsearch.common.lucene.Lucene.EarlyTerminatingCollector}
      * reaches early termination
      * */
-    public final static class EarlyTerminationException extends ElasticsearchException {
+    public static final class EarlyTerminationException extends ElasticsearchException {
 
         public EarlyTerminationException(String msg) {
             super(msg);
@@ -525,7 +527,7 @@ public class Lucene {
      * A collector that terminates early by throwing {@link org.elasticsearch.common.lucene.Lucene.EarlyTerminationException}
      * when count of matched documents has reached <code>maxCountHits</code>
      */
-    public final static class EarlyTerminatingCollector extends SimpleCollector {
+    public static final class EarlyTerminatingCollector extends SimpleCollector {
 
         private final int maxCountHits;
         private final Collector delegate;

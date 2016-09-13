@@ -26,14 +26,17 @@ import org.gradle.api.tasks.Exec
  * A wrapper around gradle's Exec task to capture output and log on error.
  */
 class LoggedExec extends Exec {
+
+    protected ByteArrayOutputStream output = new ByteArrayOutputStream()
+
     LoggedExec() {
         if (logger.isInfoEnabled() == false) {
-            standardOutput = new ByteArrayOutputStream()
-            errorOutput = standardOutput
+            standardOutput = output
+            errorOutput = output
             ignoreExitValue = true
             doLast {
                 if (execResult.exitValue != 0) {
-                    standardOutput.toString('UTF-8').eachLine { line -> logger.error(line) }
+                    output.toString('UTF-8').eachLine { line -> logger.error(line) }
                     throw new GradleException("Process '${executable} ${args.join(' ')}' finished with non-zero exit value ${execResult.exitValue}")
                 }
             }

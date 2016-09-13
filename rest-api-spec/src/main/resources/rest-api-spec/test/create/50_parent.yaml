@@ -10,10 +10,6 @@
                 _parent: { type: "foo" }
 
  - do:
-      cluster.health:
-          wait_for_status: yellow
-
- - do:
       catch:  /routing_missing_exception/
       create:
           index:   test_1

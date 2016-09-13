@@ -22,6 +22,7 @@ package org.elasticsearch.discovery.zen.elect;
 import com.carrotsearch.hppc.ObjectContainer;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -52,9 +53,9 @@ public class ElectMasterService extends AbstractComponent {
     private volatile int minimumMasterNodes;
 
     @Inject
-    public ElectMasterService(Settings settings, Version version) {
+    public ElectMasterService(Settings settings) {
         super(settings);
-        this.minMasterVersion = version.minimumCompatibilityVersion();
+        this.minMasterVersion = Version.CURRENT.minimumCompatibilityVersion();
         this.minimumMasterNodes = DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
         logger.debug("using minimum_master_nodes [{}]", minimumMasterNodes);
     }
@@ -73,11 +74,31 @@ public class ElectMasterService extends AbstractComponent {
         }
         int count = 0;
         for (DiscoveryNode node : nodes) {
-            if (node.masterNode()) {
+            if (node.isMasterNode()) {
                 count++;
             }
         }
         return count >= minimumMasterNodes;
+    }
+
+    public boolean hasTooManyMasterNodes(Iterable<DiscoveryNode> nodes) {
+        int count = 0;
+        for (DiscoveryNode node : nodes) {
+            if (node.isMasterNode()) {
+                count++;
+            }
+        }
+        return count > 1 && minimumMasterNodes <= count / 2;
+    }
+
+    public void logMinimumMasterNodesWarningIfNecessary(ClusterState oldState, ClusterState newState) {
+        // check if min_master_nodes setting is too low and log warning
+        if (hasTooManyMasterNodes(oldState.nodes()) == false && hasTooManyMasterNodes(newState.nodes())) {
+            logger.warn("value for setting \"{}\" is too low. This can result in data loss! Please set it to at least a quorum of master-" +
+                    "eligible nodes (current value: [{}], total number of master-eligible nodes used for publishing in this round: [{}])",
+                ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minimumMasterNodes(),
+                newState.getNodes().getMasterNodes().size());
+        }
     }
 
     /**
@@ -136,7 +157,7 @@ public class ElectMasterService extends AbstractComponent {
         // clean non master nodes
         for (Iterator<DiscoveryNode> it = possibleNodes.iterator(); it.hasNext(); ) {
             DiscoveryNode node = it.next();
-            if (!node.masterNode()) {
+            if (!node.isMasterNode()) {
                 it.remove();
             }
         }
@@ -148,13 +169,13 @@ public class ElectMasterService extends AbstractComponent {
 
         @Override
         public int compare(DiscoveryNode o1, DiscoveryNode o2) {
-            if (o1.masterNode() && !o2.masterNode()) {
+            if (o1.isMasterNode() && !o2.isMasterNode()) {
                 return -1;
             }
-            if (!o1.masterNode() && o2.masterNode()) {
+            if (!o1.isMasterNode() && o2.isMasterNode()) {
                 return 1;
             }
-            return o1.id().compareTo(o2.id());
+            return o1.getId().compareTo(o2.getId());
         }
     }
 }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.script;
 
+import java.util.Objects;
+
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ScriptHeuristic;
 
@@ -46,6 +48,13 @@ public abstract class TestScript implements ExecutableScript{
         if (name.equals("_superset_size")) {
             _superset_size = (ScriptHeuristic.LongAccessor)value;
         }
+    }
+
+    protected final void checkParams() {
+        Objects.requireNonNull(_subset_freq, "_subset_freq");
+        Objects.requireNonNull(_subset_size, "_subset_size");
+        Objects.requireNonNull(_superset_freq, "_superset_freq");
+        Objects.requireNonNull(_superset_size, "_superset_size");
     }
 
     @Override

@@ -21,7 +21,7 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 
@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -38,6 +39,7 @@ public class SimulatePipelineResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         boolean isVerbose = randomBoolean();
+        String id = randomBoolean() ? randomAsciiOfLengthBetween(1, 10) : null;
         int numResults = randomIntBetween(1, 10);
         List<SimulateDocumentResult> results = new ArrayList<>(numResults);
         for (int i = 0; i < numResults; i++) {
@@ -69,10 +71,10 @@ public class SimulatePipelineResponseTests extends ESTestCase {
             }
         }
 
-        SimulatePipelineResponse response = new SimulatePipelineResponse(randomAsciiOfLengthBetween(1, 10), isVerbose, results);
+        SimulatePipelineResponse response = new SimulatePipelineResponse(id, isVerbose, results);
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
-        StreamInput streamInput = StreamInput.wrap(out.bytes());
+        StreamInput streamInput = out.bytes().streamInput();
         SimulatePipelineResponse otherResponse = new SimulatePipelineResponse();
         otherResponse.readFrom(streamInput);
 
@@ -90,7 +92,9 @@ public class SimulatePipelineResponseTests extends ESTestCase {
                 for (SimulateProcessorResult simulateProcessorResult : simulateDocumentVerboseResult.getProcessorResults()) {
                     SimulateProcessorResult expectedProcessorResult = expectedProcessorResultIterator.next();
                     assertThat(simulateProcessorResult.getProcessorTag(), equalTo(expectedProcessorResult.getProcessorTag()));
-                    assertThat(simulateProcessorResult.getIngestDocument(), equalTo(expectedProcessorResult.getIngestDocument()));
+                    if (simulateProcessorResult.getIngestDocument() != null) {
+                        assertIngestDocument(simulateProcessorResult.getIngestDocument(), expectedProcessorResult.getIngestDocument());
+                    }
                     if (expectedProcessorResult.getFailure() == null) {
                         assertThat(simulateProcessorResult.getFailure(), nullValue());
                     } else {
@@ -103,7 +107,9 @@ public class SimulatePipelineResponseTests extends ESTestCase {
                 SimulateDocumentBaseResult expectedSimulateDocumentBaseResult = (SimulateDocumentBaseResult) expectedResultIterator.next();
                 assertThat(result, instanceOf(SimulateDocumentBaseResult.class));
                 SimulateDocumentBaseResult simulateDocumentBaseResult = (SimulateDocumentBaseResult) result;
-                assertThat(simulateDocumentBaseResult.getIngestDocument(), equalTo(expectedSimulateDocumentBaseResult.getIngestDocument()));
+                if (simulateDocumentBaseResult.getIngestDocument() != null) {
+                    assertIngestDocument(simulateDocumentBaseResult.getIngestDocument(), expectedSimulateDocumentBaseResult.getIngestDocument());
+                }
                 if (expectedSimulateDocumentBaseResult.getFailure() == null) {
                     assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
                 } else {

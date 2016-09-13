@@ -26,8 +26,8 @@ import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.mapper.core.TextFieldMapper;
+import org.elasticsearch.index.mapper.StringFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -52,7 +52,7 @@ public class LanguageDetectionAttachmentMapperTests extends AttachmentUnitTestCa
 
     public void setupMapperParser(boolean langDetect) throws IOException {
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(),
-            Settings.settingsBuilder().put("index.mapping.attachment.detect_language", langDetect).build(),
+            Settings.builder().put("index.mapping.attachment.detect_language", langDetect).build(),
             getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/language/language-mapping.json");
         docMapper = mapperParser.parse("person", new CompressedXContent(mapping));

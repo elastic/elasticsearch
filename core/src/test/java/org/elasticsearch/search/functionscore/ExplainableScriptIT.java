@@ -42,6 +42,7 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -56,11 +57,11 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
+@ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class ExplainableScriptIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(ExplainableScriptPlugin.class);
+        return Arrays.asList(ExplainableScriptPlugin.class);
     }
 
     public void testNativeExplainScript() throws InterruptedException, IOException, ExecutionException {
@@ -84,8 +85,9 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         int idCounter = 19;
         for (SearchHit hit : hits.getHits()) {
             assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));
-            assertThat(hit.explanation().toString(), containsString(Double.toString(idCounter) + " = This script returned " + Double.toString(idCounter)));
-            assertThat(hit.explanation().toString(), containsString("1.0 = tf(freq=1.0), with freq of"));
+            assertThat(hit.explanation().toString(),
+                    containsString(Double.toString(idCounter) + " = This script returned " + Double.toString(idCounter)));
+            assertThat(hit.explanation().toString(), containsString("freq=1.0 = termFreq=1.0"));
             assertThat(hit.explanation().getDetails().length, equalTo(2));
             idCounter--;
         }
@@ -99,6 +101,11 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         @Override
         public boolean needsScores() {
             return true;
+        }
+
+        @Override
+        public String getName() {
+            return "native_explainable_script";
         }
     }
 

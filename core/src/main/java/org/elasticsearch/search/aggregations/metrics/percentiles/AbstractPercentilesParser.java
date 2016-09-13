@@ -21,13 +21,13 @@ package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import com.carrotsearch.hppc.DoubleArrayList;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -45,10 +45,11 @@ public abstract class AbstractPercentilesParser extends NumericValuesSourceParse
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
-            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+    protected boolean token(String aggregationName, String currentFieldName, Token token,
+                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
+        XContentParser parser = context.getParser();
         if (token == XContentParser.Token.START_ARRAY) {
-            if (parseFieldMatcher.match(currentFieldName, keysField())) {
+            if (context.matchField(currentFieldName, keysField())) {
                 DoubleArrayList values = new DoubleArrayList(10);
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     double value = parser.doubleValue();
@@ -61,7 +62,7 @@ public abstract class AbstractPercentilesParser extends NumericValuesSourceParse
                 return false;
             }
         } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-            if (parseFieldMatcher.match(currentFieldName, KEYED_FIELD)) {
+            if (context.matchField(currentFieldName, KEYED_FIELD)) {
                 boolean keyed = parser.booleanValue();
                 otherOptions.put(KEYED_FIELD, keyed);
                 return true;
@@ -80,7 +81,7 @@ public abstract class AbstractPercentilesParser extends NumericValuesSourceParse
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                            if (parseFieldMatcher.match(currentFieldName, COMPRESSION_FIELD)) {
+                            if (context.matchField(currentFieldName, COMPRESSION_FIELD)) {
                                 double compression = parser.doubleValue();
                                 otherOptions.put(COMPRESSION_FIELD, compression);
                             } else {
@@ -96,7 +97,7 @@ public abstract class AbstractPercentilesParser extends NumericValuesSourceParse
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                            if (parseFieldMatcher.match(currentFieldName, NUMBER_SIGNIFICANT_DIGITS_FIELD)) {
+                            if (context.matchField(currentFieldName, NUMBER_SIGNIFICANT_DIGITS_FIELD)) {
                                 int numberOfSignificantValueDigits = parser.intValue();
                                 otherOptions.put(NUMBER_SIGNIFICANT_DIGITS_FIELD, numberOfSignificantValueDigits);
                             } else {
@@ -115,8 +116,8 @@ public abstract class AbstractPercentilesParser extends NumericValuesSourceParse
     }
 
     @Override
-    protected ValuesSourceAggregatorBuilder<Numeric, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+    protected ValuesSourceAggregationBuilder<Numeric, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                                       ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         PercentilesMethod method = (PercentilesMethod) otherOptions.getOrDefault(METHOD_FIELD, PercentilesMethod.TDIGEST);
 
         double[] cdfValues = (double[]) otherOptions.get(keysField());
@@ -126,10 +127,10 @@ public abstract class AbstractPercentilesParser extends NumericValuesSourceParse
         return buildFactory(aggregationName, cdfValues, method, compression, numberOfSignificantValueDigits, keyed);
     }
 
-    protected abstract ValuesSourceAggregatorBuilder<Numeric, ?> buildFactory(String aggregationName, double[] cdfValues,
-            PercentilesMethod method,
-            Double compression,
-            Integer numberOfSignificantValueDigits, Boolean keyed);
+    protected abstract ValuesSourceAggregationBuilder<Numeric, ?> buildFactory(String aggregationName, double[] cdfValues,
+                                                                               PercentilesMethod method,
+                                                                               Double compression,
+                                                                               Integer numberOfSignificantValueDigits, Boolean keyed);
 
     protected abstract ParseField keysField();
 

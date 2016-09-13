@@ -34,7 +34,7 @@ import java.util.stream.StreamSupport;
  */
 public abstract class BucketCollector implements Collector {
 
-    public final static BucketCollector NO_OP_COLLECTOR = new BucketCollector() {
+    public static final BucketCollector NO_OP_COLLECTOR = new BucketCollector() {
 
         @Override
         public LeafBucketCollector getLeafCollector(LeafReaderContext reader) {

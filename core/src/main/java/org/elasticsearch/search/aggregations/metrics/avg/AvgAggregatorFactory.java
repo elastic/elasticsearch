@@ -44,12 +44,12 @@ public class AvgAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSo
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        return new AvgAggregator(name, null, config.formatter(), context, parent, pipelineAggregators, metaData);
+        return new AvgAggregator(name, null, config.format(), context, parent, pipelineAggregators, metaData);
     }
 
     @Override
     protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new AvgAggregator(name, valuesSource, config.formatter(), context, parent, pipelineAggregators, metaData);
+        return new AvgAggregator(name, valuesSource, config.format(), context, parent, pipelineAggregators, metaData);
     }
 }

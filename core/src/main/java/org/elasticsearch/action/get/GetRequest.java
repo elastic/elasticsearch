@@ -28,7 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 
@@ -57,11 +57,10 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     private boolean refresh = false;
 
-    Boolean realtime;
+    boolean realtime = true;
 
     private VersionType versionType = VersionType.INTERNAL;
     private long version = Versions.MATCH_ANY;
-    private boolean ignoreErrorsOnGeneratedFields;
 
     public GetRequest() {
         type = "_all";
@@ -218,11 +217,11 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     }
 
     public boolean realtime() {
-        return this.realtime == null ? true : this.realtime;
+        return this.realtime;
     }
 
     @Override
-    public GetRequest realtime(Boolean realtime) {
+    public GetRequest realtime(boolean realtime) {
         this.realtime = realtime;
         return this;
     }
@@ -248,17 +247,8 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         return this;
     }
 
-    public GetRequest ignoreErrorsOnGeneratedFields(boolean ignoreErrorsOnGeneratedFields) {
-        this.ignoreErrorsOnGeneratedFields = ignoreErrorsOnGeneratedFields;
-        return this;
-    }
-
     public VersionType versionType() {
         return this.versionType;
-    }
-
-    public boolean ignoreErrorsOnGeneratedFields() {
-        return ignoreErrorsOnGeneratedFields;
     }
 
     @Override
@@ -277,18 +267,11 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
                 fields[i] = in.readString();
             }
         }
-        byte realtime = in.readByte();
-        if (realtime == 0) {
-            this.realtime = false;
-        } else if (realtime == 1) {
-            this.realtime = true;
-        }
-        this.ignoreErrorsOnGeneratedFields = in.readBoolean();
+        realtime = in.readBoolean();
 
         this.versionType = VersionType.fromValue(in.readByte());
         this.version = in.readLong();
-
-        fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
+        fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
     }
 
     @Override
@@ -309,18 +292,10 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
                 out.writeString(field);
             }
         }
-        if (realtime == null) {
-            out.writeByte((byte) -1);
-        } else if (!realtime) {
-            out.writeByte((byte) 0);
-        } else {
-            out.writeByte((byte) 1);
-        }
-        out.writeBoolean(ignoreErrorsOnGeneratedFields);
+        out.writeBoolean(realtime);
         out.writeByte(versionType.getValue());
         out.writeLong(version);
-
-        FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
+        out.writeOptionalStreamable(fetchSourceContext);
     }
 
     @Override

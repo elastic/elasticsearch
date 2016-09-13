@@ -9,7 +9,7 @@
             "processors": [
               {
                 "attachment" : {
-                  "source_field" : "field1"
+                  "field" : "field1"
                 }
               }
             ]
@@ -33,7 +33,7 @@
   - length: { _source.attachment: 4 }
   - match: { _source.attachment.content: "This is an english text to test if the pipeline works" }
   - match: { _source.attachment.language: "en" }
-  - match: { _source.attachment.content_length: "54" }
+  - match: { _source.attachment.content_length: 54 }
   - match: { _source.attachment.content_type: "text/plain; charset=ISO-8859-1" }
 
 ---
@@ -51,8 +51,8 @@
             "processors": [
               {
                 "attachment" : {
-                  "source_field" : "field1",
-                  "fields" : ["language"]
+                  "field" : "field1",
+                  "properties" : ["language"]
                 }
               }
             ]
@@ -87,7 +87,7 @@
             "processors": [
               {
                 "attachment" : {
-                  "source_field" : "field1",
+                  "field" : "field1",
                   "indexed_chars": 30
                 }
               }
@@ -111,4 +111,4 @@
   - length: { _source.attachment: 4 }
   - match: { _source.attachment.content: "This is an english text to tes" }
   - match: { _source.attachment.language: "en" }
-  - match: { _source.attachment.content_length: "30" }
+  - match: { _source.attachment.content_length: 30 }

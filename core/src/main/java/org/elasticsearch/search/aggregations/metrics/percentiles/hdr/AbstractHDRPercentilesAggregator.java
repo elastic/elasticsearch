@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -33,7 +34,6 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,18 +47,18 @@ public abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAgg
 
     protected final double[] keys;
     protected final ValuesSource.Numeric valuesSource;
-    protected final ValueFormatter formatter;
+    protected final DocValueFormat format;
     protected ObjectArray<DoubleHistogram> states;
     protected final int numberOfSignificantValueDigits;
     protected final boolean keyed;
 
     public AbstractHDRPercentilesAggregator(String name, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent,
-            double[] keys, int numberOfSignificantValueDigits, boolean keyed, ValueFormatter formatter,
+            double[] keys, int numberOfSignificantValueDigits, boolean keyed, DocValueFormat formatter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.keyed = keyed;
-        this.formatter = formatter;
+        this.format = formatter;
         this.states = context.bigArrays().newObjectArray(1);
         this.keys = keys;
         this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;

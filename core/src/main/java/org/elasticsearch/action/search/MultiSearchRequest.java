@@ -38,6 +38,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implements CompositeIndicesRequest {
 
+    private int maxConcurrentSearchRequests = 0;
     private List<SearchRequest> requests = new ArrayList<>();
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
@@ -57,6 +58,25 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
      */
     public MultiSearchRequest add(SearchRequest request) {
         requests.add(request);
+        return this;
+    }
+
+    /**
+     * Returns the amount of search requests specified in this multi search requests are allowed to be ran concurrently.
+     */
+    public int maxConcurrentSearchRequests() {
+        return maxConcurrentSearchRequests;
+    }
+
+    /**
+     * Sets how many search requests specified in this multi search requests are allowed to be ran concurrently.
+     */
+    public MultiSearchRequest maxConcurrentSearchRequests(int maxConcurrentSearchRequests) {
+        if (maxConcurrentSearchRequests < 1) {
+            throw new IllegalArgumentException("maxConcurrentSearchRequests must be positive");
+        }
+
+        this.maxConcurrentSearchRequests = maxConcurrentSearchRequests;
         return this;
     }
 
@@ -100,6 +120,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        maxConcurrentSearchRequests = in.readVInt();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             SearchRequest request = new SearchRequest();
@@ -111,6 +132,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeVInt(maxConcurrentSearchRequests);
         out.writeVInt(requests.size());
         for (SearchRequest request : requests) {
             request.writeTo(out);

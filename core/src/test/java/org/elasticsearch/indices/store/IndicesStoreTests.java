@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -47,14 +48,16 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.Version.CURRENT;
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 
 /**
  */
 public class IndicesStoreTests extends ESTestCase {
-    private final static ShardRoutingState[] NOT_STARTED_STATES;
+    private static final ShardRoutingState[] NOT_STARTED_STATES;
 
     static {
         Set<ShardRoutingState> set = new HashSet<>();
@@ -72,7 +75,7 @@ public class IndicesStoreTests extends ESTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new ThreadPool("ShardReplicationTests");
+        threadPool = new TestThreadPool("ShardReplicationTests");
     }
 
     @AfterClass
@@ -83,9 +86,9 @@ public class IndicesStoreTests extends ESTestCase {
 
     @Before
     public void before() {
-        localNode = new DiscoveryNode("abc", new LocalTransportAddress("abc"), Version.CURRENT);
+        localNode = new DiscoveryNode("abc", new LocalTransportAddress("abc"), emptyMap(), emptySet(), Version.CURRENT);
         clusterService = createClusterService(threadPool);
-        indicesStore = new IndicesStore(Settings.EMPTY, null, clusterService, new TransportService(null, null), null);
+        indicesStore = new IndicesStore(Settings.EMPTY, null, clusterService, new TransportService(clusterService.getSettings(), null, null), null);
     }
 
     @After
@@ -126,7 +129,7 @@ public class IndicesStoreTests extends ESTestCase {
                 if (state == ShardRoutingState.UNASSIGNED) {
                     unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
                 }
-                routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", null, null, j == 0, state, unassignedInfo));
+                routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", null, j == 0, state, unassignedInfo));
             }
         }
         assertFalse(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));
@@ -138,7 +141,8 @@ public class IndicesStoreTests extends ESTestCase {
 
         ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
         clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(numReplicas)));
-        clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.id()).put(localNode).put(new DiscoveryNode("xyz", new LocalTransportAddress("xyz"), Version.CURRENT)));
+        clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.getId()).add(localNode).add(new DiscoveryNode("xyz",
+                new LocalTransportAddress("xyz"), emptyMap(), emptySet(), Version.CURRENT)));
         IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", "_na_", 1));
         int localShardId = randomInt(numShards - 1);
         for (int i = 0; i < numShards; i++) {
@@ -160,7 +164,7 @@ public class IndicesStoreTests extends ESTestCase {
 
         ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
         clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(numReplicas)));
-        clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.id()).put(localNode));
+        clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.getId()).add(localNode));
         IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", "_na_", 1));
         for (int i = 0; i < numShards; i++) {
             String relocatingNodeId = randomBoolean() ? null : "def";
@@ -182,7 +186,8 @@ public class IndicesStoreTests extends ESTestCase {
         final Version nodeVersion = randomBoolean() ? CURRENT : randomVersion(random());
         ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
         clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(numReplicas)));
-        clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.id()).put(localNode).put(new DiscoveryNode("xyz", new LocalTransportAddress("xyz"), nodeVersion)));
+        clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.getId()).add(localNode).add(new DiscoveryNode("xyz",
+                new LocalTransportAddress("xyz"), emptyMap(), emptySet(), nodeVersion)));
         IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", "_na_", 1));
         for (int i = 0; i < numShards; i++) {
             routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", null, true, ShardRoutingState.STARTED));
@@ -203,10 +208,10 @@ public class IndicesStoreTests extends ESTestCase {
         clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(numReplicas)));
         final Version nodeVersion = randomBoolean() ? CURRENT : randomVersion(random());
 
-        clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.id())
-                .put(localNode)
-                .put(new DiscoveryNode("xyz", new LocalTransportAddress("xyz"), Version.CURRENT))
-                .put(new DiscoveryNode("def", new LocalTransportAddress("def"), nodeVersion) // <-- only set relocating, since we're testing that in this test
+        clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.getId())
+                .add(localNode)
+                .add(new DiscoveryNode("xyz", new LocalTransportAddress("xyz"), emptyMap(), emptySet(), Version.CURRENT))
+                .add(new DiscoveryNode("def", new LocalTransportAddress("def"), emptyMap(), emptySet(), nodeVersion) // <-- only set relocating, since we're testing that in this test
                 ));
         IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", "_na_", 1));
         for (int i = 0; i < numShards; i++) {

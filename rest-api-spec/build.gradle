@@ -1,1 +1,8 @@
 apply plugin: 'java'
+apply plugin: 'com.bmuschko.nexus'
+
+extraArchive {
+  sources = false
+  javadoc = false
+  tests = false
+}

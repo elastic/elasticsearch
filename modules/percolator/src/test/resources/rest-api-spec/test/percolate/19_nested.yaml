@@ -1,0 +1,117 @@
+---
+setup:
+  - do:
+      indices.create:
+          index: nestedindex
+          body:
+              mappings:
+                  company:
+                      properties:
+                          companyname:
+                              type: text
+                          employee:
+                              type: nested
+                              properties:
+                                  name:
+                                      type: text
+                  queries:
+                      properties:
+                        query:
+                          type: percolator
+
+
+  - do:
+      indices.refresh: {}
+  - do:
+      index:
+          index: nestedindex
+          type:  "queries"
+          id:    query
+          body:  { "query": { "nested": { "path": "employee", "score_mode": "avg", "query": { "match": { "employee.name": { "query": "virginia potts", "operator": "and"} } } } } }
+  - do:
+      indices.refresh: {}
+
+
+---
+"Basic percolation tests on nested doc":
+  - do:
+      percolate:
+        index: nestedindex
+        type:  company
+        body: { "doc": { "companyname": "stark", "employee": [ { "name": "virginia stark"}, { "name": "tony potts"} ] } }
+
+  - match: {'total': 0}
+
+  - do:
+      percolate:
+          index: nestedindex
+          type:  company
+          body: { "doc": { "companyname": "stark", "employee": [ { "name": "virginia potts"}, { "name": "tony stark"} ] } }
+
+  - match: {'total': 1}
+
+---
+"Percolate existing docs":
+  - do:
+      index:
+          index: nestedindex
+          type:  company
+          id:    notmatching
+          body: { "companyname": "stark", "employee": [ { "name": "virginia stark"}, { "name": "tony potts"} ] }
+
+
+  - do:
+      index:
+          index: nestedindex
+          type:  company
+          id:    matching
+          body: { "companyname": "stark", "employee": [ { "name": "virginia potts"}, { "name": "tony stark"} ] }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      percolate:
+          index: nestedindex
+          type:  company
+          id: notmatching
+
+  - match: {'total': 0}
+
+  - do:
+      percolate:
+          index: nestedindex
+          type:  company
+          id: matching
+
+  - match: {'total': 1}
+
+---
+"Test multi percolate":
+
+
+  - do:
+      mpercolate:
+         body:
+            - percolate: {"index": "nestedindex", "type": "company"}
+            - doc: { "companyname": "stark", "employee": [ { "name": "virginia stark"}, { "name": "tony potts"} ] }
+            - percolate: {"index": "nestedindex", "type": "company"}
+            - doc: { "companyname": "stark", "employee": [ { "name": "virginia potts"}, { "name": "tony stark"} ] }
+
+  - match: {'responses.0.total': 0}
+  - match: {'responses.1.total': 1}
+
+  - do:
+      mpercolate:
+         body:
+            - percolate: {"index": "nestedindex", "type": "company"}
+            - doc: { "companyname": "stark", "employee": [ { "name": "virginia potts"}, {"name": "tony stark"} ] }
+            - percolate: {"index": "nestedindex", "type": "company"}
+            - doc: { "companyname": "stark", "employee": [ { "name": "virginia stark"}, { "name": "tony potts"} ] }
+
+
+  - match: {'responses.0.total': 1}
+  - match: {'responses.1.total': 0}
+
+
+

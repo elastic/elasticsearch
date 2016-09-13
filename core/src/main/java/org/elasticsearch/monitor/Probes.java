@@ -30,7 +30,7 @@ public class Probes {
                 if (load >= 0) {
                     return (short) (load * 100);
                 }
-            } catch (Throwable t) {
+            } catch (Exception e) {
                 return -1;
             }
         }

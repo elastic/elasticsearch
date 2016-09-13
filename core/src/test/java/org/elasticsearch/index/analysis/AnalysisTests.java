@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.util.CharArraySet;
+import org.apache.lucene.analysis.CharArraySet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -38,20 +38,19 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
 
 public class AnalysisTests extends ESTestCase {
     public void testParseStemExclusion() {
         /* Comma separated list */
-        Settings settings = settingsBuilder().put("stem_exclusion", "foo,bar").build();
+        Settings settings = Settings.builder().put("stem_exclusion", "foo,bar").build();
         CharArraySet set = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
         assertThat(set.contains("foo"), is(true));
         assertThat(set.contains("bar"), is(true));
         assertThat(set.contains("baz"), is(false));
 
         /* Array */
-        settings = settingsBuilder().putArray("stem_exclusion", "foo","bar").build();
+        settings = Settings.builder().putArray("stem_exclusion", "foo","bar").build();
         set = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
         assertThat(set.contains("foo"), is(true));
         assertThat(set.contains("bar"), is(true));

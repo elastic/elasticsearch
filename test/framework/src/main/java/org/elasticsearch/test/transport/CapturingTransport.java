@@ -19,10 +19,13 @@
 
 package org.elasticsearch.test.transport;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -46,16 +49,18 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import static org.apache.lucene.util.LuceneTestCase.rarely;
+
 /** A transport class that doesn't send anything but rather captures all requests for inspection from tests */
 public class CapturingTransport implements Transport {
 
     private TransportServiceAdapter adapter;
 
-    static public class CapturedRequest {
-        final public DiscoveryNode node;
-        final public long requestId;
-        final public String action;
-        final public TransportRequest request;
+    public static class CapturedRequest {
+        public final DiscoveryNode node;
+        public final long requestId;
+        public final String action;
+        public final TransportRequest request;
 
         public CapturedRequest(DiscoveryNode node, long requestId, String action, TransportRequest request) {
             this.node = node;
@@ -93,10 +98,10 @@ public class CapturingTransport implements Transport {
     public Map<String, List<CapturedRequest>> capturedRequestsByTargetNode() {
         Map<String, List<CapturedRequest>> map = new HashMap<>();
         for (CapturedRequest request : capturedRequests) {
-            List<CapturedRequest> nodeList = map.get(request.node.id());
+            List<CapturedRequest> nodeList = map.get(request.node.getId());
             if (nodeList == null) {
                 nodeList = new ArrayList<>();
-                map.put(request.node.id(), nodeList);
+                map.put(request.node.getId(), nodeList);
             }
             nodeList.add(request);
         }
@@ -150,7 +155,18 @@ public class CapturingTransport implements Transport {
      * @param t the failure to wrap
      */
     public void handleRemoteError(final long requestId, final Throwable t) {
-        this.handleError(requestId, new RemoteTransportException("remote failure", t));
+        final RemoteTransportException remoteException;
+        if (rarely(Randomness.get())) {
+            remoteException = new RemoteTransportException("remote failure, coming from local node", t);
+        } else {
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                output.writeException(t);
+                remoteException = new RemoteTransportException("remote failure", output.bytes().streamInput().readException());
+            } catch (IOException ioException) {
+                throw new ElasticsearchException("failed to serialize/deserialize supplied exception " + t, ioException);
+            }
+        }
+        this.handleError(requestId, remoteException);
     }
 
     /**
@@ -169,7 +185,8 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+    public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options)
+        throws IOException, TransportException {
         requests.put(requestId, Tuple.tuple(node, action));
         capturedRequests.add(new CapturedRequest(node, requestId, action, request));
     }
@@ -241,19 +258,13 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public Transport start() {
-        return null;
-    }
+    public void start() {}
 
     @Override
-    public Transport stop() {
-        return null;
-    }
+    public void stop() {}
 
     @Override
-    public void close() {
-
-    }
+    public void close() {}
 
     @Override
     public List<String> getLocalAddresses() {

@@ -11,9 +11,6 @@ setup:
                   properties:
                     file:
                       type: attachment
-    - do:
-        cluster.health:
-          wait_for_status: yellow
 
 ---
 # Encoded content with https://www.base64encode.org/

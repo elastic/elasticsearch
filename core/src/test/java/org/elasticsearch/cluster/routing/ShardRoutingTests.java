@@ -20,44 +20,25 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
 public class ShardRoutingTests extends ESTestCase {
 
-    public void testFrozenAfterRead() throws IOException {
-        ShardRouting routing = TestShardRouting.newShardRouting("foo", 1, "node_1", null, null, false, ShardRoutingState.INITIALIZING);
-        routing.moveToPrimary();
-        assertTrue(routing.primary());
-        routing.moveFromPrimary();
-        assertFalse(routing.primary());
-        BytesStreamOutput out = new BytesStreamOutput();
-        routing.writeTo(out);
-        ShardRouting newRouting = ShardRouting.readShardRoutingEntry(StreamInput.wrap(out.bytes()));
-        try {
-            newRouting.moveToPrimary();
-            fail("must be frozen");
-        } catch (IllegalStateException ex) {
-            // expected
-        }
-    }
-
     public void testIsSameAllocation() {
         ShardRouting unassignedShard0 = TestShardRouting.newShardRouting("test", 0, null, false, ShardRoutingState.UNASSIGNED);
         ShardRouting unassignedShard1 = TestShardRouting.newShardRouting("test", 1, null, false, ShardRoutingState.UNASSIGNED);
         ShardRouting initializingShard0 = TestShardRouting.newShardRouting("test", 0, "1", randomBoolean(), ShardRoutingState.INITIALIZING);
         ShardRouting initializingShard1 = TestShardRouting.newShardRouting("test", 1, "1", randomBoolean(), ShardRoutingState.INITIALIZING);
-        ShardRouting startedShard0 = new ShardRouting(initializingShard0);
-        startedShard0.moveToStarted();
-        ShardRouting startedShard1 = new ShardRouting(initializingShard1);
-        startedShard1.moveToStarted();
+        ShardRouting startedShard0 = initializingShard0.moveToStarted();
+        ShardRouting startedShard1 = initializingShard1.moveToStarted();
 
         // test identity
         assertTrue(initializingShard0.isSameAllocation(initializingShard0));
@@ -75,20 +56,6 @@ public class ShardRoutingTests extends ESTestCase {
         assertFalse(unassignedShard0.isSameAllocation(startedShard1));
     }
 
-    public void testIsSameShard() {
-        ShardRouting index1Shard0a = randomShardRouting("index1", 0);
-        ShardRouting index1Shard0b = randomShardRouting("index1", 0);
-        ShardRouting index1Shard1 = randomShardRouting("index1", 1);
-        ShardRouting index2Shard0 = randomShardRouting("index2", 0);
-        ShardRouting index2Shard1 = randomShardRouting("index2", 1);
-
-        assertTrue(index1Shard0a.isSameShard(index1Shard0a));
-        assertTrue(index1Shard0a.isSameShard(index1Shard0b));
-        assertFalse(index1Shard0a.isSameShard(index1Shard1));
-        assertFalse(index1Shard0a.isSameShard(index2Shard0));
-        assertFalse(index1Shard0a.isSameShard(index2Shard1));
-    }
-
     private ShardRouting randomShardRouting(String index, int shard) {
         ShardRoutingState state = randomFrom(ShardRoutingState.values());
         return TestShardRouting.newShardRouting(index, shard, state == ShardRoutingState.UNASSIGNED ? null : "1", state != ShardRoutingState.UNASSIGNED && randomBoolean(), state);
@@ -98,23 +65,18 @@ public class ShardRoutingTests extends ESTestCase {
         ShardRouting unassignedShard0 = TestShardRouting.newShardRouting("test", 0, null, false, ShardRoutingState.UNASSIGNED);
         ShardRouting initializingShard0 = TestShardRouting.newShardRouting("test", 0, "node1", randomBoolean(), ShardRoutingState.INITIALIZING);
         ShardRouting initializingShard1 = TestShardRouting.newShardRouting("test", 1, "node1", randomBoolean(), ShardRoutingState.INITIALIZING);
-        ShardRouting startedShard0 = new ShardRouting(initializingShard0);
+        assertFalse(initializingShard0.isRelocationTarget());
+        ShardRouting startedShard0 = initializingShard0.moveToStarted();
         assertFalse(startedShard0.isRelocationTarget());
-        startedShard0.moveToStarted();
-        assertFalse(startedShard0.isRelocationTarget());
-        ShardRouting startedShard1 = new ShardRouting(initializingShard1);
+        assertFalse(initializingShard1.isRelocationTarget());
+        ShardRouting startedShard1 = initializingShard1.moveToStarted();
         assertFalse(startedShard1.isRelocationTarget());
-        startedShard1.moveToStarted();
-        assertFalse(startedShard1.isRelocationTarget());
-        ShardRouting sourceShard0a = new ShardRouting(startedShard0);
-        sourceShard0a.relocate("node2", -1);
+        ShardRouting sourceShard0a = startedShard0.relocate("node2", -1);
         assertFalse(sourceShard0a.isRelocationTarget());
-        ShardRouting targetShard0a = sourceShard0a.buildTargetRelocatingShard();
+        ShardRouting targetShard0a = sourceShard0a.getTargetRelocatingShard();
         assertTrue(targetShard0a.isRelocationTarget());
-        ShardRouting sourceShard0b = new ShardRouting(startedShard0);
-        sourceShard0b.relocate("node2", -1);
-        ShardRouting sourceShard1 = new ShardRouting(startedShard1);
-        sourceShard1.relocate("node2", -1);
+        ShardRouting sourceShard0b = startedShard0.relocate("node2", -1);
+        ShardRouting sourceShard1 = startedShard1.relocate("node2", -1);
 
         // test true scenarios
         assertTrue(targetShard0a.isRelocationTargetOf(sourceShard0a));
@@ -148,49 +110,53 @@ public class ShardRoutingTests extends ESTestCase {
     public void testEqualsIgnoringVersion() {
         ShardRouting routing = randomShardRouting("test", 0);
 
-        ShardRouting otherRouting = new ShardRouting(routing);
+        ShardRouting otherRouting = routing;
 
-        assertTrue("expected equality\nthis  " + routing + ",\nother " + otherRouting, routing.equalsIgnoringMetaData(otherRouting));
-        otherRouting = new ShardRouting(routing);
-        assertTrue("expected equality\nthis  " + routing + ",\nother " + otherRouting, routing.equalsIgnoringMetaData(otherRouting));
-
-
-        otherRouting = new ShardRouting(routing);
         Integer[] changeIds = new Integer[]{0, 1, 2, 3, 4, 5, 6};
         for (int changeId : randomSubsetOf(randomIntBetween(1, changeIds.length), changeIds)) {
+            boolean unchanged = false;
             switch (changeId) {
                 case 0:
                     // change index
-                    otherRouting = TestShardRouting.newShardRouting(otherRouting.getIndexName() + "a", otherRouting.id(), otherRouting.currentNodeId(), otherRouting.relocatingNodeId(),
-                            otherRouting.restoreSource(), otherRouting.primary(), otherRouting.state(), otherRouting.unassignedInfo());
+                    ShardId shardId = new ShardId(new Index("blubb", randomAsciiOfLength(10)), otherRouting.id());
+                    otherRouting = new ShardRouting(shardId, otherRouting.currentNodeId(), otherRouting.relocatingNodeId(),
+                            otherRouting.primary(), otherRouting.state(), otherRouting.recoverySource(), otherRouting.unassignedInfo(),
+                            otherRouting.allocationId(), otherRouting.getExpectedShardSize());
                     break;
                 case 1:
                     // change shard id
-                    otherRouting = TestShardRouting.newShardRouting(otherRouting.getIndexName(), otherRouting.id() + 1, otherRouting.currentNodeId(), otherRouting.relocatingNodeId(),
-                            otherRouting.restoreSource(), otherRouting.primary(), otherRouting.state(), otherRouting.unassignedInfo());
+                    otherRouting = new ShardRouting(new ShardId(otherRouting.index(), otherRouting.id() + 1), otherRouting.currentNodeId(), otherRouting.relocatingNodeId(),
+                            otherRouting.primary(), otherRouting.state(), otherRouting.recoverySource(), otherRouting.unassignedInfo(),
+                            otherRouting.allocationId(), otherRouting.getExpectedShardSize());
                     break;
                 case 2:
                     // change current node
-                    otherRouting = TestShardRouting.newShardRouting(otherRouting.getIndexName(), otherRouting.id(), otherRouting.currentNodeId() == null ? "1" : otherRouting.currentNodeId() + "_1", otherRouting.relocatingNodeId(),
-                            otherRouting.restoreSource(), otherRouting.primary(), otherRouting.state(), otherRouting.unassignedInfo());
+                    otherRouting = new ShardRouting(otherRouting.shardId(), otherRouting.currentNodeId() == null ? "1" : otherRouting.currentNodeId() + "_1", otherRouting.relocatingNodeId(),
+                            otherRouting.primary(), otherRouting.state(), otherRouting.recoverySource(), otherRouting.unassignedInfo(),
+                            otherRouting.allocationId(), otherRouting.getExpectedShardSize());
                     break;
                 case 3:
                     // change relocating node
-                    otherRouting = TestShardRouting.newShardRouting(otherRouting.getIndexName(), otherRouting.id(), otherRouting.currentNodeId(),
+                    otherRouting = new ShardRouting(otherRouting.shardId(), otherRouting.currentNodeId(),
                             otherRouting.relocatingNodeId() == null ? "1" : otherRouting.relocatingNodeId() + "_1",
-                            otherRouting.restoreSource(), otherRouting.primary(), otherRouting.state(), otherRouting.unassignedInfo());
+                            otherRouting.primary(), otherRouting.state(), otherRouting.recoverySource(), otherRouting.unassignedInfo(),
+                            otherRouting.allocationId(), otherRouting.getExpectedShardSize());
                     break;
                 case 4:
-                    // change restore source
-                    otherRouting = TestShardRouting.newShardRouting(otherRouting.getIndexName(), otherRouting.id(), otherRouting.currentNodeId(), otherRouting.relocatingNodeId(),
-                            otherRouting.restoreSource() == null ? new RestoreSource(new SnapshotId("test", "s1"), Version.CURRENT, "test") :
-                                    new RestoreSource(otherRouting.restoreSource().snapshotId(), Version.CURRENT, otherRouting.index() + "_1"),
-                            otherRouting.primary(), otherRouting.state(), otherRouting.unassignedInfo());
+                    // change recovery source (only works for inactive primaries)
+                    if (otherRouting.active() || otherRouting.primary() == false) {
+                        unchanged = true;
+                    } else {
+                        otherRouting = new ShardRouting(otherRouting.shardId(), otherRouting.currentNodeId(), otherRouting.relocatingNodeId(),
+                            otherRouting.primary(), otherRouting.state(),
+                            new RecoverySource.SnapshotRecoverySource(new Snapshot("test", new SnapshotId("s1", UUIDs.randomBase64UUID())), Version.CURRENT, "test"),
+                            otherRouting.unassignedInfo(), otherRouting.allocationId(), otherRouting.getExpectedShardSize());
+                    }
                     break;
                 case 5:
                     // change primary flag
                     otherRouting = TestShardRouting.newShardRouting(otherRouting.getIndexName(), otherRouting.id(), otherRouting.currentNodeId(), otherRouting.relocatingNodeId(),
-                            otherRouting.restoreSource(), otherRouting.primary() == false, otherRouting.state(), otherRouting.unassignedInfo());
+                            otherRouting.primary() == false, otherRouting.state(), otherRouting.unassignedInfo());
                     break;
                 case 6:
                     // change state
@@ -205,84 +171,21 @@ public class ShardRoutingTests extends ESTestCase {
                     }
 
                     otherRouting = TestShardRouting.newShardRouting(otherRouting.getIndexName(), otherRouting.id(), otherRouting.currentNodeId(), otherRouting.relocatingNodeId(),
-                            otherRouting.restoreSource(), otherRouting.primary(), newState, unassignedInfo);
+                            otherRouting.primary(), newState, unassignedInfo);
                     break;
             }
 
             if (randomBoolean()) {
                 // change unassigned info
                 otherRouting = TestShardRouting.newShardRouting(otherRouting.getIndexName(), otherRouting.id(), otherRouting.currentNodeId(), otherRouting.relocatingNodeId(),
-                        otherRouting.restoreSource(), otherRouting.primary(), otherRouting.state(),
+                        otherRouting.primary(), otherRouting.state(),
                         otherRouting.unassignedInfo() == null ? new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test") :
                                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, otherRouting.unassignedInfo().getMessage() + "_1"));
             }
 
-            logger.debug("comparing\nthis  {} to\nother {}", routing, otherRouting);
-            assertFalse("expected non-equality\nthis  " + routing + ",\nother " + otherRouting, routing.equalsIgnoringMetaData(otherRouting));
-        }
-    }
-
-    public void testFrozenOnRoutingTable() {
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
-                .build();
-
-        RoutingTable routingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test"))
-                .build();
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
-        for (ShardRouting routing : clusterState.routingTable().allShards()) {
-            assertTrue(routing.isFrozen());
-            try {
-                routing.moveToPrimary();
-                fail("must be frozen");
-            } catch (IllegalStateException ex) {
-                // expected
-            }
-            try {
-                routing.moveToStarted();
-                fail("must be frozen");
-            } catch (IllegalStateException ex) {
-                // expected
-            }
-
-            try {
-                routing.moveFromPrimary();
-                fail("must be frozen");
-            } catch (IllegalStateException ex) {
-                // expected
-            }
-
-            try {
-                routing.initialize("boom", null, -1);
-                fail("must be frozen");
-            } catch (IllegalStateException ex) {
-                // expected
-            }
-            try {
-                routing.cancelRelocation();
-                fail("must be frozen");
-            } catch (IllegalStateException ex) {
-                // expected
-            }
-            try {
-                routing.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, "foobar"));
-                fail("must be frozen");
-            } catch (IllegalStateException ex) {
-                // expected
-            }
-
-            try {
-                routing.relocate("foobar", -1);
-                fail("must be frozen");
-            } catch (IllegalStateException ex) {
-                // expected
-            }
-            try {
-                routing.reinitializeShard();
-                fail("must be frozen");
-            } catch (IllegalStateException ex) {
-                // expected
+            if (unchanged == false) {
+                logger.debug("comparing\nthis  {} to\nother {}", routing, otherRouting);
+                assertFalse("expected non-equality\nthis  " + routing + ",\nother " + otherRouting, routing.equalsIgnoringMetaData(otherRouting));
             }
         }
     }
@@ -293,16 +196,16 @@ public class ShardRoutingTests extends ESTestCase {
             ShardRouting routing = randomShardRouting("test", 0);
             long byteSize = randomIntBetween(0, Integer.MAX_VALUE);
             if (routing.unassigned()) {
-                ShardRoutingHelper.initialize(routing, "foo", byteSize);
+                routing = ShardRoutingHelper.initialize(routing, "foo", byteSize);
             } else if (routing.started()) {
-                ShardRoutingHelper.relocate(routing, "foo", byteSize);
+                routing = ShardRoutingHelper.relocate(routing, "foo", byteSize);
             } else {
                 byteSize = -1;
             }
             if (randomBoolean()) {
                 BytesStreamOutput out = new BytesStreamOutput();
                 routing.writeTo(out);
-                routing = ShardRouting.readShardRoutingEntry(StreamInput.wrap(out.bytes()));
+                routing = new ShardRouting(out.bytes().streamInput());
             }
             if (routing.initializing() || routing.relocating()) {
                 assertEquals(routing.toString(), byteSize, routing.getExpectedShardSize());
@@ -310,8 +213,7 @@ public class ShardRoutingTests extends ESTestCase {
                     assertTrue(routing.toString(), routing.toString().contains("expected_shard_size[" + byteSize + "]"));
                 }
                 if (routing.initializing()) {
-                    routing = new ShardRouting(routing);
-                    routing.moveToStarted();
+                    routing = routing.moveToStarted();
                     assertEquals(-1, routing.getExpectedShardSize());
                     assertFalse(routing.toString(), routing.toString().contains("expected_shard_size[" + byteSize + "]"));
                 }

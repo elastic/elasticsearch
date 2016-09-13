@@ -21,7 +21,9 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
@@ -210,22 +212,11 @@ public class ValueCountIT extends ESIntegTestCase {
     /**
      * Mock plugin for the {@link FieldValueScriptEngine}
      */
-    public static class FieldValueScriptPlugin extends Plugin {
-
+    public static class FieldValueScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public String name() {
-            return FieldValueScriptEngine.NAME;
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new FieldValueScriptEngine();
         }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + ValueCountIT.class;
-        }
-
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldValueScriptEngine.class, FieldValueScriptEngine.TYPES));
-        }
-
     }
 
     /**
@@ -235,30 +226,23 @@ public class ValueCountIT extends ESIntegTestCase {
 
         public static final String NAME = "field_value";
 
-        public static final List<String> TYPES = Collections.singletonList(NAME);
-
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public List<String> getTypes() {
-            return TYPES;
+        public String getType() {
+            return NAME;
         }
 
         @Override
-        public List<String> getExtensions() {
-            return TYPES;
+        public String getExtension() {
+            return NAME;
         }
 
         @Override
-        public boolean isSandboxed() {
-            return true;
-        }
-
-        @Override
-        public Object compile(String script, Map<String, String> params) {
-            return script;
+        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
+            return scriptSource;
         }
 
         @Override
@@ -321,11 +305,6 @@ public class ValueCountIT extends ESIntegTestCase {
                         }
 
                         @Override
-                        public float runAsFloat() {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        @Override
                         public double runAsDouble() {
                             throw new UnsupportedOperationException();
                         }
@@ -340,7 +319,8 @@ public class ValueCountIT extends ESIntegTestCase {
         }
 
         @Override
-        public void scriptRemoved(CompiledScript script) {
+        public boolean isInlineScriptEnabled() {
+            return true;
         }
     }
 }

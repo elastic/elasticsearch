@@ -20,6 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.SecureSM;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -93,7 +94,7 @@ import java.util.Map;
  * <h1>Debugging Security</h1>
  * A good place to start when there is a problem is to turn on security debugging:
  * <pre>
- * JAVA_OPTS="-Djava.security.debug=access,failure" bin/elasticsearch
+ * ES_JAVA_OPTS="-Djava.security.debug=access,failure" bin/elasticsearch
  * </pre>
  * <p>
  * When running tests you have to pass it to the test runner like this:
@@ -113,13 +114,13 @@ final class Security {
      * @param environment configuration for generating dynamic permissions
      * @param filterBadDefaults true if we should filter out bad java defaults in the system policy.
      */
-    static void configure(Environment environment, boolean filterBadDefaults) throws Exception {
+    static void configure(Environment environment, boolean filterBadDefaults) throws IOException, NoSuchAlgorithmException {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Policy.setPolicy(new ESPolicy(createPermissions(environment), getPluginPermissions(environment), filterBadDefaults));
 
         // enable security manager
-        System.setSecurityManager(new SecureSM());
+        System.setSecurityManager(new SecureSM(new String[] { "org.elasticsearch.bootstrap.", "org.elasticsearch.cli" }));
 
         // do some basic tests
         selfTest();
@@ -244,7 +245,7 @@ final class Security {
         addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binFile(), "read,readlink");
         addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink");
         addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink");
-        addPath(policy, Environment.PATH_PLUGINS_SETTING.getKey(), environment.pluginsFile(), "read,readlink");
+        addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink");
         addPath(policy, Environment.PATH_CONF_SETTING.getKey(), environment.configFile(), "read,readlink");
         addPath(policy, Environment.PATH_SCRIPTS_SETTING.getKey(), environment.scriptsFile(), "read,readlink");
         // read-write dirs
@@ -254,9 +255,6 @@ final class Security {
             addPath(policy, Environment.PATH_SHARED_DATA_SETTING.getKey(), environment.sharedDataFile(), "read,readlink,write,delete");
         }
         for (Path path : environment.dataFiles()) {
-            addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
-        }
-        for (Path path : environment.dataWithClusterFiles()) {
             addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
         }
         for (Path path : environment.repoFiles()) {
@@ -282,7 +280,7 @@ final class Security {
         }
 
         // loop through all profiles and add permissions for each one, if its valid.
-        // (otherwise NettyTransport is lenient and ignores it)
+        // (otherwise Netty transports are lenient and ignores it)
         for (Map.Entry<String, Settings> entry : profiles.entrySet()) {
             Settings profileSettings = entry.getValue();
             String name = entry.getKey();
@@ -317,6 +315,27 @@ final class Security {
         policy.add(new FilePermission(path.toString(), permissions));
         policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
     }
+
+    /**
+     * Add access to a directory iff it exists already
+     * @param policy current policy to add permissions to
+     * @param configurationName the configuration name associated with the path (for error messages only)
+     * @param path the path itself
+     * @param permissions set of filepermissions to grant to the path
+     */
+    static void addPathIfExists(Permissions policy, String configurationName, Path path, String permissions) {
+        if (Files.isDirectory(path)) {
+            // add each path twice: once for itself, again for files underneath it
+            policy.add(new FilePermission(path.toString(), permissions));
+            policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
+            try {
+                path.getFileSystem().provider().checkAccess(path.toRealPath(), AccessMode.READ);
+            } catch (IOException e) {
+                throw new IllegalStateException("Unable to access '" + configurationName + "' (" + path + ")", e);
+            }
+        }
+    }
+
 
     /**
      * Ensures configured directory {@code path} exists.

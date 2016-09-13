@@ -18,45 +18,27 @@
  */
 package org.elasticsearch.common.lucene.uid;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.core.KeywordAnalyzer;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Field.Store;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SlowCompositeReaderWrapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
-import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
+import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class VersionsTests extends ESTestCase {
@@ -82,13 +64,6 @@ public class VersionsTests extends ESTestCase {
         MatcherAssert.assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(Versions.NOT_FOUND));
 
         Document doc = new Document();
-        doc.add(new Field(UidFieldMapper.NAME, "1", UidFieldMapper.Defaults.FIELD_TYPE));
-        writer.addDocument(doc);
-        directoryReader = reopen(directoryReader);
-        assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(Versions.NOT_SET));
-        assertThat(Versions.loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")).version, equalTo(Versions.NOT_SET));
-
-        doc = new Document();
         doc.add(new Field(UidFieldMapper.NAME, "1", UidFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
         writer.updateDocument(new Term(UidFieldMapper.NAME, "1"), doc);
@@ -163,135 +138,6 @@ public class VersionsTests extends ESTestCase {
         assertThat(Versions.loadDocIdAndVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), nullValue());
         directoryReader.close();
         writer.close();
-        dir.close();
-    }
-
-    public void testBackwardCompatibility() throws IOException {
-        Directory dir = newDirectory();
-        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
-
-        DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
-        MatcherAssert.assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(Versions.NOT_FOUND));
-
-        Document doc = new Document();
-        UidField uidAndVersion = new UidField("1", 1L);
-        doc.add(uidAndVersion);
-        writer.addDocument(doc);
-
-        uidAndVersion.uid = "2";
-        uidAndVersion.version = 2;
-        writer.addDocument(doc);
-        writer.commit();
-
-        directoryReader = reopen(directoryReader);
-        assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(1L));
-        assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "2")), equalTo(2L));
-        assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "3")), equalTo(Versions.NOT_FOUND));
-        directoryReader.close();
-        writer.close();
-        dir.close();
-    }
-
-    // This is how versions used to be encoded
-    private static class UidField extends Field {
-        private static final FieldType FIELD_TYPE = new FieldType();
-        static {
-            FIELD_TYPE.setTokenized(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-            FIELD_TYPE.setStored(true);
-            FIELD_TYPE.freeze();
-        }
-        String uid;
-        long version;
-        UidField(String uid, long version) {
-            super(UidFieldMapper.NAME, uid, FIELD_TYPE);
-            this.uid = uid;
-            this.version = version;
-        }
-        @Override
-        public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) {
-            return new TokenStream() {
-                boolean finished = true;
-                final CharTermAttribute term = addAttribute(CharTermAttribute.class);
-                final PayloadAttribute payload = addAttribute(PayloadAttribute.class);
-                @Override
-                public boolean incrementToken() throws IOException {
-                    if (finished) {
-                        return false;
-                    }
-                    term.setEmpty().append(uid);
-                    payload.setPayload(new BytesRef(Numbers.longToBytes(version)));
-                    finished = true;
-                    return true;
-                }
-                @Override
-                public void reset() throws IOException {
-                    finished = false;
-                }
-            };
-        }
-    }
-
-    public void testMergingOldIndices() throws Exception {
-        final IndexWriterConfig iwConf = new IndexWriterConfig(new KeywordAnalyzer());
-        iwConf.setMergePolicy(new ElasticsearchMergePolicy(iwConf.getMergePolicy()));
-        final Directory dir = newDirectory();
-        final IndexWriter iw = new IndexWriter(dir, iwConf);
-
-        // 1st segment, no _version
-        Document document = new Document();
-        // Add a dummy field (enough to trigger #3237)
-        document.add(new StringField("a", "b", Store.NO));
-        StringField uid = new StringField(UidFieldMapper.NAME, "1", Store.YES);
-        document.add(uid);
-        iw.addDocument(document);
-        uid.setStringValue("2");
-        iw.addDocument(document);
-        iw.commit();
-
-        // 2nd segment, old layout
-        document = new Document();
-        UidField uidAndVersion = new UidField("3", 3L);
-        document.add(uidAndVersion);
-        iw.addDocument(document);
-        uidAndVersion.uid = "4";
-        uidAndVersion.version = 4L;
-        iw.addDocument(document);
-        iw.commit();
-
-        // 3rd segment new layout
-        document = new Document();
-        uid.setStringValue("5");
-        Field version = new NumericDocValuesField(VersionFieldMapper.NAME, 5L);
-        document.add(uid);
-        document.add(version);
-        iw.addDocument(document);
-        uid.setStringValue("6");
-        version.setLongValue(6L);
-        iw.addDocument(document);
-        iw.commit();
-
-        Map<String, Long> expectedVersions = new HashMap<>();
-        expectedVersions.put("1", 0L);
-        expectedVersions.put("2", 0L);
-        expectedVersions.put("3", 0L);
-        expectedVersions.put("4", 4L);
-        expectedVersions.put("5", 5L);
-        expectedVersions.put("6", 6L);
-
-        // Force merge and check versions
-        iw.forceMerge(1, true);
-        final LeafReader ir = SlowCompositeReaderWrapper.wrap(ElasticsearchDirectoryReader.wrap(DirectoryReader.open(iw.getDirectory()), new ShardId("foo", "_na_", 1)));
-        final NumericDocValues versions = ir.getNumericDocValues(VersionFieldMapper.NAME);
-        assertThat(versions, notNullValue());
-        for (int i = 0; i < ir.maxDoc(); ++i) {
-            final String uidValue = ir.document(i).get(UidFieldMapper.NAME);
-            final long expectedVersion = expectedVersions.get(uidValue);
-            assertThat(versions.get(i), equalTo(expectedVersion));
-        }
-
-        iw.close();
-        ir.close();
         dir.close();
     }
 

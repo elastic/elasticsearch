@@ -20,10 +20,10 @@
 package org.elasticsearch.search.aggregations.metrics.geobounds;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -37,14 +37,9 @@ public class GeoBoundsParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    public String type() {
-        return InternalGeoBounds.TYPE.name();
-    }
-
-    @Override
-    protected GeoBoundsAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        GeoBoundsAggregatorBuilder factory = new GeoBoundsAggregatorBuilder(aggregationName);
+    protected GeoBoundsAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                        ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        GeoBoundsAggregationBuilder factory = new GeoBoundsAggregationBuilder(aggregationName);
         Boolean wrapLongitude = (Boolean) otherOptions.get(GeoBoundsAggregator.WRAP_LONGITUDE_FIELD);
         if (wrapLongitude != null) {
             factory.wrapLongitude(wrapLongitude);
@@ -53,20 +48,14 @@ public class GeoBoundsParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
-            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+    protected boolean token(String aggregationName, String currentFieldName, Token token,
+                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
         if (token == XContentParser.Token.VALUE_BOOLEAN) {
-            if (parseFieldMatcher.match(currentFieldName, GeoBoundsAggregator.WRAP_LONGITUDE_FIELD)) {
-                otherOptions.put(GeoBoundsAggregator.WRAP_LONGITUDE_FIELD, parser.booleanValue());
+            if (context.matchField(currentFieldName, GeoBoundsAggregator.WRAP_LONGITUDE_FIELD)) {
+                otherOptions.put(GeoBoundsAggregator.WRAP_LONGITUDE_FIELD, context.getParser().booleanValue());
                 return true;
             }
         }
         return false;
     }
-
-    @Override
-    public GeoBoundsAggregatorBuilder getFactoryPrototypes() {
-        return GeoBoundsAggregatorBuilder.PROTOTYPE;
-    }
-
 }

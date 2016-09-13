@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.test.ESTestCase;
-
 import org.mockito.InOrder;
 
 import java.util.concurrent.Callable;
@@ -37,7 +37,7 @@ import static org.mockito.Mockito.when;
  */
 public class AbstractLifecycleRunnableTests extends ESTestCase {
     private final Lifecycle lifecycle = mock(Lifecycle.class);
-    private final ESLogger logger = mock(ESLogger.class);
+    private final Logger logger = mock(Logger.class);
 
     public void testDoRunOnlyRunsWhenNotStoppedOrClosed() throws Exception {
         Callable<?> runCallable = mock(Callable.class);
@@ -47,7 +47,7 @@ public class AbstractLifecycleRunnableTests extends ESTestCase {
 
         AbstractLifecycleRunnable runnable = new AbstractLifecycleRunnable(lifecycle, logger) {
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception e) {
                 fail("It should not fail");
             }
 
@@ -67,6 +67,7 @@ public class AbstractLifecycleRunnableTests extends ESTestCase {
         inOrder.verifyNoMoreInteractions();
     }
 
+    @SuppressLoggerChecks(reason = "mock usage")
     public void testDoRunDoesNotRunWhenStoppedOrClosed() throws Exception {
         Callable<?> runCallable = mock(Callable.class);
 
@@ -75,7 +76,7 @@ public class AbstractLifecycleRunnableTests extends ESTestCase {
 
         AbstractLifecycleRunnable runnable = new AbstractLifecycleRunnable(lifecycle, logger) {
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception e) {
                 fail("It should not fail");
             }
 
@@ -104,7 +105,7 @@ public class AbstractLifecycleRunnableTests extends ESTestCase {
 
         AbstractLifecycleRunnable runnable = new AbstractLifecycleRunnable(lifecycle, logger) {
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception e) {
                 fail("It should not fail");
             }
 
@@ -143,7 +144,7 @@ public class AbstractLifecycleRunnableTests extends ESTestCase {
 
         AbstractLifecycleRunnable runnable = new AbstractLifecycleRunnable(lifecycle, logger) {
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception e) {
                 fail("It should not fail");
             }
 

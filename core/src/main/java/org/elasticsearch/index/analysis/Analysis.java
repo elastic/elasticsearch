@@ -19,9 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.LegacyNumericTokenStream;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
@@ -53,13 +52,10 @@ import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -70,7 +66,6 @@ import java.io.Reader;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -82,12 +77,9 @@ import java.util.Set;
 
 import static java.util.Collections.unmodifiableMap;
 
-/**
- *
- */
 public class Analysis {
 
-    public static Version parseAnalysisVersion(Settings indexSettings, Settings settings, ESLogger logger) {
+    public static Version parseAnalysisVersion(Settings indexSettings, Settings settings, Logger logger) {
         // check for explicit version on the specific analyzer component
         String sVersion = settings.get("version");
         if (sVersion != null) {
@@ -302,35 +294,6 @@ public class Analysis {
         } catch (IOException ioe) {
             String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, path.toString());
             throw new IllegalArgumentException(message, ioe);
-        }
-    }
-
-    /**
-     * Check whether the provided token stream is able to provide character
-     * terms.
-     * <p>Although most analyzers generate character terms (CharTermAttribute),
-     * some token only contain binary terms (BinaryTermAttribute,
-     * CharTermAttribute being a special type of BinaryTermAttribute), such as
-     * {@link LegacyNumericTokenStream} and unsuitable for highlighting and
-     * more-like-this queries which expect character terms.</p>
-     */
-    public static boolean isCharacterTokenStream(TokenStream tokenStream) {
-        try {
-            tokenStream.addAttribute(CharTermAttribute.class);
-            return true;
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
-    }
-
-    /**
-     * Check whether {@link TokenStream}s generated with <code>analyzer</code>
-     * provide with character terms.
-     * @see #isCharacterTokenStream(TokenStream)
-     */
-    public static boolean generatesCharacterTokenStream(Analyzer analyzer, String fieldName) throws IOException {
-        try (TokenStream ts = analyzer.tokenStream(fieldName, "")) {
-            return isCharacterTokenStream(ts);
         }
     }
 

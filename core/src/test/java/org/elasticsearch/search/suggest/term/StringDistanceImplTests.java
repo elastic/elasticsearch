@@ -30,6 +30,9 @@ import static org.hamcrest.Matchers.equalTo;
  * Test for the {@link StringDistanceImpl} enum.
  */
 public class StringDistanceImplTests extends AbstractWriteableEnumTestCase {
+    public StringDistanceImplTests() {
+        super(StringDistanceImpl::readFromStream);
+    }
 
     @Override
     public void testValidOrdinals() {

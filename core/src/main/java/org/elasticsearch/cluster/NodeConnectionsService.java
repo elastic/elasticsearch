@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.cluster;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -46,7 +48,7 @@ import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
  * to pings. This is done by {@link org.elasticsearch.discovery.zen.fd.NodesFaultDetection}. Master fault detection
  * is done by {@link org.elasticsearch.discovery.zen.fd.MasterFaultDetection}.
  */
-public class NodeConnectionsService extends AbstractLifecycleComponent<NodeConnectionsService> {
+public class NodeConnectionsService extends AbstractLifecycleComponent {
 
     public static final Setting<TimeValue> CLUSTER_NODE_RECONNECT_INTERVAL_SETTING =
             positiveTimeSetting("cluster.nodes.reconnect_interval", TimeValue.timeValueSeconds(10), Property.NodeScope);
@@ -57,7 +59,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent<NodeConne
     // if a node doesn't appear in this list it shouldn't be monitored
     private ConcurrentMap<DiscoveryNode, Integer> nodes = ConcurrentCollections.newConcurrentMap();
 
-    final private KeyedLock<DiscoveryNode> nodeLocks = new KeyedLock<>();
+    private final KeyedLock<DiscoveryNode> nodeLocks = new KeyedLock<>();
 
     private final TimeValue reconnectInterval;
 
@@ -90,8 +92,8 @@ public class NodeConnectionsService extends AbstractLifecycleComponent<NodeConne
                 assert current != null : "node " + node + " was removed in event but not in internal nodes";
                 try {
                     transportService.disconnectFromNode(node);
-                } catch (Throwable e) {
-                    logger.warn("failed to disconnect to node [" + node + "]", e);
+                } catch (Exception e) {
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to disconnect to node [{}]", node), e);
                 }
             }
         }
@@ -113,7 +115,11 @@ public class NodeConnectionsService extends AbstractLifecycleComponent<NodeConne
                 nodeFailureCount = nodeFailureCount + 1;
                 // log every 6th failure
                 if ((nodeFailureCount % 6) == 1) {
-                    logger.warn("failed to connect to node {} (tried [{}] times)", e, node, nodeFailureCount);
+                    final int finalNodeFailureCount = nodeFailureCount;
+                    logger.warn(
+                        (Supplier<?>)
+                            () -> new ParameterizedMessage(
+                                "failed to connect to node {} (tried [{}] times)", node, finalNodeFailureCount), e);
                 }
                 nodes.put(node, nodeFailureCount);
             }
@@ -123,8 +129,8 @@ public class NodeConnectionsService extends AbstractLifecycleComponent<NodeConne
     class ConnectionChecker extends AbstractRunnable {
 
         @Override
-        public void onFailure(Throwable t) {
-            logger.warn("unexpected error while checking for node reconnects", t);
+        public void onFailure(Exception e) {
+            logger.warn("unexpected error while checking for node reconnects", e);
         }
 
         protected void doRun() {

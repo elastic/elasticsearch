@@ -19,6 +19,13 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
+import org.apache.lucene.search.spell.DirectSpellChecker;
+import org.apache.lucene.search.spell.JaroWinklerDistance;
+import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
+import org.apache.lucene.search.spell.NGramDistance;
+import org.apache.lucene.search.spell.StringDistance;
+import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.ParseField;
@@ -31,36 +38,34 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.suggest.SortBy;
-import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.CandidateGenerator;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
-public final class DirectCandidateGeneratorBuilder
-        implements CandidateGenerator {
+public final class DirectCandidateGeneratorBuilder implements CandidateGenerator {
 
     private static final String TYPE = "direct_generator";
-    static final DirectCandidateGeneratorBuilder PROTOTYPE = new DirectCandidateGeneratorBuilder("_na_");
 
-    static final ParseField DIRECT_GENERATOR_FIELD = new ParseField(TYPE);
-    static final ParseField FIELDNAME_FIELD = new ParseField("field");
-    static final ParseField PREFILTER_FIELD = new ParseField("pre_filter");
-    static final ParseField POSTFILTER_FIELD = new ParseField("post_filter");
-    static final ParseField SUGGESTMODE_FIELD = new ParseField("suggest_mode");
-    static final ParseField MIN_DOC_FREQ_FIELD = new ParseField("min_doc_freq");
-    static final ParseField ACCURACY_FIELD = new ParseField("accuracy");
-    static final ParseField SIZE_FIELD = new ParseField("size");
-    static final ParseField SORT_FIELD = new ParseField("sort");
-    static final ParseField STRING_DISTANCE_FIELD = new ParseField("string_distance");
-    static final ParseField MAX_EDITS_FIELD = new ParseField("max_edits");
-    static final ParseField MAX_INSPECTIONS_FIELD = new ParseField("max_inspections");
-    static final ParseField MAX_TERM_FREQ_FIELD = new ParseField("max_term_freq");
-    static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
-    static final ParseField MIN_WORD_LENGTH_FIELD = new ParseField("min_word_length");
+    public static final ParseField DIRECT_GENERATOR_FIELD = new ParseField(TYPE);
+    public static final ParseField FIELDNAME_FIELD = new ParseField("field");
+    public static final ParseField PREFILTER_FIELD = new ParseField("pre_filter");
+    public static final ParseField POSTFILTER_FIELD = new ParseField("post_filter");
+    public static final ParseField SUGGESTMODE_FIELD = new ParseField("suggest_mode");
+    public static final ParseField MIN_DOC_FREQ_FIELD = new ParseField("min_doc_freq");
+    public static final ParseField ACCURACY_FIELD = new ParseField("accuracy");
+    public static final ParseField SIZE_FIELD = new ParseField("size");
+    public static final ParseField SORT_FIELD = new ParseField("sort");
+    public static final ParseField STRING_DISTANCE_FIELD = new ParseField("string_distance");
+    public static final ParseField MAX_EDITS_FIELD = new ParseField("max_edits");
+    public static final ParseField MAX_INSPECTIONS_FIELD = new ParseField("max_inspections");
+    public static final ParseField MAX_TERM_FREQ_FIELD = new ParseField("max_term_freq");
+    public static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
+    public static final ParseField MIN_WORD_LENGTH_FIELD = new ParseField("min_word_length");
 
     private final String field;
     private String preFilter;
@@ -106,6 +111,44 @@ public final class DirectCandidateGeneratorBuilder
         generator.minWordLength = other.minWordLength;
         generator.minDocFreq = other.minDocFreq;
         return generator;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public DirectCandidateGeneratorBuilder(StreamInput in) throws IOException {
+        field = in.readString();
+        suggestMode = in.readOptionalString();
+        accuracy = in.readOptionalFloat();
+        size = in.readOptionalVInt();
+        sort = in.readOptionalString();
+        stringDistance = in.readOptionalString();
+        maxEdits = in.readOptionalVInt();
+        maxInspections = in.readOptionalVInt();
+        maxTermFreq = in.readOptionalFloat();
+        prefixLength = in.readOptionalVInt();
+        minWordLength = in.readOptionalVInt();
+        minDocFreq = in.readOptionalFloat();
+        preFilter = in.readOptionalString();
+        postFilter = in.readOptionalString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(field);
+        out.writeOptionalString(suggestMode);
+        out.writeOptionalFloat(accuracy);
+        out.writeOptionalVInt(size);
+        out.writeOptionalString(sort);
+        out.writeOptionalString(stringDistance);
+        out.writeOptionalVInt(maxEdits);
+        out.writeOptionalVInt(maxInspections);
+        out.writeOptionalFloat(maxTermFreq);
+        out.writeOptionalVInt(prefixLength);
+        out.writeOptionalVInt(minWordLength);
+        out.writeOptionalFloat(minDocFreq);
+        out.writeOptionalString(preFilter);
+        out.writeOptionalString(postFilter);
     }
 
     /**
@@ -334,21 +377,19 @@ public final class DirectCandidateGeneratorBuilder
         PARSER.declareInt((tp, i) -> tp.v2().prefixLength(i), PREFIX_LENGTH_FIELD);
     }
 
-    @Override
-    public DirectCandidateGeneratorBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static DirectCandidateGeneratorBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         DirectCandidateGeneratorBuilder tempGenerator = new DirectCandidateGeneratorBuilder("_na_");
-        Set<String> tmpFieldName = new HashSet<>(1); // bucket for the field
-                                                     // name, needed as
-                                                     // constructor arg
-                                                     // later
-        PARSER.parse(parseContext.parser(),
-                new Tuple<Set<String>, DirectCandidateGeneratorBuilder>(tmpFieldName, tempGenerator));
+        // bucket for the field name, needed as constructor arg later
+        Set<String> tmpFieldName = new HashSet<>(1);
+        PARSER.parse(parseContext.parser(), new Tuple<>(tmpFieldName, tempGenerator),
+                parseContext);
         if (tmpFieldName.size() != 1) {
             throw new IllegalArgumentException("[" + TYPE + "] expects exactly one field parameter, but found " + tmpFieldName);
         }
         return replaceField(tmpFieldName.iterator().next(), tempGenerator);
     }
 
+    @Override
     public PhraseSuggestionContext.DirectCandidateGenerator build(MapperService mapperService) throws IOException {
         PhraseSuggestionContext.DirectCandidateGenerator generator = new PhraseSuggestionContext.DirectCandidateGenerator();
         generator.setField(this.field);
@@ -367,13 +408,13 @@ public final class DirectCandidateGeneratorBuilder
         }
         transferIfNotNull(this.accuracy, generator::accuracy);
         if (this.suggestMode != null) {
-            generator.suggestMode(SuggestUtils.resolveSuggestMode(this.suggestMode));
+            generator.suggestMode(resolveSuggestMode(this.suggestMode));
         }
         if (this.sort != null) {
             generator.sort(SortBy.resolve(this.sort));
         }
         if (this.stringDistance != null) {
-            generator.stringDistance(SuggestUtils.resolveDistance(this.stringDistance));
+            generator.stringDistance(resolveDistance(this.stringDistance));
         }
         transferIfNotNull(this.maxEdits, generator::maxEdits);
         if (generator.maxEdits() < 1 || generator.maxEdits() > LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE) {
@@ -387,14 +428,46 @@ public final class DirectCandidateGeneratorBuilder
         return generator;
     }
 
-     private static <T> void transferIfNotNull(T value, Consumer<T> consumer) {
-         if (value != null) {
-             consumer.accept(value);
-         }
-     }
+    private static SuggestMode resolveSuggestMode(String suggestMode) {
+        suggestMode = suggestMode.toLowerCase(Locale.US);
+        if ("missing".equals(suggestMode)) {
+            return SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX;
+        } else if ("popular".equals(suggestMode)) {
+            return SuggestMode.SUGGEST_MORE_POPULAR;
+        } else if ("always".equals(suggestMode)) {
+            return SuggestMode.SUGGEST_ALWAYS;
+        } else {
+            throw new IllegalArgumentException("Illegal suggest mode " + suggestMode);
+        }
+    }
+
+    private static StringDistance resolveDistance(String distanceVal) {
+        distanceVal = distanceVal.toLowerCase(Locale.US);
+        if ("internal".equals(distanceVal)) {
+            return DirectSpellChecker.INTERNAL_LEVENSHTEIN;
+        } else if ("damerau_levenshtein".equals(distanceVal) || "damerauLevenshtein".equals(distanceVal)) {
+            return new LuceneLevenshteinDistance();
+        } else if ("levenstein".equals(distanceVal)) {
+            return new LevensteinDistance();
+            // TODO Jaro and Winkler are 2 people - so apply same naming logic
+            // as damerau_levenshtein
+        } else if ("jarowinkler".equals(distanceVal)) {
+            return new JaroWinklerDistance();
+        } else if ("ngram".equals(distanceVal)) {
+            return new NGramDistance();
+        } else {
+            throw new IllegalArgumentException("Illegal distance option " + distanceVal);
+        }
+    }
+
+    private static <T> void transferIfNotNull(T value, Consumer<T> consumer) {
+        if (value != null) {
+            consumer.accept(value);
+        }
+    }
 
     @Override
-    public final String toString() {
+    public String toString() {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.prettyPrint();
@@ -406,66 +479,14 @@ public final class DirectCandidateGeneratorBuilder
     }
 
     @Override
-    public DirectCandidateGeneratorBuilder readFrom(StreamInput in) throws IOException {
-        DirectCandidateGeneratorBuilder cg = new DirectCandidateGeneratorBuilder(in.readString());
-        cg.suggestMode = in.readOptionalString();
-        if (in.readBoolean()) {
-            cg.accuracy = in.readFloat();
-        }
-        cg.size = in.readOptionalVInt();
-        cg.sort = in.readOptionalString();
-        cg.stringDistance = in.readOptionalString();
-        cg.maxEdits = in.readOptionalVInt();
-        cg.maxInspections = in.readOptionalVInt();
-        if (in.readBoolean()) {
-            cg.maxTermFreq = in.readFloat();
-        }
-        cg.prefixLength = in.readOptionalVInt();
-        cg.minWordLength = in.readOptionalVInt();
-        if (in.readBoolean()) {
-            cg.minDocFreq = in.readFloat();
-        }
-        cg.preFilter = in.readOptionalString();
-        cg.postFilter = in.readOptionalString();
-        return cg;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(field);
-        out.writeOptionalString(suggestMode);
-        out.writeBoolean(accuracy != null);
-        if (accuracy != null) {
-            out.writeFloat(accuracy);
-        }
-        out.writeOptionalVInt(size);
-        out.writeOptionalString(sort);
-        out.writeOptionalString(stringDistance);
-        out.writeOptionalVInt(maxEdits);
-        out.writeOptionalVInt(maxInspections);
-        out.writeBoolean(maxTermFreq != null);
-        if (maxTermFreq != null) {
-            out.writeFloat(maxTermFreq);
-        }
-        out.writeOptionalVInt(prefixLength);
-        out.writeOptionalVInt(minWordLength);
-        out.writeBoolean(minDocFreq != null);
-        if (minDocFreq != null) {
-            out.writeFloat(minDocFreq);
-        }
-        out.writeOptionalString(preFilter);
-        out.writeOptionalString(postFilter);
-    }
-
-    @Override
-    public final int hashCode() {
+    public int hashCode() {
         return Objects.hash(field, preFilter, postFilter, suggestMode, accuracy,
                 size, sort, stringDistance, maxEdits, maxInspections,
                 maxTermFreq, prefixLength, minWordLength, minDocFreq);
     }
 
     @Override
-    public final boolean equals(Object obj) {
+    public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }

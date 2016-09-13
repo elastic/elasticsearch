@@ -20,25 +20,25 @@
 package org.elasticsearch.rest.action.ingest;
 
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
 public class RestDeletePipelineAction extends BaseRestHandler {
 
     @Inject
-    public RestDeletePipelineAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestDeletePipelineAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.DELETE, "/_ingest/pipeline/{id}", this);
     }
 
     @Override
-    protected void handleRequest(RestRequest restRequest, RestChannel channel, Client client) throws Exception {
+    public void handleRequest(RestRequest restRequest, RestChannel channel, NodeClient client) throws Exception {
         DeletePipelineRequest request = new DeletePipelineRequest(restRequest.param("id"));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));

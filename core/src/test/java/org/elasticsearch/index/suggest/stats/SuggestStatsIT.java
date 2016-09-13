@@ -88,15 +88,15 @@ public class SuggestStatsIT extends ESIntegTestCase {
 
         long startTime = System.currentTimeMillis();
         for (int i = 0; i < suggestAllIdx; i++) {
-            SearchResponse suggestResponse = addSuggestions(internalCluster().clientNodeClient().prepareSearch(), i).get();
+            SearchResponse suggestResponse = addSuggestions(internalCluster().coordOnlyNodeClient().prepareSearch(), i).get();
             assertAllSuccessful(suggestResponse);
         }
         for (int i = 0; i < suggestIdx1; i++) {
-            SearchResponse suggestResponse = addSuggestions(internalCluster().clientNodeClient().prepareSearch("test1"), i).get();
+            SearchResponse suggestResponse = addSuggestions(internalCluster().coordOnlyNodeClient().prepareSearch("test1"), i).get();
             assertAllSuccessful(suggestResponse);
         }
         for (int i = 0; i < suggestIdx2; i++) {
-            SearchResponse suggestResponse = addSuggestions(internalCluster().clientNodeClient().prepareSearch("test2"), i).get();
+            SearchResponse suggestResponse = addSuggestions(internalCluster().coordOnlyNodeClient().prepareSearch("test2"), i).get();
             assertAllSuccessful(suggestResponse);
         }
         long endTime = System.currentTimeMillis();
@@ -119,10 +119,9 @@ public class SuggestStatsIT extends ESIntegTestCase {
         assertThat(suggest.getSuggestTimeInMillis(), lessThanOrEqualTo(totalShards * (endTime - startTime)));
 
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().execute().actionGet();
-        NodeStats[] nodes = nodeStats.getNodes();
         Set<String> nodeIdsWithIndex = nodeIdsWithIndex("test1", "test2");
         int num = 0;
-        for (NodeStats stat : nodes) {
+        for (NodeStats stat : nodeStats.getNodes()) {
             SearchStats.Stats suggestStats = stat.getIndices().getSearch().getTotal();
             logger.info("evaluating {}", stat.getNode());
             if (nodeIdsWithIndex.contains(stat.getNode().getId())) {

@@ -30,7 +30,7 @@ import org.elasticsearch.search.suggest.phrase.WordScorer.WordScorerFactory;
 
 import java.io.IOException;
 
-public abstract class SmoothingModel implements NamedWriteable<SmoothingModel>, ToXContent {
+public abstract class SmoothingModel implements NamedWriteable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -67,7 +67,7 @@ public abstract class SmoothingModel implements NamedWriteable<SmoothingModel>, 
 
     public static SmoothingModel fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-        ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
+        ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
         XContentParser.Token token;
         String fieldName = null;
         SmoothingModel model = null;
@@ -76,11 +76,11 @@ public abstract class SmoothingModel implements NamedWriteable<SmoothingModel>, 
                 fieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseFieldMatcher.match(fieldName, LinearInterpolation.PARSE_FIELD)) {
-                    model = LinearInterpolation.PROTOTYPE.innerFromXContent(parseContext);
+                    model = LinearInterpolation.innerFromXContent(parseContext);
                 } else if (parseFieldMatcher.match(fieldName, Laplace.PARSE_FIELD)) {
-                    model = Laplace.PROTOTYPE.innerFromXContent(parseContext);
+                    model = Laplace.innerFromXContent(parseContext);
                 } else if (parseFieldMatcher.match(fieldName, StupidBackoff.PARSE_FIELD)) {
-                    model = StupidBackoff.PROTOTYPE.innerFromXContent(parseContext);
+                    model = StupidBackoff.innerFromXContent(parseContext);
                 } else {
                     throw new IllegalArgumentException("suggester[phrase] doesn't support object field [" + fieldName + "]");
                 }
@@ -91,8 +91,6 @@ public abstract class SmoothingModel implements NamedWriteable<SmoothingModel>, 
         }
         return model;
     }
-
-    public abstract SmoothingModel innerFromXContent(QueryParseContext parseContext) throws IOException;
 
     public abstract WordScorerFactory buildWordScorerFactory();
 

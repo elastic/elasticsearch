@@ -124,7 +124,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
      * Sets the settings to be updated (either json/yaml/properties format)
      */
     public UpdateSettingsRequest settings(String source) {
-        this.settings = Settings.settingsBuilder().loadFromSource(source).build();
+        this.settings = Settings.builder().loadFromSource(source).build();
         return this;
     }
 

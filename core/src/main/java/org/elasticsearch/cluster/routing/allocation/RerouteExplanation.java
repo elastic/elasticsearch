@@ -52,15 +52,13 @@ public class RerouteExplanation implements ToXContent {
     }
 
     public static RerouteExplanation readFrom(StreamInput in) throws IOException {
-        String commandName = in.readString();
-        AllocationCommand command = AllocationCommands.lookupFactorySafe(commandName).readFrom(in);
+        AllocationCommand command = in.readNamedWriteable(AllocationCommand.class);
         Decision decisions = Decision.readFrom(in);
         return new RerouteExplanation(command, decisions);
     }
 
     public static void writeTo(RerouteExplanation explanation, StreamOutput out) throws IOException {
-        out.writeString(explanation.command.name());
-        AllocationCommands.lookupFactorySafe(explanation.command.name()).writeTo(explanation.command, out);
+        out.writeNamedWriteable(explanation.command);
         Decision.writeTo(explanation.decisions, out);
     }
 
@@ -68,7 +66,7 @@ public class RerouteExplanation implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("command", command.name());
-        AllocationCommands.lookupFactorySafe(command.name()).toXContent(command, builder, params, "parameters");
+        builder.field("parameters", command);
         // The Decision could be a Multi or Single decision, and they should
         // both be encoded the same, so check and wrap in an array if necessary
         if (decisions instanceof Decision.Multi) {

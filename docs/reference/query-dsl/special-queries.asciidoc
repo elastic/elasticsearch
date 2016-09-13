@@ -20,7 +20,7 @@ final query to execute.
 This query allows a script to act as a filter.  Also see the
 <<query-dsl-function-score-query,`function_score` query>>.
 
-<<query-dsl-percolator-query,`percolator` query>>::
+<<query-dsl-percolate-query,`percolate` query>>::
 
 This query finds queries that are stored as documents that match with
 the specified document.
@@ -31,5 +31,5 @@ include::template-query.asciidoc[]
 
 include::script-query.asciidoc[]
 
-include::percolator-query.asciidoc[]
+include::percolate-query.asciidoc[]
 

@@ -21,14 +21,15 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,7 +42,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         extends ActionRequest<Self> {
     public static final int SIZE_ALL_MATCHES = -1;
     private static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
-    private static final int DEFAULT_SCROLL_SIZE = 100;
+    private static final int DEFAULT_SCROLL_SIZE = 1000;
 
     /**
      * The search to be executed.
@@ -70,9 +71,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     private TimeValue timeout = ReplicationRequest.DEFAULT_TIMEOUT;
 
     /**
-     * Consistency level for write requests.
+     * The number of shard copies that must be active before proceeding with the write.
      */
-    private WriteConsistencyLevel consistency = WriteConsistencyLevel.DEFAULT;
+    private ActiveShardCount activeShardCount = ActiveShardCount.DEFAULT;
 
     /**
      * Initial delay after a rejection before retrying a bulk request. With the default maxRetries the total backoff for retrying rejections
@@ -86,11 +87,16 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     private int maxRetries = 11;
 
     /**
-     * The throttle for this request in sub-requests per second. 0 means set no throttle and that is the default. Throttling is done between
-     * batches, as we start the next scroll requests. That way we can increase the scroll's timeout to make sure that it contains any time
-     * that we might wait.
+     * The throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
+     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * make sure that it contains any time that we might wait.
      */
-    private float requestsPerSecond = 0;
+    private float requestsPerSecond = Float.POSITIVE_INFINITY;
+
+    /**
+     * Should this task store its result?
+     */
+    private boolean shouldStoreResult;
 
     public AbstractBulkByScrollRequest() {
     }
@@ -101,7 +107,6 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         // Set the defaults which differ from SearchRequest's defaults.
         source.scroll(DEFAULT_SCROLL_TIMEOUT);
         source.source(new SearchSourceBuilder());
-        source.source().version(true);
         source.source().size(DEFAULT_SCROLL_SIZE);
     }
 
@@ -116,6 +121,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         ActionRequestValidationException e = searchRequest.validate();
         if (searchRequest.source().from() != -1) {
             e = addValidationError("from is not supported in this context", e);
+        }
+        if (searchRequest.source().storedFields() != null) {
+            e = addValidationError("stored_fields is not supported in this context", e);
         }
         if (maxRetries < 0) {
             e = addValidationError("retries cannnot be negative", e);
@@ -215,18 +223,28 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     /**
-     * Consistency level for write requests.
+     * The number of shard copies that must be active before proceeding with the write.
      */
-    public WriteConsistencyLevel getConsistency() {
-        return consistency;
+    public ActiveShardCount getWaitForActiveShards() {
+        return activeShardCount;
     }
 
     /**
-     * Consistency level for write requests.
+     * Sets the number of shard copies that must be active before proceeding with the write.
+     * See {@link ReplicationRequest#waitForActiveShards(ActiveShardCount)} for details.
      */
-    public Self setConsistency(WriteConsistencyLevel consistency) {
-        this.consistency = consistency;
+    public Self setWaitForActiveShards(ActiveShardCount activeShardCount) {
+        this.activeShardCount = activeShardCount;
         return self();
+    }
+
+    /**
+     * A shortcut for {@link #setWaitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    public Self setWaitForActiveShards(final int waitForActiveShards) {
+        return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 
     /**
@@ -260,23 +278,44 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     /**
-     * The throttle for this request in sub-requests per second. 0 means set no throttle and that is the default.
+     * The throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
+     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * make sure that it contains any time that we might wait.
      */
     public float getRequestsPerSecond() {
         return requestsPerSecond;
     }
 
     /**
-     * Set the throttle for this request in sub-requests per second. 0 means set no throttle and that is the default.
+     * Set the throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
+     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * make sure that it contains any time that we might wait.
      */
     public Self setRequestsPerSecond(float requestsPerSecond) {
+        if (requestsPerSecond <= 0) {
+            throw new IllegalArgumentException(
+                    "[requests_per_second] must be greater than 0. Use Float.POSITIVE_INFINITY to disable throttling.");
+        }
         this.requestsPerSecond = requestsPerSecond;
         return self();
     }
 
+    /**
+     * Should this task store its result after it has finished?
+     */
+    public Self setShouldStoreResult(boolean shouldStoreResult) {
+        this.shouldStoreResult = shouldStoreResult;
+        return self();
+    }
+
     @Override
-    public Task createTask(long id, String type, String action) {
-        return new BulkByScrollTask(id, type, action, getDescription());
+    public boolean getShouldStoreResult() {
+        return shouldStoreResult;
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        return new BulkByScrollTask(id, type, action, getDescription(), parentTaskId, requestsPerSecond);
     }
 
     @Override
@@ -287,9 +326,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         abortOnVersionConflict = in.readBoolean();
         size = in.readVInt();
         refresh = in.readBoolean();
-        timeout = TimeValue.readTimeValue(in);
-        consistency = WriteConsistencyLevel.fromId(in.readByte());
-        retryBackoffInitialTime = TimeValue.readTimeValue(in);
+        timeout = new TimeValue(in);
+        activeShardCount = ActiveShardCount.readFrom(in);
+        retryBackoffInitialTime = new TimeValue(in);
         maxRetries = in.readVInt();
         requestsPerSecond = in.readFloat();
     }
@@ -302,7 +341,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         out.writeVInt(size);
         out.writeBoolean(refresh);
         timeout.writeTo(out);
-        out.writeByte(consistency.id());
+        activeShardCount.writeTo(out);
         retryBackoffInitialTime.writeTo(out);
         out.writeVInt(maxRetries);
         out.writeFloat(requestsPerSecond);

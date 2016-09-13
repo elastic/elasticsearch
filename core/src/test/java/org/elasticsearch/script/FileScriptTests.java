@@ -20,6 +20,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.MockScriptEngine.MockCompiledScript;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Files;
@@ -36,18 +37,19 @@ public class FileScriptTests extends ESTestCase {
         Path scriptsDir = homeDir.resolve("config").resolve("scripts");
         Files.createDirectories(scriptsDir);
         Path mockscript = scriptsDir.resolve("script1.mockscript");
-        Files.write(mockscript, "1".getBytes("UTF-8"));
+        String scriptSource = "1";
+        Files.write(mockscript, scriptSource.getBytes("UTF-8"));
         settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
                 // no file watching, so we don't need a ResourceWatcherService
             .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
             .put(settings)
             .build();
-        Set<ScriptEngineService> engines = new HashSet<>(Collections.singletonList(new MockScriptEngine()));
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap(scriptSource, script -> "1"));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singleton(scriptEngine));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        return new ScriptService(settings, new Environment(settings), engines, null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+        return new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
     }
 
     public void testFileScriptFound() throws Exception {
@@ -55,7 +57,10 @@ public class FileScriptTests extends ESTestCase {
             .put("script.engine." + MockScriptEngine.NAME + ".file.aggs", "false").build();
         ScriptService scriptService = makeScriptService(settings);
         Script script = new Script("script1", ScriptService.ScriptType.FILE, MockScriptEngine.NAME, null);
-        assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH, Collections.emptyMap()));
+        CompiledScript compiledScript = scriptService.compile(script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+        assertNotNull(compiledScript);
+        MockCompiledScript executable = (MockCompiledScript) compiledScript.compiled();
+        assertEquals("script1.mockscript", executable.getName());
     }
 
     public void testAllOpsDisabled() throws Exception {

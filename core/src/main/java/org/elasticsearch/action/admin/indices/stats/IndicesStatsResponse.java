@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
@@ -176,7 +175,7 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
         if ("indices".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level)) {
             builder.startObject(Fields.INDICES);
             for (IndexStats indexStats : getIndices().values()) {
-                builder.startObject(indexStats.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(indexStats.getIndex());
 
                 builder.startObject("primaries");
                 indexStats.getPrimaries().toXContent(builder, params);
@@ -208,8 +207,8 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
     }
 
     static final class Fields {
-        static final XContentBuilderString INDICES = new XContentBuilderString("indices");
-        static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
+        static final String INDICES = "indices";
+        static final String SHARDS = "shards";
     }
 
     @Override

@@ -4,7 +4,7 @@
     "methods": [ "GET", "POST" ],
     "url": {
       "path": "/_ingest/pipeline/_simulate",
-      "paths": [ "/_ingest/pipeline/_simulate", "/_ingest/pipeline/{id}/_simulate/" ],
+      "paths": [ "/_ingest/pipeline/_simulate", "/_ingest/pipeline/{id}/_simulate" ],
       "parts": {
         "id": {
           "type" : "string",

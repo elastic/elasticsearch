@@ -26,10 +26,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -72,7 +72,7 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
     @Override
     protected void masterOperation(final CreateSnapshotRequest request, ClusterState state, final ActionListener<CreateSnapshotResponse> listener) {
         SnapshotsService.SnapshotRequest snapshotRequest =
-                new SnapshotsService.SnapshotRequest("create_snapshot [" + request.snapshot() + "]", request.snapshot(), request.repository())
+                new SnapshotsService.SnapshotRequest(request.repository(), request.snapshot(), "create_snapshot [" + request.snapshot() + "]")
                         .indices(request.indices())
                         .indicesOptions(request.indicesOptions())
                         .partial(request.partial())
@@ -84,20 +84,20 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
             public void onResponse() {
                 if (request.waitForCompletion()) {
                     snapshotsService.addListener(new SnapshotsService.SnapshotCompletionListener() {
-                        SnapshotId snapshotId = new SnapshotId(request.repository(), request.snapshot());
-
                         @Override
-                        public void onSnapshotCompletion(SnapshotId snapshotId, SnapshotInfo snapshot) {
-                            if (this.snapshotId.equals(snapshotId)) {
-                                listener.onResponse(new CreateSnapshotResponse(snapshot));
+                        public void onSnapshotCompletion(Snapshot snapshot, SnapshotInfo snapshotInfo) {
+                            if (snapshot.getRepository().equals(request.repository()) &&
+                                    snapshot.getSnapshotId().getName().equals(request.snapshot())) {
+                                listener.onResponse(new CreateSnapshotResponse(snapshotInfo));
                                 snapshotsService.removeListener(this);
                             }
                         }
 
                         @Override
-                        public void onSnapshotFailure(SnapshotId snapshotId, Throwable t) {
-                            if (this.snapshotId.equals(snapshotId)) {
-                                listener.onFailure(t);
+                        public void onSnapshotFailure(Snapshot snapshot, Exception e) {
+                            if (snapshot.getRepository().equals(request.repository()) &&
+                                    snapshot.getSnapshotId().getName().equals(request.snapshot())) {
+                                listener.onFailure(e);
                                 snapshotsService.removeListener(this);
                             }
                         }
@@ -108,8 +108,8 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                listener.onFailure(t);
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
             }
         });
     }

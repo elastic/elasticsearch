@@ -38,7 +38,7 @@ import java.util.Objects;
  * <li>median - Use the median of all values as sort value. Only applicable for number based array fields.</li>
  * </ul>
  */
-public enum SortMode implements Writeable<SortMode> {
+public enum SortMode implements Writeable {
     /** pick the lowest value **/
     MIN,
     /** pick the highest value **/

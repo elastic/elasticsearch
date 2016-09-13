@@ -89,7 +89,7 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
     }
 
     static PolygonBuilder createRandomShape() {
-        PolygonBuilder pgb = (PolygonBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.POLYGON);
+        PolygonBuilder pgb = (PolygonBuilder) RandomShapeGenerator.createShape(random(), ShapeType.POLYGON);
         if (randomBoolean()) {
             pgb = polyWithOposingOrientation(pgb);
         }

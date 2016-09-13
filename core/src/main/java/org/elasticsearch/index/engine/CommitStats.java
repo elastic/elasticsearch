@@ -19,7 +19,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.SegmentInfos;
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,9 +26,9 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.Map;
 
 /** a class the returns dynamic information with respect to the last commit point of this shard */
@@ -45,9 +44,7 @@ public final class CommitStats implements Streamable, ToXContent {
         userData = MapBuilder.<String, String>newMapBuilder().putAll(segmentInfos.getUserData()).immutableMap();
         // lucene calls the current generation, last generation.
         generation = segmentInfos.getLastGeneration();
-        if (segmentInfos.getId() != null) { // id is only written starting with Lucene 5.0
-            id = Base64.encodeBytes(segmentInfos.getId());
-        }
+        id = Base64.getEncoder().encodeToString(segmentInfos.getId());
         numDocs = Lucene.getNumDocs(segmentInfos);
     }
 
@@ -111,11 +108,11 @@ public final class CommitStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString GENERATION = new XContentBuilderString("generation");
-        static final XContentBuilderString USER_DATA = new XContentBuilderString("user_data");
-        static final XContentBuilderString ID = new XContentBuilderString("id");
-        static final XContentBuilderString COMMIT = new XContentBuilderString("commit");
-        static final XContentBuilderString NUM_DOCS = new XContentBuilderString("num_docs");
+        static final String GENERATION = "generation";
+        static final String USER_DATA = "user_data";
+        static final String ID = "id";
+        static final String COMMIT = "commit";
+        static final String NUM_DOCS = "num_docs";
 
     }
 

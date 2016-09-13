@@ -48,7 +48,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `default_field` uses the `classic` similarity (ie TF/IDF).
 <2> The `bm25_field` uses the `BM25` similarity.
 

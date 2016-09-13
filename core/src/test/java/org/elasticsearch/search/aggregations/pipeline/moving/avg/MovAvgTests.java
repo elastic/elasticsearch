@@ -19,9 +19,14 @@
 
 package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.EwmaModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltLinearModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersModel;
@@ -29,13 +34,13 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersM
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;;
 
-public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineAggregatorBuilder> {
+public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineAggregationBuilder> {
 
     @Override
-    protected MovAvgPipelineAggregatorBuilder createTestAggregatorFactory() {
+    protected MovAvgPipelineAggregationBuilder createTestAggregatorFactory() {
         String name = randomAsciiOfLengthBetween(3, 20);
         String bucketsPath = randomAsciiOfLengthBetween(3, 20);
-        MovAvgPipelineAggregatorBuilder factory = new MovAvgPipelineAggregatorBuilder(name, bucketsPath);
+        MovAvgPipelineAggregationBuilder factory = new MovAvgPipelineAggregationBuilder(name, bucketsPath);
         if (randomBoolean()) {
             factory.format(randomAsciiOfLengthBetween(1, 10));
         }
@@ -92,4 +97,33 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
         return factory;
     }
 
+    public void testDefaultParsing() throws Exception {
+        MovAvgPipelineAggregationBuilder expected = new MovAvgPipelineAggregationBuilder("commits_moving_avg", "commits");
+        String json = "{" +
+            "    \"commits_moving_avg\": {" +
+            "        \"moving_avg\": {" +
+                "            \"buckets_path\": \"commits\"" +
+            "        }" +
+            "    }" +
+            "}";
+        XContentParser parser = XContentFactory.xContent(json).createParser(json);
+        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
+        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals(expected.getName(), parser.currentName());
+        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals(expected.type(), parser.currentName());
+        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+        PipelineAggregationBuilder newAgg = aggParsers.pipelineParser(expected.getWriteableName(), ParseFieldMatcher.STRICT)
+                .parse(expected.getName(), parseContext);
+        assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
+        assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
+        assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
+        assertNull(parser.nextToken());
+        assertNotNull(newAgg);
+        assertNotSame(newAgg, expected);
+        assertEquals(expected, newAgg);
+        assertEquals(expected.hashCode(), newAgg.hashCode());
+    }
 }

@@ -22,6 +22,8 @@ task buildDeb(type: Deb) {
   baseName 'elasticsearch' // this is what pom generation uses for artifactId
   // Follow elasticsearch's deb file naming convention
   archiveName "${packageName}-${project.version}.deb"
+  version = project.version
+
   packageGroup 'web'
   requires 'libc6'
   requires 'adduser'
@@ -31,6 +33,7 @@ task buildDeb(type: Deb) {
   }
   into('/usr/share/doc/elasticsearch') {
     from "${project.packagingFiles}/copyright"
+    fileMode 0644
   }
 }
 

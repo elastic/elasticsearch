@@ -76,7 +76,6 @@ import static org.elasticsearch.index.query.QueryBuilders.spanNotQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanOrQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanWithinQuery;
-import static org.elasticsearch.index.query.QueryBuilders.templateQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
@@ -138,7 +137,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         functionScoreQuery(functions);
     }
 
-    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 4.0
     public void testFuzzy() {
         fuzzyQuery("name", "kimchy");
     }
@@ -205,15 +203,15 @@ public class QueryDSLDocumentationTests extends ESTestCase {
     public void testHasChild() {
         hasChildQuery(
                 "blog_tag",
-                termQuery("tag","something")
-            );
+                termQuery("tag","something"),
+                ScoreMode.None);
     }
 
     public void testHasParent() {
         hasParentQuery(
             "blog",
-            termQuery("tag","something")
-        );
+            termQuery("tag","something"),
+                false);
     }
 
     public void testIds() {
@@ -262,9 +260,8 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                 "obj1",
                 boolQuery()
                         .must(matchQuery("obj1.name", "blue"))
-                        .must(rangeQuery("obj1.count").gt(5))
-            )
-            .scoreMode(ScoreMode.Avg);
+                        .must(rangeQuery("obj1.count").gt(5)),
+                ScoreMode.Avg);
     }
 
     public void testPrefix() {
@@ -315,7 +312,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
     public void testSpanContaining() {
         spanContainingQuery(
                 spanNearQuery(spanTermQuery("field1","bar"), 5)
-                    .clause(spanTermQuery("field1","baz"))
+                    .addClause(spanTermQuery("field1","baz"))
                     .inOrder(true),
                 spanTermQuery("field1","foo"));
     }
@@ -333,8 +330,8 @@ public class QueryDSLDocumentationTests extends ESTestCase {
 
     public void testSpanNear() {
         spanNearQuery(spanTermQuery("field","value1"), 12)
-        .clause(spanTermQuery("field","value2"))
-        .clause(spanTermQuery("field","value3"))
+        .addClause(spanTermQuery("field","value2"))
+        .addClause(spanTermQuery("field","value3"))
         .inOrder(false);
     }
 
@@ -345,8 +342,8 @@ public class QueryDSLDocumentationTests extends ESTestCase {
 
     public void testSpanOr() {
         spanOrQuery(spanTermQuery("field","value1"))
-        .clause(spanTermQuery("field","value2"))
-        .clause(spanTermQuery("field","value3"));
+        .addClause(spanTermQuery("field","value2"))
+        .addClause(spanTermQuery("field","value3"));
     }
 
     public void testSpanTerm() {
@@ -356,16 +353,9 @@ public class QueryDSLDocumentationTests extends ESTestCase {
     public void testSpanWithin() {
         spanWithinQuery(
                 spanNearQuery(spanTermQuery("field1", "bar"), 5)
-                    .clause(spanTermQuery("field1", "baz"))
+                    .addClause(spanTermQuery("field1", "baz"))
                     .inOrder(true),
                 spanTermQuery("field1", "foo"));
-    }
-
-    public void testTemplate() {
-        templateQuery(
-                "gender_template",
-                ScriptType.INDEXED,
-                new HashMap<>());
     }
 
     public void testTerm() {

@@ -40,41 +40,41 @@ public class CombineFunctionTests extends ESTestCase {
     public void testWriteTo() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             CombineFunction.MULTIPLY.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(0));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             CombineFunction.REPLACE.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(1));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             CombineFunction.SUM.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(2));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             CombineFunction.AVG.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(3));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             CombineFunction.MIN.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(4));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             CombineFunction.MAX.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(5));
             }
         }
@@ -83,38 +83,38 @@ public class CombineFunctionTests extends ESTestCase {
     public void testReadFrom() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(0);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(CombineFunction.readCombineFunctionFrom(in), equalTo(CombineFunction.MULTIPLY));
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(CombineFunction.readFromStream(in), equalTo(CombineFunction.MULTIPLY));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(1);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(CombineFunction.readCombineFunctionFrom(in), equalTo(CombineFunction.REPLACE));
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(CombineFunction.readFromStream(in), equalTo(CombineFunction.REPLACE));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(2);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(CombineFunction.readCombineFunctionFrom(in), equalTo(CombineFunction.SUM));
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(CombineFunction.readFromStream(in), equalTo(CombineFunction.SUM));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(3);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(CombineFunction.readCombineFunctionFrom(in), equalTo(CombineFunction.AVG));
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(CombineFunction.readFromStream(in), equalTo(CombineFunction.AVG));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(4);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(CombineFunction.readCombineFunctionFrom(in), equalTo(CombineFunction.MIN));
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(CombineFunction.readFromStream(in), equalTo(CombineFunction.MIN));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(5);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(CombineFunction.readCombineFunctionFrom(in), equalTo(CombineFunction.MAX));
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(CombineFunction.readFromStream(in), equalTo(CombineFunction.MAX));
             }
         }
     }

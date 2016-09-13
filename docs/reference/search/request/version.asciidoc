@@ -5,6 +5,7 @@ Returns a version for each search hit.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "version": true,
     "query" : {
@@ -12,3 +13,4 @@ Returns a version for each search hit.
     }
 }
 --------------------------------------------------
+// CONSOLE

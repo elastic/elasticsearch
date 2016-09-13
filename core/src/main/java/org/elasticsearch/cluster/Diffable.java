@@ -27,7 +27,7 @@ import java.io.IOException;
 /**
  * Cluster state part, changes in which can be serialized
  */
-public interface Diffable<T> extends Writeable<T> {
+public interface Diffable<T> extends Writeable {
 
     /**
      * Returns serializable object representing differences between this and previousState
@@ -39,4 +39,8 @@ public interface Diffable<T> extends Writeable<T> {
      */
     Diff<T> readDiffFrom(StreamInput in) throws IOException;
 
+    /**
+     * Reads an object of this type from the provided {@linkplain StreamInput}. The receiving instance remains unchanged.
+     */
+    T readFrom(StreamInput in) throws IOException;
 }

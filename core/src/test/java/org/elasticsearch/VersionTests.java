@@ -270,7 +270,8 @@ public class VersionTests extends ESTestCase {
                     assertTrue("lucene versions must be "  + other + " >= " + version,
                         other.luceneVersion.onOrAfter(version.luceneVersion));
                 }
-                if (other.major == version.major && other.minor == version.minor) {
+                if (other.isAlpha() == false && version.isAlpha() == false
+                        && other.major == version.major && other.minor == version.minor) {
                     assertEquals(other.luceneVersion.major, version.luceneVersion.major);
                     assertEquals(other.luceneVersion.minor, version.luceneVersion.minor);
                     // should we also assert the lucene bugfix version?

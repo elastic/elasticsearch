@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.action.admin.indices.template.put;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -73,7 +75,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
         if (cause.length() == 0) {
             cause = "api";
         }
-        final Settings.Builder templateSettingsBuilder = Settings.settingsBuilder();
+        final Settings.Builder templateSettingsBuilder = Settings.builder();
         templateSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
         indexScopedSettings.validate(templateSettingsBuilder);
         indexTemplateService.putTemplate(new MetaDataIndexTemplateService.PutRequest(cause, request.name())
@@ -84,7 +86,8 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
                 .aliases(request.aliases())
                 .customs(request.customs())
                 .create(request.create())
-                .masterTimeout(request.masterNodeTimeout()),
+                .masterTimeout(request.masterNodeTimeout())
+                .version(request.version()),
 
                 new MetaDataIndexTemplateService.PutListener() {
                     @Override
@@ -93,9 +96,9 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
                     }
 
                     @Override
-                    public void onFailure(Throwable t) {
-                        logger.debug("failed to put template [{}]", t, request.name());
-                        listener.onFailure(t);
+                    public void onFailure(Exception e) {
+                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to put template [{}]", request.name()), e);
+                        listener.onFailure(e);
                     }
                 });
     }

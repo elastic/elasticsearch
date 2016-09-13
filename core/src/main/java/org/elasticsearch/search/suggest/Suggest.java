@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -35,39 +34,45 @@ import org.elasticsearch.search.suggest.term.TermSuggestion;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Top level suggest result, containing the result for each suggestion.
  */
 public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Streamable, ToXContent {
 
-    private static final XContentBuilderString NAME = new XContentBuilderString("suggest");
+    private static final String NAME = "suggest";
 
-    private static final Comparator<Option> COMPARATOR = new Comparator<Suggest.Suggestion.Entry.Option>() {
-        @Override
-        public int compare(Option first, Option second) {
-            int cmp = Float.compare(second.getScore(), first.getScore());
-            if (cmp != 0) {
-                return cmp;
-            }
-            return first.getText().compareTo(second.getText());
-         }
-    };
+    public static final Comparator<Option> COMPARATOR = (first, second) -> {
+        int cmp = Float.compare(second.getScore(), first.getScore());
+        if (cmp != 0) {
+            return cmp;
+        }
+        return first.getText().compareTo(second.getText());
+     };
 
     private List<Suggestion<? extends Entry<? extends Option>>> suggestions;
+    private boolean hasScoreDocs;
 
     private Map<String, Suggestion<? extends Entry<? extends Option>>> suggestMap;
 
     public Suggest() {
+        this(Collections.emptyList());
     }
 
     public Suggest(List<Suggestion<? extends Entry<? extends Option>>> suggestions) {
+        // we sort suggestions by their names to ensure iteration over suggestions are consistent
+        // this is needed as we need to fill in suggestion docs in SearchPhaseController#sortDocs
+        // in the same order as we enrich the suggestions with fetch results in SearchPhaseController#merge
+        suggestions.sort((o1, o2) -> o1.getName().compareTo(o2.getName()));
         this.suggestions = suggestions;
+        this.hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
     @Override
@@ -96,6 +101,13 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         return (T) suggestMap.get(name);
     }
 
+    /**
+     * Whether any suggestions had query hits
+     */
+    public boolean hasScoreDocs() {
+        return hasScoreDocs;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         final int size = in.readVInt();
@@ -111,6 +123,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             case CompletionSuggestion.TYPE:
                 suggestion = new CompletionSuggestion();
                 break;
+            case org.elasticsearch.search.suggest.completion2x.CompletionSuggestion.TYPE:
+                suggestion = new org.elasticsearch.search.suggest.completion2x.CompletionSuggestion();
+                break;
             case PhraseSuggestion.TYPE:
                 suggestion = new PhraseSuggestion();
                 break;
@@ -121,6 +136,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             suggestion.readFrom(in);
             suggestions.add(suggestion);
         }
+        hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
     @Override
@@ -156,27 +172,35 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         return result;
     }
 
-    public static Map<String, List<Suggest.Suggestion>> group(Map<String, List<Suggest.Suggestion>> groupedSuggestions, Suggest suggest) {
-        for (Suggestion<? extends Entry<? extends Option>> suggestion : suggest) {
-            List<Suggestion> list = groupedSuggestions.get(suggestion.getName());
-            if (list == null) {
-                list = new ArrayList<>();
-                groupedSuggestions.put(suggestion.getName(), list);
-            }
-            list.add(suggestion);
-        }
-        return groupedSuggestions;
-    }
-
     public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion>> groupedSuggestions) {
         List<Suggestion<? extends Entry<? extends Option>>> reduced = new ArrayList<>(groupedSuggestions.size());
         for (java.util.Map.Entry<String, List<Suggestion>> unmergedResults : groupedSuggestions.entrySet()) {
             List<Suggestion> value = unmergedResults.getValue();
+            Class<? extends Suggestion> suggestionClass = null;
+            for (Suggestion suggestion : value) {
+                if (suggestionClass == null) {
+                    suggestionClass = suggestion.getClass();
+                } else if (suggestionClass != suggestion.getClass()) {
+                    throw new IllegalArgumentException(
+                        "detected mixed suggestion results, due to querying on old and new completion suggester," +
+                        " query on a single completion suggester version");
+                }
+            }
             Suggestion reduce = value.get(0).reduce(value);
             reduce.trim();
             reduced.add(reduce);
         }
         return reduced;
+    }
+
+    /**
+     * @return only suggestions of type <code>suggestionType</code> contained in this {@link Suggest} instance
+     */
+    public <T extends Suggestion> List<T> filter(Class<T> suggestionType) {
+         return suggestions.stream()
+            .filter(suggestion -> suggestion.getClass() == suggestionType)
+            .map(suggestion -> (T) suggestion)
+            .collect(Collectors.toList());
     }
 
     /**
@@ -222,6 +246,13 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
          */
         public String getName() {
             return name;
+        }
+
+        /**
+         * @return The number of requested suggestion option size
+         */
+        public int getSize() {
+            return size;
         }
 
         /**
@@ -317,7 +348,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             return builder;
         }
 
-
         /**
          * Represents a part from the suggest text with suggested options.
          */
@@ -325,10 +355,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
             static class Fields {
 
-                static final XContentBuilderString TEXT = new XContentBuilderString("text");
-                static final XContentBuilderString OFFSET = new XContentBuilderString("offset");
-                static final XContentBuilderString LENGTH = new XContentBuilderString("length");
-                static final XContentBuilderString OPTIONS = new XContentBuilderString("options");
+                static final String TEXT = "text";
+                static final String OFFSET = "offset";
+                static final String LENGTH = "length";
+                static final String OPTIONS = "options";
 
             }
 
@@ -508,10 +538,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
                 static class Fields {
 
-                    static final XContentBuilderString TEXT = new XContentBuilderString("text");
-                    static final XContentBuilderString HIGHLIGHTED = new XContentBuilderString("highlighted");
-                    static final XContentBuilderString SCORE = new XContentBuilderString("score");
-                    static final XContentBuilderString COLLATE_MATCH = new XContentBuilderString("collate_match");
+                    static final String TEXT = "text";
+                    static final String HIGHLIGHTED = "highlighted";
+                    static final String SCORE = "score";
+                    static final String COLLATE_MATCH = "collate_match";
 
                 }
 

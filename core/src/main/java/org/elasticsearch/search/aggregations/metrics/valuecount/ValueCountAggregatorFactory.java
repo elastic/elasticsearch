@@ -43,12 +43,12 @@ public class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory<V
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        return new ValueCountAggregator(name, null, config.formatter(), context, parent, pipelineAggregators, metaData);
+        return new ValueCountAggregator(name, null, context, parent, pipelineAggregators, metaData);
     }
 
     @Override
     protected Aggregator doCreateInternal(ValuesSource valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new ValueCountAggregator(name, valuesSource, config.formatter(), context, parent, pipelineAggregators, metaData);
+        return new ValueCountAggregator(name, valuesSource, context, parent, pipelineAggregators, metaData);
     }
 }

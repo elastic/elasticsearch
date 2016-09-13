@@ -19,17 +19,24 @@
 
 package org.elasticsearch.indices.settings;
 
-import org.apache.log4j.AppenderSkeleton;
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
-import org.apache.log4j.spi.LoggingEvent;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -37,9 +44,13 @@ import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
@@ -53,11 +64,47 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateSettingsIT extends ESIntegTestCase {
 
+
+    public void testInvalidDynamicUpdate() {
+        createIndex("test");
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
+            client().admin().indices().prepareUpdateSettings("test")
+                .setSettings(Settings.builder()
+                    .put("index.dummy", "boom")
+                )
+                .execute().actionGet());
+        assertEquals(exception.getCause().getMessage(), "this setting goes boom");
+        IndexMetaData indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
+        assertNotEquals(indexMetaData.getSettings().get("index.dummy"), "invalid dynamic value");
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(DummySettingPlugin.class);
+    }
+
+    public static class DummySettingPlugin extends Plugin {
+        public static final Setting<String> DUMMY_SETTING = Setting.simpleString("index.dummy",
+            Setting.Property.IndexScope, Setting.Property.Dynamic);
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+            indexModule.addSettingsUpdateConsumer(DUMMY_SETTING, (s) -> {}, (s) -> {
+                if (s.equals("boom"))
+                    throw new IllegalArgumentException("this setting goes boom");
+            });
+        }
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(DUMMY_SETTING);
+        }
+    }
+
     public void testResetDefault() {
         createIndex("test");
 
         client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.settingsBuilder()
+            .setSettings(Settings.builder()
                 .put("index.refresh_interval", -1)
                 .put("index.translog.flush_threshold_size", "1024b")
             )
@@ -72,7 +119,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             }
         }
         client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.settingsBuilder()
+            .setSettings(Settings.builder()
                 .putNull("index.refresh_interval")
             )
             .execute().actionGet();
@@ -90,7 +137,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         createIndex("test");
         try {
             client().admin().indices().prepareUpdateSettings("test")
-                    .setSettings(Settings.settingsBuilder()
+                    .setSettings(Settings.builder()
                             .put("index.refresh_interval", -1) // this one can change
                             .put("index.fielddata.cache", "none") // this one can't
                     )
@@ -110,7 +157,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         assertThat(getSettingsResponse.getSetting("test", "index.fielddata.cache"), nullValue());
 
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.refresh_interval", -1) // this one can change
                 )
                 .execute().actionGet();
@@ -131,7 +178,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         try {
             client().admin().indices().prepareUpdateSettings("test")
-                    .setSettings(Settings.settingsBuilder()
+                    .setSettings(Settings.builder()
                                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                     )
                     .execute().actionGet();
@@ -142,7 +189,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             // expected
         }
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.refresh_interval", "1s") // this one can change
                         .put("index.fielddata.cache", "none") // this one can't
                 )
@@ -164,7 +211,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         client().prepareDelete("test", "type", "1").get(); // sets version to 2
         client().prepareIndex("test", "type", "1").setSource("f", 2).setVersion(2).get(); // delete is still in cache this should work & set version to 3
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.gc_deletes", 0)
                 ).get();
 
@@ -306,13 +353,17 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         logger.info("test: test done");
     }
 
-    private static class MockAppender extends AppenderSkeleton {
+    private static class MockAppender extends AbstractAppender {
         public boolean sawUpdateMaxThreadCount;
         public boolean sawUpdateAutoThrottle;
 
+        public MockAppender(final String name) throws IllegalAccessException {
+            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], true, null, null), null);
+        }
+
         @Override
-        protected void append(LoggingEvent event) {
-            String message = event.getMessage().toString();
+        public void append(LogEvent event) {
+            String message = event.getMessage().getFormattedMessage();
             if (event.getLevel() == Level.TRACE &&
                 event.getLoggerName().endsWith("lucene.iw")) {
             }
@@ -324,22 +375,14 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             }
         }
 
-        @Override
-        public boolean requiresLayout() {
-            return false;
-        }
-
-        @Override
-        public void close() {
-        }
     }
 
-    public void testUpdateAutoThrottleSettings() {
-        MockAppender mockAppender = new MockAppender();
-        Logger rootLogger = Logger.getRootLogger();
+    public void testUpdateAutoThrottleSettings() throws IllegalAccessException {
+        MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
+        Logger rootLogger = LogManager.getRootLogger();
         Level savedLevel = rootLogger.getLevel();
-        rootLogger.addAppender(mockAppender);
-        rootLogger.setLevel(Level.TRACE);
+        Loggers.addAppender(rootLogger, mockAppender);
+        Loggers.setLevel(rootLogger, Level.TRACE);
 
         try {
             // No throttling at first, only 1 non-replicated shard, force lots of merging:
@@ -370,18 +413,65 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
             assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey()), equalTo("false"));
         } finally {
-            rootLogger.removeAppender(mockAppender);
-            rootLogger.setLevel(savedLevel);
+            Loggers.removeAppender(rootLogger, mockAppender);
+            Loggers.setLevel(rootLogger, savedLevel);
+        }
+    }
+
+    public void testInvalidMergeMaxThreadCount() throws IllegalAccessException {
+        CreateIndexRequestBuilder createBuilder = prepareCreate("test")
+            .setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
+                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
+                .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
+                .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "100")
+                .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "10")
+            );
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+            () -> createBuilder.get());
+        assertThat(exc.getMessage(), equalTo("maxThreadCount (= 100) should be <= maxMergeCount (= 10)"));
+
+        assertAcked(prepareCreate("test")
+            .setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
+                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
+                .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
+                .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "100")
+                .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "100")
+            ));
+
+        {
+            UpdateSettingsRequestBuilder updateBuilder = client().admin().indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder()
+                    .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1000")
+                );
+            exc = expectThrows(IllegalArgumentException.class,
+                () -> updateBuilder.get());
+            assertThat(exc.getMessage(), equalTo("maxThreadCount (= 1000) should be <= maxMergeCount (= 100)"));
+        }
+
+        {
+            UpdateSettingsRequestBuilder updateBuilder = client().admin().indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder()
+                    .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "10")
+                );
+            exc = expectThrows(IllegalArgumentException.class,
+                () -> updateBuilder.get());
+            assertThat(exc.getMessage(), equalTo("maxThreadCount (= 100) should be <= maxMergeCount (= 10)"));
         }
     }
 
     // #6882: make sure we can change index.merge.scheduler.max_thread_count live
-    public void testUpdateMergeMaxThreadCount() {
-        MockAppender mockAppender = new MockAppender();
-        Logger rootLogger = Logger.getRootLogger();
+    public void testUpdateMergeMaxThreadCount() throws IllegalAccessException {
+        MockAppender mockAppender = new MockAppender("testUpdateMergeMaxThreadCount");
+        Logger rootLogger = LogManager.getRootLogger();
         Level savedLevel = rootLogger.getLevel();
-        rootLogger.addAppender(mockAppender);
-        rootLogger.setLevel(Level.TRACE);
+        Loggers.addAppender(rootLogger, mockAppender);
+        Loggers.setLevel(rootLogger, Level.TRACE);
 
         try {
 
@@ -414,8 +504,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey()), equalTo("1"));
 
         } finally {
-            rootLogger.removeAppender(mockAppender);
-            rootLogger.setLevel(savedLevel);
+            Loggers.removeAppender(rootLogger, mockAppender);
+            Loggers.setLevel(rootLogger, savedLevel);
         }
     }
 

@@ -40,11 +40,10 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
     public void testRepositoryCreation() throws Exception {
@@ -54,7 +53,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("-->  creating repository");
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo-1")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                                 .put("location", location)
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -77,7 +76,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("-->  creating another repository");
         putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo-2")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                                 .put("location", randomRepoPath())
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -137,7 +136,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         String location = invalidRepoPath.toString();
         try {
             client().admin().cluster().preparePutRepository("test-repo")
-                    .setType("fs").setSettings(Settings.settingsBuilder().put("location", location))
+                    .setType("fs").setSettings(Settings.builder().put("location", location))
                     .get();
             fail("Shouldn't be here");
         } catch (RepositoryException ex) {
@@ -149,17 +148,19 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> trying creating url repository with unsupported url protocol");
         try {
             client().admin().cluster().preparePutRepository("test-repo")
-                    .setType("url").setSettings(Settings.settingsBuilder().put("url", unsupportedUrl))
+                    .setType("url").setSettings(Settings.builder().put("url", unsupportedUrl))
                     .get();
             fail("Shouldn't be here");
         } catch (RepositoryException ex) {
-            assertThat(ex.toString(), containsString("unsupported url protocol [netdoc]"));
+            assertThat(ex.toString(),
+                either(containsString("unsupported url protocol [netdoc]"))
+                    .or(containsString("unknown protocol: netdoc"))); // newer versions of JDK 9
         }
 
         logger.info("--> trying creating url repository with location that is not registered in path.repo setting");
         try {
             client().admin().cluster().preparePutRepository("test-repo")
-                    .setType("url").setSettings(Settings.settingsBuilder().put("url", invalidRepoPath.toUri().toURL()))
+                    .setType("url").setSettings(Settings.builder().put("url", invalidRepoPath.toUri().toURL()))
                     .get();
             fail("Shouldn't be here");
         } catch (RepositoryException ex) {
@@ -170,7 +171,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
     public void testRepositoryAckTimeout() throws Exception {
         logger.info("-->  creating repository test-repo-1 with 0s timeout - shouldn't ack");
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo-1")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                                 .put("location", randomRepoPath())
                                 .put("compress", randomBoolean())
                                 .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES)
@@ -180,7 +181,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("-->  creating repository test-repo-2 with standard timeout - should ack");
         putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo-2")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                                 .put("location", randomRepoPath())
                                 .put("compress", randomBoolean())
                                 .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES)
@@ -200,7 +201,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
     public void testRepositoryVerification() throws Exception {
         Client client = client();
 
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("location", randomRepoPath())
                 .put("random_control_io_exception_rate", 1.0).build();
         logger.info("-->  creating repository that cannot write any files - should fail");
@@ -221,7 +222,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         try {
             client.admin().cluster().preparePutRepository("test-repo-1")
                     .setType("mock")
-                    .setSettings(Settings.settingsBuilder()
+                    .setSettings(Settings.builder()
                                     .put("location", location)
                                     .put("localize_location", true)
                     ).get();
@@ -234,7 +235,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
     public void testRepositoryVerificationTimeout() throws Exception {
         Client client = client();
 
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("location", randomRepoPath())
                 .put("random_control_io_exception_rate", 1.0).build();
         logger.info("-->  creating repository that cannot write any files - should fail");
@@ -255,7 +256,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         try {
             client.admin().cluster().preparePutRepository("test-repo-1")
                     .setType("mock")
-                    .setSettings(Settings.settingsBuilder()
+                    .setSettings(Settings.builder()
                                     .put("location", location)
                                     .put("localize_location", true)
                     ).get();

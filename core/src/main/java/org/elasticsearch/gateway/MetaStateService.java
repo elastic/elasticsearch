@@ -19,17 +19,17 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
@@ -41,7 +41,6 @@ public class MetaStateService extends AbstractComponent {
 
     private final NodeEnvironment nodeEnv;
 
-    @Inject
     public MetaStateService(Settings settings, NodeEnvironment nodeEnv) {
         super(settings);
         this.nodeEnv = nodeEnv;
@@ -74,7 +73,7 @@ public class MetaStateService extends AbstractComponent {
      * Loads the index state for the provided index name, returning null if doesn't exists.
      */
     @Nullable
-    IndexMetaData loadIndexState(Index index) throws IOException {
+    public IndexMetaData loadIndexState(Index index) throws IOException {
         return IndexMetaData.FORMAT.loadLatestState(logger, nodeEnv.indexPaths(index));
     }
 
@@ -119,15 +118,17 @@ public class MetaStateService extends AbstractComponent {
 
     /**
      * Writes the index state.
+     *
+     * This method is public for testing purposes.
      */
-    void writeIndex(String reason, IndexMetaData indexMetaData) throws IOException {
+    public void writeIndex(String reason, IndexMetaData indexMetaData) throws IOException {
         final Index index = indexMetaData.getIndex();
         logger.trace("[{}] writing state, reason [{}]", index, reason);
         try {
-            IndexMetaData.FORMAT.write(indexMetaData, indexMetaData.getVersion(),
+            IndexMetaData.FORMAT.write(indexMetaData,
                 nodeEnv.indexPaths(indexMetaData.getIndex()));
-        } catch (Throwable ex) {
-            logger.warn("[{}]: failed to write index state", ex, index);
+        } catch (Exception ex) {
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}]: failed to write index state", index), ex);
             throw new IOException("failed to write state for [" + index + "]", ex);
         }
     }
@@ -138,8 +139,8 @@ public class MetaStateService extends AbstractComponent {
     void writeGlobalState(String reason, MetaData metaData) throws Exception {
         logger.trace("[_global] writing state, reason [{}]",  reason);
         try {
-            MetaData.FORMAT.write(metaData, metaData.version(), nodeEnv.nodeDataPaths());
-        } catch (Throwable ex) {
+            MetaData.FORMAT.write(metaData, nodeEnv.nodeDataPaths());
+        } catch (Exception ex) {
             logger.warn("[_global]: failed to write global state", ex);
             throw new IOException("failed to write global state", ex);
         }

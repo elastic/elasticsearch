@@ -44,13 +44,14 @@ public class BoundTransportAddressTests extends ESTestCase {
         for (InetAddress address : inetAddresses) {
             transportAddressList.add(new InetSocketTransportAddress(address, randomIntBetween(9200, 9299)));
         }
-        final BoundTransportAddress transportAddress = new BoundTransportAddress(transportAddressList.toArray(new InetSocketTransportAddress[0]), transportAddressList.get(0));
+        final BoundTransportAddress transportAddress =
+            new BoundTransportAddress(transportAddressList.toArray(new InetSocketTransportAddress[0]), transportAddressList.get(0));
         assertThat(transportAddress.boundAddresses().length, equalTo(transportAddressList.size()));
 
         // serialize
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         transportAddress.writeTo(streamOutput);
-        StreamInput in = ByteBufferStreamInput.wrap(streamOutput.bytes());
+        StreamInput in = streamOutput.bytes().streamInput();
 
         BoundTransportAddress serializedAddress;
         if (randomBoolean()) {

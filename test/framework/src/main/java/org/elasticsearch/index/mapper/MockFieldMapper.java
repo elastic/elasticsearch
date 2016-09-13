@@ -24,7 +24,6 @@ import java.util.List;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
@@ -50,7 +49,7 @@ public class MockFieldMapper extends FieldMapper {
         return fullName.substring(ndx + 1);
     }
 
-    static class FakeFieldType extends MappedFieldType {
+    public static class FakeFieldType extends TermBasedFieldType {
         public FakeFieldType() {
         }
 

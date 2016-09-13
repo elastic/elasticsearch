@@ -20,10 +20,16 @@
 package org.elasticsearch.cluster.health;
 
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
+
 /**
  *
  */
-public enum ClusterHealthStatus {
+public enum ClusterHealthStatus implements Writeable {
     GREEN((byte) 0),
     YELLOW((byte) 1),
     RED((byte) 2);
@@ -38,7 +44,21 @@ public enum ClusterHealthStatus {
         return value;
     }
 
-    public static ClusterHealthStatus fromValue(byte value) {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeByte(value);
+    }
+
+    /**
+     * Read from a stream.
+     *
+     * @throws IllegalArgumentException if the value is unrecognized
+     */
+    public static ClusterHealthStatus readFrom(StreamInput in) throws IOException {
+        return fromValue(in.readByte());
+    }
+
+    public static ClusterHealthStatus fromValue(byte value) throws IOException {
         switch (value) {
             case 0:
                 return GREEN;

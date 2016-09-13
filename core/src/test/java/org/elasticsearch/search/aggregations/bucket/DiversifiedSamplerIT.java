@@ -22,12 +22,12 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -128,7 +128,7 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
 
     public void testSimpleDiversity() throws Exception {
         int MAX_DOCS_PER_AUTHOR = 1;
-        DiversifiedAggregatorBuilder sampleAgg = new DiversifiedAggregatorBuilder("sample").shardSize(100);
+        DiversifiedAggregationBuilder sampleAgg = new DiversifiedAggregationBuilder("sample").shardSize(100);
         sampleAgg.field("author").maxDocsPerValue(MAX_DOCS_PER_AUTHOR).executionHint(randomExecutionHint());
         sampleAgg.subAggregation(terms("authors").field("author"));
         SearchResponse response = client().prepareSearch("test")
@@ -151,9 +151,9 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
     public void testNestedDiversity() throws Exception {
         // Test multiple samples gathered under buckets made by a parent agg
         int MAX_DOCS_PER_AUTHOR = 1;
-        TermsAggregatorBuilder rootTerms = terms("genres").field("genre");
+        TermsAggregationBuilder rootTerms = terms("genres").field("genre");
 
-        DiversifiedAggregatorBuilder sampleAgg = new DiversifiedAggregatorBuilder("sample").shardSize(100);
+        DiversifiedAggregationBuilder sampleAgg = new DiversifiedAggregationBuilder("sample").shardSize(100);
         sampleAgg.field("author").maxDocsPerValue(MAX_DOCS_PER_AUTHOR).executionHint(randomExecutionHint());
         sampleAgg.subAggregation(terms("authors").field("author"));
 
@@ -178,11 +178,11 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
         // Test samples nested under samples
         int MAX_DOCS_PER_AUTHOR = 1;
         int MAX_DOCS_PER_GENRE = 2;
-        DiversifiedAggregatorBuilder rootSample = new DiversifiedAggregatorBuilder("genreSample").shardSize(100)
+        DiversifiedAggregationBuilder rootSample = new DiversifiedAggregationBuilder("genreSample").shardSize(100)
                 .field("genre")
                 .maxDocsPerValue(MAX_DOCS_PER_GENRE);
 
-        DiversifiedAggregatorBuilder sampleAgg = new DiversifiedAggregatorBuilder("sample").shardSize(100);
+        DiversifiedAggregationBuilder sampleAgg = new DiversifiedAggregationBuilder("sample").shardSize(100);
         sampleAgg.field("author").maxDocsPerValue(MAX_DOCS_PER_AUTHOR).executionHint(randomExecutionHint());
         sampleAgg.subAggregation(terms("authors").field("author"));
         sampleAgg.subAggregation(terms("genres").field("genre"));
@@ -210,7 +210,7 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
     public void testPartiallyUnmappedDiversifyField() throws Exception {
         // One of the indexes is missing the "author" field used for
         // diversifying results
-        DiversifiedAggregatorBuilder sampleAgg = new DiversifiedAggregatorBuilder("sample").shardSize(100).field("author")
+        DiversifiedAggregationBuilder sampleAgg = new DiversifiedAggregationBuilder("sample").shardSize(100).field("author")
                 .maxDocsPerValue(1);
         sampleAgg.subAggregation(terms("authors").field("author"));
         SearchResponse response = client().prepareSearch("idx_unmapped_author", "test").setSearchType(SearchType.QUERY_AND_FETCH)
@@ -226,7 +226,7 @@ public class DiversifiedSamplerIT extends ESIntegTestCase {
     public void testWhollyUnmappedDiversifyField() throws Exception {
         //All of the indices are missing the "author" field used for diversifying results
         int MAX_DOCS_PER_AUTHOR = 1;
-        DiversifiedAggregatorBuilder sampleAgg = new DiversifiedAggregatorBuilder("sample").shardSize(100);
+        DiversifiedAggregationBuilder sampleAgg = new DiversifiedAggregationBuilder("sample").shardSize(100);
         sampleAgg.field("author").maxDocsPerValue(MAX_DOCS_PER_AUTHOR).executionHint(randomExecutionHint());
         sampleAgg.subAggregation(terms("authors").field("author"));
         SearchResponse response = client().prepareSearch("idx_unmapped", "idx_unmapped_author").setSearchType(SearchType.QUERY_AND_FETCH)

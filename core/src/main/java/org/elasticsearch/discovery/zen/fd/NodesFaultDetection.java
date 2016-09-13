@@ -19,6 +19,8 @@
 
 package org.elasticsearch.discovery.zen.fd;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -28,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -36,9 +37,12 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -70,9 +74,11 @@ public class NodesFaultDetection extends FaultDetection {
     public NodesFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
         super(settings, threadPool, transportService, clusterName);
 
-        logger.debug("[node  ] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
+        logger.debug("[node  ] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout,
+            pingRetryCount);
 
-        transportService.registerRequestHandler(PING_ACTION_NAME, PingRequest::new, ThreadPool.Names.SAME, new PingRequestHandler());
+        transportService.registerRequestHandler(
+            PING_ACTION_NAME, PingRequest::new, ThreadPool.Names.SAME, false, false, new PingRequestHandler());
     }
 
     public void setLocalNode(DiscoveryNode localNode) {
@@ -88,13 +94,21 @@ public class NodesFaultDetection extends FaultDetection {
     }
 
     /**
+     * Gets the current set of nodes involved in node fault detection.
+     * NB: For testing purposes.
+     */
+    public Set<DiscoveryNode> getNodes() {
+        return Collections.unmodifiableSet(nodesFD.keySet());
+    }
+
+    /**
      * make sure that nodes in clusterState are pinged. Any pinging to nodes which are not
      * part of the cluster will be stopped
      */
     public void updateNodesAndPing(ClusterState clusterState) {
         // remove any nodes we don't need, this will cause their FD to stop
         for (DiscoveryNode monitoredNode : nodesFD.keySet()) {
-            if (!clusterState.nodes().nodeExists(monitoredNode.id())) {
+            if (!clusterState.nodes().nodeExists(monitoredNode)) {
                 nodesFD.remove(monitoredNode);
             }
         }
@@ -164,7 +178,12 @@ public class NodesFaultDetection extends FaultDetection {
                 }
             });
         } catch (EsRejectedExecutionException ex) {
-            logger.trace("[node  ] [{}] ignoring node failure (reason [{}]). Local node is shutting down", ex, node, reason);
+            logger.trace(
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "[node  ] [{}] ignoring node failure (reason [{}]). Local node is shutting down",
+                    node,
+                    reason),
+                ex);
         }
     }
 
@@ -200,9 +219,10 @@ public class NodesFaultDetection extends FaultDetection {
             if (!running()) {
                 return;
             }
-            final PingRequest pingRequest = new PingRequest(node.id(), clusterName, localNode, clusterStateVersion);
-            final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout).build();
-            transportService.sendRequest(node, PING_ACTION_NAME, pingRequest, options, new BaseTransportResponseHandler<PingResponse>() {
+            final PingRequest pingRequest = new PingRequest(node, clusterName, localNode, clusterStateVersion);
+            final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING)
+                .withTimeout(pingRetryTimeout).build();
+            transportService.sendRequest(node, PING_ACTION_NAME, pingRequest, options, new TransportResponseHandler<PingResponse>() {
                         @Override
                         public PingResponse newInstance() {
                             return new PingResponse();
@@ -228,12 +248,20 @@ public class NodesFaultDetection extends FaultDetection {
                             }
 
                             retryCount++;
-                            logger.trace("[node  ] failed to ping [{}], retry [{}] out of [{}]", exp, node, retryCount, pingRetryCount);
+                            logger.trace(
+                                (Supplier<?>) () -> new ParameterizedMessage(
+                                    "[node  ] failed to ping [{}], retry [{}] out of [{}]",
+                                    node,
+                                    retryCount,
+                                    pingRetryCount),
+                                exp);
                             if (retryCount >= pingRetryCount) {
-                                logger.debug("[node  ] failed to ping [{}], tried [{}] times, each with  maximum [{}] timeout", node, pingRetryCount, pingRetryTimeout);
+                                logger.debug("[node  ] failed to ping [{}], tried [{}] times, each with  maximum [{}] timeout", node,
+                                    pingRetryCount, pingRetryTimeout);
                                 // not good, failure
                                 if (nodesFD.remove(node, NodeFD.this)) {
-                                    notifyNodeFailure(node, "failed to ping, tried [" + pingRetryCount + "] times, each with maximum [" + pingRetryTimeout + "] timeout");
+                                    notifyNodeFailure(node, "failed to ping, tried [" + pingRetryCount + "] times, each with maximum ["
+                                        + pingRetryTimeout + "] timeout");
                                 }
                             } else {
                                 // resend the request, not reschedule, rely on send timeout
@@ -255,14 +283,15 @@ public class NodesFaultDetection extends FaultDetection {
         public void messageReceived(PingRequest request, TransportChannel channel) throws Exception {
             // if we are not the node we are supposed to be pinged, send an exception
             // this can happen when a kill -9 is sent, and another node is started using the same port
-            if (!localNode.id().equals(request.nodeId)) {
-                throw new IllegalStateException("Got pinged as node [" + request.nodeId + "], but I am node [" + localNode.id() + "]");
+            if (!localNode.equals(request.targetNode())) {
+                throw new IllegalStateException("Got pinged as node " + request.targetNode() + "], but I am node " + localNode );
             }
 
             // PingRequest will have clusterName set to null if it came from a node of version <1.4.0
             if (request.clusterName != null && !request.clusterName.equals(clusterName)) {
                 // Don't introduce new exception for bwc reasons
-                throw new IllegalStateException("Got pinged with cluster name [" + request.clusterName + "], but I'm part of cluster [" + clusterName + "]");
+                throw new IllegalStateException("Got pinged with cluster name [" + request.clusterName + "], but I'm part of cluster ["
+                    + clusterName + "]");
             }
 
             notifyPingReceived(request);
@@ -274,8 +303,8 @@ public class NodesFaultDetection extends FaultDetection {
 
     public static class PingRequest extends TransportRequest {
 
-        // the (assumed) node id we are pinging
-        private String nodeId;
+        // the (assumed) node we are pinging
+        private DiscoveryNode targetNode;
 
         private ClusterName clusterName;
 
@@ -286,15 +315,15 @@ public class NodesFaultDetection extends FaultDetection {
         public PingRequest() {
         }
 
-        PingRequest(String nodeId, ClusterName clusterName, DiscoveryNode masterNode, long clusterStateVersion) {
-            this.nodeId = nodeId;
+        PingRequest(DiscoveryNode targetNode, ClusterName clusterName, DiscoveryNode masterNode, long clusterStateVersion) {
+            this.targetNode = targetNode;
             this.clusterName = clusterName;
             this.masterNode = masterNode;
             this.clusterStateVersion = clusterStateVersion;
         }
 
-        public String nodeId() {
-            return nodeId;
+        public DiscoveryNode targetNode() {
+            return targetNode;
         }
 
         public ClusterName clusterName() {
@@ -312,16 +341,16 @@ public class NodesFaultDetection extends FaultDetection {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            nodeId = in.readString();
-            clusterName = ClusterName.readClusterName(in);
-            masterNode = DiscoveryNode.readNode(in);
+            targetNode = new DiscoveryNode(in);
+            clusterName = new ClusterName(in);
+            masterNode = new DiscoveryNode(in);
             clusterStateVersion = in.readLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(nodeId);
+            targetNode.writeTo(out);
             clusterName.writeTo(out);
             masterNode.writeTo(out);
             out.writeLong(clusterStateVersion);

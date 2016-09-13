@@ -23,10 +23,9 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
-import org.elasticsearch.bwcompat.OldIndexBackwardsCompatibilityIT;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.AllocationId;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -39,6 +38,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.shard.ShardStateMetaData;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.OldIndexUtils;
 
 import java.io.BufferedWriter;
 import java.io.FileNotFoundException;
@@ -67,10 +67,10 @@ public class IndexFolderUpgraderTests extends ESTestCase {
     public void testUpgradeCustomDataPath() throws IOException {
         Path customPath = createTempDir();
         final Settings nodeSettings = Settings.builder()
-            .put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH.getKey(), randomBoolean())
+            .put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), randomBoolean())
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), customPath.toAbsolutePath().toString()).build();
         try (NodeEnvironment nodeEnv = newNodeEnvironment(nodeSettings)) {
-            final Index index = new Index(randomAsciiOfLength(10), Strings.randomBase64UUID());
+            final Index index = new Index(randomAsciiOfLength(10), UUIDs.randomBase64UUID());
             Settings settings = Settings.builder()
                 .put(nodeSettings)
                 .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
@@ -96,10 +96,10 @@ public class IndexFolderUpgraderTests extends ESTestCase {
     public void testPartialUpgradeCustomDataPath() throws IOException {
         Path customPath = createTempDir();
         final Settings nodeSettings = Settings.builder()
-            .put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH.getKey(), randomBoolean())
+            .put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), randomBoolean())
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), customPath.toAbsolutePath().toString()).build();
         try (NodeEnvironment nodeEnv = newNodeEnvironment(nodeSettings)) {
-            final Index index = new Index(randomAsciiOfLength(10), Strings.randomBase64UUID());
+            final Index index = new Index(randomAsciiOfLength(10), UUIDs.randomBase64UUID());
             Settings settings = Settings.builder()
                 .put(nodeSettings)
                 .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
@@ -136,9 +136,9 @@ public class IndexFolderUpgraderTests extends ESTestCase {
 
     public void testUpgrade() throws IOException {
         final Settings nodeSettings = Settings.builder()
-            .put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH.getKey(), randomBoolean()).build();
+            .put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), randomBoolean()).build();
         try (NodeEnvironment nodeEnv = newNodeEnvironment(nodeSettings)) {
-            final Index index = new Index(randomAsciiOfLength(10), Strings.randomBase64UUID());
+            final Index index = new Index(randomAsciiOfLength(10), UUIDs.randomBase64UUID());
             Settings settings = Settings.builder()
                 .put(nodeSettings)
                 .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
@@ -159,11 +159,11 @@ public class IndexFolderUpgraderTests extends ESTestCase {
 
     public void testUpgradeIndices() throws IOException {
         final Settings nodeSettings = Settings.builder()
-            .put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH.getKey(), randomBoolean()).build();
+            .put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), randomBoolean()).build();
         try (NodeEnvironment nodeEnv = newNodeEnvironment(nodeSettings)) {
             Map<IndexSettings, Tuple<Integer, Integer>>  indexSettingsMap = new HashMap<>();
             for (int i = 0; i < randomIntBetween(2, 5); i++) {
-                final Index index = new Index(randomAsciiOfLength(10), Strings.randomBase64UUID());
+                final Index index = new Index(randomAsciiOfLength(10), UUIDs.randomBase64UUID());
                 Settings settings = Settings.builder()
                     .put(nodeSettings)
                     .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
@@ -215,7 +215,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
             assertTrue("[" + path + "] missing index dir: " + src.toString(), Files.exists(src));
             final Path indicesPath = randomFrom(nodeEnvironment.nodePaths()).indicesPath;
             logger.info("--> injecting index [{}] into [{}]", indexName, indicesPath);
-            OldIndexBackwardsCompatibilityIT.copyIndex(logger, src, indexName, indicesPath);
+            OldIndexUtils.copyIndex(logger, src, indexName, indicesPath);
             IndexFolderUpgrader.upgradeIndicesIfNeeded(Settings.EMPTY, nodeEnvironment);
 
             // ensure old index folder is deleted
@@ -247,7 +247,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
     }
 
     public void testNeedsUpgrade() throws IOException {
-        final Index index = new Index("foo", Strings.randomBase64UUID());
+        final Index index = new Index("foo", UUIDs.randomBase64UUID());
         IndexMetaData indexState = IndexMetaData.builder(index.getName())
             .settings(Settings.builder()
                 .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
@@ -256,7 +256,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment()) {
-            IndexMetaData.FORMAT.write(indexState, 1, nodeEnvironment.indexPaths(index));
+            IndexMetaData.FORMAT.write(indexState, nodeEnvironment.indexPaths(index));
             assertFalse(IndexFolderUpgrader.needsUpgrade(index, index.getUUID()));
         }
     }
@@ -305,7 +305,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
         for (int i = 0; i < nodePaths.length; i++) {
             oldIndexPaths[i] = nodePaths[i].indicesPath.resolve(indexSettings.getIndex().getName());
         }
-        IndexMetaData.FORMAT.write(indexSettings.getIndexMetaData(), 1, oldIndexPaths);
+        IndexMetaData.FORMAT.write(indexSettings.getIndexMetaData(), oldIndexPaths);
         for (int id = 0; id < indexSettings.getNumberOfShards(); id++) {
             Path oldIndexPath = randomFrom(oldIndexPaths);
             ShardId shardId = new ShardId(indexSettings.getIndex(), id);
@@ -316,7 +316,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
                 writeShard(shardId, oldIndexPath, numIdxFiles, numTranslogFiles);
             }
             ShardStateMetaData state = new ShardStateMetaData(true, indexSettings.getUUID(), AllocationId.newInitializing());
-            ShardStateMetaData.FORMAT.write(state, 1, oldIndexPath.resolve(String.valueOf(shardId.getId())));
+            ShardStateMetaData.FORMAT.write(state, oldIndexPath.resolve(String.valueOf(shardId.getId())));
         }
     }
 

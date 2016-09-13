@@ -22,15 +22,14 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 public abstract class Mapper implements ToXContent, Iterable<Mapper> {
@@ -62,7 +61,7 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
         }
     }
 
-    public static abstract class Builder<T extends Builder, Y extends Mapper> {
+    public abstract static class Builder<T extends Builder, Y extends Mapper> {
 
         public String name;
 
@@ -130,7 +129,7 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
             }
 
             public TypeParser typeParser(String type) {
-                return typeParsers.apply(Strings.toUnderscoreCase(type));
+                return typeParsers.apply(type);
             }
 
             public Version indexVersionCreated() {
@@ -172,6 +171,7 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
     private final String simpleName;
 
     public Mapper(String simpleName) {
+        Objects.requireNonNull(simpleName);
         this.simpleName = simpleName;
     }
 

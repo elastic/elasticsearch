@@ -18,11 +18,10 @@
  */
 package org.elasticsearch.gradle.vagrant
 
-import org.gradle.api.DefaultTask
-import org.gradle.api.tasks.TaskAction
+import org.apache.commons.io.output.TeeOutputStream
+import org.elasticsearch.gradle.LoggedExec
+import org.gradle.api.tasks.Input
 import org.gradle.logging.ProgressLoggerFactory
-import org.gradle.process.internal.ExecAction
-import org.gradle.process.internal.ExecActionFactory
 
 import javax.inject.Inject
 
@@ -30,43 +29,30 @@ import javax.inject.Inject
  * Runs a vagrant command. Pretty much like Exec task but with a nicer output
  * formatter and defaults to `vagrant` as first part of commandLine.
  */
-class VagrantCommandTask extends DefaultTask {
-  List<Object> commandLine
-  String boxName
-  ExecAction execAction
+public class VagrantCommandTask extends LoggedExec {
 
-  VagrantCommandTask() {
-    execAction = getExecActionFactory().newExecAction()
-  }
+    @Input
+    String boxName
 
-  @Inject
-  ProgressLoggerFactory getProgressLoggerFactory() {
-    throw new UnsupportedOperationException();
-  }
+    public VagrantCommandTask() {
+        executable = 'vagrant'
+        project.afterEvaluate {
+            // It'd be nice if --machine-readable were, well, nice
+            standardOutput = new TeeOutputStream(standardOutput, createLoggerOutputStream())
+        }
+    }
 
-  @Inject
-  ExecActionFactory getExecActionFactory() {
-    throw new UnsupportedOperationException();
-  }
+    protected OutputStream createLoggerOutputStream() {
+        return new VagrantLoggerOutputStream(
+            command: commandLine.join(' '),
+            factory: getProgressLoggerFactory(),
+            /* Vagrant tends to output a lot of stuff, but most of the important
+              stuff starts with ==> $box */
+            squashedPrefix: "==> $boxName: ")
+    }
 
-  void boxName(String boxName) {
-    this.boxName = boxName
-  }
-
-  void commandLine(Object... commandLine) {
-    this.commandLine = commandLine
-  }
-
-  @TaskAction
-  void exec() {
-    // It'd be nice if --machine-readable were, well, nice
-    execAction.commandLine(['vagrant'] + commandLine)
-    execAction.setStandardOutput(new VagrantLoggerOutputStream(
-      command: commandLine.join(' '),
-      factory: getProgressLoggerFactory(),
-      /* Vagrant tends to output a lot of stuff, but most of the important
-        stuff starts with ==> $box */
-      squashedPrefix: "==> $boxName: "))
-    execAction.execute();
-  }
+    @Inject
+    ProgressLoggerFactory getProgressLoggerFactory() {
+        throw new UnsupportedOperationException();
+    }
 }

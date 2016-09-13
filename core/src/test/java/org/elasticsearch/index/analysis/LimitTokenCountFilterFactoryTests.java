@@ -30,7 +30,7 @@ import java.io.StringReader;
 
 public class LimitTokenCountFilterFactoryTests extends ESTokenStreamTestCase {
     public void testDefault() throws IOException {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.limit_default.type", "limit")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
@@ -55,7 +55,7 @@ public class LimitTokenCountFilterFactoryTests extends ESTokenStreamTestCase {
 
     public void testSettings() throws IOException {
         {
-            Settings settings = Settings.settingsBuilder()
+            Settings settings = Settings.builder()
                     .put("index.analysis.filter.limit_1.type", "limit")
                     .put("index.analysis.filter.limit_1.max_token_count", 3)
                     .put("index.analysis.filter.limit_1.consume_all_tokens", true)
@@ -70,7 +70,7 @@ public class LimitTokenCountFilterFactoryTests extends ESTokenStreamTestCase {
             assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
         }
         {
-            Settings settings = Settings.settingsBuilder()
+            Settings settings = Settings.builder()
                     .put("index.analysis.filter.limit_1.type", "limit")
                     .put("index.analysis.filter.limit_1.max_token_count", 3)
                     .put("index.analysis.filter.limit_1.consume_all_tokens", false)
@@ -86,7 +86,7 @@ public class LimitTokenCountFilterFactoryTests extends ESTokenStreamTestCase {
         }
 
         {
-            Settings settings = Settings.settingsBuilder()
+            Settings settings = Settings.builder()
                     .put("index.analysis.filter.limit_1.type", "limit")
                     .put("index.analysis.filter.limit_1.max_token_count", 17)
                     .put("index.analysis.filter.limit_1.consume_all_tokens", true)

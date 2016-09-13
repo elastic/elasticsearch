@@ -19,11 +19,13 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -47,15 +49,14 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportClusterHealthAction extends TransportMasterNodeReadAction<ClusterHealthRequest, ClusterHealthResponse> {
 
-    private final ClusterName clusterName;
     private final GatewayAllocator gatewayAllocator;
 
     @Inject
     public TransportClusterHealthAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                        ThreadPool threadPool, ClusterName clusterName, ActionFilters actionFilters,
+                                        ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver, GatewayAllocator gatewayAllocator) {
-        super(settings, ClusterHealthAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterHealthRequest::new);
-        this.clusterName = clusterName;
+        super(settings, ClusterHealthAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
+            indexNameExpressionResolver, ClusterHealthRequest::new);
         this.gatewayAllocator = gatewayAllocator;
     }
 
@@ -106,9 +107,9 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.error("unexpected failure during [{}]", t, source);
-                    listener.onFailure(t);
+                public void onFailure(String source, Exception e) {
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                    listener.onFailure(e);
                 }
 
                 @Override
@@ -127,10 +128,10 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         if (request.waitForStatus() == null) {
             waitFor--;
         }
-        if (request.waitForRelocatingShards() == -1) {
+        if (request.waitForNoRelocatingShards() == false) {
             waitFor--;
         }
-        if (request.waitForActiveShards() == -1) {
+        if (request.waitForActiveShards().equals(ActiveShardCount.NONE)) {
             waitFor--;
         }
         if (request.waitForNodes().isEmpty()) {
@@ -143,7 +144,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         assert waitFor >= 0;
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
         final ClusterState state = observer.observedState();
-        if (waitFor == 0 || request.timeout().millis() == 0) {
+        if (request.timeout().millis() == 0) {
             listener.onResponse(getResponse(request, state, waitFor, request.timeout().millis() == 0));
             return;
         }
@@ -205,11 +206,22 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         if (request.waitForStatus() != null && response.getStatus().value() <= request.waitForStatus().value()) {
             waitForCounter++;
         }
-        if (request.waitForRelocatingShards() != -1 && response.getRelocatingShards() <= request.waitForRelocatingShards()) {
+        if (request.waitForNoRelocatingShards() && response.getRelocatingShards() == 0) {
             waitForCounter++;
         }
-        if (request.waitForActiveShards() != -1 && response.getActiveShards() >= request.waitForActiveShards()) {
-            waitForCounter++;
+        if (request.waitForActiveShards().equals(ActiveShardCount.NONE) == false) {
+            ActiveShardCount waitForActiveShards = request.waitForActiveShards();
+            assert waitForActiveShards.equals(ActiveShardCount.DEFAULT) == false :
+                "waitForActiveShards must not be DEFAULT on the request object, instead it should be NONE";
+            if (waitForActiveShards.equals(ActiveShardCount.ALL)
+                    && response.getUnassignedShards() == 0
+                    && response.getInitializingShards() == 0) {
+                // if we are waiting for all shards to be active, then the num of unassigned and num of initializing shards must be 0
+                waitForCounter++;
+            } else if (waitForActiveShards.enoughShardsActive(response.getActiveShards())) {
+                // there are enough active shards to meet the requirements of the request
+                waitForCounter++;
+            }
         }
         if (request.indices() != null && request.indices().length > 0) {
             try {
@@ -283,14 +295,14 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         } catch (IndexNotFoundException e) {
             // one of the specified indices is not there - treat it as RED.
-            ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), Strings.EMPTY_ARRAY, clusterState,
+            ClusterHealthResponse response = new ClusterHealthResponse(clusterState.getClusterName().value(), Strings.EMPTY_ARRAY, clusterState,
                     numberOfPendingTasks, numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
                     pendingTaskTimeInQueue);
             response.setStatus(ClusterHealthStatus.RED);
             return response;
         }
 
-        return new ClusterHealthResponse(clusterName.value(), concreteIndices, clusterState, numberOfPendingTasks,
+        return new ClusterHealthResponse(clusterState.getClusterName().value(), concreteIndices, clusterState, numberOfPendingTasks,
                 numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), pendingTaskTimeInQueue);
     }
 }

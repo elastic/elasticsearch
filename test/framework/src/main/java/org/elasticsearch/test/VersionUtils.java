@@ -44,7 +44,7 @@ public class VersionUtils {
                     try {
                         Version object = (Version) field.get(null);
                         ids.add(object.id);
-                    } catch (Throwable e) {
+                    } catch (IllegalAccessException e) {
                         throw new RuntimeException(e);
                     }
                 }
@@ -111,7 +111,7 @@ public class VersionUtils {
     }
 
     public static boolean isSnapshot(Version version) {
-        if (Version.CURRENT.equals(version) || Version.V_2_3_0.equals(version)) {
+        if (Version.CURRENT.equals(version)) {
             return true;
         }
         return false;

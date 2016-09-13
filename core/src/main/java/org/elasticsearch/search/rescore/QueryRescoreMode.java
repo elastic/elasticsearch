@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Locale;
 
-public enum QueryRescoreMode implements Writeable<QueryRescoreMode> {
+public enum QueryRescoreMode implements Writeable {
     Avg {
         @Override
         public float combine(float primary, float secondary) {

@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -59,7 +58,8 @@ public class SumBucketIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        createIndex("idx");
+        assertAcked(client().admin().indices().prepareCreate("idx")
+                .addMapping("type", "tag", "type=keyword").get());
         createIndex("idx_unmapped");
 
         numDocs = randomIntBetween(6, 20);
@@ -94,7 +94,7 @@ public class SumBucketIT extends ESIntegTestCase {
     public void testDocCountTopLevel() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                        .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue)))
+                        .extendedBounds(minRandomValue, maxRandomValue))
                 .addAggregation(sumBucket("sum_bucket", "histo>_count")).execute().actionGet();
 
         assertSearchResponse(response);
@@ -129,7 +129,7 @@ public class SumBucketIT extends ESIntegTestCase {
                                 .order(Order.term(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue)))
+                                                .extendedBounds(minRandomValue, maxRandomValue))
                                 .subAggregation(sumBucket("sum_bucket", "histo>_count"))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -205,7 +205,7 @@ public class SumBucketIT extends ESIntegTestCase {
                                 .order(Order.term(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue))
+                                                .extendedBounds(minRandomValue, maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                                 .subAggregation(sumBucket("sum_bucket", "histo>sum"))).execute().actionGet();
 
@@ -255,7 +255,7 @@ public class SumBucketIT extends ESIntegTestCase {
                                 .order(Order.term(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue))
+                                                .extendedBounds(minRandomValue, maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                                 .subAggregation(sumBucket("sum_bucket", "histo>sum").gapPolicy(GapPolicy.INSERT_ZEROS)))
                 .execute().actionGet();
@@ -325,7 +325,7 @@ public class SumBucketIT extends ESIntegTestCase {
                                 .order(Order.term(true))
                                 .subAggregation(
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue)))
+                                                .extendedBounds(minRandomValue, maxRandomValue))
                                 .subAggregation(sumBucket("sum_histo_bucket", "histo>_count")))
                 .addAggregation(sumBucket("sum_terms_bucket", "terms>sum_histo_bucket")).execute().actionGet();
 

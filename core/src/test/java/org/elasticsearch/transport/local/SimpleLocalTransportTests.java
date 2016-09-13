@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.local;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -28,7 +29,7 @@ import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 public class SimpleLocalTransportTests extends AbstractSimpleTransportTestCase {
 
     @Override
-    protected MockTransportService build(Settings settings, Version version, NamedWriteableRegistry namedWriteableRegistry) {
+    protected MockTransportService build(Settings settings, Version version) {
         MockTransportService transportService = MockTransportService.local(settings, version, threadPool);
         transportService.start();
         return transportService;

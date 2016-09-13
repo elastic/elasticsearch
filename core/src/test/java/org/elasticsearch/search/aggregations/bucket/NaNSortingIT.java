@@ -27,11 +27,11 @@ import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -39,6 +39,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -48,8 +49,8 @@ public class NaNSortingIT extends ESIntegTestCase {
     private enum SubAggregation {
         AVG("avg") {
             @Override
-            public AvgAggregatorBuilder builder() {
-                AvgAggregatorBuilder factory = avg(name);
+            public AvgAggregationBuilder builder() {
+                AvgAggregationBuilder factory = avg(name);
                 factory.field("numeric_field");
                 return factory;
             }
@@ -60,8 +61,8 @@ public class NaNSortingIT extends ESIntegTestCase {
         },
         VARIANCE("variance") {
             @Override
-            public ExtendedStatsAggregatorBuilder builder() {
-                ExtendedStatsAggregatorBuilder factory = extendedStats(name);
+            public ExtendedStatsAggregationBuilder builder() {
+                ExtendedStatsAggregationBuilder factory = extendedStats(name);
                 factory.field("numeric_field");
                 return factory;
             }
@@ -76,8 +77,8 @@ public class NaNSortingIT extends ESIntegTestCase {
         },
         STD_DEVIATION("std_deviation"){
             @Override
-            public ExtendedStatsAggregatorBuilder builder() {
-                ExtendedStatsAggregatorBuilder factory = extendedStats(name);
+            public ExtendedStatsAggregationBuilder builder() {
+                ExtendedStatsAggregationBuilder factory = extendedStats(name);
                 factory.field("numeric_field");
                 return factory;
             }
@@ -97,7 +98,7 @@ public class NaNSortingIT extends ESIntegTestCase {
 
         public String name;
 
-        public abstract ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, ? extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, ?>> builder();
+        public abstract ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, ? extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, ?>> builder();
 
         public String sortKey() {
             return name;
@@ -108,7 +109,8 @@ public class NaNSortingIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        createIndex("idx");
+        assertAcked(client().admin().indices().prepareCreate("idx")
+                .addMapping("type", "string_value", "type=keyword").get());
         final int numDocs = randomIntBetween(2, 10);
         for (int i = 0; i < numDocs; ++i) {
             final long value = randomInt(5);

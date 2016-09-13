@@ -22,8 +22,10 @@ package org.elasticsearch.discovery.gce;
 import com.google.api.services.compute.model.AccessConfig;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.NetworkInterface;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
-import org.elasticsearch.cloud.gce.GceComputeService;
+import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -42,9 +44,12 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 
 /**
  *
@@ -55,17 +60,16 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
      * discovery.gce.tags: The gce discovery can filter machines to include in the cluster based on tags.
      */
     public static final Setting<List<String>> TAGS_SETTING =
-            Setting.listSetting("discovery.gce.tags", Collections.emptyList(), Function.identity(), Property.NodeScope);
+            Setting.listSetting("discovery.gce.tags", emptyList(), Function.identity(), Property.NodeScope);
 
     static final class Status {
         private static final String TERMINATED = "TERMINATED";
     }
 
-    private final GceComputeService gceComputeService;
+    private final GceInstancesService gceInstancesService;
     private TransportService transportService;
     private NetworkService networkService;
 
-    private final Version version;
     private final String project;
     private final List<String> zones;
     private final List<String> tags;
@@ -75,19 +79,17 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
     private List<DiscoveryNode> cachedDiscoNodes;
 
     @Inject
-    public GceUnicastHostsProvider(Settings settings, GceComputeService gceComputeService,
+    public GceUnicastHostsProvider(Settings settings, GceInstancesService gceInstancesService,
             TransportService transportService,
-            NetworkService networkService,
-            Version version) {
+            NetworkService networkService) {
         super(settings);
-        this.gceComputeService = gceComputeService;
+        this.gceInstancesService = gceInstancesService;
         this.transportService = transportService;
         this.networkService = networkService;
-        this.version = version;
 
-        this.refreshInterval = GceComputeService.REFRESH_SETTING.get(settings);
-        this.project = GceComputeService.PROJECT_SETTING.get(settings);
-        this.zones = GceComputeService.ZONE_SETTING.get(settings);
+        this.refreshInterval = GceInstancesService.REFRESH_SETTING.get(settings);
+        this.project = GceInstancesService.PROJECT_SETTING.get(settings);
+        this.zones = GceInstancesService.ZONE_SETTING.get(settings);
 
         this.tags = TAGS_SETTING.get(settings);
         if (logger.isDebugEnabled()) {
@@ -104,8 +106,8 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         // We check that needed properties have been set
         if (this.project == null || this.project.isEmpty() || this.zones == null || this.zones.isEmpty()) {
             throw new IllegalArgumentException("one or more gce discovery settings are missing. " +
-                "Check elasticsearch.yml file. Should have [" + GceComputeService.PROJECT_SETTING.getKey() +
-                "] and [" + GceComputeService.ZONE_SETTING.getKey() + "].");
+                "Check elasticsearch.yml file. Should have [" + GceInstancesService.PROJECT_SETTING.getKey() +
+                "] and [" + GceInstancesService.ZONE_SETTING.getKey() + "].");
         }
 
         if (refreshInterval.millis() != 0) {
@@ -123,7 +125,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         try {
             InetAddress inetAddress = networkService.resolvePublishHostAddresses(null);
             if (inetAddress != null) {
-                ipAddress = NetworkAddress.formatAddress(inetAddress);
+                ipAddress = NetworkAddress.format(inetAddress);
             }
         } catch (IOException e) {
             // We can't find the publish host address... Hmmm. Too bad :-(
@@ -131,7 +133,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         }
 
         try {
-            Collection<Instance> instances = gceComputeService.instances();
+            Collection<Instance> instances = gceInstancesService.instances();
 
             if (instances == null) {
                 logger.trace("no instance found for project [{}], zones [{}].", this.project, this.zones);
@@ -240,16 +242,18 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                         for (TransportAddress transportAddress : addresses) {
                             logger.trace("adding {}, type {}, address {}, transport_address {}, status {}", name, type,
                                     ip_private, transportAddress, status);
-                            cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + name + "-" + 0, transportAddress, version.minimumCompatibilityVersion()));
+                            cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + name + "-" + 0, transportAddress,
+                                    emptyMap(), emptySet(), Version.CURRENT.minimumCompatibilityVersion()));
                         }
                     }
                 } catch (Exception e) {
-                    logger.warn("failed to add {}, address {}", e, name, ip_private);
+                    final String finalIpPrivate = ip_private;
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to add {}, address {}", name, finalIpPrivate), e);
                 }
 
             }
-        } catch (Throwable e) {
-            logger.warn("Exception caught during discovery: {}", e, e.getMessage());
+        } catch (Exception e) {
+            logger.warn("exception caught during discovery", e);
         }
 
         logger.debug("{} node(s) added", cachedDiscoNodes.size());

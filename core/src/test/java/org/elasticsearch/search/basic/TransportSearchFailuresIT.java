@@ -20,7 +20,6 @@
 package org.elasticsearch.search.basic;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -54,7 +53,6 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
     public void testFailedSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed search with wrong query");
         assertAcked(prepareCreate("test", 1));
-        ensureYellow();
 
         NumShards test = getNumShards("test");
 
@@ -88,7 +86,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
         ClusterHealthResponse clusterHealth = client()
                 .admin()
                 .cluster()
-                .health(clusterHealthRequest("test").waitForYellowStatus().waitForRelocatingShards(0)
+                .health(clusterHealthRequest("test").waitForYellowStatus().waitForNoRelocatingShards(true)
                         .waitForActiveShards(test.totalNumShards)).actionGet();
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
@@ -119,7 +117,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
     }
 
     private void index(Client client, String id, String nameValue, int age) throws IOException {
-        client.index(Requests.indexRequest("test").type("type1").id(id).source(source(id, nameValue, age)).consistencyLevel(WriteConsistencyLevel.ONE)).actionGet();
+        client.index(Requests.indexRequest("test").type("type1").id(id).source(source(id, nameValue, age))).actionGet();
     }
 
     private XContentBuilder source(String id, String nameValue, int age) throws IOException {

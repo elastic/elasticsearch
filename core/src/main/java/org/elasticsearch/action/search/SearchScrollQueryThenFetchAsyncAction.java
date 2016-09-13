@@ -20,15 +20,15 @@
 package org.elasticsearch.action.search;
 
 import com.carrotsearch.hppc.IntArrayList;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.search.action.SearchTransportService;
-import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
@@ -43,7 +43,7 @@ import static org.elasticsearch.action.search.TransportSearchHelper.internalScro
 
 class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
 
-    private final ESLogger logger;
+    private final Logger logger;
     private final SearchTransportService searchTransportService;
     private final SearchPhaseController searchPhaseController;
     private final SearchScrollRequest request;
@@ -53,10 +53,10 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
     private volatile AtomicArray<ShardSearchFailure> shardFailures;
     final AtomicArray<QuerySearchResult> queryResults;
     final AtomicArray<FetchSearchResult> fetchResults;
-    private volatile ScoreDoc[] sortedShardList;
+    private volatile ScoreDoc[] sortedShardDocs;
     private final AtomicInteger successfulOps;
 
-    SearchScrollQueryThenFetchAsyncAction(ESLogger logger, ClusterService clusterService,
+    SearchScrollQueryThenFetchAsyncAction(Logger logger, ClusterService clusterService,
                                           SearchTransportService searchTransportService, SearchPhaseController searchPhaseController,
                                           SearchScrollRequest request, ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
         this.logger = logger;
@@ -107,13 +107,13 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
                 executeQueryPhase(i, counter, node, target.getScrollId());
             } else {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("Node [" + target.getNode() + "] not available for scroll request [" + scrollId.getSource() + "]");
+                    logger.debug("Node [{}] not available for scroll request [{}]", target.getNode(), scrollId.getSource());
                 }
                 successfulOps.decrementAndGet();
                 if (counter.decrementAndGet() == 0) {
                     try {
                         executeFetchPhase();
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         listener.onFailure(new SearchPhaseExecutionException("query", "Fetch failed", e, ShardSearchFailure.EMPTY_ARRAY));
                         return;
                     }
@@ -131,32 +131,33 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
                 if (counter.decrementAndGet() == 0) {
                     try {
                         executeFetchPhase();
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         onFailure(e);
                     }
                 }
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 onQueryPhaseFailure(shardIndex, counter, searchId, t);
             }
         });
     }
 
-    void onQueryPhaseFailure(final int shardIndex, final AtomicInteger counter, final long searchId, Throwable t) {
+    void onQueryPhaseFailure(final int shardIndex, final AtomicInteger counter, final long searchId, Exception failure) {
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}] Failed to execute query phase", t, searchId);
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] Failed to execute query phase", searchId), failure);
         }
-        addShardFailure(shardIndex, new ShardSearchFailure(t));
+        addShardFailure(shardIndex, new ShardSearchFailure(failure));
         successfulOps.decrementAndGet();
         if (counter.decrementAndGet() == 0) {
             if (successfulOps.get() == 0) {
-                listener.onFailure(new SearchPhaseExecutionException("query", "all shards failed", t, buildShardFailures()));
+                listener.onFailure(new SearchPhaseExecutionException("query", "all shards failed", failure, buildShardFailures()));
             } else {
                 try {
                     executeFetchPhase();
-                } catch (Throwable e) {
+                } catch (Exception e) {
+                    e.addSuppressed(failure);
                     listener.onFailure(new SearchPhaseExecutionException("query", "Fetch failed", e, ShardSearchFailure.EMPTY_ARRAY));
                 }
             }
@@ -164,9 +165,9 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
     }
 
     private void executeFetchPhase() throws Exception {
-        sortedShardList = searchPhaseController.sortDocs(true, queryResults);
+        sortedShardDocs = searchPhaseController.sortDocs(true, queryResults);
         AtomicArray<IntArrayList> docIdsToLoad = new AtomicArray<>(queryResults.length());
-        searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardList);
+        searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardDocs);
 
         if (docIdsToLoad.asList().isEmpty()) {
             finishHim();
@@ -174,7 +175,8 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
         }
 
 
-        final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(sortedShardList, queryResults.length());
+        final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(queryResults.asList(),
+            sortedShardDocs, queryResults.length());
         final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
         for (final AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
             IntArrayList docIds = entry.value;
@@ -193,7 +195,7 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
                 }
 
                 @Override
-                public void onFailure(Throwable t) {
+                public void onFailure(Exception t) {
                     if (logger.isDebugEnabled()) {
                         logger.debug("Failed to execute fetch phase", t);
                     }
@@ -209,13 +211,13 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
     private void finishHim() {
         try {
             innerFinishHim();
-        } catch (Throwable e) {
-            listener.onFailure(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures()));
+        } catch (Exception e) {
+            listener.onFailure(new ReduceSearchPhaseException("fetch", "inner finish failed", e, buildShardFailures()));
         }
     }
 
     private void innerFinishHim() {
-        InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults);
+        InternalSearchResponse internalResponse = searchPhaseController.merge(true, sortedShardDocs, queryResults, fetchResults);
         String scrollId = null;
         if (request.scroll() != null) {
             scrollId = request.scrollId();

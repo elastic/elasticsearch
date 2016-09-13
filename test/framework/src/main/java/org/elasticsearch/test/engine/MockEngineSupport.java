@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.engine;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -28,7 +29,6 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -66,7 +66,7 @@ public final class MockEngineSupport {
 
 
     private final AtomicBoolean closing = new AtomicBoolean(false);
-    private final ESLogger logger = Loggers.getLogger(Engine.class);
+    private final Logger logger = Loggers.getLogger(Engine.class);
     private final ShardId shardId;
     private final QueryCache filterCache;
     private final QueryCachingPolicy filterCachingPolicy;
@@ -172,7 +172,7 @@ public final class MockEngineSupport {
         return reader;
     }
 
-    public static abstract class DirectoryReaderWrapper extends FilterDirectoryReader {
+    public abstract static class DirectoryReaderWrapper extends FilterDirectoryReader {
         protected final SubReaderWrapper subReaderWrapper;
 
         public DirectoryReaderWrapper(DirectoryReader in, SubReaderWrapper subReaderWrapper) throws IOException {

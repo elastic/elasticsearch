@@ -31,23 +31,9 @@ import java.net.InetSocketAddress;
  * A transport address used for IP socket address (wraps {@link java.net.InetSocketAddress}).
  */
 public final class InetSocketTransportAddress implements TransportAddress {
-
-    public static final InetSocketTransportAddress PROTO = new InetSocketTransportAddress();
+    public static final short TYPE_ID = 1;
 
     private final InetSocketAddress address;
-
-    public InetSocketTransportAddress(StreamInput in) throws IOException {
-        final int len = in.readByte();
-        final byte[] a = new byte[len]; // 4 bytes (IPv4) or 16 bytes (IPv6)
-        in.readFully(a);
-        InetAddress inetAddress = InetAddress.getByAddress(a);
-        int port = in.readInt();
-        this.address = new InetSocketAddress(inetAddress, port);
-    }
-
-    private InetSocketTransportAddress() {
-        address = null;
-    }
 
     public InetSocketTransportAddress(InetAddress address, int port) {
         this(new InetSocketAddress(address, port));
@@ -63,39 +49,16 @@ public final class InetSocketTransportAddress implements TransportAddress {
         this.address = address;
     }
 
-    @Override
-    public short uniqueAddressTypeId() {
-        return 1;
-    }
-
-    @Override
-    public boolean sameHost(TransportAddress other) {
-        return other instanceof InetSocketTransportAddress &&
-                address.getAddress().equals(((InetSocketTransportAddress) other).address.getAddress());
-    }
-
-    @Override
-    public String getHost() {
-       return getAddress(); // just delegate no resolving
-    }
-
-    @Override
-    public String getAddress() {
-        return NetworkAddress.formatAddress(address.getAddress());
-    }
-
-    @Override
-    public int getPort() {
-        return address.getPort();
-    }
-
-    public InetSocketAddress address() {
-        return this.address;
-    }
-
-    @Override
-    public TransportAddress readFrom(StreamInput in) throws IOException {
-        return new InetSocketTransportAddress(in);
+    /**
+     * Read from a stream.
+     */
+    public InetSocketTransportAddress(StreamInput in) throws IOException {
+        final int len = in.readByte();
+        final byte[] a = new byte[len]; // 4 bytes (IPv4) or 16 bytes (IPv6)
+        in.readFully(a);
+        InetAddress inetAddress = InetAddress.getByAddress(a);
+        int port = in.readInt();
+        this.address = new InetSocketAddress(inetAddress, port);
     }
 
     @Override
@@ -109,6 +72,40 @@ public final class InetSocketTransportAddress implements TransportAddress {
         out.writeInt(address.getPort());
     }
 
+    @Override
+    public short uniqueAddressTypeId() {
+        return TYPE_ID;
+    }
+
+    @Override
+    public boolean sameHost(TransportAddress other) {
+        return other instanceof InetSocketTransportAddress &&
+                address.getAddress().equals(((InetSocketTransportAddress) other).address.getAddress());
+    }
+
+    @Override
+    public boolean isLoopbackOrLinkLocalAddress() {
+        return address.getAddress().isLinkLocalAddress() || address.getAddress().isLoopbackAddress();
+    }
+
+    @Override
+    public String getHost() {
+       return getAddress(); // just delegate no resolving
+    }
+
+    @Override
+    public String getAddress() {
+        return NetworkAddress.format(address.getAddress());
+    }
+
+    @Override
+    public int getPort() {
+        return address.getPort();
+    }
+
+    public InetSocketAddress address() {
+        return this.address;
+    }
 
     @Override
     public boolean equals(Object o) {

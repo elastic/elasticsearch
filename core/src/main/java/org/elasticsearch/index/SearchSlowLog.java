@@ -19,20 +19,18 @@
 
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.concurrent.TimeUnit;
 
-/**
- */
-public final class SearchSlowLog {
-
+public final class SearchSlowLog implements SearchOperationListener {
     private boolean reformat;
 
     private long queryWarnThreshold;
@@ -47,8 +45,8 @@ public final class SearchSlowLog {
 
     private SlowLogLevel level;
 
-    private final ESLogger queryLogger;
-    private final ESLogger fetchLogger;
+    private final Logger queryLogger;
+    private final Logger fetchLogger;
 
     private static final String INDEX_SEARCH_SLOWLOG_PREFIX = "index.search.slowlog";
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING =
@@ -83,8 +81,8 @@ public final class SearchSlowLog {
 
     public SearchSlowLog(IndexSettings indexSettings) {
 
-        this.queryLogger = Loggers.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
-        this.fetchLogger = Loggers.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
+        this.queryLogger = Loggers.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query", indexSettings.getSettings());
+        this.fetchLogger = Loggers.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch", indexSettings.getSettings());
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_REFORMAT, this::setReformat);
         this.reformat = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_REFORMAT);
@@ -113,10 +111,10 @@ public final class SearchSlowLog {
 
     private void setLevel(SlowLogLevel level) {
         this.level = level;
-        this.queryLogger.setLevel(level.name());
-        this.fetchLogger.setLevel(level.name());
+        Loggers.setLevel(queryLogger, level.name());
+        Loggers.setLevel(fetchLogger, level.name());
     }
-
+    @Override
     public void onQueryPhase(SearchContext context, long tookInNanos) {
         if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
             queryLogger.warn("{}", new SlowLogSearchContextPrinter(context, tookInNanos, reformat));
@@ -129,6 +127,7 @@ public final class SearchSlowLog {
         }
     }
 
+    @Override
     public void onFetchPhase(SearchContext context, long tookInNanos) {
         if (fetchWarnThreshold >= 0 && tookInNanos > fetchWarnThreshold) {
             fetchLogger.warn("{}", new SlowLogSearchContextPrinter(context, tookInNanos, reformat));
@@ -141,7 +140,7 @@ public final class SearchSlowLog {
         }
     }
 
-    private static class SlowLogSearchContextPrinter {
+    static final class SlowLogSearchContextPrinter {
         private final SearchContext context;
         private final long tookInNanos;
         private final boolean reformat;
@@ -155,6 +154,7 @@ public final class SearchSlowLog {
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
+            sb.append(context.indexShard().shardId()).append(" ");
             sb.append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ");
             if (context.getQueryShardContext().getTypes() == null) {
                 sb.append("types[], ");

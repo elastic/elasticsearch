@@ -38,7 +38,7 @@ public class UnicastBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
     @Override
     protected Settings externalNodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
+        return Settings.builder()
                 .put(super.externalNodeSettings(nodeOrdinal))
                 .put(TransportSettings.PORT.getKey(), 9390 + nodeOrdinal)
                 .put("discovery.zen.ping.unicast.hosts", "localhost:9380,localhost:9381,localhost:9390,localhost:9391")

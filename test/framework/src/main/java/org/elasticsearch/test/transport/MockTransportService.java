@@ -20,23 +20,24 @@
 package org.elasticsearch.test.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.transport.TransportService;
+
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.tasks.MockTaskManager;
@@ -47,13 +48,12 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.local.LocalTransport;
-import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -75,20 +75,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class MockTransportService extends TransportService {
 
     public static class TestPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "mock-transport-service";
-        }
-        @Override
-        public String description() {
-            return "a mock transport service for testing";
-        }
         public void onModule(NetworkModule module) {
             module.registerTransportService("mock", MockTransportService.class);
         }
 
-        public void onModule(SettingsModule module) {
-            module.registerSetting(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING);
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING);
         }
         @Override
         public Settings additionalSettings() {
@@ -97,18 +90,15 @@ public class MockTransportService extends TransportService {
     }
 
     public static MockTransportService local(Settings settings, Version version, ThreadPool threadPool) {
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        Transport transport = new LocalTransport(settings, threadPool, version, namedWriteableRegistry);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+        Transport transport = new LocalTransport(settings, threadPool, namedWriteableRegistry, new NoneCircuitBreakerService()) {
+            @Override
+            protected Version getVersion() {
+                return version;
+            }
+        };
         return new MockTransportService(settings, transport, threadPool);
     }
-
-    public static MockTransportService nettyFromThreadPool(Settings settings, Version version, ThreadPool threadPool) {
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        Transport transport = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE,
-                version, namedWriteableRegistry);
-        return new MockTransportService(Settings.EMPTY, transport, threadPool);
-    }
-
 
     private final Transport original;
 
@@ -192,7 +182,8 @@ public class MockTransportService extends TransportService {
             }
 
             @Override
-            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
+                                    TransportRequestOptions options) throws IOException, TransportException {
                 throw new ConnectTransportException(node, "DISCONNECT: simulated");
             }
         });
@@ -238,7 +229,8 @@ public class MockTransportService extends TransportService {
             }
 
             @Override
-            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
+                                    TransportRequestOptions options) throws IOException, TransportException {
                 if (blockedActions.contains(action)) {
                     logger.info("--> preventing {} request", action);
                     throw new ConnectTransportException(node, "DISCONNECT: prevented " + action + " request");
@@ -275,7 +267,8 @@ public class MockTransportService extends TransportService {
             }
 
             @Override
-            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
+                                    TransportRequestOptions options) throws IOException, TransportException {
                 // don't send anything, the receiving node is unresponsive
             }
         });
@@ -355,7 +348,8 @@ public class MockTransportService extends TransportService {
             }
 
             @Override
-            public void sendRequest(final DiscoveryNode node, final long requestId, final String action, TransportRequest request, final TransportRequestOptions options) throws IOException, TransportException {
+            public void sendRequest(final DiscoveryNode node, final long requestId, final String action, TransportRequest request,
+                                    final TransportRequestOptions options) throws IOException, TransportException {
                 // delayed sending - even if larger then the request timeout to simulated a potential late response from target node
 
                 TimeValue delay = getDelay();
@@ -369,11 +363,11 @@ public class MockTransportService extends TransportService {
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 request.writeTo(bStream);
                 final TransportRequest clonedRequest = reg.newRequest();
-                clonedRequest.readFrom(StreamInput.wrap(bStream.bytes()));
+                clonedRequest.readFrom(bStream.bytes().streamInput());
 
                 threadPool.schedule(delay, ThreadPool.Names.GENERIC, new AbstractRunnable() {
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         logger.debug("failed to send delayed request", e);
                     }
 
@@ -389,7 +383,7 @@ public class MockTransportService extends TransportService {
     /**
      * Adds a new delegate transport that is used for communication with the given transport service.
      *
-     * @return <tt>true</tt> iff no other delegate was registered for any of the addresses bound by transport service, otherwise <tt>false</tt>
+     * @return <tt>true</tt> iff no other delegate was registered for any of the addresses bound by transport service.
      */
     public boolean addDelegate(TransportService transportService, DelegateTransport transport) {
         boolean noRegistered = true;
@@ -402,7 +396,7 @@ public class MockTransportService extends TransportService {
     /**
      * Adds a new delegate transport that is used for communication with the given transport address.
      *
-     * @return <tt>true</tt> iff no other delegate was registered for this address before, otherwise <tt>false</tt>
+     * @return <tt>true</tt> iff no other delegate was registered for this address before.
      */
     public boolean addDelegate(TransportAddress transportAddress, DelegateTransport transport) {
         return transport().transports.put(transportAddress, transport) == null;
@@ -453,7 +447,8 @@ public class MockTransportService extends TransportService {
         }
 
         @Override
-        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
+                                TransportRequestOptions options) throws IOException, TransportException {
             getTransport(node).sendRequest(node, requestId, action, request, options);
         }
     }
@@ -512,7 +507,8 @@ public class MockTransportService extends TransportService {
         }
 
         @Override
-        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
+                                TransportRequestOptions options) throws IOException, TransportException {
             transport.sendRequest(node, requestId, action, request, options);
         }
 
@@ -542,15 +538,13 @@ public class MockTransportService extends TransportService {
         }
 
         @Override
-        public Transport start() {
+        public void start() {
             transport.start();
-            return this;
         }
 
         @Override
-        public Transport stop() {
+        public void stop() {
             transport.stop();
-            return this;
         }
 
         @Override
@@ -625,10 +619,10 @@ public class MockTransportService extends TransportService {
         }
 
         @Override
-        protected void traceResponseSent(long requestId, String action, Throwable t) {
-            super.traceResponseSent(requestId, action, t);
+        protected void traceResponseSent(long requestId, String action, Exception e) {
+            super.traceResponseSent(requestId, action, e);
             for (Tracer tracer : activeTracers) {
-                tracer.responseSent(requestId, action, t);
+                tracer.responseSent(requestId, action, e);
             }
         }
 

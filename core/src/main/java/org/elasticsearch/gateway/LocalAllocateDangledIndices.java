@@ -19,6 +19,8 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -76,7 +78,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
 
     public void allocateDangled(Collection<IndexMetaData> indices, final Listener listener) {
         ClusterState clusterState = clusterService.state();
-        DiscoveryNode masterNode = clusterState.nodes().masterNode();
+        DiscoveryNode masterNode = clusterState.nodes().getMasterNode();
         if (masterNode == null) {
             listener.onFailure(new MasterNotDiscoveredException("no master to send allocate dangled request"));
             return;
@@ -105,7 +107,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         });
     }
 
-    public static interface Listener {
+    public interface Listener {
         void onResponse(AllocateDangledResponse response);
 
         void onFailure(Throwable e);
@@ -148,8 +150,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                             upgradedIndexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData);
                         } catch (Exception ex) {
                             // upgrade failed - adding index as closed
-                            logger.warn("found dangled index [{}] on node [{}]. This index cannot be upgraded to the latest version, adding as closed", ex,
-                                    indexMetaData.getIndex(), request.fromNode);
+                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("found dangled index [{}] on node [{}]. This index cannot be upgraded to the latest version, adding as closed", indexMetaData.getIndex(), request.fromNode), ex);
                             upgradedIndexMetaData = IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.CLOSE).version(indexMetaData.getVersion() + 1).build();
                         }
                         metaData.put(upgradedIndexMetaData, false);
@@ -175,12 +176,13 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.error("unexpected failure during [{}]", t, source);
+                public void onFailure(String source, Exception e) {
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
                     try {
-                        channel.sendResponse(t);
-                    } catch (Exception e) {
-                        logger.warn("failed send response for allocating dangled", e);
+                        channel.sendResponse(e);
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.warn("failed send response for allocating dangled", inner);
                     }
                 }
 
@@ -212,7 +214,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            fromNode = DiscoveryNode.readNode(in);
+            fromNode = new DiscoveryNode(in);
             indices = new IndexMetaData[in.readVInt()];
             for (int i = 0; i < indices.length; i++) {
                 indices[i] = IndexMetaData.Builder.readFrom(in);

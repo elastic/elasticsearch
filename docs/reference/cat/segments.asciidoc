@@ -44,6 +44,8 @@ generation::    The generation number is incremented with each segment that is w
                 The name of the segment is derived from this generation number.
 
 docs.count::    The number of non-deleted documents that are stored in this segment.
+                Note that these are Lucene documents, so the count will include hidden
+				documents (e.g. from nested types).
 
 docs.deleted::  The number of deleted documents that are stored in this segment.
                 It is perfectly fine if this number is greater than 0, space is

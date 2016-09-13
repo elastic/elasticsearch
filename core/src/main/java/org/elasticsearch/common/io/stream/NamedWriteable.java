@@ -24,7 +24,7 @@ package org.elasticsearch.common.io.stream;
  * To be used for arbitrary serializable objects (e.g. queries); when reading them, their name tells
  * which specific object needs to be created.
  */
-public interface NamedWriteable<T> extends Writeable<T> {
+public interface NamedWriteable extends Writeable {
 
     /**
      * Returns the name of the writeable object

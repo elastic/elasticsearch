@@ -44,7 +44,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Indexing a document with a JSON `true`.
 <2> Querying for the document with `1`, which is interpreted as `true`.
 
@@ -76,13 +76,15 @@ GET my_index/_search
   },
   "script_fields": {
     "is_published": {
-      "script": "doc['is_published'].value" <1>
+      "script": {
+        "lang": "painless",
+        "inline": "doc['is_published'].value"
+      }
     }
   }
 }
 --------------------------------------------------
-// AUTOSENSE
-<1> Inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work.
+// CONSOLE
 
 [[boolean-params]]
 ==== Parameters for `boolean` fields

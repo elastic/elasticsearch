@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.search.suggest.analyzing.SuggestStopFilter;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class StopTokenFilterTests extends ESTokenStreamTestCase {
     public void testPositionIncrementSetting() throws IOException {
-        Builder builder = Settings.settingsBuilder().put("index.analysis.filter.my_stop.type", "stop")
+        Builder builder = Settings.builder().put("index.analysis.filter.my_stop.type", "stop")
                 .put("index.analysis.filter.my_stop.enable_position_increments", false);
         if (random().nextBoolean()) {
             builder.put("index.analysis.filter.my_stop.version", "5.0");
@@ -55,7 +55,7 @@ public class StopTokenFilterTests extends ESTokenStreamTestCase {
     }
 
     public void testCorrectPositionIncrementSetting() throws IOException {
-        Builder builder = Settings.settingsBuilder().put("index.analysis.filter.my_stop.type", "stop");
+        Builder builder = Settings.builder().put("index.analysis.filter.my_stop.type", "stop");
         if (random().nextBoolean()) {
             builder.put("index.analysis.filter.my_stop.version", Version.LATEST);
         } else {
@@ -72,7 +72,7 @@ public class StopTokenFilterTests extends ESTokenStreamTestCase {
     }
 
     public void testThatSuggestStopFilterWorks() throws Exception {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.my_stop.type", "stop")
                 .put("index.analysis.filter.my_stop.remove_trailing", false)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())

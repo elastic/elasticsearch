@@ -7,15 +7,15 @@
       "paths": ["/_msearch/template", "/{index}/_msearch/template", "/{index}/{type}/_msearch/template"],
       "parts": {
         "index": {
-         "type" : "list",
-         "description" : "A comma-separated list of index names to search as default"
+          "type" : "list",
+          "description" : "A comma-separated list of index names to use as default"
         },
         "type": {
           "type" : "list",
-          "description" : "A comma-separated list of document types to search as default"
+          "description" : "A comma-separated list of document types to use as default"
         }
       },
-      "params" : {
+      "params": {
         "search_type": {
           "type" : "enum",
           "options" : ["query_then_fetch", "query_and_fetch", "dfs_query_then_fetch", "dfs_query_and_fetch"],
@@ -24,7 +24,9 @@
       }
     },
     "body": {
-      "description": "The request definitions (metadata-search request template definition pairs), separated by newlines"
+      "description": "The request definitions (metadata-search request definition pairs), separated by newlines",
+      "required" : true,
+      "serialize" : "bulk"
     }
   }
 }

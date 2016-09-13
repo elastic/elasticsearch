@@ -30,46 +30,39 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.completion.CompletionSuggesterBuilderTests;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.WritableTestCase;
-import org.elasticsearch.search.suggest.phrase.Laplace;
-import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilderTests;
-import org.elasticsearch.search.suggest.phrase.SmoothingModel;
-import org.elasticsearch.search.suggest.phrase.StupidBackoff;
-import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilderTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map.Entry;
+
+import static java.util.Collections.emptyList;
 
 public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
 
     private static NamedWriteableRegistry namedWriteableRegistry;
+    private static Suggesters suggesters;
 
     /**
      * Setup for the whole base test class.
      */
     @BeforeClass
     public static void init() {
-        NamedWriteableRegistry nwRegistry = new NamedWriteableRegistry();
-        nwRegistry.registerPrototype(SuggestionBuilder.class, TermSuggestionBuilder.PROTOTYPE);
-        nwRegistry.registerPrototype(SuggestionBuilder.class, PhraseSuggestionBuilder.PROTOTYPE);
-        nwRegistry.registerPrototype(SuggestionBuilder.class, CompletionSuggestionBuilder.PROTOTYPE);
-        nwRegistry.registerPrototype(SmoothingModel.class, Laplace.PROTOTYPE);
-        nwRegistry.registerPrototype(SmoothingModel.class, LinearInterpolation.PROTOTYPE);
-        nwRegistry.registerPrototype(SmoothingModel.class, StupidBackoff.PROTOTYPE);
-        namedWriteableRegistry = nwRegistry;
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+        suggesters = searchModule.getSuggesters();
     }
 
     @AfterClass
     public static void afterClass() {
         namedWriteableRegistry = null;
+        suggesters = null;
     }
 
     @Override
@@ -81,9 +74,6 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
      *  creates random suggestion builder, renders it to xContent and back to new instance that should be equal to original
      */
     public void testFromXContent() throws IOException {
-        Suggesters suggesters = new Suggesters(Collections.emptyMap());
-        QueryParseContext context = new QueryParseContext(null);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
             SuggestBuilder suggestBuilder = createTestModel();
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
@@ -92,8 +82,7 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
             }
             suggestBuilder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             XContentParser parser = XContentHelper.createParser(xContentBuilder.bytes());
-            context.reset(parser);
-
+            QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT);
             SuggestBuilder secondSuggestBuilder = SuggestBuilder.fromXContent(context, suggesters);
             assertNotSame(suggestBuilder, secondSuggestBuilder);
             assertEquals(suggestBuilder, secondSuggestBuilder);
@@ -139,7 +128,7 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
 
     @Override
     protected SuggestBuilder readFrom(StreamInput in) throws IOException {
-        return SuggestBuilder.PROTOTYPE.readFrom(in);
+        return new SuggestBuilder(in);
     }
 
     public static SuggestBuilder randomSuggestBuilder() {

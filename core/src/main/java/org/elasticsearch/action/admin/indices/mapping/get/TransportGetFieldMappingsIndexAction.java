@@ -130,7 +130,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
 
     private static final ToXContent.Params includeDefaultsParams = new ToXContent.Params() {
 
-        final static String INCLUDE_DEFAULTS = "include_defaults";
+        static final String INCLUDE_DEFAULTS = "include_defaults";
 
         @Override
         public String param(String key) {

@@ -21,40 +21,22 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
-public class ScriptStats implements Streamable, ToXContent {
-    private long compilations;
-    private long cacheEvictions;
-
-    public ScriptStats() {
-    }
+public class ScriptStats implements Writeable, ToXContent {
+    private final long compilations;
+    private final long cacheEvictions;
 
     public ScriptStats(long compilations, long cacheEvictions) {
         this.compilations = compilations;
         this.cacheEvictions = cacheEvictions;
     }
 
-    public void add(ScriptStats stats) {
-        this.compilations += stats.compilations;
-        this.cacheEvictions += stats.cacheEvictions;
-    }
-
-    public long getCompilations() {
-        return compilations;
-    }
-
-    public long getCacheEvictions() {
-        return cacheEvictions;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
+    public ScriptStats(StreamInput in) throws IOException {
         compilations = in.readVLong();
         cacheEvictions = in.readVLong();
     }
@@ -63,6 +45,14 @@ public class ScriptStats implements Streamable, ToXContent {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(compilations);
         out.writeVLong(cacheEvictions);
+    }
+
+    public long getCompilations() {
+        return compilations;
+    }
+
+    public long getCacheEvictions() {
+        return cacheEvictions;
     }
 
     @Override
@@ -75,8 +65,8 @@ public class ScriptStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString SCRIPT_STATS = new XContentBuilderString("script");
-        static final XContentBuilderString COMPILATIONS = new XContentBuilderString("compilations");
-        static final XContentBuilderString CACHE_EVICTIONS = new XContentBuilderString("cache_evictions");
+        static final String SCRIPT_STATS = "script";
+        static final String COMPILATIONS = "compilations";
+        static final String CACHE_EVICTIONS = "cache_evictions";
     }
 }

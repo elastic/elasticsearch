@@ -23,7 +23,7 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.10.33'
+  'aws': '1.10.69'
 ]
 
 dependencies {
@@ -42,17 +42,18 @@ dependencyLicenses {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
+bundlePlugin {
+  from('config/discovery-ec2') {
+    into 'config'
+  }
+}
+
 test {
   // this is needed for insecure plugins, remove if possible!
-  systemProperty 'tests.artifact', project.name 
+  systemProperty 'tests.artifact', project.name
 }
 
 thirdPartyAudit.excludes = [
-  // uses internal java api: com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderFactoryImpl
-  // uses internal java api: com.sun.org.apache.xml.internal.dtm.ref.DTMManagerDefault
-  // uses internal java api: com.sun.org.apache.xpath.internal.XPathContext
-  'com.amazonaws.util.XpathUtils',
-
   // classes are missing
   'javax.servlet.ServletContextEvent', 
   'javax.servlet.ServletContextListener', 

@@ -39,7 +39,7 @@ import java.util.Arrays;
  */
 public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest> {
 
-    private QueryBuilder<?> query = new MatchAllQueryBuilder();
+    private QueryBuilder query = new MatchAllQueryBuilder();
 
     private boolean explain;
     private boolean rewrite;
@@ -73,11 +73,11 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
     /**
      * The query to validate.
      */
-    public QueryBuilder<?> query() {
+    public QueryBuilder query() {
         return query;
     }
 
-    public ValidateQueryRequest query(QueryBuilder<?> query) {
+    public ValidateQueryRequest query(QueryBuilder query) {
         this.query = query;
         return this;
     }
@@ -128,7 +128,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        query = in.readQuery();
+        query = in.readNamedWriteable(QueryBuilder.class);
         int typesSize = in.readVInt();
         if (typesSize > 0) {
             types = new String[typesSize];
@@ -143,7 +143,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeQuery(query);
+        out.writeNamedWriteable(query);
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeString(type);

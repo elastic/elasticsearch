@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -54,7 +55,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class);
     }
 
     public void testManyToManyGeoPoints() throws ExecutionException, InterruptedException, IOException {
@@ -70,7 +71,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          * 1   2   3   4   5   6   7
          */
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
-        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
         GeoPoint[] d1Points = {new GeoPoint(3, 2), new GeoPoint(4, 1)};
@@ -85,7 +86,6 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         indexRandom(true,
                 client().prepareIndex("index", "type", "d1").setSource(d1Builder),
                 client().prepareIndex("index", "type", "d2").setSource(d2Builder));
-        ensureYellow();
         GeoPoint[] q = new GeoPoint[2];
         if (randomBoolean()) {
             q[0] = new GeoPoint(2, 1);
@@ -136,7 +136,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          * d2 = (0, 1), (0, 5), (0, 6); so avg. distance is 4, median distance is 5
          */
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
-        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
         GeoPoint[] d1Points = {new GeoPoint(0, 1), new GeoPoint(0, 4), new GeoPoint(0, 10)};
@@ -151,7 +151,6 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         indexRandom(true,
                 client().prepareIndex("index", "type", "d1").setSource(d1Builder),
                 client().prepareIndex("index", "type", "d2").setSource(d2Builder));
-        ensureYellow();
         GeoPoint q = new GeoPoint(0,0);
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -184,7 +183,6 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         builder.endObject();
     }
 
-    @SuppressWarnings("deprecation")
     public void testManyToManyGeoPointsWithDifferentFormats() throws ExecutionException, InterruptedException, IOException {
         /**   q     d1       d2
          * |4  o|   x    |   x
@@ -198,7 +196,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          * 1   2   3   4   5   6
          */
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
-        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
         GeoPoint[] d1Points = {new GeoPoint(2.5, 1), new GeoPoint(2.75, 2), new GeoPoint(3, 3), new GeoPoint(3.25, 4)};
@@ -211,7 +209,6 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         indexRandom(true,
                 client().prepareIndex("index", "type", "d1").setSource(d1Builder),
                 client().prepareIndex("index", "type", "d2").setSource(d2Builder));
-        ensureYellow();
 
         List<String> qHashes = new ArrayList<>();
         List<GeoPoint> qPoints = new ArrayList<>();
@@ -260,7 +257,6 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         indexRandom(true,
                 client().prepareIndex("index", "type", "d1").setSource(jsonBuilder().startObject().startObject(LOCATION_FIELD).field("lat", 1).field("lon", 1).endObject().endObject()),
                 client().prepareIndex("index", "type", "d2").setSource(jsonBuilder().startObject().startObject(LOCATION_FIELD).field("lat", 1).field("lon", 2).endObject().endObject()));
-        ensureYellow();
 
         String hashPoint = "s037ms06g7h0";
 
@@ -314,7 +310,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
                 .setSource(
                         new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort(LOCATION_FIELD, 2.0, 2.0)
                                 .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE)
-                                .ignoreMalformed(true).coerce(true))).execute().actionGet();
+                                .validation(GeoValidationMethod.COERCE))).execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
     }
 
@@ -333,7 +329,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
 
     public void testCrossIndexIgnoreUnmapped() throws Exception {
         assertAcked(prepareCreate("test1").addMapping(
-                "type", "str_field1", "type=keyword",
+                "type", "str_field", "type=keyword",
                 "long_field", "type=long",
                 "double_field", "type=double").get());
         assertAcked(prepareCreate("test2").get());
@@ -342,14 +338,12 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
                 client().prepareIndex("test1", "type").setSource("str_field", "bcd", "long_field", 3, "double_field", 0.65),
                 client().prepareIndex("test2", "type").setSource());
 
-        ensureYellow("test1", "test2");
-
         SearchResponse resp = client().prepareSearch("test1", "test2")
                 .addSort(fieldSort("str_field").order(SortOrder.ASC).unmappedType("keyword"))
                 .addSort(fieldSort("str_field2").order(SortOrder.DESC).unmappedType("keyword")).get();
 
         assertSortValues(resp,
-                new Object[] {new Text("bcd"), null},
+                new Object[] {"bcd", null},
                 new Object[] {null, null});
 
         resp = client().prepareSearch("test1", "test2")

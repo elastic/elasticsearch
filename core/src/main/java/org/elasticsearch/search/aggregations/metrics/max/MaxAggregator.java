@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -33,7 +34,6 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.List;
@@ -45,11 +45,11 @@ import java.util.Map;
 public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     final ValuesSource.Numeric valuesSource;
-    final ValueFormatter formatter;
+    final DocValueFormat formatter;
 
     DoubleArray maxes;
 
-    public MaxAggregator(String name, ValuesSource.Numeric valuesSource, ValueFormatter formatter,
+    public MaxAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter,
  AggregationContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
@@ -96,7 +96,10 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public double metric(long owningBucketOrd) {
-        return valuesSource == null ? Double.NEGATIVE_INFINITY : maxes.get(owningBucketOrd);
+        if (valuesSource == null || owningBucketOrd >= maxes.size()) {
+            return Double.NEGATIVE_INFINITY;
+        }
+        return maxes.get(owningBucketOrd);
     }
 
     @Override

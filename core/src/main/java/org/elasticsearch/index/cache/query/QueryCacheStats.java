@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
@@ -149,15 +148,15 @@ public class QueryCacheStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString QUERY_CACHE = new XContentBuilderString("query_cache");
-        static final XContentBuilderString MEMORY_SIZE = new XContentBuilderString("memory_size");
-        static final XContentBuilderString MEMORY_SIZE_IN_BYTES = new XContentBuilderString("memory_size_in_bytes");
-        static final XContentBuilderString TOTAL_COUNT = new XContentBuilderString("total_count");
-        static final XContentBuilderString HIT_COUNT = new XContentBuilderString("hit_count");
-        static final XContentBuilderString MISS_COUNT = new XContentBuilderString("miss_count");
-        static final XContentBuilderString CACHE_SIZE = new XContentBuilderString("cache_size");
-        static final XContentBuilderString CACHE_COUNT = new XContentBuilderString("cache_count");
-        static final XContentBuilderString EVICTIONS = new XContentBuilderString("evictions");
+        static final String QUERY_CACHE = "query_cache";
+        static final String MEMORY_SIZE = "memory_size";
+        static final String MEMORY_SIZE_IN_BYTES = "memory_size_in_bytes";
+        static final String TOTAL_COUNT = "total_count";
+        static final String HIT_COUNT = "hit_count";
+        static final String MISS_COUNT = "miss_count";
+        static final String CACHE_SIZE = "cache_size";
+        static final String CACHE_COUNT = "cache_count";
+        static final String EVICTIONS = "evictions";
     }
 
 }

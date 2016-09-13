@@ -19,25 +19,17 @@
 
 package org.elasticsearch.ingest.attachment;
 
-import org.elasticsearch.node.NodeModule;
+import java.util.Collections;
+import java.util.Map;
+
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-import java.io.IOException;
-
-public class IngestAttachmentPlugin extends Plugin {
+public class IngestAttachmentPlugin extends Plugin implements IngestPlugin {
 
     @Override
-    public String name() {
-        return "ingest-attachment";
-    }
-
-    @Override
-    public String description() {
-        return "Ingest processor that adds uses Tika to extract binary data";
-    }
-
-    public void onModule(NodeModule nodeModule) throws IOException {
-        nodeModule.registerProcessor(AttachmentProcessor.TYPE,
-            (templateService, registry) -> new AttachmentProcessor.Factory());
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        return Collections.singletonMap(AttachmentProcessor.TYPE, new AttachmentProcessor.Factory());
     }
 }

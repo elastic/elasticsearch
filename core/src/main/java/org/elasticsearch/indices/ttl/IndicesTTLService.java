@@ -20,7 +20,7 @@
 package org.elasticsearch.indices.ttl;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SimpleCollector;
@@ -46,9 +46,9 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.TTLFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.indices.IndicesService;
@@ -66,7 +66,7 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * A node level service that delete expired docs on node primary shards.
  */
-public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLService> {
+public class IndicesTTLService extends AbstractLifecycleComponent {
 
     public static final Setting<TimeValue> INDICES_TTL_INTERVAL_SETTING =
         Setting.positiveTimeSetting("indices.ttl.interval", TimeValue.timeValueSeconds(60),
@@ -140,7 +140,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                     try {
                         List<IndexShard> shardsToPurge = getShardsToPurge();
                         purgeShards(shardsToPurge);
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         if (running.get()) {
                             logger.warn("failed to execute ttl purge", e);
                         }
@@ -237,6 +237,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
     private class ExpiredDocsCollector extends SimpleCollector {
         private LeafReaderContext context;
         private List<DocToPurge> docsToPurge = new ArrayList<>();
+        private NumericDocValues versions;
 
         public ExpiredDocsCollector() {
         }
@@ -256,7 +257,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 FieldsVisitor fieldsVisitor = new FieldsVisitor(false);
                 context.reader().document(doc, fieldsVisitor);
                 Uid uid = fieldsVisitor.uid();
-                final long version = Versions.loadVersion(context.reader(), new Term(UidFieldMapper.NAME, uid.toBytesRef()));
+                final long version = versions == null ? Versions.NOT_FOUND : versions.get(doc);
                 docsToPurge.add(new DocToPurge(uid.type(), uid.id(), version, fieldsVisitor.routing()));
             } catch (Exception e) {
                 logger.trace("failed to collect doc", e);
@@ -266,6 +267,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         @Override
         public void doSetNextReader(LeafReaderContext context) throws IOException {
             this.context = context;
+            this.versions = context.reader().getNumericDocValues(VersionFieldMapper.NAME);
         }
 
         public List<DocToPurge> getDocsToPurge() {
@@ -295,11 +297,11 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         if (logger.isTraceEnabled()) {
                             logger.trace("failed to execute bulk", e);
                         } else {
-                            logger.warn("failed to execute bulk: [{}]", e.getMessage());
+                            logger.warn("failed to execute bulk: ", e);
                         }
                     }
                 });

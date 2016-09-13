@@ -20,19 +20,21 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.io.IOException;
+import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * Validator for an alias, to be used before adding an alias to the index metadata
@@ -46,21 +48,12 @@ public class AliasValidator extends AbstractComponent {
     }
 
     /**
-     * Allows to validate an {@link org.elasticsearch.cluster.metadata.AliasAction} and make sure
-     * it's valid before it gets added to the index metadata. Doesn't validate the alias filter.
-     * @throws IllegalArgumentException if the alias is not valid
-     */
-    public void validateAliasAction(AliasAction aliasAction, MetaData metaData) {
-        validateAlias(aliasAction.alias(), aliasAction.index(), aliasAction.indexRouting(), metaData);
-    }
-
-    /**
      * Allows to validate an {@link org.elasticsearch.action.admin.indices.alias.Alias} and make sure
      * it's valid before it gets added to the index metadata. Doesn't validate the alias filter.
      * @throws IllegalArgumentException if the alias is not valid
      */
     public void validateAlias(Alias alias, String index, MetaData metaData) {
-        validateAlias(alias.name(), index, alias.indexRouting(), metaData);
+        validateAlias(alias.name(), index, alias.indexRouting(), name -> metaData.index(name));
     }
 
     /**
@@ -69,7 +62,7 @@ public class AliasValidator extends AbstractComponent {
      * @throws IllegalArgumentException if the alias is not valid
      */
     public void validateAliasMetaData(AliasMetaData aliasMetaData, String index, MetaData metaData) {
-        validateAlias(aliasMetaData.alias(), index, aliasMetaData.indexRouting(), metaData);
+        validateAlias(aliasMetaData.alias(), index, aliasMetaData.indexRouting(), name -> metaData.index(name));
     }
 
     /**
@@ -84,22 +77,25 @@ public class AliasValidator extends AbstractComponent {
         if (Strings.hasLength(alias.filter())) {
             try (XContentParser parser = XContentFactory.xContent(alias.filter()).createParser(alias.filter())) {
                 parser.map();
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 throw new IllegalArgumentException("failed to parse filter for alias [" + alias.name() + "]", e);
             }
         }
     }
 
-    private void validateAlias(String alias, String index, String indexRouting, MetaData metaData) {
+    /**
+     * Validate a proposed alias.
+     */
+    public void validateAlias(String alias, String index, @Nullable String indexRouting, Function<String, IndexMetaData> indexLookup) {
         validateAliasStandalone(alias, indexRouting);
 
         if (!Strings.hasText(index)) {
             throw new IllegalArgumentException("index name is required");
         }
 
-        assert metaData != null;
-        if (metaData.hasIndex(alias)) {
-            throw new InvalidAliasNameException(metaData.index(alias).getIndex(), alias, "an index exists with the same name as the alias");
+        IndexMetaData indexNamedSameAsAlias = indexLookup.apply(alias);
+        if (indexNamedSameAsAlias != null) {
+            throw new InvalidAliasNameException(indexNamedSameAsAlias.getIndex(), alias, "an index exists with the same name as the alias");
         }
     }
 
@@ -119,10 +115,9 @@ public class AliasValidator extends AbstractComponent {
      */
     public void validateAliasFilter(String alias, String filter, QueryShardContext queryShardContext) {
         assert queryShardContext != null;
-        try {
-            XContentParser parser = XContentFactory.xContent(filter).createParser(filter);
+        try (XContentParser parser = XContentFactory.xContent(filter).createParser(filter)) {
             validateAliasFilter(parser, queryShardContext);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);
         }
     }
@@ -134,23 +129,19 @@ public class AliasValidator extends AbstractComponent {
      */
     public void validateAliasFilter(String alias, byte[] filter, QueryShardContext queryShardContext) {
         assert queryShardContext != null;
-        try {
-            XContentParser parser = XContentFactory.xContent(filter).createParser(filter);
+        try (XContentParser parser = XContentFactory.xContent(filter).createParser(filter)) {
             validateAliasFilter(parser, queryShardContext);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);
         }
     }
 
-    private void validateAliasFilter(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
-        try {
-            queryShardContext.reset(parser);
-            QueryParseContext queryParseContext = queryShardContext.parseContext();
-            QueryBuilder<?> queryBuilder = QueryBuilder.rewriteQuery(queryParseContext.parseInnerQueryBuilder(), queryShardContext);
+    private static void validateAliasFilter(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
+        QueryParseContext queryParseContext = queryShardContext.newParseContext(parser);
+        Optional<QueryBuilder> parseInnerQueryBuilder = queryParseContext.parseInnerQueryBuilder();
+        if (parseInnerQueryBuilder.isPresent()) {
+            QueryBuilder queryBuilder = QueryBuilder.rewriteQuery(parseInnerQueryBuilder.get(), queryShardContext);
             queryBuilder.toFilter(queryShardContext);
-        } finally {
-            queryShardContext.reset(null);
-            parser.close();
         }
     }
 }

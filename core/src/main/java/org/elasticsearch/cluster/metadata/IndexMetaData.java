@@ -24,14 +24,14 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.IndexMetaDataUpdater;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
@@ -53,6 +53,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -72,7 +73,6 @@ import java.util.function.Function;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
@@ -215,13 +215,26 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         Setting.groupSetting("index.routing.allocation.include.", Property.Dynamic, Property.IndexScope);
     public static final Setting<Settings> INDEX_ROUTING_EXCLUDE_GROUP_SETTING =
         Setting.groupSetting("index.routing.allocation.exclude.", Property.Dynamic, Property.IndexScope);
+    public static final Setting<Settings> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING =
+        Setting.groupSetting("index.routing.allocation.initial_recovery."); // this is only setable internally not a registered setting!!
+
+    /**
+     * The number of active shard copies to check for before proceeding with a write operation.
+     */
+    public static final Setting<ActiveShardCount> SETTING_WAIT_FOR_ACTIVE_SHARDS =
+        new Setting<>("index.write.wait_for_active_shards",
+                      "1",
+                      ActiveShardCount::parseString,
+                      Setting.Property.Dynamic,
+                      Setting.Property.IndexScope);
 
     public static final IndexMetaData PROTO = IndexMetaData.builder("")
             .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1).numberOfReplicas(0).build();
 
-    public static final String KEY_ACTIVE_ALLOCATIONS = "active_allocations";
+    public static final String KEY_IN_SYNC_ALLOCATIONS = "in_sync_allocations";
     static final String KEY_VERSION = "version";
+    static final String KEY_ROUTING_NUM_SHARDS = "routing_num_shards";
     static final String KEY_SETTINGS = "settings";
     static final String KEY_STATE = "state";
     static final String KEY_MAPPINGS = "mappings";
@@ -229,6 +242,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
+    private final int routingNumShards;
+    private final int routingFactor;
 
     private final int numberOfShards;
     private final int numberOfReplicas;
@@ -247,23 +262,27 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     private final ImmutableOpenMap<String, Custom> customs;
 
-    private final ImmutableOpenIntMap<Set<String>> activeAllocationIds;
+    private final ImmutableOpenIntMap<Set<String>> inSyncAllocationIds;
 
-    private transient final int totalNumberOfShards;
+    private final transient int totalNumberOfShards;
 
     private final DiscoveryNodeFilters requireFilters;
     private final DiscoveryNodeFilters includeFilters;
     private final DiscoveryNodeFilters excludeFilters;
+    private final DiscoveryNodeFilters initialRecoveryFilters;
 
     private final Version indexCreatedVersion;
     private final Version indexUpgradedVersion;
     private final org.apache.lucene.util.Version minimumCompatibleLuceneVersion;
 
+    private final ActiveShardCount waitForActiveShards;
+
     private IndexMetaData(Index index, long version, long[] primaryTerms, State state, int numberOfShards, int numberOfReplicas, Settings settings,
                           ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases,
-                          ImmutableOpenMap<String, Custom> customs, ImmutableOpenIntMap<Set<String>> activeAllocationIds,
-                          DiscoveryNodeFilters requireFilters, DiscoveryNodeFilters includeFilters, DiscoveryNodeFilters excludeFilters,
-                          Version indexCreatedVersion, Version indexUpgradedVersion, org.apache.lucene.util.Version minimumCompatibleLuceneVersion) {
+                          ImmutableOpenMap<String, Custom> customs, ImmutableOpenIntMap<Set<String>> inSyncAllocationIds,
+                          DiscoveryNodeFilters requireFilters, DiscoveryNodeFilters initialRecoveryFilters, DiscoveryNodeFilters includeFilters, DiscoveryNodeFilters excludeFilters,
+                          Version indexCreatedVersion, Version indexUpgradedVersion, org.apache.lucene.util.Version minimumCompatibleLuceneVersion,
+                          int routingNumShards, ActiveShardCount waitForActiveShards) {
 
         this.index = index;
         this.version = version;
@@ -277,13 +296,18 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         this.mappings = mappings;
         this.customs = customs;
         this.aliases = aliases;
-        this.activeAllocationIds = activeAllocationIds;
+        this.inSyncAllocationIds = inSyncAllocationIds;
         this.requireFilters = requireFilters;
         this.includeFilters = includeFilters;
         this.excludeFilters = excludeFilters;
+        this.initialRecoveryFilters = initialRecoveryFilters;
         this.indexCreatedVersion = indexCreatedVersion;
         this.indexUpgradedVersion = indexUpgradedVersion;
         this.minimumCompatibleLuceneVersion = minimumCompatibleLuceneVersion;
+        this.routingNumShards = routingNumShards;
+        this.routingFactor = routingNumShards / numberOfShards;
+        this.waitForActiveShards = waitForActiveShards;
+        assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
     public Index getIndex() {
@@ -313,8 +337,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     /**
      * The term of the current selected primary. This is a non-negative number incremented when
-     * a primary shard is assigned after a full cluster restart or a replica shard is promoted to a primary
-     * See {@link AllocationService#updateMetaDataWithRoutingTable(MetaData, RoutingTable, RoutingTable)}.
+     * a primary shard is assigned after a full cluster restart or a replica shard is promoted to a primary.
+     *
+     * Note: since we increment the term every time a shard is assigned, the term for any operational shard (i.e., a shard
+     * that can be indexed into) is larger than 0. See {@link IndexMetaDataUpdater#applyChanges}.
      **/
     public long primaryTerm(int shardId) {
         return this.primaryTerms[shardId];
@@ -363,6 +389,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         return totalNumberOfShards;
     }
 
+    /**
+     * Returns the configured {@link #SETTING_WAIT_FOR_ACTIVE_SHARDS}, which defaults
+     * to an active shard count of 1 if not specified.
+     */
+    public ActiveShardCount getWaitForActiveShards() {
+        return waitForActiveShards;
+    }
+
     public Settings getSettings() {
         return settings;
     }
@@ -378,6 +412,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     @Nullable
     public MappingMetaData mapping(String mappingType) {
         return mappings.get(mappingType);
+    }
+
+    public static final Setting<String> INDEX_SHRINK_SOURCE_UUID = Setting.simpleString("index.shrink.source.uuid");
+    public static final Setting<String> INDEX_SHRINK_SOURCE_NAME = Setting.simpleString("index.shrink.source.name");
+
+
+    public Index getMergeSourceIndex() {
+        return INDEX_SHRINK_SOURCE_UUID.exists(settings) ? new Index(INDEX_SHRINK_SOURCE_NAME.get(settings),  INDEX_SHRINK_SOURCE_UUID.get(settings)) : null;
     }
 
     /**
@@ -405,18 +447,23 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         return (T) customs.get(type);
     }
 
-    public ImmutableOpenIntMap<Set<String>> getActiveAllocationIds() {
-        return activeAllocationIds;
+    public ImmutableOpenIntMap<Set<String>> getInSyncAllocationIds() {
+        return inSyncAllocationIds;
     }
 
-    public Set<String> activeAllocationIds(int shardId) {
+    public Set<String> inSyncAllocationIds(int shardId) {
         assert shardId >= 0 && shardId < numberOfShards;
-        return activeAllocationIds.get(shardId);
+        return inSyncAllocationIds.get(shardId);
     }
 
     @Nullable
     public DiscoveryNodeFilters requireFilters() {
         return requireFilters;
+    }
+
+    @Nullable
+    public DiscoveryNodeFilters getInitialRecoveryFilters() {
+        return initialRecoveryFilters;
     }
 
     @Nullable
@@ -462,11 +509,16 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         if (!customs.equals(that.customs)) {
             return false;
         }
-
+        if (routingNumShards != that.routingNumShards) {
+            return false;
+        }
+        if (routingFactor != that.routingFactor) {
+            return false;
+        }
         if (Arrays.equals(primaryTerms, that.primaryTerms) == false) {
             return false;
         }
-        if (!activeAllocationIds.equals(that.activeAllocationIds)) {
+        if (!inSyncAllocationIds.equals(that.inSyncAllocationIds)) {
             return false;
         }
         return true;
@@ -481,8 +533,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         result = 31 * result + settings.hashCode();
         result = 31 * result + mappings.hashCode();
         result = 31 * result + customs.hashCode();
+        result = 31 * result + Long.hashCode(routingFactor);
+        result = 31 * result + Long.hashCode(routingNumShards);
         result = 31 * result + Arrays.hashCode(primaryTerms);
-        result = 31 * result + activeAllocationIds.hashCode();
+        result = 31 * result + inSyncAllocationIds.hashCode();
         return result;
     }
 
@@ -511,6 +565,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     private static class IndexMetaDataDiff implements Diff<IndexMetaData> {
 
         private final String index;
+        private final int routingNumShards;
         private final long version;
         private final long[] primaryTerms;
         private final State state;
@@ -518,23 +573,25 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         private final Diff<ImmutableOpenMap<String, MappingMetaData>> mappings;
         private final Diff<ImmutableOpenMap<String, AliasMetaData>> aliases;
         private final Diff<ImmutableOpenMap<String, Custom>> customs;
-        private final Diff<ImmutableOpenIntMap<Set<String>>> activeAllocationIds;
+        private final Diff<ImmutableOpenIntMap<Set<String>>> inSyncAllocationIds;
 
         public IndexMetaDataDiff(IndexMetaData before, IndexMetaData after) {
             index = after.index.getName();
             version = after.version;
+            routingNumShards = after.routingNumShards;
             state = after.state;
             settings = after.settings;
             primaryTerms = after.primaryTerms;
             mappings = DiffableUtils.diff(before.mappings, after.mappings, DiffableUtils.getStringKeySerializer());
             aliases = DiffableUtils.diff(before.aliases, after.aliases, DiffableUtils.getStringKeySerializer());
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer());
-            activeAllocationIds = DiffableUtils.diff(before.activeAllocationIds, after.activeAllocationIds,
+            inSyncAllocationIds = DiffableUtils.diff(before.inSyncAllocationIds, after.inSyncAllocationIds,
                 DiffableUtils.getVIntKeySerializer(), DiffableUtils.StringSetValueSerializer.getInstance());
         }
 
         public IndexMetaDataDiff(StreamInput in) throws IOException {
             index = in.readString();
+            routingNumShards = in.readInt();
             version = in.readLong();
             state = State.fromId(in.readByte());
             settings = Settings.readSettingsFromStream(in);
@@ -553,13 +610,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                         return lookupPrototypeSafe(key).readDiffFrom(in);
                     }
                 });
-            activeAllocationIds = DiffableUtils.readImmutableOpenIntMapDiff(in, DiffableUtils.getVIntKeySerializer(),
+            inSyncAllocationIds = DiffableUtils.readImmutableOpenIntMapDiff(in, DiffableUtils.getVIntKeySerializer(),
                 DiffableUtils.StringSetValueSerializer.getInstance());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
+            out.writeInt(routingNumShards);
             out.writeLong(version);
             out.writeByte(state.id);
             Settings.writeSettingsToStream(settings, out);
@@ -567,20 +625,21 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             mappings.writeTo(out);
             aliases.writeTo(out);
             customs.writeTo(out);
-            activeAllocationIds.writeTo(out);
+            inSyncAllocationIds.writeTo(out);
         }
 
         @Override
         public IndexMetaData apply(IndexMetaData part) {
             Builder builder = builder(index);
             builder.version(version);
+            builder.setRoutingNumShards(routingNumShards);
             builder.state(state);
             builder.settings(settings);
             builder.primaryTerms(primaryTerms);
             builder.mappings.putAll(mappings.apply(part.mappings));
             builder.aliases.putAll(aliases.apply(part.aliases));
             builder.customs.putAll(customs.apply(part.customs));
-            builder.activeAllocationIds.putAll(activeAllocationIds.apply(part.activeAllocationIds));
+            builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
             return builder.build();
         }
     }
@@ -589,6 +648,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public IndexMetaData readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.version(in.readLong());
+        builder.setRoutingNumShards(in.readInt());
         builder.state(State.fromId(in.readByte()));
         builder.settings(readSettingsFromStream(in));
         builder.primaryTerms(in.readVLongArray());
@@ -608,11 +668,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             Custom customIndexMetaData = lookupPrototypeSafe(type).readFrom(in);
             builder.putCustom(type, customIndexMetaData);
         }
-        int activeAllocationIdsSize = in.readVInt();
-        for (int i = 0; i < activeAllocationIdsSize; i++) {
+        int inSyncAllocationIdsSize = in.readVInt();
+        for (int i = 0; i < inSyncAllocationIdsSize; i++) {
             int key = in.readVInt();
             Set<String> allocationIds = DiffableUtils.StringSetValueSerializer.getInstance().read(in, key);
-            builder.putActiveAllocationIds(key, allocationIds);
+            builder.putInSyncAllocationIds(key, allocationIds);
         }
         return builder.build();
     }
@@ -621,6 +681,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index.getName()); // uuid will come as part of settings
         out.writeLong(version);
+        out.writeInt(routingNumShards);
         out.writeByte(state.id());
         writeSettingsToStream(settings, out);
         out.writeVLongArray(primaryTerms);
@@ -637,8 +698,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             out.writeString(cursor.key);
             cursor.value.writeTo(out);
         }
-        out.writeVInt(activeAllocationIds.size());
-        for (IntObjectCursor<Set<String>> cursor : activeAllocationIds) {
+        out.writeVInt(inSyncAllocationIds.size());
+        for (IntObjectCursor<Set<String>> cursor : inSyncAllocationIds) {
             out.writeVInt(cursor.key);
             DiffableUtils.StringSetValueSerializer.getInstance().write(cursor.value, out);
         }
@@ -662,14 +723,15 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         private final ImmutableOpenMap.Builder<String, MappingMetaData> mappings;
         private final ImmutableOpenMap.Builder<String, AliasMetaData> aliases;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
-        private final ImmutableOpenIntMap.Builder<Set<String>> activeAllocationIds;
+        private final ImmutableOpenIntMap.Builder<Set<String>> inSyncAllocationIds;
+        private Integer routingNumShards;
 
         public Builder(String index) {
             this.index = index;
             this.mappings = ImmutableOpenMap.builder();
             this.aliases = ImmutableOpenMap.builder();
             this.customs = ImmutableOpenMap.builder();
-            this.activeAllocationIds = ImmutableOpenIntMap.builder();
+            this.inSyncAllocationIds = ImmutableOpenIntMap.builder();
         }
 
         public Builder(IndexMetaData indexMetaData) {
@@ -681,7 +743,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             this.mappings = ImmutableOpenMap.builder(indexMetaData.mappings);
             this.aliases = ImmutableOpenMap.builder(indexMetaData.aliases);
             this.customs = ImmutableOpenMap.builder(indexMetaData.customs);
-            this.activeAllocationIds = ImmutableOpenIntMap.builder(indexMetaData.activeAllocationIds);
+            this.routingNumShards = indexMetaData.routingNumShards;
+            this.inSyncAllocationIds = ImmutableOpenIntMap.builder(indexMetaData.inSyncAllocationIds);
         }
 
         public String index() {
@@ -694,8 +757,28 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         }
 
         public Builder numberOfShards(int numberOfShards) {
-            settings = settingsBuilder().put(settings).put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+            settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
             return this;
+        }
+
+        /**
+         * Sets the number of shards that should be used for routing. This should only be used if the number of shards in
+         * an index has changed ie if the index is shrunk.
+         */
+        public Builder setRoutingNumShards(int routingNumShards) {
+            this.routingNumShards = routingNumShards;
+            return this;
+        }
+
+        /**
+         * Returns number of shards that should be used for routing. By default this method will return the number of shards
+         * for this index.
+         *
+         * @see #setRoutingNumShards(int)
+         * @see #numberOfShards()
+         */
+        public int getRoutingNumShards() {
+            return routingNumShards == null ? numberOfShards() : routingNumShards;
         }
 
         public int numberOfShards() {
@@ -703,7 +786,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         }
 
         public Builder numberOfReplicas(int numberOfReplicas) {
-            settings = settingsBuilder().put(settings).put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+            settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
             return this;
         }
 
@@ -712,7 +795,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         }
 
         public Builder creationDate(long creationDate) {
-            settings = settingsBuilder().put(settings).put(SETTING_CREATION_DATE, creationDate).build();
+            settings = Settings.builder().put(settings).put(SETTING_CREATION_DATE, creationDate).build();
             return this;
         }
 
@@ -771,8 +854,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return this;
         }
 
-        public Builder putActiveAllocationIds(int shardId, Set<String> allocationIds) {
-            activeAllocationIds.put(shardId, new HashSet(allocationIds));
+        public Set<String> getInSyncAllocationIds(int shardId) {
+            return inSyncAllocationIds.get(shardId);
+        }
+
+        public Builder putInSyncAllocationIds(int shardId, Set<String> allocationIds) {
+            inSyncAllocationIds.put(shardId, new HashSet(allocationIds));
             return this;
         }
 
@@ -851,13 +938,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                 throw new IllegalArgumentException("must specify non-negative number of shards for index [" + index + "]");
             }
 
-            // fill missing slots in activeAllocationIds with empty set if needed and make all entries immutable
-            ImmutableOpenIntMap.Builder<Set<String>> filledActiveAllocationIds = ImmutableOpenIntMap.builder();
+            // fill missing slots in inSyncAllocationIds with empty set if needed and make all entries immutable
+            ImmutableOpenIntMap.Builder<Set<String>> filledInSyncAllocationIds = ImmutableOpenIntMap.builder();
             for (int i = 0; i < numberOfShards; i++) {
-                if (activeAllocationIds.containsKey(i)) {
-                    filledActiveAllocationIds.put(i, Collections.unmodifiableSet(new HashSet<>(activeAllocationIds.get(i))));
+                if (inSyncAllocationIds.containsKey(i)) {
+                    filledInSyncAllocationIds.put(i, Collections.unmodifiableSet(new HashSet<>(inSyncAllocationIds.get(i))));
                 } else {
-                    filledActiveAllocationIds.put(i, Collections.emptySet());
+                    filledInSyncAllocationIds.put(i, Collections.emptySet());
                 }
             }
             final Map<String, String> requireMap = INDEX_ROUTING_REQUIRE_GROUP_SETTING.get(settings).getAsMap();
@@ -881,6 +968,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             } else {
                 excludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, excludeMap);
             }
+            Map<String, String> initialRecoveryMap = INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.get(settings).getAsMap();
+            final DiscoveryNodeFilters initialRecoveryFilters;
+            if (initialRecoveryMap.isEmpty()) {
+                initialRecoveryFilters = null;
+            } else {
+                initialRecoveryFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, initialRecoveryMap);
+            }
             Version indexCreatedVersion = Version.indexCreated(settings);
             Version indexUpgradedVersion = settings.getAsVersion(IndexMetaData.SETTING_VERSION_UPGRADED, indexCreatedVersion);
             String stringLuceneVersion = settings.get(SETTING_VERSION_MINIMUM_COMPATIBLE);
@@ -902,16 +996,24 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                     + "] but should be equal to number of shards [" + numberOfShards() + "]");
             }
 
+            final ActiveShardCount waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(settings);
+            if (waitForActiveShards.validate(numberOfReplicas) == false) {
+                throw new IllegalArgumentException("invalid " + SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey() +
+                                                   "[" + waitForActiveShards + "]: cannot be greater than " +
+                                                   "number of shard copies [" + (numberOfReplicas + 1) + "]");
+            }
+
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
             return new IndexMetaData(new Index(index, uuid), version, primaryTerms, state, numberOfShards, numberOfReplicas, tmpSettings, mappings.build(),
-                tmpAliases.build(), customs.build(), filledActiveAllocationIds.build(), requireFilters, includeFilters, excludeFilters,
-                indexCreatedVersion, indexUpgradedVersion, minimumCompatibleLuceneVersion);
+                tmpAliases.build(), customs.build(), filledInSyncAllocationIds.build(), requireFilters, initialRecoveryFilters, includeFilters, excludeFilters,
+                indexCreatedVersion, indexUpgradedVersion, minimumCompatibleLuceneVersion, getRoutingNumShards(), waitForActiveShards);
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject(indexMetaData.getIndex().getName(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(indexMetaData.getIndex().getName());
 
             builder.field(KEY_VERSION, indexMetaData.getVersion());
+            builder.field(KEY_ROUTING_NUM_SHARDS, indexMetaData.getRoutingNumShards());
             builder.field(KEY_STATE, indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
 
             boolean binary = params.paramAsBoolean("binary", false);
@@ -928,16 +1030,16 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                     builder.value(cursor.value.source().compressed());
                 } else {
                     byte[] data = cursor.value.source().uncompressed();
-                    XContentParser parser = XContentFactory.xContent(data).createParser(data);
-                    Map<String, Object> mapping = parser.mapOrdered();
-                    parser.close();
-                    builder.map(mapping);
+                    try (XContentParser parser = XContentFactory.xContent(data).createParser(data)) {
+                        Map<String, Object> mapping = parser.mapOrdered();
+                        builder.map(mapping);
+                    }
                 }
             }
             builder.endArray();
 
             for (ObjectObjectCursor<String, Custom> cursor : indexMetaData.getCustoms()) {
-                builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(cursor.key);
                 cursor.value.toXContent(builder, params);
                 builder.endObject();
             }
@@ -954,8 +1056,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             }
             builder.endArray();
 
-            builder.startObject(KEY_ACTIVE_ALLOCATIONS);
-            for (IntObjectCursor<Set<String>> cursor : indexMetaData.activeAllocationIds) {
+            builder.startObject(KEY_IN_SYNC_ALLOCATIONS);
+            for (IntObjectCursor<Set<String>> cursor : indexMetaData.inSyncAllocationIds) {
                 builder.startArray(String.valueOf(cursor.key));
                 for (String allocationId : cursor.value) {
                     builder.value(allocationId);
@@ -989,7 +1091,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (KEY_SETTINGS.equals(currentFieldName)) {
-                        builder.settings(Settings.settingsBuilder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())));
+                        builder.settings(Settings.builder().put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())));
                     } else if (KEY_MAPPINGS.equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
@@ -1006,7 +1108,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                             builder.putAlias(AliasMetaData.Builder.fromXContent(parser));
                         }
-                    } else if (KEY_ACTIVE_ALLOCATIONS.equals(currentFieldName)) {
+                    } else if (KEY_IN_SYNC_ALLOCATIONS.equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
@@ -1018,7 +1120,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                                         allocationIds.add(parser.text());
                                     }
                                 }
-                                builder.putActiveAllocationIds(Integer.valueOf(shardId), allocationIds);
+                                builder.putInSyncAllocationIds(Integer.valueOf(shardId), allocationIds);
                             } else {
                                 throw new IllegalArgumentException("Unexpected token: " + token);
                             }
@@ -1072,6 +1174,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                         builder.state(State.fromString(parser.text()));
                     } else if (KEY_VERSION.equals(currentFieldName)) {
                         builder.version(parser.longValue());
+                    } else if (KEY_ROUTING_NUM_SHARDS.equals(currentFieldName)) {
+                        builder.setRoutingNumShards(parser.intValue());
                     } else {
                         throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
@@ -1146,4 +1250,68 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return Builder.fromXContent(parser);
         }
     };
+
+    /**
+     * Returns the number of shards that should be used for routing. This basically defines the hash space we use in
+     * {@link org.elasticsearch.cluster.routing.OperationRouting#generateShardId(IndexMetaData, String, String)} to route documents
+     * to shards based on their ID or their specific routing value. The default value is {@link #getNumberOfShards()}. This value only
+     * changes if and index is shrunk.
+     */
+    public int getRoutingNumShards() {
+        return routingNumShards;
+    }
+
+    /**
+     * Returns the routing factor for this index. The default is <tt>1</tt>.
+     *
+     * @see #getRoutingFactor(IndexMetaData, int) for details
+     */
+    public int getRoutingFactor() {
+        return routingFactor;
+    }
+
+    /**
+     * Returns the source shard ids to shrink into the given shard id.
+     * @param shardId the id of the target shard to shrink to
+     * @param sourceIndexMetadata the source index metadata
+     * @param numTargetShards the total number of shards in the target index
+     * @return a set of shard IDs to shrink into the given shard ID.
+     */
+    public static Set<ShardId> selectShrinkShards(int shardId, IndexMetaData sourceIndexMetadata, int numTargetShards) {
+        if (shardId >= numTargetShards) {
+            throw new IllegalArgumentException("the number of target shards (" + numTargetShards + ") must be greater than the shard id: "
+                + shardId);
+        }
+        int routingFactor = getRoutingFactor(sourceIndexMetadata, numTargetShards);
+        Set<ShardId> shards = new HashSet<>(routingFactor);
+        for (int i = shardId * routingFactor; i < routingFactor*shardId + routingFactor; i++) {
+            shards.add(new ShardId(sourceIndexMetadata.getIndex(), i));
+        }
+        return shards;
+    }
+
+    /**
+     * Returns the routing factor for and shrunk index with the given number of target shards.
+     * This factor is used in the hash function in
+     * {@link org.elasticsearch.cluster.routing.OperationRouting#generateShardId(IndexMetaData, String, String)} to guarantee consistent
+     * hashing / routing of documents even if the number of shards changed (ie. a shrunk index).
+     *
+     * @param sourceIndexMetadata the metadata of the source index
+     * @param targetNumberOfShards the total number of shards in the target index
+     * @return the routing factor for and shrunk index with the given number of target shards.
+     * @throws IllegalArgumentException if the number of source shards is greater than the number of target shards or if the source shards
+     * are not divisible by the number of target shards.
+     */
+    public static int getRoutingFactor(IndexMetaData sourceIndexMetadata, int targetNumberOfShards) {
+        int sourceNumberOfShards = sourceIndexMetadata.getNumberOfShards();
+        if (sourceNumberOfShards < targetNumberOfShards) {
+            throw new IllegalArgumentException("the number of target shards must be less that the number of source shards");
+        }
+        int factor = sourceNumberOfShards / targetNumberOfShards;
+        if (factor * targetNumberOfShards != sourceNumberOfShards || factor <= 1) {
+            throw new IllegalArgumentException("the number of source shards [" + sourceNumberOfShards + "] must be a must be a multiple of ["
+                + targetNumberOfShards + "]");
+        }
+        return factor;
+    }
 }

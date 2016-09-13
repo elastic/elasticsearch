@@ -32,9 +32,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- *
- */
 public class SearchPhaseExecutionException extends ElasticsearchException {
     private final String phaseName;
     private final ShardSearchFailure[] shardFailures;
@@ -69,7 +66,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         }
     }
 
-    private static final Throwable deduplicateCause(Throwable cause, ShardSearchFailure[] shardFailures) {
+    private static Throwable deduplicateCause(Throwable cause, ShardSearchFailure[] shardFailures) {
         if (shardFailures == null) {
             throw new IllegalArgumentException("shardSearchFailures must not be null");
         }

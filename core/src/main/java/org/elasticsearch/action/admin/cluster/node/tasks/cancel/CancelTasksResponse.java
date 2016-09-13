@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
+import org.elasticsearch.tasks.TaskInfo;
 
 import java.util.List;
 
@@ -38,5 +38,4 @@ public class CancelTasksResponse extends ListTasksResponse {
         nodeFailures) {
         super(tasks, taskFailures, nodeFailures);
     }
-
 }

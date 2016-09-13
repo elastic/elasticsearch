@@ -40,8 +40,29 @@ public interface ClusterStateTaskExecutor<T> {
     /**
      * Callback invoked after new cluster state is published. Note that
      * this method is not invoked if the cluster state was not updated.
+     * @param clusterChangedEvent the change event for this cluster state change, containing
+     *                            both old and new states
      */
-    default void clusterStatePublished(ClusterState newClusterState) {
+    default void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+    }
+
+    /**
+     * Builds a concise description of a list of tasks (to be used in logging etc.).
+     *
+     * Note that the tasks given are not necessarily the same as those that will be passed to {@link #execute(ClusterState, List)}.
+     * but are guaranteed to be a subset of them. This method can be called multiple times with different lists before execution.
+     * This allows groupd task description but the submitting source.
+     */
+    default String describeTasks(List<T> tasks) {
+        return tasks.stream().map(T::toString).reduce((s1,s2) -> {
+            if (s1.isEmpty()) {
+                return s2;
+            } else if (s2.isEmpty()) {
+                return s1;
+            } else {
+                return s1 + ", " + s2;
+            }
+        }).orElse("");
     }
 
     /**
@@ -49,8 +70,8 @@ public interface ClusterStateTaskExecutor<T> {
      * @param <T> the type of the cluster state update task
      */
     class BatchResult<T> {
-        final public ClusterState resultingState;
-        final public Map<T, TaskResult> executionResults;
+        public final ClusterState resultingState;
+        public final Map<T, TaskResult> executionResults;
 
         /**
          * Construct an execution result instance with a correspondence between the tasks and their execution result
@@ -80,19 +101,20 @@ public interface ClusterStateTaskExecutor<T> {
                 return this;
             }
 
-            public Builder<T> failure(T task, Throwable t) {
-                return result(task, TaskResult.failure(t));
+            public Builder<T> failure(T task, Exception e) {
+                return result(task, TaskResult.failure(e));
             }
 
-            public Builder<T> failures(Iterable<T> tasks, Throwable t) {
+            public Builder<T> failures(Iterable<T> tasks, Exception e) {
                 for (T task : tasks) {
-                    failure(task, t);
+                    failure(task, e);
                 }
                 return this;
             }
 
             private Builder<T> result(T task, TaskResult executionResult) {
-                executionResults.put(task, executionResult);
+                TaskResult existing = executionResults.put(task, executionResult);
+                assert existing == null : task + " already has result " + existing;
                 return this;
             }
 
@@ -103,7 +125,7 @@ public interface ClusterStateTaskExecutor<T> {
     }
 
     final class TaskResult {
-        private final Throwable failure;
+        private final Exception failure;
 
         private static final TaskResult SUCCESS = new TaskResult(null);
 
@@ -111,11 +133,11 @@ public interface ClusterStateTaskExecutor<T> {
             return SUCCESS;
         }
 
-        public static TaskResult failure(Throwable failure) {
+        public static TaskResult failure(Exception failure) {
             return new TaskResult(failure);
         }
 
-        private TaskResult(Throwable failure) {
+        private TaskResult(Exception failure) {
             this.failure = failure;
         }
 
@@ -123,7 +145,7 @@ public interface ClusterStateTaskExecutor<T> {
             return this == SUCCESS;
         }
 
-        public Throwable getFailure() {
+        public Exception getFailure() {
             assert !isSuccess();
             return failure;
         }
@@ -133,7 +155,7 @@ public interface ClusterStateTaskExecutor<T> {
          * @param onSuccess handler to invoke on success
          * @param onFailure handler to invoke on failure; the throwable passed through will not be null
          */
-        public void handle(Runnable onSuccess, Consumer<Throwable> onFailure) {
+        public void handle(Runnable onSuccess, Consumer<Exception> onFailure) {
             if (failure == null) {
                 onSuccess.run();
             } else {

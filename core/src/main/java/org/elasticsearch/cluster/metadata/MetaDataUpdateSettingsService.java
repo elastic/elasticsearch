@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
@@ -43,7 +44,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.NodeServicesProvider;
+import org.elasticsearch.indices.IndicesService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,8 +55,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  * Service responsible for submitting update index settings requests
@@ -63,27 +65,30 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
     private final AllocationService allocationService;
 
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndexScopedSettings indexScopedSettings;
+    private final IndicesService indicesService;
+    private final NodeServicesProvider nodeServiceProvider;
 
     @Inject
-    public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService, IndexScopedSettings indexScopedSettings, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService,
+                                         IndexScopedSettings indexScopedSettings, IndicesService indicesService, NodeServicesProvider nodeServicesProvider) {
         super(settings);
         this.clusterService = clusterService;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.clusterService.add(this);
         this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
+        this.indicesService = indicesService;
+        this.nodeServiceProvider = nodeServicesProvider;
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         // update an index with number of replicas based on data nodes if possible
-        if (!event.state().nodes().localNodeMaster()) {
+        if (!event.state().nodes().isLocalNodeElectedMaster()) {
             return;
         }
         // we will want to know this for translating "all" to a number
-        final int dataNodeCount = event.state().nodes().dataNodes().size();
+        final int dataNodeCount = event.state().nodes().getDataNodes().size();
 
         Map<Integer, List<Index>> nrReplicasChanged = new HashMap<>();
         // we need to do this each time in case it was changed by update settings
@@ -124,7 +129,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         if (nrReplicasChanged.size() > 0) {
             // update settings and kick of a reroute (implicit) for them to take effect
             for (final Integer fNumberOfReplicas : nrReplicasChanged.keySet()) {
-                Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, fNumberOfReplicas).build();
+                Settings settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, fNumberOfReplicas).build();
                 final List<Index> indices = nrReplicasChanged.get(fNumberOfReplicas);
 
                 UpdateSettingsClusterStateUpdateRequest updateRequest = new UpdateSettingsClusterStateUpdateRequest()
@@ -141,7 +146,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     }
 
                     @Override
-                    public void onFailure(Throwable t) {
+                    public void onFailure(Exception t) {
                         for (Index index : indices) {
                             logger.warn("{} fail to auto expand replicas to [{}]", index, fNumberOfReplicas);
                         }
@@ -152,7 +157,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-        final Settings normalizedSettings = Settings.settingsBuilder().put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
+        final Settings normalizedSettings = Settings.builder().put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
         Settings.Builder settingsForClosedIndices = Settings.builder();
         Settings.Builder settingsForOpenIndices = Settings.builder();
         Settings.Builder skipppedSettings = Settings.builder();
@@ -268,11 +273,19 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 // now, reroute in case things change that require it (like number of replicas)
                 RoutingAllocation.Result routingResult = allocationService.reroute(updatedState, "settings update");
                 updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
-                for (Index index : openIndices) {
-                    indexScopedSettings.dryRun(updatedState.metaData().getIndexSafe(index).getSettings());
-                }
-                for (Index index : closeIndices) {
-                    indexScopedSettings.dryRun(updatedState.metaData().getIndexSafe(index).getSettings());
+                try {
+                    for (Index index : openIndices) {
+                        final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
+                        final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
+                        indicesService.verifyIndexMetadata(nodeServiceProvider, currentMetaData, updatedMetaData);
+                    }
+                    for (Index index : closeIndices) {
+                        final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
+                        final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
+                        indicesService.verifyIndexMetadata(nodeServiceProvider, currentMetaData, updatedMetaData);
+                    }
+                } catch (IOException ex) {
+                    throw ExceptionsHelper.convertToElastic(ex);
                 }
                 return updatedState;
             }
@@ -316,7 +329,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                         if (Version.CURRENT.equals(indexMetaData.getCreationVersion()) == false) {
                             // No reason to pollute the settings, we didn't really upgrade anything
                             metaDataBuilder.put(IndexMetaData.builder(indexMetaData)
-                                            .settings(settingsBuilder().put(indexMetaData.getSettings())
+                                            .settings(Settings.builder().put(indexMetaData.getSettings())
                                                             .put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE, entry.getValue().v2())
                                                             .put(IndexMetaData.SETTING_VERSION_UPGRADED, entry.getValue().v1())
                                             )

@@ -26,6 +26,9 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -34,16 +37,11 @@ import java.util.Set;
  */
 public class AllocationDeciders extends AllocationDecider {
 
-    private final AllocationDecider[] allocations;
+    private final Collection<AllocationDecider> allocations;
 
-    public AllocationDeciders(Settings settings, AllocationDecider[] allocations) {
+    public AllocationDeciders(Settings settings, Collection<AllocationDecider> allocations) {
         super(settings);
-        this.allocations = allocations;
-    }
-
-    @Inject
-    public AllocationDeciders(Settings settings, Set<AllocationDecider> allocations) {
-        this(settings, allocations.toArray(new AllocationDecider[allocations.size()]));
+        this.allocations = Collections.unmodifiableCollection(allocations);
     }
 
     @Override
@@ -185,6 +183,34 @@ public class AllocationDeciders extends AllocationDecider {
             Decision decision = allocationDecider.canRebalance(allocation);
             // short track if a NO is returned.
             if (decision == Decision.NO) {
+                if (!allocation.debugDecision()) {
+                    return decision;
+                } else {
+                    ret.add(decision);
+                }
+            } else if (decision != Decision.ALWAYS) {
+                ret.add(decision);
+            }
+        }
+        return ret;
+    }
+
+    @Override
+    public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard routing " + shardRouting;
+
+        if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
+            return Decision.NO;
+        }
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider decider : allocations) {
+            Decision decision = decider.canForceAllocatePrimary(shardRouting, node, allocation);
+            // short track if a NO is returned.
+            if (decision == Decision.NO) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Shard [{}] can not be forcefully allocated to node [{}] due to [{}].",
+                        shardRouting.shardId(), node.nodeId(), decider.getClass().getSimpleName());
+                }
                 if (!allocation.debugDecision()) {
                     return decision;
                 } else {

@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
@@ -113,7 +112,7 @@ public class DocumentMapperParser {
         // parse DocumentMapper
         while(iterator.hasNext()) {
             Map.Entry<String, Object> entry = iterator.next();
-            String fieldName = Strings.toUnderscoreCase(entry.getKey());
+            String fieldName = entry.getKey();
             Object fieldNode = entry.getValue();
 
             MetadataFieldMapper.TypeParser typeParser = rootTypeParsers.get(fieldName);

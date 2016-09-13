@@ -1,7 +1,7 @@
 [[search-search]]
 == Search
 
-The search API allows to execute a search query and get back search hits
+The search API allows you to execute a search query and get back search hits
 that match the query. The query can either be provided using a simple
 <<search-uri-request,query string as a parameter>>, or using a
 <<search-request-body,request body>>.
@@ -49,3 +49,10 @@ Or even search across all indices and all types:
 --------------------------------------------------
 $ curl -XGET 'http://localhost:9200/_search?q=tag:wow'
 --------------------------------------------------
+
+By default elasticsearch rejects search requests that would query more than
+1000 shards. The reason is that such large numbers of shards make the job of
+the coordinating node very CPU and memory intensive. It is usually a better
+idea to organize data in such a way that there are fewer larger shards. In
+case you would like to bypass this limit, which is discouraged, you can update
+the `action.search.shard_count.limit` cluster setting to a greater value.

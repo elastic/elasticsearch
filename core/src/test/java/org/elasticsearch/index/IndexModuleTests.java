@@ -22,6 +22,7 @@ import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -29,10 +30,12 @@ import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.util.SetOnce.AlreadySetException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -41,22 +44,25 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.cache.query.DisabledQueryCache;
+import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
-import org.elasticsearch.index.cache.query.index.IndexQueryCache;
-import org.elasticsearch.index.cache.query.none.NoneQueryCache;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
+import org.elasticsearch.index.shard.IndexingOperationListener;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -65,16 +71,19 @@ import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.engine.MockEngineFactory;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -104,18 +113,16 @@ public class IndexModuleTests extends ESTestCase {
 
     static NodeServicesProvider newNodeServiceProvider(Settings settings, Environment environment, Client client, ScriptEngineService... scriptEngineServices) throws IOException {
         // TODO this can be used in other place too - lets first refactor the IndicesQueriesRegistry
-        ThreadPool threadPool = new ThreadPool("test");
+        ThreadPool threadPool = new TestThreadPool("test");
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
-        PageCacheRecycler recycler = new PageCacheRecycler(settings, threadPool);
-        BigArrays bigArrays = new BigArrays(recycler, circuitBreakerService);
-        Set<ScriptEngineService> scriptEngines = Collections.emptySet();
-        scriptEngines.addAll(Arrays.asList(scriptEngineServices));
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.emptyList());
+        BigArrays bigArrays = new BigArrays(settings, circuitBreakerService);
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(scriptEngineServices));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        ScriptService scriptService = new ScriptService(settings, environment, scriptEngines, new ResourceWatcherService(settings, threadPool), scriptEngineRegistry, scriptContextRegistry, scriptSettings);
-        IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(settings, emptyMap());
-        return new NodeServicesProvider(threadPool, bigArrays, client, scriptService, indicesQueriesRegistry, circuitBreakerService);
+        ScriptService scriptService = new ScriptService(settings, environment, new ResourceWatcherService(settings, threadPool), scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+        IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry();
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        return new NodeServicesProvider(threadPool, bigArrays, client, scriptService, indicesQueriesRegistry, circuitBreakerService, clusterService);
     }
 
     @Override
@@ -128,7 +135,7 @@ public class IndexModuleTests extends ESTestCase {
         environment = new Environment(settings);
         nodeServicesProvider = newNodeServiceProvider(settings, environment, null);
         nodeEnvironment = new NodeEnvironment(settings, environment);
-        mapperRegistry = new IndicesModule().getMapperRegistry();
+        mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
     }
 
     @Override
@@ -136,11 +143,13 @@ public class IndexModuleTests extends ESTestCase {
         super.tearDown();
         nodeEnvironment.close();
         indicesQueryCache.close();
+        nodeServicesProvider.getClusterService().close();
         ThreadPool.terminate(nodeServicesProvider.getThreadPool(), 10, TimeUnit.SECONDS);
     }
 
     public void testWrapperIsBound() throws IOException {
-        IndexModule module = new IndexModule(indexSettings, null, new AnalysisRegistry(null, environment));
+        IndexModule module = new IndexModule(indexSettings, null,
+                new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap()));
         module.setSearcherWrapper((s) -> new Wrapper());
         module.engineFactory.set(new MockEngineFactory(AssertingDirectoryReader.class));
         IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, indicesQueryCache, mapperRegistry, new IndicesFieldDataCache(settings, listener));
@@ -158,16 +167,18 @@ public class IndexModuleTests extends ESTestCase {
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "foo_store")
             .build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
-        IndexModule module = new IndexModule(indexSettings, null, new AnalysisRegistry(null, environment));
+        IndexModule module = new IndexModule(indexSettings, null,
+                new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap()));
         module.addIndexStore("foo_store", FooStore::new);
-        IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, indicesQueryCache, mapperRegistry, new IndicesFieldDataCache(settings, listener));
-        assertTrue(indexService.getIndexStore() instanceof FooStore);
         try {
             module.addIndexStore("foo_store", FooStore::new);
             fail("already registered");
         } catch (IllegalArgumentException ex) {
             // fine
         }
+        IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, indicesQueryCache, mapperRegistry, new IndicesFieldDataCache(settings, listener));
+        assertTrue(indexService.getIndexStore() instanceof FooStore);
+
         indexService.close("simon says", false);
     }
 
@@ -180,8 +191,8 @@ public class IndexModuleTests extends ESTestCase {
             }
         };
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
-        IndexModule module = new IndexModule(indexSettings, null, new AnalysisRegistry(null, environment));
-        Consumer<Settings> listener = (s) -> {};
+        IndexModule module = new IndexModule(indexSettings, null,
+                new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap()));
         module.addIndexEventListener(eventListener);
         IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, indicesQueryCache, mapperRegistry,
             new IndicesFieldDataCache(settings, this.listener));
@@ -196,7 +207,8 @@ public class IndexModuleTests extends ESTestCase {
 
     public void testListener() throws IOException {
         Setting<Boolean> booleanSetting = Setting.boolSetting("index.foo.bar", false, Property.Dynamic, Property.IndexScope);
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(index, settings, booleanSetting), null, new AnalysisRegistry(null, environment));
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(index, settings, booleanSetting), null,
+                new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap()));
         Setting<Boolean> booleanSetting2 = Setting.boolSetting("index.foo.bar.baz", false, Property.Dynamic, Property.IndexScope);
         AtomicBoolean atomicBoolean = new AtomicBoolean(false);
         module.addSettingsUpdateConsumer(booleanSetting, atomicBoolean::set);
@@ -215,14 +227,76 @@ public class IndexModuleTests extends ESTestCase {
         indexService.close("simon says", false);
     }
 
+    public void testAddIndexOperationListener() throws IOException {
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(index, settings), null,
+                new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap()));
+        AtomicBoolean executed = new AtomicBoolean(false);
+        IndexingOperationListener listener = new IndexingOperationListener() {
+            @Override
+            public Engine.Index preIndex(Engine.Index operation) {
+                executed.set(true);
+                return operation;
+            }
+        };
+        module.addIndexOperationListener(listener);
+
+        expectThrows(IllegalArgumentException.class, () -> module.addIndexOperationListener(listener));
+        expectThrows(IllegalArgumentException.class, () -> module.addIndexOperationListener(null));
+
+
+        IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, indicesQueryCache, mapperRegistry,
+            new IndicesFieldDataCache(settings, this.listener));
+        assertEquals(2, indexService.getIndexOperationListeners().size());
+        assertEquals(IndexingSlowLog.class, indexService.getIndexOperationListeners().get(0).getClass());
+        assertSame(listener, indexService.getIndexOperationListeners().get(1));
+
+        Engine.Index index = new Engine.Index(new Term("_uid", "1"), null);
+        for (IndexingOperationListener l : indexService.getIndexOperationListeners()) {
+            l.preIndex(index);
+        }
+        assertTrue(executed.get());
+        indexService.close("simon says", false);
+    }
+
+    public void testAddSearchOperationListener() throws IOException {
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(index, settings), null,
+                new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap()));
+        AtomicBoolean executed = new AtomicBoolean(false);
+        SearchOperationListener listener = new SearchOperationListener() {
+
+            @Override
+            public void onNewContext(SearchContext context) {
+                executed.set(true);
+            }
+        };
+        module.addSearchOperationListener(listener);
+
+        expectThrows(IllegalArgumentException.class, () -> module.addSearchOperationListener(listener));
+        expectThrows(IllegalArgumentException.class, () -> module.addSearchOperationListener(null));
+
+
+        IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, indicesQueryCache, mapperRegistry,
+            new IndicesFieldDataCache(settings, this.listener));
+        assertEquals(2, indexService.getSearchOperationListener().size());
+        assertEquals(SearchSlowLog.class, indexService.getSearchOperationListener().get(0).getClass());
+        assertSame(listener, indexService.getSearchOperationListener().get(1));
+
+        for (SearchOperationListener l : indexService.getSearchOperationListener()) {
+            l.onNewContext(new TestSearchContext(null));
+        }
+        assertTrue(executed.get());
+        indexService.close("simon says", false);
+    }
+
     public void testAddSimilarity() throws IOException {
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.similarity.my_similarity.type", "test_similarity")
                 .put("index.similarity.my_similarity.key", "there is a key")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null,
+                new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap()));
         module.addSimilarity("test_similarity", (string, settings) -> new SimilarityProvider() {
             @Override
             public String name() {
@@ -245,13 +319,28 @@ public class IndexModuleTests extends ESTestCase {
         indexService.close("simon says", false);
     }
 
+    public void testFrozen() {
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(index, settings), null,
+                new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap()));
+        module.freeze();
+        String msg = "Can't modify IndexModule once the index service has been created";
+        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addSearchOperationListener(null)).getMessage());
+        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addIndexEventListener(null)).getMessage());
+        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addIndexOperationListener(null)).getMessage());
+        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addSimilarity(null, null)).getMessage());
+        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setSearcherWrapper(null)).getMessage());
+        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.forceQueryCacheProvider(null)).getMessage());
+        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addIndexStore("foo", null)).getMessage());
+    }
+
     public void testSetupUnknownSimilarity() throws IOException {
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put("index.similarity.my_similarity.type", "test_similarity")
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null,
+                new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap()));
         try {
             module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, indicesQueryCache, mapperRegistry,
                 new IndicesFieldDataCache(settings, listener));
@@ -261,12 +350,13 @@ public class IndexModuleTests extends ESTestCase {
     }
 
     public void testSetupWithoutType() throws IOException {
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put("index.similarity.my_similarity.foo", "bar")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null,
+                new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap()));
         try {
             module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, indicesQueryCache, mapperRegistry,
                 new IndicesFieldDataCache(settings, listener));
@@ -275,47 +365,14 @@ public class IndexModuleTests extends ESTestCase {
         }
     }
 
-    public void testCannotRegisterProvidedImplementations() {
-        Settings indexSettings = Settings.settingsBuilder()
+    public void testForceCustomQueryCache() throws IOException {
+        Settings indexSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
-        try {
-            module.registerQueryCache("index", IndexQueryCache::new);
-            fail("only once");
-        } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Can't register the same [query_cache] more than once for [index]");
-        }
-
-        try {
-            module.registerQueryCache("none", (settings, x) -> new NoneQueryCache(settings));
-            fail("only once");
-        } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Can't register the same [query_cache] more than once for [none]");
-        }
-
-        try {
-            module.registerQueryCache("index", null);
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "provider must not be null");
-        }
-    }
-
-    public void testRegisterCustomQueryCache() throws IOException {
-        Settings indexSettings = Settings.settingsBuilder()
-                .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), "custom")
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
-        module.registerQueryCache("custom", (a, b) -> new CustomQueryCache());
-        try {
-            module.registerQueryCache("custom", (a, b) -> new CustomQueryCache());
-            fail("only once");
-        } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Can't register the same [query_cache] more than once for [custom]");
-        }
-
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null,
+                new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap()));
+        module.forceQueryCacheProvider((a, b) -> new CustomQueryCache());
+        expectThrows(AlreadySetException.class, () -> module.forceQueryCacheProvider((a, b) -> new CustomQueryCache()));
         IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, indicesQueryCache, mapperRegistry,
             new IndicesFieldDataCache(settings, listener));
         assertTrue(indexService.cache().query() instanceof CustomQueryCache);
@@ -323,27 +380,28 @@ public class IndexModuleTests extends ESTestCase {
     }
 
     public void testDefaultQueryCacheImplIsSelected() throws IOException {
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null,
+                new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap()));
         IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, indicesQueryCache, mapperRegistry,
             new IndicesFieldDataCache(settings, listener));
         assertTrue(indexService.cache().query() instanceof IndexQueryCache);
         indexService.close("simon says", false);
     }
 
-    public void testForceCacheType() throws IOException {
-        Settings indexSettings = Settings.settingsBuilder()
-            .put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), "none")
+    public void testDisableQueryCacheHasPrecedenceOverForceQueryCache() throws IOException {
+        Settings indexSettings = Settings.builder()
+            .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null, new AnalysisRegistry(null, environment));
-        module.forceQueryCacheType("custom");
-        module.registerQueryCache("custom", (a, b) -> new CustomQueryCache());
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null,
+                new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap()));
+        module.forceQueryCacheProvider((a, b) -> new CustomQueryCache());
         IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, indicesQueryCache, mapperRegistry,
             new IndicesFieldDataCache(settings, listener));
-        assertTrue(indexService.cache().query() instanceof CustomQueryCache);
+        assertTrue(indexService.cache().query() instanceof DisabledQueryCache);
         indexService.close("simon says", false);
     }
 

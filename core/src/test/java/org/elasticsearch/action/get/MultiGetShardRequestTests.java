@@ -22,7 +22,7 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -42,8 +42,6 @@ public class MultiGetShardRequestTests extends ESTestCase {
         if (randomBoolean()) {
             multiGetRequest.refresh(true);
         }
-        multiGetRequest.ignoreErrorsOnGeneratedFields(randomBoolean());
-
         MultiGetShardRequest multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, "index", 0);
         int numItems = iterations(10, 30);
         for (int i = 0; i < numItems; i++) {
@@ -70,7 +68,7 @@ public class MultiGetShardRequestTests extends ESTestCase {
         out.setVersion(randomVersion(random()));
         multiGetShardRequest.writeTo(out);
 
-        StreamInput in = StreamInput.wrap(out.bytes());
+        StreamInput in = out.bytes().streamInput();
         in.setVersion(out.getVersion());
         MultiGetShardRequest multiGetShardRequest2 = new MultiGetShardRequest();
         multiGetShardRequest2.readFrom(in);
@@ -79,7 +77,6 @@ public class MultiGetShardRequestTests extends ESTestCase {
         assertThat(multiGetShardRequest2.preference(), equalTo(multiGetShardRequest.preference()));
         assertThat(multiGetShardRequest2.realtime(), equalTo(multiGetShardRequest.realtime()));
         assertThat(multiGetShardRequest2.refresh(), equalTo(multiGetShardRequest.refresh()));
-        assertThat(multiGetShardRequest2.ignoreErrorsOnGeneratedFields(), equalTo(multiGetShardRequest.ignoreErrorsOnGeneratedFields()));
         assertThat(multiGetShardRequest2.items.size(), equalTo(multiGetShardRequest.items.size()));
         for (int i = 0; i < multiGetShardRequest2.items.size(); i++) {
             MultiGetRequest.Item item = multiGetShardRequest.items.get(i);

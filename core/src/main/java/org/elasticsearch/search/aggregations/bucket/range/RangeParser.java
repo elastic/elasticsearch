@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -41,19 +42,17 @@ public class RangeParser extends NumericValuesSourceParser {
         this(true, true, false);
     }
 
+    /**
+     * Used by subclasses that parse slightly different kinds of ranges.
+     */
     protected RangeParser(boolean scriptable, boolean formattable, boolean timezoneAware) {
         super(scriptable, formattable, timezoneAware);
     }
 
     @Override
-    public String type() {
-        return InternalRange.TYPE.name();
-    }
-
-    @Override
     protected AbstractRangeBuilder<?, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        RangeAggregatorBuilder factory = new RangeAggregatorBuilder(aggregationName);
+        RangeAggregationBuilder factory = new RangeAggregationBuilder(aggregationName);
         @SuppressWarnings("unchecked")
         List<? extends Range> ranges = (List<? extends Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
         for (Range range : ranges) {
@@ -67,20 +66,21 @@ public class RangeParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
-            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+    protected boolean token(String aggregationName, String currentFieldName, Token token,
+                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
+        XContentParser parser = context.getParser();
         if (token == XContentParser.Token.START_ARRAY) {
-            if (parseFieldMatcher.match(currentFieldName, RangeAggregator.RANGES_FIELD)) {
+            if (context.matchField(currentFieldName, RangeAggregator.RANGES_FIELD)) {
                 List<Range> ranges = new ArrayList<>();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    Range range = parseRange(parser, parseFieldMatcher);
+                    Range range = parseRange(parser, context.getParseFieldMatcher());
                     ranges.add(range);
                 }
                 otherOptions.put(RangeAggregator.RANGES_FIELD, ranges);
                 return true;
             }
         } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-            if (parseFieldMatcher.match(currentFieldName, RangeAggregator.KEYED_FIELD)) {
+            if (context.matchField(currentFieldName, RangeAggregator.KEYED_FIELD)) {
                 boolean keyed = parser.booleanValue();
                 otherOptions.put(RangeAggregator.KEYED_FIELD, keyed);
                 return true;
@@ -90,11 +90,6 @@ public class RangeParser extends NumericValuesSourceParser {
     }
 
     protected Range parseRange(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return Range.PROTOTYPE.fromXContent(parser, parseFieldMatcher);
-    }
-
-    @Override
-    public AbstractRangeBuilder<?, ?> getFactoryPrototypes() {
-        return RangeAggregatorBuilder.PROTOTYPE;
+        return Range.fromXContent(parser, parseFieldMatcher);
     }
 }

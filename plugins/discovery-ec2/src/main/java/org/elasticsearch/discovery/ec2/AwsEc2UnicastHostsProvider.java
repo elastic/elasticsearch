@@ -27,6 +27,8 @@ import com.amazonaws.services.ec2.model.Filter;
 import com.amazonaws.services.ec2.model.GroupIdentifier;
 import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.Reservation;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2;
@@ -41,11 +43,14 @@ import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.disjoint;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 
 /**
  *
@@ -55,8 +60,6 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
     private final TransportService transportService;
 
     private final AmazonEC2 client;
-
-    private final Version version;
 
     private final boolean bindAnyGroup;
 
@@ -71,11 +74,10 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
     private final DiscoNodesCache discoNodes;
 
     @Inject
-    public AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service, Version version) {
+    public AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service) {
         super(settings);
         this.transportService = transportService;
         this.client = awsEc2Service.client();
-        this.version = version;
 
         this.hostType = DISCOVERY_EC2.HOST_TYPE_SETTING.get(settings);
         this.discoNodes = new DiscoNodesCache(DISCOVERY_EC2.NODE_CACHE_TIME_SETTING.get(settings));
@@ -90,7 +92,8 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
         availabilityZones.addAll(DISCOVERY_EC2.AVAILABILITY_ZONES_SETTING.get(settings));
 
         if (logger.isDebugEnabled()) {
-            logger.debug("using host_type [{}], tags [{}], groups [{}] with any_group [{}], availability_zones [{}]", hostType, tags, groups, bindAnyGroup, availabilityZones);
+            logger.debug("using host_type [{}], tags [{}], groups [{}] with any_group [{}], availability_zones [{}]", hostType, tags,
+                    groups, bindAnyGroup, availabilityZones);
         }
     }
 
@@ -131,16 +134,18 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                     }
                     if (bindAnyGroup) {
                         // We check if we can find at least one group name or one group id in groups.
-                        if (Collections.disjoint(securityGroupNames, groups)
-                                && Collections.disjoint(securityGroupIds, groups)) {
-                            logger.trace("filtering out instance {} based on groups {}, not part of {}", instance.getInstanceId(), instanceSecurityGroups, groups);
+                        if (disjoint(securityGroupNames, groups)
+                                && disjoint(securityGroupIds, groups)) {
+                            logger.trace("filtering out instance {} based on groups {}, not part of {}", instance.getInstanceId(),
+                                    instanceSecurityGroups, groups);
                             // continue to the next instance
                             continue;
                         }
                     } else {
                         // We need tp match all group names or group ids, otherwise we ignore this instance
                         if (!(securityGroupNames.containsAll(groups) || securityGroupIds.containsAll(groups))) {
-                            logger.trace("filtering out instance {} based on groups {}, does not include all of {}", instance.getInstanceId(), instanceSecurityGroups, groups);
+                            logger.trace("filtering out instance {} based on groups {}, does not include all of {}",
+                                    instance.getInstanceId(), instanceSecurityGroups, groups);
                             // continue to the next instance
                             continue;
                         }
@@ -168,10 +173,14 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                         TransportAddress[] addresses = transportService.addressesFromString(address, 1);
                         for (int i = 0; i < addresses.length; i++) {
                             logger.trace("adding {}, address {}, transport_address {}", instance.getInstanceId(), address, addresses[i]);
-                            discoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceId() + "-" + i, addresses[i], version.minimumCompatibilityVersion()));
+                            discoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceId() + "-" + i, addresses[i],
+                                    emptyMap(), emptySet(), Version.CURRENT.minimumCompatibilityVersion()));
                         }
                     } catch (Exception e) {
-                        logger.warn("failed ot add {}, address {}", e, instance.getInstanceId(), address);
+                        final String finalAddress = address;
+                        logger.warn(
+                            (Supplier<?>)
+                                () -> new ParameterizedMessage("failed to add {}, address {}", instance.getInstanceId(), finalAddress), e);
                     }
                 } else {
                     logger.trace("not adding {}, address is null, host_type {}", instance.getInstanceId(), hostType);

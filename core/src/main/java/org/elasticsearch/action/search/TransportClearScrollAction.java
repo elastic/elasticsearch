@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -30,7 +32,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.search.action.SearchTransportService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -51,11 +53,11 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
 
     @Inject
     public TransportClearScrollAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                      ClusterService clusterService, SearchTransportService searchTransportService,
+                                      ClusterService clusterService, SearchService searchService,
                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ClearScrollAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, ClearScrollRequest::new);
         this.clusterService = clusterService;
-        this.searchTransportService = searchTransportService;
+        this.searchTransportService = new SearchTransportService(settings, transportService, searchService);
     }
 
     @Override
@@ -75,7 +77,7 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
             int expectedOps = 0;
             this.nodes = clusterState.nodes();
             if (request.getScrollIds().size() == 1 && "_all".equals(request.getScrollIds().get(0))) {
-                expectedOps = nodes.size();
+                expectedOps = nodes.getSize();
             } else {
                 for (String parsedScrollId : request.getScrollIds()) {
                     ScrollIdForNode[] context = parseScrollId(parsedScrollId).getContext();
@@ -103,7 +105,7 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
                         }
 
                         @Override
-                        public void onFailure(Throwable e) {
+                        public void onFailure(Exception e) {
                             onFailedFreedContext(e, node);
                         }
                     });
@@ -124,7 +126,7 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
                             }
 
                             @Override
-                            public void onFailure(Throwable e) {
+                            public void onFailure(Exception e) {
                                 onFailedFreedContext(e, node);
                             }
                         });
@@ -144,7 +146,7 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
         }
 
         void onFailedFreedContext(Throwable e, DiscoveryNode node) {
-            logger.warn("Clear SC failed on node[{}]", e, node);
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("Clear SC failed on node[{}]", node), e);
             if (expectedOps.countDown()) {
                 listener.onResponse(new ClearScrollResponse(false, numberOfFreedSearchContexts.get()));
             } else {

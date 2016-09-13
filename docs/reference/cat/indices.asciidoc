@@ -13,8 +13,9 @@ green  open   twitter2   2   0       2030            0      5.8mb          5.8mb
 --------------------------------------------------
 
 We can tell quickly how many shards make up an index, the number of
-docs, deleted docs, primary store size, and total store size (all
-shards including replicas).
+docs at the Lucene level, including hidden docs (e.g., from nested types), 
+deleted docs, primary store size, and total store size (all shards including replicas). 
+All these exposed metrics come directly from Lucene APIs.
 
 [float]
 [[pri-flag]]

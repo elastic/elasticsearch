@@ -101,6 +101,7 @@ If the document `index/type/1` already exists, we will have after this operation
     "gender": "male"        <1>
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> This field is added by the update request
 
 If it does not exist, we will have a new document:
@@ -112,7 +113,4 @@ If it does not exist, we will have a new document:
     "gender": "male"
 }
 --------------------------------------------------
-
-
-
-
+// NOTCONSOLE

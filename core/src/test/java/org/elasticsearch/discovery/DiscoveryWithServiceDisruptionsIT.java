@@ -19,9 +19,11 @@
 
 package org.elasticsearch.discovery;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -45,7 +47,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -56,7 +57,9 @@ import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.store.IndicesStoreIntegrationIT;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -66,10 +69,14 @@ import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
 import org.elasticsearch.test.disruption.LongGCDisruption;
-import org.elasticsearch.test.disruption.NetworkDelaysPartition;
-import org.elasticsearch.test.disruption.NetworkDisconnectPartition;
-import org.elasticsearch.test.disruption.NetworkPartition;
-import org.elasticsearch.test.disruption.NetworkUnresponsivePartition;
+import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
+import org.elasticsearch.test.disruption.NetworkDisruption.DisruptedLinks;
+import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDelay;
+import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
+import org.elasticsearch.test.disruption.NetworkDisruption.NetworkLinkDisruptionType;
+import org.elasticsearch.test.disruption.NetworkDisruption.NetworkUnresponsive;
+import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
@@ -139,6 +146,13 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         return 1;
     }
 
+    @Override
+    protected void beforeIndexDeletion() {
+        // some test may leave operations in flight
+        // this is because the disruption schemes swallow requests by design
+        // as such, these operations will never be marked as finished
+    }
+
     private List<String> startCluster(int numberOfNodes) throws ExecutionException, InterruptedException {
         return startCluster(numberOfNodes, -1);
     }
@@ -147,7 +161,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         return startCluster(numberOfNodes, minimumMasterNode, null);
     }
 
-    private List<String> startCluster(int numberOfNodes, int minimumMasterNode, @Nullable int[] unicastHostsOrdinals) throws ExecutionException, InterruptedException {
+    private List<String> startCluster(int numberOfNodes, int minimumMasterNode, @Nullable int[] unicastHostsOrdinals) throws
+            ExecutionException, InterruptedException {
         configureUnicastCluster(numberOfNodes, unicastHostsOrdinals, minimumMasterNode);
         List<String> nodes = internalCluster().startNodesAsync(numberOfNodes).get();
         ensureStableCluster(numberOfNodes);
@@ -163,24 +178,32 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         return nodes;
     }
 
-    final static Settings DEFAULT_SETTINGS = Settings.builder()
+    static final Settings DEFAULT_SETTINGS = Settings.builder()
             .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
             .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // for hitting simulated network failures quickly
             .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
             .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
-            .put("http.enabled", false) // just to make test quicker
             .build();
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class);
     }
 
-    private void configureUnicastCluster(int numberOfNodes, @Nullable int[] unicastHostsOrdinals, int minimumMasterNode) throws ExecutionException, InterruptedException {
+    private void configureUnicastCluster(
+        int numberOfNodes,
+        @Nullable int[] unicastHostsOrdinals,
+        int minimumMasterNode
+    ) throws ExecutionException, InterruptedException {
         configureUnicastCluster(DEFAULT_SETTINGS, numberOfNodes, unicastHostsOrdinals, minimumMasterNode);
     }
 
-    private void configureUnicastCluster(Settings settings, int numberOfNodes, @Nullable int[] unicastHostsOrdinals, int minimumMasterNode) throws ExecutionException, InterruptedException {
+    private void configureUnicastCluster(
+        Settings settings,
+        int numberOfNodes,
+        @Nullable int[] unicastHostsOrdinals,
+        int minimumMasterNode
+    ) throws ExecutionException, InterruptedException {
         if (minimumMasterNode < 0) {
             minimumMasterNode = numberOfNodes / 2 + 1;
         }
@@ -188,6 +211,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // TODO: Rarely use default settings form some of these
         Settings nodeSettings = Settings.builder()
                 .put(settings)
+                .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), numberOfNodes)
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minimumMasterNode)
                 .build();
 
@@ -218,7 +242,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         // Simulate a network issue between the unlucky node and elected master node in both directions.
 
-        NetworkDisconnectPartition networkDisconnect = new NetworkDisconnectPartition(masterNode, unluckyNode, getRandom());
+        NetworkDisruption networkDisconnect = new NetworkDisruption(new TwoPartitions(masterNode, unluckyNode),
+            new NetworkDisconnect());
         setDisruptionScheme(networkDisconnect);
         networkDisconnect.startDisrupting();
 
@@ -254,7 +279,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         logger.info("--> reducing min master nodes to 2");
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)).get());
+                .setTransientSettings(Settings.builder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2))
+                .get());
 
         String master = internalCluster().getMasterName();
         String nonMaster = null;
@@ -265,7 +291,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         }
 
         logger.info("--> isolating [{}]", nonMaster);
-        addRandomIsolation(nonMaster).startDisrupting();
+        TwoPartitions partitions = isolateNode(nonMaster);
+        NetworkDisruption networkDisruption = addRandomDisruptionType(partitions);
+        networkDisruption.startDisrupting();
 
         logger.info("--> waiting for master to remove it");
         ensureStableCluster(2, master);
@@ -279,8 +307,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         // Makes sure that the get request can be executed on each node locally:
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
         ));
 
         // Everything is stable now, it is now time to simulate evil...
@@ -288,15 +316,16 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // (waiting for green here, because indexing / search in a yellow index is fine as long as no other nodes go down)
         ensureGreen("test");
 
-        NetworkPartition networkPartition = addRandomPartition();
+        TwoPartitions partitions = TwoPartitions.random(random(), internalCluster().getNodeNames());
+        NetworkDisruption networkDisruption = addRandomDisruptionType(partitions);
 
-        assertEquals(1, networkPartition.getMinoritySide().size());
-        final String isolatedNode = networkPartition.getMinoritySide().iterator().next();
-        assertEquals(2, networkPartition.getMajoritySide().size());
-        final String nonIsolatedNode = networkPartition.getMajoritySide().iterator().next();
+        assertEquals(1, partitions.getMinoritySide().size());
+        final String isolatedNode = partitions.getMinoritySide().iterator().next();
+        assertEquals(2, partitions.getMajoritySide().size());
+        final String nonIsolatedNode = partitions.getMajoritySide().iterator().next();
 
         // Simulate a network issue between the unlucky node and the rest of the cluster.
-        networkPartition.startDisrupting();
+        networkDisruption.startDisrupting();
 
 
         // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
@@ -309,7 +338,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         logger.info("wait until elected master has been removed and a new 2 node cluster was from (via [{}])", isolatedNode);
         ensureStableCluster(2, nonIsolatedNode);
 
-        for (String node : networkPartition.getMajoritySide()) {
+        for (String node : partitions.getMajoritySide()) {
             ClusterState nodeState = getNodeClusterState(node);
             boolean success = true;
             if (nodeState.nodes().getMasterNode() == null) {
@@ -325,17 +354,17 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         }
 
 
-        networkPartition.stopDisrupting();
+        networkDisruption.stopDisrupting();
 
         // Wait until the master node sees al 3 nodes again.
-        ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkPartition.expectedTimeToHeal().millis()));
+        ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkDisruption.expectedTimeToHeal().millis()));
 
         logger.info("Verify no master block with {} set to {}", DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all");
         client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all"))
                 .get();
 
-        networkPartition.startDisrupting();
+        networkDisruption.startDisrupting();
 
 
         // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
@@ -355,21 +384,23 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * This test isolates the master from rest of the cluster, waits for a new master to be elected, restores the partition
      * and verifies that all node agree on the new cluster state
      */
+    @TestLogging("_root:DEBUG,cluster.service:TRACE,gateway:TRACE,indices.store:TRACE")
     public void testIsolateMasterAndVerifyClusterStateConsensus() throws Exception {
         final List<String> nodes = startCluster(3);
 
         assertAcked(prepareCreate("test")
                 .setSettings(Settings.builder()
-                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
-                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
                 ));
 
         ensureGreen();
         String isolatedNode = internalCluster().getMasterName();
-        NetworkPartition networkPartition = addRandomIsolation(isolatedNode);
-        networkPartition.startDisrupting();
+        TwoPartitions partitions = isolateNode(isolatedNode);
+        NetworkDisruption networkDisruption = addRandomDisruptionType(partitions);
+        networkDisruption.startDisrupting();
 
-        String nonIsolatedNode = networkPartition.getMajoritySide().iterator().next();
+        String nonIsolatedNode = partitions.getMajoritySide().iterator().next();
 
         // make sure cluster reforms
         ensureStableCluster(2, nonIsolatedNode);
@@ -378,10 +409,11 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         assertNoMaster(isolatedNode, TimeValue.timeValueSeconds(40));
 
         // restore isolation
-        networkPartition.stopDisrupting();
+        networkDisruption.stopDisrupting();
 
         for (String node : nodes) {
-            ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkPartition.expectedTimeToHeal().millis()), true, node);
+            ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkDisruption.expectedTimeToHeal().millis()),
+                    true, node);
         }
 
         logger.info("issue a reroute");
@@ -401,8 +433,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             // assert nodes are identical
             try {
                 assertEquals("unequal versions", state.version(), nodeState.version());
-                assertEquals("unequal node count", state.nodes().size(), nodeState.nodes().size());
-                assertEquals("different masters ", state.nodes().masterNodeId(), nodeState.nodes().masterNodeId());
+                assertEquals("unequal node count", state.nodes().getSize(), nodeState.nodes().getSize());
+                assertEquals("different masters ", state.nodes().getMasterNodeId(), nodeState.nodes().getMasterNodeId());
                 assertEquals("different meta data version", state.metaData().version(), nodeState.metaData().version());
                 if (!state.routingTable().prettyPrint().equals(nodeState.routingTable().prettyPrint())) {
                     fail("different routing");
@@ -422,17 +454,19 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * <p>
      * This test is a superset of tests run in the Jepsen test suite, with the exception of versioned updates
      */
-    // NOTE: if you remove the awaitFix, make sure to port the test to the 1.x branch
-    @LuceneTestCase.AwaitsFix(bugUrl = "needs some more work to stabilize")
-    @TestLogging("_root:DEBUG,action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
+    @TestLogging("_root:DEBUG,action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,"
+            + "indices.recovery:TRACE,indices.cluster:TRACE")
     public void testAckedIndexing() throws Exception {
-        // TODO: add node count randomizaion
-        final List<String> nodes = startCluster(3);
+
+        final int seconds = !(TEST_NIGHTLY && rarely()) ? 1 : 5;
+        final String timeout = seconds + "s";
+
+        final List<String> nodes = startCluster(rarely() ? 5 : 3);
 
         assertAcked(prepareCreate("test")
                 .setSettings(Settings.builder()
-                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
-                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
                 ));
         ensureGreen();
 
@@ -456,36 +490,37 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 final Client client = client(node);
                 final String name = "indexer_" + indexers.size();
                 final int numPrimaries = getNumShards("test").numPrimaries;
-                Thread thread = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        while (!stop.get()) {
-                            String id = null;
-                            try {
-                                if (!semaphore.tryAcquire(10, TimeUnit.SECONDS)) {
-                                    continue;
-                                }
-                                logger.info("[{}] Acquired semaphore and it has {} permits left", name, semaphore.availablePermits());
-                                try {
-                                    id = Integer.toString(idGenerator.incrementAndGet());
-                                    int shard = MathUtils.mod(Murmur3HashFunction.hash(id), numPrimaries);
-                                    logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
-                                    IndexResponse response = client.prepareIndex("test", "type", id).setSource("{}").setTimeout("1s").get();
-                                    assertThat(response.getVersion(), equalTo(1L));
-                                    ackedDocs.put(id, node);
-                                    logger.trace("[{}] indexed id [{}] through node [{}]", name, id, node);
-                                } catch (ElasticsearchException e) {
-                                    exceptedExceptions.add(e);
-                                    logger.trace("[{}] failed id [{}] through node [{}]", e, name, id, node);
-                                } finally {
-                                    countDownLatchRef.get().countDown();
-                                    logger.trace("[{}] decreased counter : {}", name, countDownLatchRef.get().getCount());
-                                }
-                            } catch (InterruptedException e) {
-                                // fine - semaphore interrupt
-                            } catch (Throwable t) {
-                                logger.info("unexpected exception in background thread of [{}]", t, node);
+                Thread thread = new Thread(() -> {
+                    while (!stop.get()) {
+                        String id = null;
+                        try {
+                            if (!semaphore.tryAcquire(10, TimeUnit.SECONDS)) {
+                                continue;
                             }
+                            logger.info("[{}] Acquired semaphore and it has {} permits left", name, semaphore.availablePermits());
+                            try {
+                                id = Integer.toString(idGenerator.incrementAndGet());
+                                int shard = Math.floorMod(Murmur3HashFunction.hash(id), numPrimaries);
+                                logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
+                                IndexResponse response =
+                                        client.prepareIndex("test", "type", id).setSource("{}").setTimeout(timeout).get(timeout);
+                                assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
+                                ackedDocs.put(id, node);
+                                logger.trace("[{}] indexed id [{}] through node [{}]", name, id, node);
+                            } catch (ElasticsearchException e) {
+                                exceptedExceptions.add(e);
+                                final String docId = id;
+                                logger.trace(
+                                    (Supplier<?>)
+                                        () -> new ParameterizedMessage("[{}] failed id [{}] through node [{}]", name, docId, node), e);
+                            } finally {
+                                countDownLatchRef.get().countDown();
+                                logger.trace("[{}] decreased counter : {}", name, countDownLatchRef.get().getCount());
+                            }
+                        } catch (InterruptedException e) {
+                            // fine - semaphore interrupt
+                        } catch (AssertionError | Exception e) {
+                            logger.info("unexpected exception in background thread of [{}]", e, node);
                         }
                     }
                 });
@@ -515,17 +550,21 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                     assertThat(semaphore.availablePermits(), equalTo(0));
                     semaphore.release(docsPerIndexer);
                 }
-                assertTrue(countDownLatchRef.get().await(60000 + disruptionScheme.expectedTimeToHeal().millis() * (docsPerIndexer * indexers.size()), TimeUnit.MILLISECONDS));
+                logger.info("waiting for indexing requests to complete");
+                assertTrue(countDownLatchRef.get().await(docsPerIndexer * seconds * 1000 + 2000, TimeUnit.MILLISECONDS));
 
                 logger.info("stopping disruption");
                 disruptionScheme.stopDisrupting();
-                ensureStableCluster(3, TimeValue.timeValueMillis(disruptionScheme.expectedTimeToHeal().millis() + DISRUPTION_HEALING_OVERHEAD.millis()));
+                for (String node : internalCluster().getNodeNames()) {
+                    ensureStableCluster(nodes.size(), TimeValue.timeValueMillis(disruptionScheme.expectedTimeToHeal().millis() +
+                            DISRUPTION_HEALING_OVERHEAD.millis()), true, node);
+                }
                 ensureGreen("test");
 
                 logger.info("validating successful docs");
                 for (String node : nodes) {
                     try {
-                        logger.debug("validating through node [{}]", node);
+                        logger.debug("validating through node [{}] ([{}] acked docs)", node, ackedDocs.size());
                         for (String id : ackedDocs.keySet()) {
                             assertTrue("doc [" + id + "] indexed via node [" + ackedDocs.get(id) + "] not found",
                                     client(node).prepareGet("test", "type", id).setPreference("_local").get().isExists());
@@ -562,7 +601,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         String oldMasterNode = internalCluster().getMasterName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect
-        SingleNodeDisruption masterNodeDisruption = new IntermittentLongGCDisruption(oldMasterNode, getRandom(), 100, 200, 30000, 60000);
+        SingleNodeDisruption masterNodeDisruption = new IntermittentLongGCDisruption(oldMasterNode, random(), 100, 200, 30000, 60000);
         internalCluster().setDisruptionScheme(masterNodeDisruption);
         masterNodeDisruption.startDisrupting();
 
@@ -597,6 +636,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * that already are following another elected master node. These nodes should reject this cluster state and prevent
      * them from following the stale master.
      */
+    @TestLogging("_root:DEBUG,cluster.service:TRACE,test.disruption:TRACE")
     public void testStaleMasterNotHijackingMajority() throws Exception {
         // 3 node cluster with unicast discovery and minimum_master_nodes set to 2:
         final List<String> nodes = startCluster(3, 2);
@@ -609,14 +649,15 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         assertMaster(oldMasterNode, nodes);
 
         // Simulating a painful gc by suspending all threads for a long time on the current elected master node.
-        SingleNodeDisruption masterNodeDisruption = new LongGCDisruption(getRandom(), oldMasterNode);
+        SingleNodeDisruption masterNodeDisruption = new LongGCDisruption(random(), oldMasterNode);
 
         // Save the majority side
         final List<String> majoritySide = new ArrayList<>(nodes);
         majoritySide.remove(oldMasterNode);
 
         // Keeps track of the previous and current master when a master node transition took place on each node on the majority side:
-        final Map<String, List<Tuple<String, String>>> masters = Collections.synchronizedMap(new HashMap<String, List<Tuple<String, String>>>());
+        final Map<String, List<Tuple<String, String>>> masters = Collections.synchronizedMap(new HashMap<String, List<Tuple<String,
+                String>>>());
         for (final String node : majoritySide) {
             masters.put(node, new ArrayList<Tuple<String, String>>());
             internalCluster().getInstance(ClusterService.class, node).add(new ClusterStateListener() {
@@ -625,9 +666,10 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                     DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
                     DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
                     if (!Objects.equals(previousMaster, currentMaster)) {
-                        logger.info("node {} received new cluster state: {} \n and had previous cluster state: {}", node, event.state(), event.previousState());
-                        String previousMasterNodeName = previousMaster != null ? previousMaster.name() : null;
-                        String currentMasterNodeName = currentMaster != null ? currentMaster.name() : null;
+                        logger.info("node {} received new cluster state: {} \n and had previous cluster state: {}", node, event.state(),
+                                event.previousState());
+                        String previousMasterNodeName = previousMaster != null ? previousMaster.getName() : null;
+                        String currentMasterNodeName = currentMaster != null ? currentMaster.getName() : null;
                         masters.get(node).add(new Tuple<>(previousMasterNodeName, currentMasterNodeName));
                     }
                 }
@@ -638,7 +680,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         internalCluster().getInstance(ClusterService.class, oldMasterNode).add(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
-                if (event.state().nodes().masterNodeId() == null) {
+                if (event.state().nodes().getMasterNodeId() == null) {
                     oldMasterNodeSteppedDown.countDown();
                 }
             }
@@ -651,21 +693,34 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // Wait for the majority side to get stable
         assertDifferentMaster(majoritySide.get(0), oldMasterNode);
         assertDifferentMaster(majoritySide.get(1), oldMasterNode);
-        assertDiscoveryCompleted(majoritySide);
+
+        // the test is periodically tripping on the following assertion. To find out which threads are blocking the nodes from making
+        // progress we print a stack dump
+        boolean failed = true;
+        try {
+            assertDiscoveryCompleted(majoritySide);
+            failed = false;
+        } finally {
+            if (failed) {
+                logger.error("discovery failed to complete, probably caused by a blocked thread: {}",
+                    new HotThreads().busiestThreads(Integer.MAX_VALUE).ignoreIdleThreads(false).detect());
+            }
+        }
 
         // The old master node is frozen, but here we submit a cluster state update task that doesn't get executed,
         // but will be queued and once the old master node un-freezes it gets executed.
         // The old master node will send this update + the cluster state where he is flagged as master to the other
         // nodes that follow the new master. These nodes should ignore this update.
-        internalCluster().getInstance(ClusterService.class, oldMasterNode).submitStateUpdateTask("sneaky-update", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+        internalCluster().getInstance(ClusterService.class, oldMasterNode).submitStateUpdateTask("sneaky-update", new
+                ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 return ClusterState.builder(currentState).build();
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.warn("failure [{}]", t, source);
+            public void onFailure(String source, Exception e) {
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failure [{}]", source), e);
             }
         });
 
@@ -694,11 +749,16 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         for (Map.Entry<String, List<Tuple<String, String>>> entry : masters.entrySet()) {
             String nodeName = entry.getKey();
             List<Tuple<String, String>> recordedMasterTransition = entry.getValue();
-            assertThat("[" + nodeName + "] Each node should only record two master node transitions", recordedMasterTransition.size(), equalTo(2));
-            assertThat("[" + nodeName + "] First transition's previous master should be [null]", recordedMasterTransition.get(0).v1(), equalTo(oldMasterNode));
-            assertThat("[" + nodeName + "] First transition's current master should be [" + newMasterNode + "]", recordedMasterTransition.get(0).v2(), nullValue());
-            assertThat("[" + nodeName + "] Second transition's previous master should be [null]", recordedMasterTransition.get(1).v1(), nullValue());
-            assertThat("[" + nodeName + "] Second transition's current master should be [" + newMasterNode + "]", recordedMasterTransition.get(1).v2(), equalTo(newMasterNode));
+            assertThat("[" + nodeName + "] Each node should only record two master node transitions", recordedMasterTransition.size(),
+                    equalTo(2));
+            assertThat("[" + nodeName + "] First transition's previous master should be [null]", recordedMasterTransition.get(0).v1(),
+                    equalTo(oldMasterNode));
+            assertThat("[" + nodeName + "] First transition's current master should be [" + newMasterNode + "]", recordedMasterTransition
+                    .get(0).v2(), nullValue());
+            assertThat("[" + nodeName + "] Second transition's previous master should be [null]", recordedMasterTransition.get(1).v1(),
+                    nullValue());
+            assertThat("[" + nodeName + "] Second transition's current master should be [" + newMasterNode + "]",
+                    recordedMasterTransition.get(1).v2(), equalTo(newMasterNode));
         }
     }
 
@@ -711,8 +771,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         assertAcked(prepareCreate("test")
                 .setSettings(Settings.builder()
-                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
                 )
                 .get());
         ensureGreen("test");
@@ -722,13 +782,15 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         String isolatedNode = nodes.get(0);
         String notIsolatedNode = nodes.get(1);
 
-        ServiceDisruptionScheme scheme = addRandomIsolation(isolatedNode);
+        TwoPartitions partitions = isolateNode(isolatedNode);
+        NetworkDisruption scheme = addRandomDisruptionType(partitions);
         scheme.startDisrupting();
         ensureStableCluster(2, notIsolatedNode);
         assertFalse(client(notIsolatedNode).admin().cluster().prepareHealth("test").setWaitForYellowStatus().get().isTimedOut());
 
 
-        IndexResponse indexResponse = internalCluster().client(notIsolatedNode).prepareIndex("test", "type").setSource("field", "value").get();
+        IndexResponse indexResponse = internalCluster().client(notIsolatedNode).prepareIndex("test", "type").setSource("field", "value")
+                .get();
         assertThat(indexResponse.getVersion(), equalTo(1L));
 
         logger.info("Verifying if document exists via node[{}]", notIsolatedNode);
@@ -779,7 +841,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         }
 
         // Simulate a network issue between the unlucky node and elected master node in both directions.
-        NetworkDisconnectPartition networkDisconnect = new NetworkDisconnectPartition(masterNode, isolatedNode, getRandom());
+        NetworkDisruption networkDisconnect = new NetworkDisruption(new TwoPartitions(masterNode, isolatedNode),
+            new NetworkDisconnect());
         setDisruptionScheme(networkDisconnect);
         networkDisconnect.startDisrupting();
         // Wait until elected master has removed that the unlucky node...
@@ -816,7 +879,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         }
 
         // Simulate a network issue between the unicast target node and the rest of the cluster
-        NetworkDisconnectPartition networkDisconnect = new NetworkDisconnectPartition(unicastTargetSide, restOfClusterSide, getRandom());
+        NetworkDisruption networkDisconnect = new NetworkDisruption(new TwoPartitions(unicastTargetSide, restOfClusterSide),
+            new NetworkDisconnect());
         setDisruptionScheme(networkDisconnect);
         networkDisconnect.startDisrupting();
         // Wait until elected master has removed that the unlucky node...
@@ -846,17 +910,21 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, nonMasterNode).state().nodes();
 
-        TransportService masterTranspotService = internalCluster().getInstance(TransportService.class, discoveryNodes.masterNode().getName());
+        TransportService masterTranspotService =
+                internalCluster().getInstance(TransportService.class, discoveryNodes.getMasterNode().getName());
 
         logger.info("blocking requests from non master [{}] to master [{}]", nonMasterNode, masterNode);
-        MockTransportService nonMasterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nonMasterNode);
+        MockTransportService nonMasterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class,
+                nonMasterNode);
         nonMasterTransportService.addFailToSendNoConnectRule(masterTranspotService);
 
         assertNoMaster(nonMasterNode);
 
         logger.info("blocking cluster state publishing from master [{}] to non master [{}]", masterNode, nonMasterNode);
-        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, masterNode);
-        TransportService localTransportService = internalCluster().getInstance(TransportService.class, discoveryNodes.localNode().getName());
+        MockTransportService masterTransportService =
+            (MockTransportService) internalCluster().getInstance(TransportService.class, masterNode);
+        TransportService localTransportService =
+            internalCluster().getInstance(TransportService.class, discoveryNodes.getLocalNode().getName());
         if (randomBoolean()) {
             masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.SEND_ACTION_NAME);
         } else {
@@ -865,9 +933,11 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         logger.info("allowing requests from non master [{}] to master [{}], waiting for two join request", nonMasterNode, masterNode);
         final CountDownLatch countDownLatch = new CountDownLatch(2);
-        nonMasterTransportService.addDelegate(masterTranspotService, new MockTransportService.DelegateTransport(nonMasterTransportService.original()) {
+        nonMasterTransportService.addDelegate(masterTranspotService, new MockTransportService.DelegateTransport(nonMasterTransportService
+                .original()) {
             @Override
-            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions
+                    options) throws IOException, TransportException {
                 if (action.equals(MembershipAction.DISCOVERY_JOIN_ACTION_NAME)) {
                     countDownLatch.countDown();
                 }
@@ -895,25 +965,27 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         List<String> nonMasterNodes = nodes.stream().filter(node -> !node.equals(masterNode)).collect(Collectors.toList());
         String nonMasterNode = randomFrom(nonMasterNodes);
         assertAcked(prepareCreate("test")
-            .setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
-            ));
+                .setSettings(Settings.builder()
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+                ));
         ensureGreen();
         String nonMasterNodeId = internalCluster().clusterService(nonMasterNode).localNode().getId();
 
         // fail a random shard
         ShardRouting failedShard =
-            randomFrom(clusterService().state().getRoutingNodes().node(nonMasterNodeId).shardsWithState(ShardRoutingState.STARTED));
+                randomFrom(clusterService().state().getRoutingNodes().node(nonMasterNodeId).shardsWithState(ShardRoutingState.STARTED));
         ShardStateAction service = internalCluster().getInstance(ShardStateAction.class, nonMasterNode);
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean success = new AtomicBoolean();
 
         String isolatedNode = randomBoolean() ? masterNode : nonMasterNode;
-        NetworkPartition networkPartition = addRandomIsolation(isolatedNode);
-        networkPartition.startDisrupting();
+        TwoPartitions partitions = isolateNode(isolatedNode);
+        NetworkDisruption networkDisruption = addRandomDisruptionType(partitions);
+        networkDisruption.startDisrupting();
 
-        service.shardFailed(failedShard, failedShard, "simulated", new CorruptIndexException("simulated", (String) null), new ShardStateAction.Listener() {
+        service.localShardFailed(failedShard, "simulated", new CorruptIndexException("simulated", (String) null), new
+                ShardStateAction.Listener() {
             @Override
             public void onSuccess() {
                 success.set(true);
@@ -921,7 +993,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception e) {
                 success.set(false);
                 latch.countDown();
                 assert false;
@@ -935,7 +1007,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         }
 
         // heal the partition
-        networkPartition.removeAndEnsureHealthy(internalCluster());
+        networkDisruption.removeAndEnsureHealthy(internalCluster());
 
         // the cluster should stabilize
         ensureStableCluster(3);
@@ -955,7 +1027,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     public void testClusterFormingWithASlowNode() throws Exception {
         configureUnicastCluster(3, null, 2);
 
-        SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(getRandom(), 0, 0, 1000, 2000);
+        SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(random(), 0, 0, 1000, 2000);
 
         // don't wait for initial state, wat want to add the disruption while the cluster is forming..
         internalCluster().startNodesAsync(3,
@@ -990,7 +1062,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         }
 
         logger.info("blocking request from master [{}] to [{}]", masterNode, nonMasterNode);
-        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, masterNode);
+        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class,
+                masterNode);
         if (randomBoolean()) {
             masterTransportService.addUnresponsiveRule(internalCluster().getInstance(TransportService.class, nonMasterNode));
         } else {
@@ -1014,7 +1087,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * node but already deleted on the source node. Search request should still work.
      */
     public void testSearchWithRelocationAndSlowClusterStateProcessing() throws Exception {
-        configureUnicastCluster(3, null, 1);
+        // don't use DEFAULT settings (which can cause node disconnects on a slow CI machine)
+        configureUnicastCluster(Settings.EMPTY, 3, null, 1);
         InternalTestCluster.Async<String> masterNodeFuture = internalCluster().startMasterOnlyNodeAsync();
         InternalTestCluster.Async<String> node_1Future = internalCluster().startDataOnlyNodeAsync();
 
@@ -1022,9 +1096,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         final String masterNode = masterNodeFuture.get();
         logger.info("--> creating index [test] with one shard and on replica");
         assertAcked(prepareCreate("test").setSettings(
-                        Settings.builder().put(indexSettings())
-                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+                Settings.builder().put(indexSettings())
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
         );
         ensureGreen("test");
 
@@ -1035,13 +1109,14 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             indexRequestBuilderList.add(client().prepareIndex().setIndex("test").setType("doc").setSource("{\"int_field\":1}"));
         }
         indexRandom(true, indexRequestBuilderList);
-        SingleNodeDisruption disruption = new BlockClusterStateProcessing(node_2, getRandom());
+        SingleNodeDisruption disruption = new BlockClusterStateProcessing(node_2, random());
 
         internalCluster().setDisruptionScheme(disruption);
         MockTransportService transportServiceNode2 = (MockTransportService) internalCluster().getInstance(TransportService.class, node_2);
         CountDownLatch beginRelocationLatch = new CountDownLatch(1);
         CountDownLatch endRelocationLatch = new CountDownLatch(1);
-        transportServiceNode2.addTracer(new IndicesStoreIntegrationIT.ReclocationStartEndTracer(logger, beginRelocationLatch, endRelocationLatch));
+        transportServiceNode2.addTracer(new IndicesStoreIntegrationIT.ReclocationStartEndTracer(logger, beginRelocationLatch,
+                endRelocationLatch));
         internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_2)).get();
         // wait for relocation to start
         beginRelocationLatch.await();
@@ -1092,12 +1167,12 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         final List<String> allMasterEligibleNodes = masterNodes.get();
         ensureStableCluster(3);
         assertAcked(prepareCreate("test"));
-        ensureYellow();
 
         final String masterNode1 = internalCluster().getMasterName();
-        NetworkPartition networkPartition = new NetworkUnresponsivePartition(masterNode1, dataNode.get(), getRandom());
-        internalCluster().setDisruptionScheme(networkPartition);
-        networkPartition.startDisrupting();
+        NetworkDisruption networkDisruption = new NetworkDisruption(new TwoPartitions(masterNode1, dataNode.get()),
+            new NetworkUnresponsive());
+        internalCluster().setDisruptionScheme(networkDisruption);
+        networkDisruption.startDisrupting();
         // We know this will time out due to the partition, we check manually below to not proceed until
         // the delete has been applied to the master node and the master eligible node.
         internalCluster().client(masterNode1).admin().indices().prepareDelete(idxName).setTimeout("0s").get();
@@ -1114,48 +1189,52 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         assertFalse(client().admin().indices().prepareExists(idxName).get().isExists());
     }
 
-    protected NetworkPartition addRandomPartition() {
-        NetworkPartition partition;
+    protected NetworkDisruption addRandomDisruptionType(TwoPartitions partitions) {
+        final NetworkLinkDisruptionType disruptionType;
         if (randomBoolean()) {
-            partition = new NetworkUnresponsivePartition(getRandom());
+            disruptionType = new NetworkUnresponsive();
         } else {
-            partition = new NetworkDisconnectPartition(getRandom());
+            disruptionType = new NetworkDisconnect();
         }
+        NetworkDisruption partition = new NetworkDisruption(partitions, disruptionType);
 
         setDisruptionScheme(partition);
 
         return partition;
     }
 
-    protected NetworkPartition addRandomIsolation(String isolatedNode) {
+    protected TwoPartitions isolateNode(String isolatedNode) {
         Set<String> side1 = new HashSet<>();
         Set<String> side2 = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
         side1.add(isolatedNode);
         side2.remove(isolatedNode);
 
-        NetworkPartition partition;
-        if (randomBoolean()) {
-            partition = new NetworkUnresponsivePartition(side1, side2, getRandom());
-        } else {
-            partition = new NetworkDisconnectPartition(side1, side2, getRandom());
-        }
-
-        internalCluster().setDisruptionScheme(partition);
-
-        return partition;
+        return new TwoPartitions(side1, side2);
     }
 
     private ServiceDisruptionScheme addRandomDisruptionScheme() {
         // TODO: add partial partitions
-        List<ServiceDisruptionScheme> list = Arrays.asList(
-                new NetworkUnresponsivePartition(getRandom()),
-                new NetworkDelaysPartition(getRandom()),
-                new NetworkDisconnectPartition(getRandom()),
-                new SlowClusterStateProcessing(getRandom())
-        );
-        Collections.shuffle(list, random());
-        setDisruptionScheme(list.get(0));
-        return list.get(0);
+        final DisruptedLinks disruptedLinks;
+        if (randomBoolean()) {
+            disruptedLinks = TwoPartitions.random(random(), internalCluster().getNodeNames());
+        } else {
+            disruptedLinks = Bridge.random(random(), internalCluster().getNodeNames());
+        }
+        final NetworkLinkDisruptionType disruptionType;
+        switch (randomInt(2)) {
+            case 0: disruptionType = new NetworkUnresponsive(); break;
+            case 1: disruptionType = new NetworkDisconnect(); break;
+            case 2: disruptionType = NetworkDelay.random(random()); break;
+            default: throw new IllegalArgumentException();
+        }
+        final ServiceDisruptionScheme scheme;
+        if (rarely()) {
+            scheme = new SlowClusterStateProcessing(random());
+        } else {
+            scheme = new NetworkDisruption(disruptedLinks, disruptionType);
+        }
+        setDisruptionScheme(scheme);
+        return scheme;
     }
 
     private ClusterState getNodeClusterState(String node) {
@@ -1175,10 +1254,11 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             @Override
             public void run() {
                 ClusterState state = getNodeClusterState(node);
-                assertNull("node [" + node + "] still has [" + state.nodes().masterNode() + "] as master", state.nodes().masterNode());
+                assertNull("node [" + node + "] still has [" + state.nodes().getMasterNode() + "] as master", state.nodes().getMasterNode());
                 if (expectedBlocks != null) {
                     for (ClusterBlockLevel level : expectedBlocks.levels()) {
-                        assertTrue("node [" + node + "] does have level [" + level + "] in it's blocks", state.getBlocks().hasGlobalBlock(level));
+                        assertTrue("node [" + node + "] does have level [" + level + "] in it's blocks", state.getBlocks().hasGlobalBlock
+                                (level));
                     }
                 }
             }
@@ -1191,10 +1271,10 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             public void run() {
                 ClusterState state = getNodeClusterState(node);
                 String masterNode = null;
-                if (state.nodes().masterNode() != null) {
-                    masterNode = state.nodes().masterNode().name();
+                if (state.nodes().getMasterNode() != null) {
+                    masterNode = state.nodes().getMasterNode().getName();
                 }
-                logger.trace("[{}] master is [{}]", node, state.nodes().masterNode());
+                logger.trace("[{}] master is [{}]", node, state.nodes().getMasterNode());
                 assertThat("node [" + node + "] still has [" + masterNode + "] as master",
                         oldMasterNode, not(equalTo(masterNode)));
             }
@@ -1205,8 +1285,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         for (String node : nodes) {
             ClusterState state = getNodeClusterState(node);
             String failMsgSuffix = "cluster_state:\n" + state.prettyPrint();
-            assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().size(), equalTo(nodes.size()));
-            String otherMasterNodeName = state.nodes().masterNode() != null ? state.nodes().masterNode().name() : null;
+            assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().getSize(), equalTo(nodes.size()));
+            String otherMasterNodeName = state.nodes().getMasterNode() != null ? state.nodes().getMasterNode().getName() : null;
             assertThat("wrong master on node [" + node + "]. " + failMsgSuffix, otherMasterNodeName, equalTo(masterNode));
         }
     }

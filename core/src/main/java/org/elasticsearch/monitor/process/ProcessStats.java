@@ -21,27 +21,45 @@ package org.elasticsearch.monitor.process;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
-public class ProcessStats implements Streamable, ToXContent {
+public class ProcessStats implements Writeable, ToXContent {
 
-    long timestamp = -1;
+    private final long timestamp;
+    private final long openFileDescriptors;
+    private final long maxFileDescriptors;
+    private final Cpu cpu;
+    private final Mem mem;
 
-    long openFileDescriptors = -1;
-    long maxFileDescriptors = -1;
+    public ProcessStats(long timestamp, long openFileDescriptors, long maxFileDescriptors, Cpu cpu, Mem mem) {
+        this.timestamp = timestamp;
+        this.openFileDescriptors = openFileDescriptors;
+        this.maxFileDescriptors = maxFileDescriptors;
+        this.cpu = cpu;
+        this.mem = mem;
+    }
 
-    Cpu cpu = null;
+    public ProcessStats(StreamInput in) throws IOException {
+        timestamp = in.readVLong();
+        openFileDescriptors = in.readLong();
+        maxFileDescriptors = in.readLong();
+        cpu = in.readOptionalWriteable(Cpu::new);
+        mem = in.readOptionalWriteable(Mem::new);
+    }
 
-    Mem mem = null;
-
-    ProcessStats() {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(timestamp);
+        out.writeLong(openFileDescriptors);
+        out.writeLong(maxFileDescriptors);
+        out.writeOptionalWriteable(cpu);
+        out.writeOptionalWriteable(mem);
     }
 
     public long getTimestamp() {
@@ -65,19 +83,19 @@ public class ProcessStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString PROCESS = new XContentBuilderString("process");
-        static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
-        static final XContentBuilderString OPEN_FILE_DESCRIPTORS = new XContentBuilderString("open_file_descriptors");
-        static final XContentBuilderString MAX_FILE_DESCRIPTORS = new XContentBuilderString("max_file_descriptors");
+        static final String PROCESS = "process";
+        static final String TIMESTAMP = "timestamp";
+        static final String OPEN_FILE_DESCRIPTORS = "open_file_descriptors";
+        static final String MAX_FILE_DESCRIPTORS = "max_file_descriptors";
 
-        static final XContentBuilderString CPU = new XContentBuilderString("cpu");
-        static final XContentBuilderString PERCENT = new XContentBuilderString("percent");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString TOTAL_IN_MILLIS = new XContentBuilderString("total_in_millis");
+        static final String CPU = "cpu";
+        static final String PERCENT = "percent";
+        static final String TOTAL = "total";
+        static final String TOTAL_IN_MILLIS = "total_in_millis";
 
-        static final XContentBuilderString MEM = new XContentBuilderString("mem");
-        static final XContentBuilderString TOTAL_VIRTUAL = new XContentBuilderString("total_virtual");
-        static final XContentBuilderString TOTAL_VIRTUAL_IN_BYTES = new XContentBuilderString("total_virtual_in_bytes");
+        static final String MEM = "mem";
+        static final String TOTAL_VIRTUAL = "total_virtual";
+        static final String TOTAL_VIRTUAL_IN_BYTES = "total_virtual_in_bytes";
     }
 
     @Override
@@ -101,59 +119,15 @@ public class ProcessStats implements Streamable, ToXContent {
         return builder;
     }
 
-    public static ProcessStats readProcessStats(StreamInput in) throws IOException {
-        ProcessStats stats = new ProcessStats();
-        stats.readFrom(in);
-        return stats;
-    }
+    public static class Mem implements Writeable {
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        timestamp = in.readVLong();
-        openFileDescriptors = in.readLong();
-        maxFileDescriptors = in.readLong();
-        if (in.readBoolean()) {
-            cpu = Cpu.readCpu(in);
-        }
-        if (in.readBoolean()) {
-            mem = Mem.readMem(in);
-        }
-    }
+        private final long totalVirtual;
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(timestamp);
-        out.writeLong(openFileDescriptors);
-        out.writeLong(maxFileDescriptors);
-        if (cpu == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            cpu.writeTo(out);
-        }
-        if (mem == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            mem.writeTo(out);
-        }
-    }
-
-    public static class Mem implements Streamable {
-
-        long totalVirtual = -1;
-
-        Mem() {
+        public Mem(long totalVirtual) {
+            this.totalVirtual = totalVirtual;
         }
 
-        public static Mem readMem(StreamInput in) throws IOException {
-            Mem mem = new Mem();
-            mem.readFrom(in);
-            return mem;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
+        public Mem(StreamInput in) throws IOException {
             totalVirtual = in.readLong();
         }
 
@@ -167,23 +141,17 @@ public class ProcessStats implements Streamable, ToXContent {
         }
     }
 
-    public static class Cpu implements Streamable {
+    public static class Cpu implements Writeable {
 
-        short percent = -1;
-        long total = -1;
+        private final short percent;
+        private final long total;
 
-        Cpu() {
-
+        public Cpu(short percent, long total) {
+            this.percent = percent;
+            this.total = total;
         }
 
-        public static Cpu readCpu(StreamInput in) throws IOException {
-            Cpu cpu = new Cpu();
-            cpu.readFrom(in);
-            return cpu;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
+        public Cpu(StreamInput in) throws IOException {
             percent = in.readShort();
             total = in.readLong();
         }

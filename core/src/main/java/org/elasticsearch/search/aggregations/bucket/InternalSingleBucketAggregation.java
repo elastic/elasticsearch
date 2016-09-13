@@ -39,8 +39,6 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     private long docCount;
     private InternalAggregations aggregations;
 
-    protected InternalSingleBucketAggregation() {} // for serialization
-
     /**
      * Creates a single bucket aggregation.
      *
@@ -52,6 +50,21 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         super(name, pipelineAggregators, metaData);
         this.docCount = docCount;
         this.aggregations = aggregations;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected InternalSingleBucketAggregation(StreamInput in) throws IOException {
+        super(in);
+        docCount = in.readVLong();
+        aggregations = InternalAggregations.readAggregations(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeVLong(docCount);
+        aggregations.writeTo(out);
     }
 
     @Override
@@ -112,18 +125,6 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
             }
             return aggregation.getProperty(path.subList(1, path.size()));
         }
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        docCount = in.readVLong();
-        aggregations = InternalAggregations.readAggregations(in);
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVLong(docCount);
-        aggregations.writeTo(out);
     }
 
     @Override

@@ -72,10 +72,9 @@ class ClusterFormationTasks {
             throw new GradleException("bwcVersion must not be null if numBwcNodes is > 0")
         }
         // this is our current version distribution configuration we use for all kinds of REST tests etc.
-        project.configurations {
-            elasticsearchDistro
-        }
-        configureDistributionDependency(project, config.distribution, project.configurations.elasticsearchDistro, VersionProperties.elasticsearch)
+        String distroConfigName = "${task.name}_elasticsearchDistro"
+        Configuration distro = project.configurations.create(distroConfigName)
+        configureDistributionDependency(project, config.distribution, distro, VersionProperties.elasticsearch)
         if (config.bwcVersion != null && config.numBwcNodes > 0) {
             // if we have a cluster that has a BWC cluster we also need to configure a dependency on the BWC version
             // this version uses the same distribution etc. and only differs in the version we depend on.
@@ -91,10 +90,9 @@ class ClusterFormationTasks {
             // we start N nodes and out of these N nodes there might be M bwc nodes.
             // for each of those nodes we might have a different configuratioon
             String elasticsearchVersion = VersionProperties.elasticsearch
-            Configuration configuration = project.configurations.elasticsearchDistro
             if (i < config.numBwcNodes) {
                 elasticsearchVersion = config.bwcVersion
-                configuration = project.configurations.elasticsearchBwcDistro
+                distro = project.configurations.elasticsearchBwcDistro
             }
             NodeInfo node = new NodeInfo(config, i, project, task, elasticsearchVersion, sharedDir)
             if (i == 0) {
@@ -105,7 +103,7 @@ class ClusterFormationTasks {
                 config.seedNodePortsFile = node.transportPortsFile;
             }
             nodes.add(node)
-            startTasks.add(configureNode(project, task, cleanup, node, configuration))
+            startTasks.add(configureNode(project, task, cleanup, node, distro))
         }
 
         Task wait = configureWaitTask("${task.name}#wait", project, nodes, startTasks)
@@ -167,7 +165,7 @@ class ClusterFormationTasks {
         }
 
         // install plugins
-        for (Map.Entry<String, Object> plugin : node.config.plugins.entrySet()) {
+        for (Map.Entry<String, Project> plugin : node.config.plugins.entrySet()) {
             String actionName = pluginTaskName('install', plugin.getKey(), 'Plugin')
             setup = configureInstallPluginTask(taskName(task, node, actionName), project, setup, node, plugin.getValue())
         }
@@ -258,9 +256,10 @@ class ClusterFormationTasks {
                 'path.repo'                    : "${node.sharedDir}/repo",
                 'path.shared_data'             : "${node.sharedDir}/",
                 // Define a node attribute so we can test that it exists
-                'node.testattr'                : 'test',
+                'node.attr.testattr'                : 'test',
                 'repositories.url.allowed_urls': 'http://snapshot.test*'
         ]
+        esConfig['node.max_local_storage_nodes'] = node.config.numNodes
         esConfig['http.port'] = node.config.httpPort
         esConfig['transport.tcp.port'] =  node.config.transportPort
         esConfig.putAll(node.config.settings)
@@ -291,9 +290,10 @@ class ClusterFormationTasks {
         File configDir = new File(node.homeDir, 'config')
         copyConfig.into(configDir) // copy must always have a general dest dir, even though we don't use it
         for (Map.Entry<String,Object> extraConfigFile : node.config.extraConfigFiles.entrySet()) {
+            Object extraConfigFileValue = extraConfigFile.getValue()
             copyConfig.doFirst {
                 // make sure the copy won't be a no-op or act on a directory
-                File srcConfigFile = project.file(extraConfigFile.getValue())
+                File srcConfigFile = project.file(extraConfigFileValue)
                 if (srcConfigFile.isDirectory()) {
                     throw new GradleException("Source for extraConfigFile must be a file: ${srcConfigFile}")
                 }
@@ -303,7 +303,7 @@ class ClusterFormationTasks {
             }
             File destConfigFile = new File(node.homeDir, 'config/' + extraConfigFile.getKey())
             // wrap source file in closure to delay resolution to execution time
-            copyConfig.from({ extraConfigFile.getValue() }) {
+            copyConfig.from({ extraConfigFileValue }) {
                 // this must be in a closure so it is only applied to the single file specified in from above
                 into(configDir.toPath().relativize(destConfigFile.canonicalFile.parentFile.toPath()).toFile())
                 rename { destConfigFile.name }
@@ -325,38 +325,34 @@ class ClusterFormationTasks {
         Copy copyPlugins = project.tasks.create(name: name, type: Copy, dependsOn: setup)
 
         List<FileCollection> pluginFiles = []
-        for (Map.Entry<String, Object> plugin : node.config.plugins.entrySet()) {
-            FileCollection pluginZip
-            if (plugin.getValue() instanceof Project) {
-                Project pluginProject = plugin.getValue()
-                if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false) {
-                    throw new GradleException("Task ${name} cannot project ${pluginProject.path} which is not an esplugin")
-                }
-                String configurationName = "_plugin_${pluginProject.path}"
-                Configuration configuration = project.configurations.findByName(configurationName)
-                if (configuration == null) {
-                    configuration = project.configurations.create(configurationName)
-                }
-                project.dependencies.add(configurationName, pluginProject)
-                setup.dependsOn(pluginProject.tasks.bundlePlugin)
-                pluginZip = configuration
+        for (Map.Entry<String, Project> plugin : node.config.plugins.entrySet()) {
 
-                // also allow rest tests to use the rest spec from the plugin
-                Copy copyRestSpec = null
-                for (File resourceDir : pluginProject.sourceSets.test.resources.srcDirs) {
-                    File restApiDir = new File(resourceDir, 'rest-api-spec/api')
-                    if (restApiDir.exists() == false) continue
-                    if (copyRestSpec == null) {
-                        copyRestSpec = project.tasks.create(name: pluginTaskName('copy', plugin.getKey(), 'PluginRestSpec'), type: Copy)
-                        copyPlugins.dependsOn(copyRestSpec)
-                        copyRestSpec.into(project.sourceSets.test.output.resourcesDir)
-                    }
-                    copyRestSpec.from(resourceDir).include('rest-api-spec/api/**')
-                }
-            } else {
-                pluginZip = plugin.getValue()
+            Project pluginProject = plugin.getValue()
+            if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false) {
+                throw new GradleException("Task ${name} cannot project ${pluginProject.path} which is not an esplugin")
             }
-            pluginFiles.add(pluginZip)
+            String configurationName = "_plugin_${pluginProject.path}"
+            Configuration configuration = project.configurations.findByName(configurationName)
+            if (configuration == null) {
+                configuration = project.configurations.create(configurationName)
+            }
+            project.dependencies.add(configurationName, project.dependencies.project(path: pluginProject.path, configuration: 'zip'))
+            setup.dependsOn(pluginProject.tasks.bundlePlugin)
+
+            // also allow rest tests to use the rest spec from the plugin
+            String copyRestSpecTaskName = pluginTaskName('copy', plugin.getKey(), 'PluginRestSpec')
+            Copy copyRestSpec = project.tasks.findByName(copyRestSpecTaskName)
+            for (File resourceDir : pluginProject.sourceSets.test.resources.srcDirs) {
+                File restApiDir = new File(resourceDir, 'rest-api-spec/api')
+                if (restApiDir.exists() == false) continue
+                if (copyRestSpec == null) {
+                    copyRestSpec = project.tasks.create(name: copyRestSpecTaskName, type: Copy)
+                    copyPlugins.dependsOn(copyRestSpec)
+                    copyRestSpec.into(project.sourceSets.test.output.resourcesDir)
+                }
+                copyRestSpec.from(resourceDir).include('rest-api-spec/api/**')
+            }
+            pluginFiles.add(configuration)
         }
 
         copyPlugins.into(node.pluginsTmpDir)
@@ -378,17 +374,28 @@ class ClusterFormationTasks {
         return installModule
     }
 
-    static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Object plugin) {
-        FileCollection pluginZip
-        if (plugin instanceof Project) {
-            pluginZip = project.configurations.getByName("_plugin_${plugin.path}")
-        } else {
-            pluginZip = plugin
-        }
+    static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Project plugin) {
+        FileCollection pluginZip = project.configurations.getByName("_plugin_${plugin.path}")
         // delay reading the file location until execution time by wrapping in a closure within a GString
-        String file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
+        Object file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
         Object[] args = [new File(node.homeDir, 'bin/elasticsearch-plugin'), 'install', file]
         return configureExecTask(name, project, setup, node, args)
+    }
+
+    /** Wrapper for command line argument: surrounds comma with double quotes **/
+    private static class EscapeCommaWrapper {
+
+        Object arg
+
+        public String toString() {
+            String s = arg.toString()
+
+            /// Surround strings that contains a comma with double quotes
+            if (s.indexOf(',') != -1) {
+                return "\"${s}\""
+            }
+            return s
+        }
     }
 
     /** Adds a task to execute a command to help setup the cluster */
@@ -398,10 +405,12 @@ class ClusterFormationTasks {
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 executable 'cmd'
                 args '/C', 'call'
+                // On Windows the comma character is considered a parameter separator:
+                // argument are wrapped in an ExecArgWrapper that escapes commas
+                args execArgs.collect { a -> new EscapeCommaWrapper(arg: a) }
             } else {
-                executable 'sh'
+                commandLine execArgs
             }
-            args execArgs
         }
     }
 
@@ -432,7 +441,7 @@ class ClusterFormationTasks {
             // gradle task options are not processed until the end of the configuration phase
             if (node.config.debug) {
                 println 'Running elasticsearch in debug mode, suspending until connected on port 8000'
-                node.env['JAVA_OPTS'] = '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
+                node.env['ES_JAVA_OPTS'] = '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
             }
 
             node.getCommandString().eachLine { line -> logger.info(line) }

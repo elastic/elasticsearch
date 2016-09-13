@@ -26,7 +26,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.test.ESTestCase;
@@ -44,8 +44,9 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -62,15 +63,9 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     private List<DiscoveryNode> generateNodes() {
         List<DiscoveryNode> nodes = new ArrayList<>();
         for (int i = randomIntBetween(20, 50); i > 0; i--) {
-            final HashMap<String, String> attributes = new HashMap<>();
-            if (rarely()) {
-                attributes.put("client", "true");
-            } else {
-                attributes.put("master", "" + randomBoolean());
-                attributes.put("data", "" + randomBoolean());
-                attributes.put("ingest", "" + randomBoolean());
-            }
-            nodes.add(new DiscoveryNode("node_" + i, "" + i, DummyTransportAddress.INSTANCE, attributes, Version.CURRENT));
+            Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values())));
+            nodes.add(new DiscoveryNode("node_" + i, "" + i, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
+                    roles, Version.CURRENT));
         }
         return nodes;
     }
@@ -78,7 +73,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     private ClusterState clusterStateFromNodes(List<DiscoveryNode> nodes) {
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         for (DiscoveryNode node : nodes) {
-            builder.put(node);
+            builder.add(node);
         }
         return ClusterState.builder(new ClusterName("test")).nodes(builder).build();
     }
@@ -134,7 +129,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
     private void assertConnectedExactlyToNodes(ClusterState state) {
         assertConnected(state.nodes());
-        assertThat(transport.connectedNodes.size(), equalTo(state.nodes().size()));
+        assertThat(transport.connectedNodes.size(), equalTo(state.nodes().getSize()));
     }
 
     private void assertConnected(Iterable<DiscoveryNode> nodes) {
@@ -154,7 +149,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         this.transport = new MockTransport();
-        transportService = new TransportService(transport, THREAD_POOL);
+        transportService = new TransportService(Settings.EMPTY, transport, THREAD_POOL);
         transportService.start();
         transportService.acceptIncomingRequests();
     }
@@ -258,18 +253,12 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public Transport start() {
-            return null;
-        }
+        public void start() {}
 
         @Override
-        public Transport stop() {
-            return null;
-        }
+        public void stop() {}
 
         @Override
-        public void close() {
-
-        }
+        public void close() {}
     }
 }

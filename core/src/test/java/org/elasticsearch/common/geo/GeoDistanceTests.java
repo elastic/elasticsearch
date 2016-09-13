@@ -46,8 +46,8 @@ public class GeoDistanceTests extends ESTestCase {
         GeoDistance geoDistance = randomFrom(GeoDistance.PLANE, GeoDistance.FACTOR, GeoDistance.ARC, GeoDistance.SLOPPY_ARC);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             geoDistance.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {;
-                GeoDistance copy = GeoDistance.readGeoDistanceFrom(in);
+            try (StreamInput in = out.bytes().streamInput()) {;
+                GeoDistance copy = GeoDistance.readFromStream(in);
                 assertEquals(copy.toString() + " vs. " + geoDistance.toString(), copy, geoDistance);
             }
         }
@@ -60,8 +60,8 @@ public class GeoDistanceTests extends ESTestCase {
             } else {
                 out.writeVInt(randomIntBetween(Integer.MIN_VALUE, -1));
             }
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                GeoDistance.readGeoDistanceFrom(in);
+            try (StreamInput in = out.bytes().streamInput()) {
+                GeoDistance.readFromStream(in);
             } catch (IOException e) {
                 assertThat(e.getMessage(), containsString("Unknown GeoDistance ordinal ["));
             }

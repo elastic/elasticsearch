@@ -23,26 +23,30 @@ import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.GroovyCodeSource;
 import groovy.lang.Script;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.codehaus.groovy.ast.ClassCodeExpressionTransformer;
 import org.codehaus.groovy.ast.ClassNode;
+import org.codehaus.groovy.ast.Parameter;
 import org.codehaus.groovy.ast.expr.ConstantExpression;
 import org.codehaus.groovy.ast.expr.Expression;
 import org.codehaus.groovy.classgen.GeneratorContext;
 import org.codehaus.groovy.control.CompilationFailedException;
 import org.codehaus.groovy.control.CompilePhase;
 import org.codehaus.groovy.control.CompilerConfiguration;
+import org.codehaus.groovy.control.MultipleCompilationErrorsException;
 import org.codehaus.groovy.control.SourceUnit;
 import org.codehaus.groovy.control.customizers.CompilationCustomizer;
 import org.codehaus.groovy.control.customizers.ImportCustomizer;
+import org.codehaus.groovy.control.messages.Message;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.CompiledScript;
@@ -56,15 +60,19 @@ import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.emptyList;
 
 /**
  * Provides the infrastructure for Groovy as a scripting language for Elasticsearch
@@ -76,140 +84,99 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
      */
     public static final String NAME = "groovy";
 
-    public static final List<String> TYPES = Collections.singletonList(NAME);
     /**
      * The name of the Groovy compiler setting to use associated with activating <code>invokedynamic</code> support.
      */
     public static final String GROOVY_INDY_SETTING_NAME = "indy";
 
-    private final GroovyClassLoader loader;
+    /**
+     * Classloader used as a parent classloader for all Groovy scripts
+     */
+    private final ClassLoader loader;
 
-    @Inject
     public GroovyScriptEngineService(Settings settings) {
         super(settings);
 
-        ImportCustomizer imports = new ImportCustomizer();
-        imports.addStarImports("org.joda.time");
-        imports.addStaticStars("java.lang.Math");
+        deprecationLogger.deprecated("[groovy] scripts are deprecated, use [painless] scripts instead");
 
-        CompilerConfiguration config = new CompilerConfiguration();
-
-        config.addCompilationCustomizers(imports);
-        // Add BigDecimal -> Double transformer
-        config.addCompilationCustomizers(new GroovyBigDecimalTransformer(CompilePhase.CONVERSION));
-
-        // always enable invokeDynamic, not the crazy softreference-based stuff
-        config.getOptimizationOptions().put(GROOVY_INDY_SETTING_NAME, true);
-
-        // Groovy class loader to isolate Groovy-land code
-        // classloader created here
+        // Creates the classloader here in order to isolate Groovy-land code
         final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
         }
-        this.loader = AccessController.doPrivileged(new PrivilegedAction<GroovyClassLoader>() {
-            @Override
-            public GroovyClassLoader run() {
-                // snapshot our context (which has permissions for classes), since the script has none
-                final AccessControlContext engineContext = AccessController.getContext();
-                return new GroovyClassLoader(new ClassLoader(getClass().getClassLoader()) {
-                    @Override
-                    protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-                        if (sm != null) {
-                            try {
-                                engineContext.checkPermission(new ClassPermission(name));
-                            } catch (SecurityException e) {
-                                throw new ClassNotFoundException(name, e);
-                            }
+        this.loader = AccessController.doPrivileged((PrivilegedAction<ClassLoader>) () -> {
+            // snapshot our context (which has permissions for classes), since the script has none
+            AccessControlContext context = AccessController.getContext();
+            return new ClassLoader(getClass().getClassLoader()) {
+                @Override
+                protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                    if (sm != null) {
+                        try {
+                            context.checkPermission(new ClassPermission(name));
+                        } catch (SecurityException e) {
+                            throw new ClassNotFoundException(name, e);
                         }
-                        return super.loadClass(name, resolve);
                     }
-                }, config);
-            }
+                    return super.loadClass(name, resolve);
+                }
+            };
         });
     }
 
     @Override
-    public void close() {
-        loader.clearCache();
-        // close classloader here (why do we do this?)
-        SecurityManager sm = System.getSecurityManager();
+    public void close() throws IOException {
+        // Nothing to do here
+    }
+
+    @Override
+    public String getType() {
+        return NAME;
+    }
+
+    @Override
+    public String getExtension() {
+        return NAME;
+    }
+
+    @Override
+    public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
+        // Create the script class name
+        String className = MessageDigests.toHexString(MessageDigests.sha1().digest(scriptSource.getBytes(StandardCharsets.UTF_8)));
+
+        final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
         }
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @Override
-            public Void run() {
-                try {
-                    loader.close();
-                } catch (IOException e) {
-                    logger.warn("Unable to close Groovy loader", e);
+        return AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
+            try {
+                GroovyCodeSource codeSource = new GroovyCodeSource(scriptSource, className, BootstrapInfo.UNTRUSTED_CODEBASE);
+                codeSource.setCachable(false);
+
+                CompilerConfiguration configuration = new CompilerConfiguration()
+                        .addCompilationCustomizers(new ImportCustomizer().addStarImports("org.joda.time").addStaticStars("java.lang.Math"))
+                        .addCompilationCustomizers(new GroovyBigDecimalTransformer(CompilePhase.CONVERSION));
+
+                // always enable invokeDynamic, not the crazy softreference-based stuff
+                configuration.getOptimizationOptions().put(GROOVY_INDY_SETTING_NAME, true);
+
+                GroovyClassLoader groovyClassLoader = new GroovyClassLoader(loader, configuration);
+                return groovyClassLoader.parseClass(codeSource);
+            } catch (Exception e) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Exception compiling Groovy script:", e);
                 }
-                return null;
+                throw convertToScriptException("Error compiling script " + className, scriptSource, e);
             }
         });
-    }
-
-    @Override
-    public void scriptRemoved(@Nullable CompiledScript script) {
-        // script could be null, meaning the script has already been garbage collected
-        if (script == null || NAME.equals(script.lang())) {
-            // Clear the cache, this removes old script versions from the
-            // cache to prevent running out of PermGen space
-            loader.clearCache();
-        }
-    }
-
-    @Override
-    public List<String> getTypes() {
-        return TYPES;
-    }
-
-    @Override
-    public List<String> getExtensions() {
-        return TYPES;
-    }
-
-    @Override
-    public boolean isSandboxed() {
-        return false;
-    }
-
-    @Override
-    public Object compile(String script, Map<String, String> params) {
-        try {
-            // we reuse classloader, so do a security check just in case.
-            SecurityManager sm = System.getSecurityManager();
-            if (sm != null) {
-                sm.checkPermission(new SpecialPermission());
-            }
-            String fake = MessageDigests.toHexString(MessageDigests.sha1().digest(script.getBytes(StandardCharsets.UTF_8)));
-            // same logic as GroovyClassLoader.parseClass() but with a different codesource string:
-            return AccessController.doPrivileged(new PrivilegedAction<Object>() {
-                @Override
-                public Class<?> run() {
-                    GroovyCodeSource gcs = new GroovyCodeSource(script, fake, BootstrapInfo.UNTRUSTED_CODEBASE);
-                    gcs.setCachable(false);
-                    // TODO: we could be more complicated and paranoid, and move this to separate block, to
-                    // sandbox the compilation process itself better.
-                    return loader.parseClass(gcs);
-                }
-            });
-        } catch (Throwable e) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("exception compiling Groovy script:", e);
-            }
-            throw new ScriptException("failed to compile groovy script", e);
-        }
     }
 
     /**
      * Return a script object with the given vars from the compiled script object
      */
     @SuppressWarnings("unchecked")
-    private Script createScript(Object compiledScript, Map<String, Object> vars) throws InstantiationException, IllegalAccessException {
+    private Script createScript(Object compiledScript, Map<String, Object> vars) throws ReflectiveOperationException {
         Class<?> scriptClass = (Class<?>) compiledScript;
-        Script scriptObject = (Script) scriptClass.newInstance();
+        Script scriptObject = (Script) scriptClass.getConstructor().newInstance();
         Binding binding = new Binding();
         binding.getVariables().putAll(vars);
         scriptObject.setBinding(binding);
@@ -218,19 +185,23 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     @Override
     public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
+        deprecationLogger.deprecated("[groovy] scripts are deprecated, use [painless] scripts instead");
+
         try {
             Map<String, Object> allVars = new HashMap<>();
             if (vars != null) {
                 allVars.putAll(vars);
             }
             return new GroovyScript(compiledScript, createScript(compiledScript.compiled(), allVars), this.logger);
-        } catch (Exception e) {
-            throw new ScriptException("failed to build executable " + compiledScript, e);
+        } catch (ReflectiveOperationException e) {
+            throw convertToScriptException("Failed to build executable script", compiledScript.name(), e);
         }
     }
 
     @Override
     public SearchScript search(final CompiledScript compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
+        deprecationLogger.deprecated("[groovy] scripts are deprecated, use [painless] scripts instead");
+
         return new SearchScript() {
 
             @Override
@@ -244,8 +215,8 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 Script scriptObject;
                 try {
                     scriptObject = createScript(compiledScript.compiled(), allVars);
-                } catch (InstantiationException | IllegalAccessException e) {
-                    throw new ScriptException("failed to build search " + compiledScript, e);
+                } catch (ReflectiveOperationException e) {
+                    throw convertToScriptException("Failed to build search script", compiledScript.name(), e);
                 }
                 return new GroovyScript(compiledScript, scriptObject, leafLookup, logger);
             }
@@ -258,20 +229,43 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         };
     }
 
+    /**
+     * Converts a {@link Throwable} to a {@link ScriptException}
+     */
+    private ScriptException convertToScriptException(String message, String source, Throwable cause) {
+        List<String> stack = new ArrayList<>();
+        if (cause instanceof MultipleCompilationErrorsException) {
+            @SuppressWarnings({"unchecked"})
+            List<Message> errors = (List<Message>) ((MultipleCompilationErrorsException) cause).getErrorCollector().getErrors();
+            for (Message error : errors) {
+                try (StringWriter writer = new StringWriter()) {
+                    error.write(new PrintWriter(writer));
+                    stack.add(writer.toString());
+                } catch (IOException e1) {
+                    logger.error("failed to write compilation error message to the stack", e1);
+                }
+            }
+        } else if (cause instanceof CompilationFailedException) {
+            CompilationFailedException error = (CompilationFailedException) cause;
+            stack.add(error.getMessage());
+        }
+        throw new ScriptException(message, cause, stack, source, NAME);
+    }
+
     public static final class GroovyScript implements ExecutableScript, LeafSearchScript {
 
         private final CompiledScript compiledScript;
         private final Script script;
         private final LeafSearchLookup lookup;
         private final Map<String, Object> variables;
-        private final ESLogger logger;
+        private final Logger logger;
 
-        public GroovyScript(CompiledScript compiledScript, Script script, ESLogger logger) {
+        public GroovyScript(CompiledScript compiledScript, Script script, Logger logger) {
             this(compiledScript, script, null, logger);
         }
 
         @SuppressWarnings("unchecked")
-        public GroovyScript(CompiledScript compiledScript, Script script, @Nullable LeafSearchLookup lookup, ESLogger logger) {
+        public GroovyScript(CompiledScript compiledScript, Script script, @Nullable LeafSearchLookup lookup, Logger logger) {
             this.compiledScript = compiledScript;
             this.script = script;
             this.lookup = lookup;
@@ -308,23 +302,22 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             try {
                 // NOTE: we truncate the stack because IndyInterface has security issue (needs getClassLoader)
                 // we don't do a security check just as a tradeoff, it cannot really escalate to anything.
-                return AccessController.doPrivileged(new PrivilegedAction<Object>() {
-                    @Override
-                    public Object run() {
-                        return script.run();
-                    }
-                });
-            } catch (Throwable e) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("failed to run {}", e, compiledScript);
+                return AccessController.doPrivileged((PrivilegedAction<Object>) script::run);
+            } catch (AssertionError ae) {
+                // Groovy asserts are not java asserts, and cannot be disabled, so we do a best-effort trying to determine if this is a
+                // Groovy assert (in which case we wrap it and throw), or a real Java assert, in which case we rethrow it as-is, likely
+                // resulting in the uncaughtExceptionHandler handling it.
+                final StackTraceElement[] elements = ae.getStackTrace();
+                if (elements.length > 0 && "org.codehaus.groovy.runtime.InvokerHelper".equals(elements[0].getClassName())) {
+                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to run {}", compiledScript), ae);
+                    throw new ScriptException("Error evaluating " + compiledScript.name(),
+                            ae, emptyList(), "", compiledScript.lang());
                 }
-                throw new ScriptException("failed to run " + compiledScript, e);
+                throw ae;
+            } catch (Exception | NoClassDefFoundError e) {
+                logger.trace("failed to run {}", e, compiledScript);
+                throw new ScriptException("Error evaluating " + compiledScript.name(), e, emptyList(), "", compiledScript.lang());
             }
-        }
-
-        @Override
-        public float runAsFloat() {
-            return ((Number) run()).floatValue();
         }
 
         @Override

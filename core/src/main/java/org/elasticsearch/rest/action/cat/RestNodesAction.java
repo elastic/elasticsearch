@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
@@ -44,11 +44,10 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.percolator.PercolatorQueryCacheStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -59,21 +58,21 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestActionListener;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.RestActionListener;
+import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesAction extends AbstractCatAction {
 
     @Inject
-    public RestNodesAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestNodesAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_cat/nodes", this);
     }
 
@@ -83,7 +82,7 @@ public class RestNodesAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
@@ -140,8 +139,8 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("load_5m", "alias:l;text-align:right;desc:5m load avg");
         table.addCell("load_15m", "alias:l;text-align:right;desc:15m load avg");
         table.addCell("uptime", "default:false;alias:u;text-align:right;desc:node uptime");
-        table.addCell("node.role", "alias:r,role,dc,nodeRole;desc:d:data node, c:client node");
-        table.addCell("master", "alias:m;desc:m:master-eligible, *:current master");
+        table.addCell("node.role", "alias:r,role,nodeRole;desc:m:master eligible node, d:data node, i:ingest node, -:coordinating node only");
+        table.addCell("master", "alias:m;desc:*:current master");
         table.addCell("name", "alias:n;desc:node name");
 
         table.addCell("completion.size", "alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
@@ -184,8 +183,6 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("merges.total_size", "alias:mts,mergesTotalSize;default:false;text-align:right;desc:size merged");
         table.addCell("merges.total_time", "alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges");
 
-        table.addCell("percolate.queries", "alias:pq,percolateQueries;default:false;text-align:right;desc:number of registered percolation queries");
-
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
 
@@ -206,7 +203,6 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("segments.memory", "alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
         table.addCell("segments.index_writer_memory", "alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
-        table.addCell("segments.index_writer_max_memory", "alias:siwmx,segmentsIndexWriterMaxMemory;default:false;text-align:right;desc:maximum memory index writer may use before it must write buffered documents to a new segment");
         table.addCell("segments.version_map_memory", "alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map");
         table.addCell("segments.fixed_bitset_memory", "alias:sfbm,fixedBitsetMemory;default:false;text-align:right;desc:memory used by fixed bit sets for nested object field types and type filters for types referred in _parent fields");
 
@@ -222,12 +218,12 @@ public class RestNodesAction extends AbstractCatAction {
         boolean fullId = req.paramAsBoolean("full_id", false);
 
         DiscoveryNodes nodes = state.getState().nodes();
-        String masterId = nodes.masterNodeId();
+        String masterId = nodes.getMasterNodeId();
         Table table = getTableWithHeader(req);
 
         for (DiscoveryNode node : nodes) {
-            NodeInfo info = nodesInfo.getNodesMap().get(node.id());
-            NodeStats stats = nodesStats.getNodesMap().get(node.id());
+            NodeInfo info = nodesInfo.getNodesMap().get(node.getId());
+            NodeStats stats = nodesStats.getNodesMap().get(node.getId());
 
             JvmInfo jvmInfo = info == null ? null : info.getJvm();
             JvmStats jvmStats = stats == null ? null : stats.getJvm();
@@ -238,11 +234,11 @@ public class RestNodesAction extends AbstractCatAction {
 
             table.startRow();
 
-            table.addCell(fullId ? node.id() : Strings.substring(node.getId(), 0, 4));
+            table.addCell(fullId ? node.getId() : Strings.substring(node.getId(), 0, 4));
             table.addCell(info == null ? null : info.getProcess().getId());
             table.addCell(node.getHostAddress());
-            if (node.address() instanceof InetSocketTransportAddress) {
-                table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());
+            if (node.getAddress() instanceof InetSocketTransportAddress) {
+                table.addCell(((InetSocketTransportAddress) node.getAddress()).address().getPort());
             } else {
                 table.addCell("-");
             }
@@ -250,7 +246,7 @@ public class RestNodesAction extends AbstractCatAction {
             if (httpInfo != null) {
                 TransportAddress transportAddress = httpInfo.getAddress().publishAddress();
                 if (transportAddress instanceof InetSocketTransportAddress) {
-                    table.addCell(NetworkAddress.formatAddress(((InetSocketTransportAddress)transportAddress).address()));
+                    table.addCell(NetworkAddress.format(((InetSocketTransportAddress)transportAddress).address()));
                 } else {
                     table.addCell(transportAddress.toString());
                 }
@@ -278,9 +274,16 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[1] == -1 ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[1]));
             table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[2] == -1 ? null : String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[2]));
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());
-            table.addCell(node.clientNode() ? "c" : node.dataNode() ? "d" : "-");
-            table.addCell(masterId == null ? "x" : masterId.equals(node.id()) ? "*" : node.masterNode() ? "m" : "-");
-            table.addCell(node.name());
+
+            final String roles;
+            if (node.getRoles().isEmpty()) {
+                roles = "-";
+            } else {
+                roles = node.getRoles().stream().map(DiscoveryNode.Role::getAbbreviation).collect(Collectors.joining());
+            }
+            table.addCell(roles);
+            table.addCell(masterId == null ? "x" : masterId.equals(node.getId()) ? "*" : "-");
+            table.addCell(node.getName());
 
             CompletionStats completionStats = indicesStats == null ? null : stats.getIndices().getCompletion();
             table.addCell(completionStats == null ? null : completionStats.getSize());
@@ -330,9 +333,6 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(mergeStats == null ? null : mergeStats.getTotalSize());
             table.addCell(mergeStats == null ? null : mergeStats.getTotalTime());
 
-            PercolatorQueryCacheStats percolatorQueryCacheStats = indicesStats == null ? null : indicesStats.getPercolate();
-            table.addCell(percolatorQueryCacheStats == null ? null : percolatorQueryCacheStats.getNumQueries());
-
             RefreshStats refreshStats = indicesStats == null ? null : indicesStats.getRefresh();
             table.addCell(refreshStats == null ? null : refreshStats.getTotal());
             table.addCell(refreshStats == null ? null : refreshStats.getTotalTime());
@@ -357,7 +357,6 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(segmentsStats == null ? null : segmentsStats.getCount());
             table.addCell(segmentsStats == null ? null : segmentsStats.getMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getIndexWriterMemory());
-            table.addCell(segmentsStats == null ? null : segmentsStats.getIndexWriterMaxMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getVersionMapMemory());
             table.addCell(segmentsStats == null ? null : segmentsStats.getBitsetMemory());
 

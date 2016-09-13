@@ -34,7 +34,7 @@
                 (\d+                   \s+)?  #no value from client nodes
                 [-\w.]+                \s+
                 \d+(\.\d+){3}          \s+
-                \w.*
+                [-\w]+
                 \n
               )+
             $/
@@ -45,10 +45,6 @@
   - do:
         indices.create:
             index: test
-
-  - do:
-        cluster.health:
-            wait_for_status: yellow
 
   - do:
         cat.allocation: {}
@@ -65,7 +61,7 @@
                 (\d+                  \s+)  #always should return value since we filter out non data nodes by default
                 [-\w.]+                \s+
                 \d+(\.\d+){3}          \s+
-                \w.*
+                [-\w]+
                 \n
               )+
               (
@@ -94,7 +90,7 @@
                 (\d+                  \s+)?  #no value from client nodes
                 [-\w.]+                \s+
                 \d+(\.\d+){3}          \s+
-                \w.*
+                [-\w]+
                 \n
               )
             $/
@@ -128,7 +124,7 @@
                  (\d+                  \s+)?  #no value from client nodes
                  [-\w.]+                \s+
                  \d+(\.\d+){3}          \s+
-                 \w.*
+                 [-\w]+
                  \n
                )+
                (
@@ -168,7 +164,7 @@
                 (\d+                  \s+)  #always should return value since we filter out non data nodes by default
                 [-\w.]+                \s+
                 \d+(\.\d+){3}          \s+
-                \w.*
+                [-\w]+
                 \n
               )+
             $/
@@ -185,7 +181,7 @@
       $body: |
             /^
               ( \d*                 \s+
-                \w.*
+                [-\w]+
                 \n
               )+
             $/
@@ -203,7 +199,7 @@
               \n
               (
                 \s+\d*           \s+
-                \w.*
+                [-\w]+
                 \n
               )+
             $/
@@ -215,7 +211,7 @@
 
   - do:
       cat.allocation:
-        bytes: g
+        bytes: gb
 
   - match:
       $body: |
@@ -228,7 +224,7 @@
                 (\d+                 \s+)  #always should return value since we filter out non data nodes by default
                 [-\w.]+             \s+
                 \d+(\.\d+){3}       \s+
-                \w.*
+                [-\w]+
                 \n
               )+
             $/

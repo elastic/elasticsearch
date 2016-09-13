@@ -26,11 +26,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.search.action.SearchTransportService;
-import org.elasticsearch.search.controller.SearchPhaseController;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -40,23 +43,24 @@ import java.util.Set;
 import static org.elasticsearch.action.search.SearchType.QUERY_AND_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 
-/**
- *
- */
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
+
+    /** The maximum number of shards for a single search request. */
+    public static final Setting<Long> SHARD_COUNT_LIMIT_SETTING = Setting.longSetting(
+            "action.search.shard_count.limit", 1000L, 1L, Property.Dynamic, Property.NodeScope);
 
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
     private final SearchPhaseController searchPhaseController;
 
     @Inject
-    public TransportSearchAction(Settings settings, ThreadPool threadPool, SearchPhaseController searchPhaseController,
-                                 TransportService transportService, SearchTransportService searchTransportService,
+    public TransportSearchAction(Settings settings, ThreadPool threadPool, BigArrays bigArrays, ScriptService scriptService,
+                                 TransportService transportService, SearchService searchService,
                                  ClusterService clusterService, ActionFilters actionFilters, IndexNameExpressionResolver
                                              indexNameExpressionResolver) {
         super(settings, SearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SearchRequest::new);
-        this.searchPhaseController = searchPhaseController;
-        this.searchTransportService = searchTransportService;
+        this.searchPhaseController = new SearchPhaseController(settings, bigArrays, scriptService, clusterService);;
+        this.searchTransportService = new SearchTransportService(settings, transportService, searchService);
         this.clusterService = clusterService;
     }
 
@@ -90,6 +94,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             logger.debug("failed to optimize search type, continue as normal", e);
         }
 
+        searchAsyncAction(searchRequest, listener).start();
+    }
+
+    private AbstractSearchAsyncAction searchAsyncAction(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         AbstractSearchAsyncAction searchAsyncAction;
         switch(searchRequest.searchType()) {
             case DFS_QUERY_THEN_FETCH:
@@ -111,6 +119,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             default:
                 throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
         }
-        searchAsyncAction.start();
+        return searchAsyncAction;
     }
+
 }

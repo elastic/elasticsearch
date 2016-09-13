@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -46,7 +46,9 @@ import org.hamcrest.CustomTypeSafeMatcher;
 import org.mockito.stubbing.Answer;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -72,13 +74,12 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         for (int i = 0; i < totalNodes; i++) {
             String nodeId = "node" + i;
             Map<String, String> attributes = new HashMap<>();
-            if (i >= ingestNodes) {
-                attributes.put("ingest", "false");
-            } else if (randomBoolean()) {
-                attributes.put("ingest", "true");
+            Set<DiscoveryNode.Role> roles = new HashSet<>();
+            if (i < ingestNodes) {
+                roles.add(DiscoveryNode.Role.INGEST);
             }
-            DiscoveryNode node = new DiscoveryNode(nodeId, nodeId, DummyTransportAddress.INSTANCE, attributes, VersionUtils.randomVersion(random()));
-            builder.put(node);
+            DiscoveryNode node = new DiscoveryNode(nodeId, nodeId, LocalTransportAddress.buildUnique(), attributes, roles, VersionUtils.randomVersion(random()));
+            builder.add(node);
             if (i == totalNodes - 1) {
                 localNode = node;
             }

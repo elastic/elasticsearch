@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.post;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -78,8 +80,8 @@ public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<Up
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                logger.debug("failed to upgrade minimum compatibility version settings on indices [{}]", t, request.versions().keySet());
+            public void onFailure(Exception t) {
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to upgrade minimum compatibility version settings on indices [{}]", request.versions().keySet()), t);
                 listener.onFailure(t);
             }
         });

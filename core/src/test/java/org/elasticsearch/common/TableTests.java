@@ -24,6 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class TableTests extends ESTestCase {
@@ -171,6 +172,32 @@ public class TableTests extends ESTestCase {
         assertEquals("foo", cell.value.toString());
         cell = table.findHeaderByName("missing");
         assertNull(cell);
+    }
+
+    public void testWithTimestamp() {
+        Table table = new Table();
+        table.startHeadersWithTimestamp();
+        table.endHeaders();
+
+        List<Table.Cell> headers = table.getHeaders();
+        assertEquals(2, headers.size());
+        assertEquals(Table.EPOCH, headers.get(0).value.toString());
+        assertEquals(Table.TIMESTAMP, headers.get(1).value.toString());
+        assertEquals(2, headers.get(0).attr.size());
+        assertEquals("t,time", headers.get(0).attr.get("alias"));
+        assertEquals("seconds since 1970-01-01 00:00:00", headers.get(0).attr.get("desc"));
+        assertEquals(2, headers.get(1).attr.size());
+        assertEquals("ts,hms,hhmmss", headers.get(1).attr.get("alias"));
+        assertEquals("time in HH:MM:SS", headers.get(1).attr.get("desc"));
+
+        // check row's timestamp
+        table.startRow();
+        table.endRow();
+        List<List<Table.Cell>> rows = table.getRows();
+        assertEquals(1, rows.size());
+        assertEquals(2, rows.get(0).size());
+        assertThat(rows.get(0).get(0).value, instanceOf(Long.class));
+
     }
 
     private Table getTableWithHeaders() {

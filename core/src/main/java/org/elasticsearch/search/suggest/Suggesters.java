@@ -18,52 +18,23 @@
  */
 package org.elasticsearch.search.suggest;
 
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.ExtensionPoint;
-import org.elasticsearch.search.suggest.completion.CompletionSuggester;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
-import org.elasticsearch.search.suggest.term.TermSuggester;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 
 /**
- *
+ * Registry of Suggesters. This is only its own class to make Guice happy.
  */
-public final class Suggesters extends ExtensionPoint.ClassMap<Suggester> {
-    private final Map<String, Suggester> parsers;
+public final class Suggesters {
+    private final Map<String, Suggester<?>> suggesters;
 
-    public Suggesters() {
-        this(Collections.emptyMap());
+    public Suggesters(Map<String, Suggester<?>> suggesters) {
+        this.suggesters = suggesters;
     }
 
-    @Inject
-    public Suggesters(Map<String, Suggester> suggesters) {
-        super("suggester", Suggester.class, new HashSet<>(Arrays.asList("phrase", "term", "completion")), Suggesters.class, SuggestPhase.class);
-        this.parsers = Collections.unmodifiableMap(addBuildIns(suggesters));
-    }
-
-    private static Map<String, Suggester> addBuildIns(Map<String, Suggester> suggesters) {
-        final Map<String, Suggester> map = new HashMap<>();
-        map.put("phrase", PhraseSuggester.PROTOTYPE);
-        map.put("term", TermSuggester.PROTOTYPE);
-        map.put("completion", CompletionSuggester.PROTOTYPE);
-        map.putAll(suggesters);
-        return map;
-    }
-
-    public SuggestionBuilder<? extends SuggestionBuilder> getSuggestionPrototype(String suggesterName) {
-        Suggester<?> suggester = parsers.get(suggesterName);
+    public Suggester<?> getSuggester(String suggesterName) {
+        Suggester<?> suggester = suggesters.get(suggesterName);
         if (suggester == null) {
             throw new IllegalArgumentException("suggester with name [" + suggesterName + "] not supported");
         }
-        SuggestionBuilder<?> suggestParser = suggester.getBuilderPrototype();
-        if (suggestParser == null) {
-            throw new IllegalArgumentException("suggester with name [" + suggesterName + "] not supported");
-        }
-        return suggestParser;
+        return suggester;
     }
 }

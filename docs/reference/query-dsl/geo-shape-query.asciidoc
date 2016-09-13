@@ -26,10 +26,10 @@ Given a document that looks like this:
 --------------------------------------------------
 {
     "name": "Wind & Wetter, Berlin, Germany",
-    "location": {
-        "type": "Point",
-        "coordinates": [13.400544, 52.530286]
-    }
+        "location": {
+            "type": "Point",
+            "coordinates": [13.400544, 52.530286]
+        }
 }
 --------------------------------------------------
 
@@ -38,6 +38,7 @@ The following query will find the point using the Elasticsearch's
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "query":{
         "bool": {
@@ -59,6 +60,7 @@ The following query will find the point using the Elasticsearch's
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 ==== Pre-Indexed Shape
 
@@ -81,26 +83,30 @@ shape:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "bool": {
-        "must": {
-            "match_all": {}
-        },
-        "filter": {
-            "geo_shape": {
-                "location": {
-                    "indexed_shape": {
-                        "id": "DEU",
-                        "type": "countries",
-                        "index": "shapes",
-                        "path": "location"
+    "query": {
+        "bool": {
+            "must": {
+                "match_all": {}
+            },
+                "filter": {
+                    "geo_shape": {
+                        "location": {
+                            "indexed_shape": {
+                                "id": "DEU",
+                                "type": "countries",
+                                "index": "shapes",
+                                "path": "location"
+                            }
+                        }
                     }
                 }
-            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 ==== Spatial Relations
 
@@ -117,3 +123,12 @@ has nothing in common with the query geometry.
 is within the query geometry.
 * `CONTAINS` - Return all documents whose `geo_shape` field
 contains the query geometry.
+
+[float]
+==== Ignore Unmapped
+
+When set to `true` the `ignore_unmapped` option will ignore an unmapped field
+and will not match any documents for this query. This can be useful when
+querying multiple indexes which might have different mappings. When set to
+`false` (the default value) the query will throw an exception if the field
+is not mapped.

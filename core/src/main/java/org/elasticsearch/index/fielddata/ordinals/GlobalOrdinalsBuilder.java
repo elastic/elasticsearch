@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiDocValues.OrdinalMap;
@@ -26,7 +27,6 @@ import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
@@ -37,6 +37,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Utility class to build global ordinals.
@@ -47,7 +48,7 @@ public enum GlobalOrdinalsBuilder {
     /**
      * Build global ordinals for the provided {@link IndexReader}.
      */
-    public static IndexOrdinalsFieldData build(final IndexReader indexReader, IndexOrdinalsFieldData indexFieldData, IndexSettings indexSettings, CircuitBreakerService breakerService, ESLogger logger) throws IOException {
+    public static IndexOrdinalsFieldData build(final IndexReader indexReader, IndexOrdinalsFieldData indexFieldData, IndexSettings indexSettings, CircuitBreakerService breakerService, Logger logger) throws IOException {
         assert indexReader.leaves().size() > 1;
         long startTimeNS = System.nanoTime();
 
@@ -63,10 +64,10 @@ public enum GlobalOrdinalsBuilder {
 
         if (logger.isDebugEnabled()) {
             logger.debug(
-                    "Global-ordinals[{}][{}] took {} ms",
+                    "global-ordinals [{}][{}] took [{}]",
                     indexFieldData.getFieldName(),
                     ordinalMap.getValueCount(),
-                    TimeValue.nsecToMSec(System.nanoTime() - startTimeNS)
+                    new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS)
             );
         }
         return new InternalGlobalOrdinalsIndexFieldData(indexSettings, indexFieldData.getFieldName(),

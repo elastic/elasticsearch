@@ -25,6 +25,7 @@ import org.elasticsearch.SecureSM;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.plugins.PluginInfo;
 import org.junit.Assert;
 
@@ -144,7 +145,7 @@ public class BootstrapForTesting {
                         return esPolicy.implies(domain, permission) || testFramework.implies(domain, permission);
                     }
                 });
-                System.setSecurityManager(new SecureSM(true));
+                System.setSecurityManager(SecureSM.createTestSecureSM());
                 Security.selfTest();
 
                 // guarantee plugin classes are initialized first, in case they have one-time hacks.

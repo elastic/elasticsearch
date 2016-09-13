@@ -75,6 +75,7 @@ public abstract class ToXContentToBytes implements ToXContent {
             toXContent(builder, EMPTY_PARAMS);
             return builder.string();
         } catch (Exception e) {
+            // So we have a stack trace logged somewhere
             return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
         }
     }

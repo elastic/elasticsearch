@@ -24,8 +24,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.SearchHit;
@@ -41,6 +40,7 @@ import java.util.Collections;
 import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,7 +51,8 @@ public class SearchAfterIT extends ESIntegTestCase {
     private static final int NUM_DOCS = 100;
 
     public void testsShouldFail() throws Exception {
-        createIndex("test");
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type1", "field2", "type=keyword").get());
         ensureGreen();
         indexRandom(true, client().prepareIndex("test", "type1", "0").setSource("field1", 0, "field2", "toto"));
         try {
@@ -139,7 +140,8 @@ public class SearchAfterIT extends ESIntegTestCase {
     }
 
     public void testWithNullStrings() throws ExecutionException, InterruptedException {
-        createIndex("test");
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type1", "field2", "type=keyword").get());
         ensureGreen();
         indexRandom(true,
                 client().prepareIndex("test", "type1", "0").setSource("field1", 0),
@@ -186,11 +188,11 @@ public class SearchAfterIT extends ESIntegTestCase {
                         values.add(randomDouble());
                         break;
                     case 6:
-                        values.add(new Text(randomAsciiOfLengthBetween(5, 20)));
+                        values.add(randomAsciiOfLengthBetween(5, 20));
                         break;
                 }
             }
-            values.add(new Text(Strings.randomBase64UUID()));
+            values.add(UUIDs.randomBase64UUID());
             documents.add(values);
         }
         int reqSize = randomInt(NUM_DOCS-1);
@@ -293,7 +295,7 @@ public class SearchAfterIT extends ESIntegTestCase {
             } else if (type == Boolean.class) {
                 mappings.add("field" + Integer.toString(i));
                 mappings.add("type=boolean");
-            } else if (types.get(i) instanceof Text) {
+            } else if (types.get(i) instanceof String) {
                 mappings.add("field" + Integer.toString(i));
                 mappings.add("type=keyword");
             } else {

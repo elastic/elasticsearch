@@ -29,7 +29,7 @@ import java.util.Objects;
 /**
  * The interval the date histogram is based on.
  */
-public class DateHistogramInterval implements Writeable<DateHistogramInterval> {
+public class DateHistogramInterval implements Writeable {
 
     public static final DateHistogramInterval SECOND = new DateHistogramInterval("1s");
     public static final DateHistogramInterval MINUTE = new DateHistogramInterval("1m");
@@ -39,10 +39,6 @@ public class DateHistogramInterval implements Writeable<DateHistogramInterval> {
     public static final DateHistogramInterval MONTH = new DateHistogramInterval("1M");
     public static final DateHistogramInterval QUARTER = new DateHistogramInterval("1q");
     public static final DateHistogramInterval YEAR = new DateHistogramInterval("1y");
-
-    public static final DateHistogramInterval readFromStream(StreamInput in) throws IOException {
-        return SECOND.readFrom(in);
-    }
 
     public static DateHistogramInterval seconds(int sec) {
         return new DateHistogramInterval(sec + "s");
@@ -70,6 +66,19 @@ public class DateHistogramInterval implements Writeable<DateHistogramInterval> {
         this.expression = expression;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public DateHistogramInterval(StreamInput in) throws IOException {
+        expression = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(expression);
+    }
+
+
     @Override
     public String toString() {
         return expression;
@@ -90,15 +99,5 @@ public class DateHistogramInterval implements Writeable<DateHistogramInterval> {
         }
         DateHistogramInterval other = (DateHistogramInterval) obj;
         return Objects.equals(expression, other.expression);
-    }
-
-    @Override
-    public DateHistogramInterval readFrom(StreamInput in) throws IOException {
-        return new DateHistogramInterval(in.readString());
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(expression);
     }
 }

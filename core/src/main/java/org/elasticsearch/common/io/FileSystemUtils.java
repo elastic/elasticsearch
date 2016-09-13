@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.io;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.logging.ESLogger;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -29,21 +29,10 @@ import java.io.Reader;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
-import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.DirectoryStream;
-import java.nio.file.FileAlreadyExistsException;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.StreamSupport;
-
-import static java.nio.file.FileVisitResult.CONTINUE;
-import static java.nio.file.FileVisitResult.SKIP_SUBTREE;
 
 /**
  * Elasticsearch utils to work with {@link java.nio.file.Path}
@@ -112,7 +101,7 @@ public final class FileSystemUtils {
      * Check that a directory exists, is a directory and is readable
      * by the current user
      */
-    public static boolean isAccessibleDirectory(Path directory, ESLogger logger) {
+    public static boolean isAccessibleDirectory(Path directory, Logger logger) {
         assert directory != null && logger != null;
 
         if (!Files.exists(directory)) {

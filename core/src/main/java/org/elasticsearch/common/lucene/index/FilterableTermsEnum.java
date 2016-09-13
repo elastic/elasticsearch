@@ -60,24 +60,18 @@ public class FilterableTermsEnum extends TermsEnum {
     }
 
     static final String UNSUPPORTED_MESSAGE = "This TermsEnum only supports #seekExact(BytesRef) as well as #docFreq() and #totalTermFreq()";
-    protected final static int NOT_FOUND = -1;
+    protected static final int NOT_FOUND = -1;
     private final Holder[] enums;
     protected int currentDocFreq = 0;
     protected long currentTotalTermFreq = 0;
     protected BytesRef current;
     protected final int docsEnumFlag;
-    protected int numDocs;
 
     public FilterableTermsEnum(IndexReader reader, String field, int docsEnumFlag, @Nullable Query filter) throws IOException {
         if ((docsEnumFlag != PostingsEnum.FREQS) && (docsEnumFlag != PostingsEnum.NONE)) {
             throw new IllegalArgumentException("invalid docsEnumFlag of " + docsEnumFlag);
         }
         this.docsEnumFlag = docsEnumFlag;
-        if (filter == null) {
-            // Important - need to use the doc count that includes deleted docs
-            // or we have this issue: https://github.com/elastic/elasticsearch/issues/7951
-            numDocs = reader.maxDoc();
-        }
         List<LeafReaderContext> leaves = reader.leaves();
         List<Holder> enums = new ArrayList<>(leaves.size());
         final Weight weight;
@@ -118,18 +112,10 @@ public class FilterableTermsEnum extends TermsEnum {
                 }
 
                 bits = BitSet.of(docs, context.reader().maxDoc());
-
-                // Count how many docs are in our filtered set
-                // TODO make this lazy-loaded only for those that need it?
-                numDocs += bits.cardinality();
             }
             enums.add(new Holder(termsEnum, bits));
         }
         this.enums = enums.toArray(new Holder[enums.size()]);
-    }
-
-    public int getNumDocs() {
-        return numDocs;
     }
 
     @Override

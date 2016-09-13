@@ -299,7 +299,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
      * @return this request
      */
     public CreateSnapshotRequest settings(String source) {
-        this.settings = Settings.settingsBuilder().loadFromSource(source).build();
+        this.settings = Settings.builder().loadFromSource(source).build();
         return this;
     }
 

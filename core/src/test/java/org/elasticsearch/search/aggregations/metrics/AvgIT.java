@@ -21,18 +21,21 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -47,9 +50,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -317,25 +323,44 @@ public class AvgIT extends AbstractNumericTestCase {
         assertThat(avg.getValue(), equalTo((double) (3+4+4+5+5+6+6+7+7+8+8+9+9+10+10+11+11+12+12+13) / 20));
     }
 
+    @Override
+    public void testOrderByEmptyAggregation() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(terms("terms").field("value").order(Order.compound(Order.aggregation("filter>avg", true)))
+                        .subAggregation(filter("filter", termQuery("value", 100)).subAggregation(avg("avg").field("value"))))
+                .get();
+
+        assertHitCount(searchResponse, 10);
+
+        Terms terms = searchResponse.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        List<Terms.Bucket> buckets = terms.getBuckets();
+        assertThat(buckets, notNullValue());
+        assertThat(buckets.size(), equalTo(10));
+
+        for (int i = 0; i < 10; i++) {
+            Terms.Bucket bucket = buckets.get(i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKeyAsNumber(), equalTo((long) i + 1));
+            assertThat(bucket.getDocCount(), equalTo(1L));
+            Filter filter = bucket.getAggregations().get("filter");
+            assertThat(filter, notNullValue());
+            assertThat(filter.getDocCount(), equalTo(0L));
+            Avg avg = filter.getAggregations().get("avg");
+            assertThat(avg, notNullValue());
+            assertThat(avg.value(), equalTo(Double.NaN));
+
+        }
+    }
+
     /**
      * Mock plugin for the {@link ExtractFieldScriptEngine}
      */
-    public static class ExtractFieldScriptPlugin extends Plugin {
-
+    public static class ExtractFieldScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public String name() {
-            return ExtractFieldScriptEngine.NAME;
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new ExtractFieldScriptEngine();
         }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + AvgIT.class;
-        }
-
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractFieldScriptEngine.class, ExtractFieldScriptEngine.TYPES));
-        }
-
     }
 
     /**
@@ -345,30 +370,23 @@ public class AvgIT extends AbstractNumericTestCase {
 
         public static final String NAME = "extract_field";
 
-        public static final List<String> TYPES = Collections.singletonList(NAME);
-
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public List<String> getTypes() {
-            return TYPES;
+        public String getType() {
+            return NAME;
         }
 
         @Override
-        public List<String> getExtensions() {
-            return TYPES;
+        public String getExtension() {
+            return NAME;
         }
 
         @Override
-        public boolean isSandboxed() {
-            return true;
-        }
-
-        @Override
-        public Object compile(String script, Map<String, String> params) {
-            return script;
+        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
+            return scriptSource;
         }
 
         @Override
@@ -426,11 +444,6 @@ public class AvgIT extends AbstractNumericTestCase {
                         }
 
                         @Override
-                        public float runAsFloat() {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        @Override
                         public double runAsDouble() {
                             throw new UnsupportedOperationException();
                         }
@@ -443,31 +456,16 @@ public class AvgIT extends AbstractNumericTestCase {
                 }
             };
         }
-
-        @Override
-        public void scriptRemoved(CompiledScript script) {
-        }
     }
 
     /**
      * Mock plugin for the {@link FieldValueScriptEngine}
      */
-    public static class FieldValueScriptPlugin extends Plugin {
-
+    public static class FieldValueScriptPlugin extends Plugin implements ScriptPlugin {
         @Override
-        public String name() {
-            return FieldValueScriptEngine.NAME;
+        public ScriptEngineService getScriptEngineService(Settings settings) {
+            return new FieldValueScriptEngine();
         }
-
-        @Override
-        public String description() {
-            return "Mock script engine for " + AvgIT.class;
-        }
-
-        public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldValueScriptEngine.class, FieldValueScriptEngine.TYPES));
-        }
-
     }
 
     /**
@@ -477,30 +475,23 @@ public class AvgIT extends AbstractNumericTestCase {
 
         public static final String NAME = "field_value";
 
-        public static final List<String> TYPES = Collections.singletonList(NAME);
-
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public List<String> getTypes() {
-            return TYPES;
+        public String getType() {
+            return NAME;
         }
 
         @Override
-        public List<String> getExtensions() {
-            return TYPES;
+        public String getExtension() {
+            return NAME;
         }
 
         @Override
-        public boolean isSandboxed() {
-            return true;
-        }
-
-        @Override
-        public Object compile(String script, Map<String, String> params) {
-            return script;
+        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
+            return scriptSource;
         }
 
         @Override
@@ -556,11 +547,6 @@ public class AvgIT extends AbstractNumericTestCase {
                         }
 
                         @Override
-                        public float runAsFloat() {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        @Override
                         public double runAsDouble() {
                             return ((Number) vars.get("_value")).doubleValue() + inc;
                         }
@@ -575,7 +561,8 @@ public class AvgIT extends AbstractNumericTestCase {
         }
 
         @Override
-        public void scriptRemoved(CompiledScript script) {
+        public boolean isInlineScriptEnabled() {
+            return true;
         }
     }
 }

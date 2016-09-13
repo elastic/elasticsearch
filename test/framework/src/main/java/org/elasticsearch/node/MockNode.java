@@ -19,10 +19,19 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.MockSearchService;
+import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
 
@@ -34,22 +43,37 @@ import java.util.Collection;
  * </ul>
  */
 public class MockNode extends Node {
+    private final Collection<Class<? extends Plugin>> classpathPlugins;
 
-    // these are kept here so a copy of this MockNode can be created, since Node does not store them
-    private Version version;
-    private Collection<Class<? extends Plugin>> plugins;
-
-    public MockNode(Settings settings, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
-        super(InternalSettingsPreparer.prepareEnvironment(settings, null), version, classpathPlugins);
-        this.version = version;
-        this.plugins = classpathPlugins;
+    public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
+        super(InternalSettingsPreparer.prepareEnvironment(settings, null), classpathPlugins);
+        this.classpathPlugins = classpathPlugins;
     }
 
-    public Collection<Class<? extends Plugin>> getPlugins() {
-        return plugins;
+    /**
+     * The classpath plugins this node was constructed with.
+     */
+    public Collection<Class<? extends Plugin>> getClasspathPlugins() {
+        return classpathPlugins;
     }
 
-    public Version getVersion() {
-        return version;
+    @Override
+    protected BigArrays createBigArrays(Settings settings, CircuitBreakerService circuitBreakerService) {
+        if (getPluginsService().filterPlugins(NodeMocksPlugin.class).isEmpty()) {
+            return super.createBigArrays(settings, circuitBreakerService);
+        }
+        return new MockBigArrays(settings, circuitBreakerService);
+    }
+
+
+    @Override
+    protected SearchService newSearchService(ClusterService clusterService, IndicesService indicesService,
+                                             ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays,
+                                             FetchPhase fetchPhase) {
+        if (getPluginsService().filterPlugins(MockSearchService.TestPlugin.class).isEmpty()) {
+            return super.newSearchService(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase);
+        }
+        return new MockSearchService(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase);
     }
 }
+

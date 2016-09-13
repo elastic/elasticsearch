@@ -64,7 +64,6 @@ import static org.elasticsearch.common.inject.internal.Annotations.findScopeAnno
  */
 class InjectorImpl implements Injector, Lookups {
     final State state;
-    final InjectorImpl parent;
     boolean readOnly;
     BindingsMultimap bindingsMultimap = new BindingsMultimap();
     final Initializer initializer;
@@ -76,21 +75,10 @@ class InjectorImpl implements Injector, Lookups {
 
     Lookups lookups = new DeferredLookups(this);
 
-    InjectorImpl(@Nullable InjectorImpl parent, State state, Initializer initializer) {
-        this.parent = parent;
+    InjectorImpl(State state, Initializer initializer) {
         this.state = state;
         this.initializer = initializer;
-
-        if (parent != null) {
-            localContext = parent.localContext;
-        } else {
-            localContext = new ThreadLocal<Object[]>() {
-                @Override
-                protected Object[] initialValue() {
-                    return new Object[1];
-                }
-            };
-        }
+        localContext = new ThreadLocal<>();
     }
 
     /**
@@ -112,21 +100,6 @@ class InjectorImpl implements Injector, Lookups {
     }
 
     /**
-     * Returns the binding for {@code key}
-     */
-    @Override
-    public <T> BindingImpl<T> getBinding(Key<T> key) {
-        Errors errors = new Errors(key);
-        try {
-            BindingImpl<T> result = getBindingOrThrow(key, errors);
-            errors.throwConfigurationExceptionIfErrorsExist();
-            return result;
-        } catch (ErrorsException e) {
-            throw new ConfigurationException(errors.merge(e.getErrors()).getMessages());
-        }
-    }
-
-    /**
      * Gets a binding implementation.  First, it check to see if the parent has a binding.  If the
      * parent has a binding and the binding is scoped, it will use that binding.  Otherwise, this
      * checks for an explicit binding. If no explicit binding is found, it looks for a just-in-time
@@ -144,29 +117,6 @@ class InjectorImpl implements Injector, Lookups {
         return getJustInTimeBinding(key, errors);
     }
 
-    @Override
-    public <T> Binding<T> getBinding(Class<T> type) {
-        return getBinding(Key.get(type));
-    }
-
-    @Override
-    public Injector getParent() {
-        return parent;
-    }
-
-    @Override
-    public Injector createChildInjector(Iterable<? extends Module> modules) {
-        return new InjectorBuilder()
-                .parentInjector(this)
-                .addModules(modules)
-                .build();
-    }
-
-    @Override
-    public Injector createChildInjector(Module... modules) {
-        return createChildInjector(Arrays.asList(modules));
-    }
-
     /**
      * Returns a just-in-time binding for {@code key}, creating it if necessary.
      *
@@ -176,13 +126,11 @@ class InjectorImpl implements Injector, Lookups {
             throws ErrorsException {
         synchronized (state.lock()) {
             // first try to find a JIT binding that we've already created
-            for (InjectorImpl injector = this; injector != null; injector = injector.parent) {
-                @SuppressWarnings("unchecked") // we only store bindings that match their key
-                        BindingImpl<T> binding = (BindingImpl<T>) injector.jitBindings.get(key);
+            @SuppressWarnings("unchecked") // we only store bindings that match their key
+            BindingImpl<T> binding = (BindingImpl<T>) jitBindings.get(key);
 
-                if (binding != null) {
-                    return binding;
-                }
+            if (binding != null) {
+                return binding;
             }
 
             return createJustInTimeBindingRecursive(key, errors);
@@ -605,14 +553,6 @@ class InjectorImpl implements Injector, Lookups {
      */
     private <T> BindingImpl<T> createJustInTimeBindingRecursive(Key<T> key, Errors errors)
             throws ErrorsException {
-        // ask the parent to create the JIT binding
-        if (parent != null && !parent.readOnly /* ES: don't check on parent if its read only, its already created all the bindings it can*/) {
-            try {
-                return parent.createJustInTimeBindingRecursive(key, new Errors());
-            } catch (ErrorsException ignored) {
-            }
-        }
-
         if (state.isBlacklisted(key)) {
             throw errors.childBindingAlreadySet(key).toException();
         }
@@ -689,12 +629,6 @@ class InjectorImpl implements Injector, Lookups {
     <T> InternalFactory<? extends T> getInternalFactory(Key<T> key, Errors errors)
             throws ErrorsException {
         return getBindingOrThrow(key, errors).getInternalFactory();
-    }
-
-    // not test-covered
-    @Override
-    public Map<Key<?>, Binding<?>> getBindings() {
-        return state.getExplicitBindingsThisLevel();
     }
 
     private static class BindingsMultimap {
@@ -867,13 +801,17 @@ class InjectorImpl implements Injector, Lookups {
         return getProvider(type).get();
     }
 
-    final ThreadLocal<Object[]> localContext;
+    private final ThreadLocal<Object[]> localContext;
 
     /**
      * Looks up thread local context. Creates (and removes) a new context if necessary.
      */
     <T> T callInContext(ContextualCallable<T> callable) throws ErrorsException {
         Object[] reference = localContext.get();
+        if (reference == null) {
+            reference = new Object[1];
+            localContext.set(reference);
+        }
         if (reference[0] == null) {
             reference[0] = new InternalContext();
             try {

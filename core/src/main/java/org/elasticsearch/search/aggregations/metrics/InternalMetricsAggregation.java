@@ -19,17 +19,24 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 public abstract class InternalMetricsAggregation extends InternalAggregation {
-
-    protected InternalMetricsAggregation() {} // for serialization
-
     protected InternalMetricsAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
     }
+
+    /**
+     * Read from a stream.
+     */
+    protected InternalMetricsAggregation(StreamInput in) throws IOException {
+        super(in);
+    }
+
 }

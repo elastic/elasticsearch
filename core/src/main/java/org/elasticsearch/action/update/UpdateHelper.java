@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.update;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
@@ -37,17 +38,17 @@ import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.DocumentSourceMissingException;
 import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.ParentFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.TTLFieldMapper;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.util.ArrayList;
@@ -75,7 +76,7 @@ public class UpdateHelper extends AbstractComponent {
     public Result prepare(UpdateRequest request, IndexShard indexShard) {
         final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
                 new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME, TimestampFieldMapper.NAME},
-                true, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE, false);
+                true, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE);
         return prepare(indexShard.shardId(), request, getResult);
     }
 
@@ -116,9 +117,9 @@ public class UpdateHelper extends AbstractComponent {
                                 request.script.getScript());
                     }
                     UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),
-                            getResult.getVersion(), false);
+                            getResult.getVersion(), DocWriteResponse.Result.NOOP);
                     update.setGetResult(getResult);
-                    return new Result(update, Operation.NONE, upsertDoc, XContentType.JSON);
+                    return new Result(update, DocWriteResponse.Result.NOOP, upsertDoc, XContentType.JSON);
                 }
                 indexRequest.source((Map) ctx.get("_source"));
             }
@@ -127,23 +128,18 @@ public class UpdateHelper extends AbstractComponent {
                     // it has to be a "create!"
                     .create(true)
                     .ttl(ttl)
-                    .refresh(request.refresh())
+                    .setRefreshPolicy(request.getRefreshPolicy())
                     .routing(request.routing())
                     .parent(request.parent())
-                    .consistencyLevel(request.consistencyLevel());
+                    .waitForActiveShards(request.waitForActiveShards());
             if (request.versionType() != VersionType.INTERNAL) {
                 // in all but the internal versioning mode, we want to create the new document using the given version.
                 indexRequest.version(request.version()).versionType(request.versionType());
             }
-            return new Result(indexRequest, Operation.UPSERT, null, null);
+            return new Result(indexRequest, DocWriteResponse.Result.CREATED, null, null);
         }
 
-        long updateVersion = getResult.getVersion();
-
-        if (request.versionType() != VersionType.INTERNAL) {
-            assert request.versionType() == VersionType.FORCE;
-            updateVersion = request.version(); // remember, match_any is excluded by the conflict test
-        }
+        final long updateVersion = getResult.getVersion();
 
         if (getResult.internalSourceRef() == null) {
             // no source, we can't do nothing, through a failure...
@@ -223,23 +219,24 @@ public class UpdateHelper extends AbstractComponent {
             final IndexRequest indexRequest = Requests.indexRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .source(updatedSourceAsMap, updateSourceContentType)
                     .version(updateVersion).versionType(request.versionType())
-                    .consistencyLevel(request.consistencyLevel())
+                    .waitForActiveShards(request.waitForActiveShards())
                     .timestamp(timestamp).ttl(ttl)
-                    .refresh(request.refresh());
-            return new Result(indexRequest, Operation.INDEX, updatedSourceAsMap, updateSourceContentType);
+                    .setRefreshPolicy(request.getRefreshPolicy());
+            return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
         } else if ("delete".equals(operation)) {
             DeleteRequest deleteRequest = Requests.deleteRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .version(updateVersion).versionType(request.versionType())
-                    .consistencyLevel(request.consistencyLevel());
-            return new Result(deleteRequest, Operation.DELETE, updatedSourceAsMap, updateSourceContentType);
+                    .waitForActiveShards(request.waitForActiveShards())
+                    .setRefreshPolicy(request.getRefreshPolicy());
+            return new Result(deleteRequest, DocWriteResponse.Result.DELETED, updatedSourceAsMap, updateSourceContentType);
         } else if ("none".equals(operation)) {
-            UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(), getResult.getVersion(), false);
+            UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(), getResult.getVersion(), DocWriteResponse.Result.NOOP);
             update.setGetResult(extractGetResult(request, request.index(), getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
-            return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
+            return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
             logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script.getScript());
-            UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(), getResult.getVersion(), false);
-            return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
+            UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(), getResult.getVersion(), DocWriteResponse.Result.NOOP);
+            return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         }
     }
 
@@ -308,13 +305,13 @@ public class UpdateHelper extends AbstractComponent {
     public static class Result {
 
         private final Streamable action;
-        private final Operation operation;
+        private final DocWriteResponse.Result result;
         private final Map<String, Object> updatedSourceAsMap;
         private final XContentType updateSourceContentType;
 
-        public Result(Streamable action, Operation operation, Map<String, Object> updatedSourceAsMap, XContentType updateSourceContentType) {
+        public Result(Streamable action, DocWriteResponse.Result result, Map<String, Object> updatedSourceAsMap, XContentType updateSourceContentType) {
             this.action = action;
-            this.operation = operation;
+            this.result = result;
             this.updatedSourceAsMap = updatedSourceAsMap;
             this.updateSourceContentType = updateSourceContentType;
         }
@@ -324,8 +321,8 @@ public class UpdateHelper extends AbstractComponent {
             return (T) action;
         }
 
-        public Operation operation() {
-            return operation;
+        public DocWriteResponse.Result getResponseResult() {
+            return result;
         }
 
         public Map<String, Object> updatedSourceAsMap() {
@@ -337,10 +334,4 @@ public class UpdateHelper extends AbstractComponent {
         }
     }
 
-    public enum Operation {
-        UPSERT,
-        INDEX,
-        DELETE,
-        NONE
-    }
 }

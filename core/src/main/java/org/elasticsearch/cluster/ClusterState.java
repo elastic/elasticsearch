@@ -22,6 +22,7 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -40,6 +41,8 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -88,7 +91,7 @@ import java.util.Set;
  */
 public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
-    public static final ClusterState PROTO = builder(ClusterName.DEFAULT).build();
+    public static final ClusterState PROTO = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
 
     public static enum ClusterStateStatus {
         UNKNOWN((byte) 0),
@@ -112,7 +115,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         String type();
     }
 
-    private final static Map<String, Custom> customPrototypes = new HashMap<>();
+    private static final Map<String, Custom> customPrototypes = new HashMap<>();
 
     /**
      * Register a custom index meta data factory. Make sure to call it from a static block.
@@ -277,6 +280,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
+        sb.append("cluster uuid: ").append(metaData.clusterUUID()).append("\n");
         sb.append("version: ").append(version).append("\n");
         sb.append("state uuid: ").append(stateUUID).append("\n");
         sb.append("from_diff: ").append(wasReadFromDiff).append("\n");
@@ -288,7 +292,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
                 sb.append(TAB).append(TAB).append(shard).append(": ");
                 sb.append("p_term [").append(indexMetaData.primaryTerm(shard)).append("], ");
-                sb.append("a_ids ").append(indexMetaData.activeAllocationIds(shard)).append("\n");
+                sb.append("a_ids ").append(indexMetaData.inSyncAllocationIds(shard)).append("\n");
             }
         }
         sb.append(blocks().prettyPrint());
@@ -317,7 +321,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
      * In essence that means that all the changes from the other cluster state are also reflected by the current one
      */
     public boolean supersedes(ClusterState other) {
-        return this.nodes().masterNodeId() != null && this.nodes().masterNodeId().equals(other.nodes().masterNodeId()) && this.version() > other.version();
+        return this.nodes().getMasterNodeId() != null && this.nodes().getMasterNodeId().equals(other.nodes().getMasterNodeId()) && this.version() > other.version();
 
     }
 
@@ -382,7 +386,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         }
 
         if (metrics.contains(Metric.MASTER_NODE)) {
-            builder.field("master_node", nodes().masterNodeId());
+            builder.field("master_node", nodes().getMasterNodeId());
         }
 
         if (metrics.contains(Metric.BLOCKS)) {
@@ -427,7 +431,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             builder.startObject("templates");
             for (ObjectCursor<IndexTemplateMetaData> cursor : metaData().templates().values()) {
                 IndexTemplateMetaData templateMetaData = cursor.value;
-                builder.startObject(templateMetaData.name(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(templateMetaData.name());
 
                 builder.field("template", templateMetaData.template());
                 builder.field("order", templateMetaData.order());
@@ -440,8 +444,10 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 builder.startObject("mappings");
                 for (ObjectObjectCursor<String, CompressedXContent> cursor1 : templateMetaData.mappings()) {
                     byte[] mappingSource = cursor1.value.uncompressed();
-                    XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
-                    Map<String, Object> mapping = parser.map();
+                    Map<String, Object> mapping;
+                    try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource)) {
+                        mapping = parser.map();
+                    }
                     if (mapping.size() == 1 && mapping.containsKey(cursor1.key)) {
                         // the type name is the root value, reduce it
                         mapping = (Map<String, Object>) mapping.get(cursor1.key);
@@ -458,7 +464,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
             builder.startObject("indices");
             for (IndexMetaData indexMetaData : metaData()) {
-                builder.startObject(indexMetaData.getIndex().getName(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(indexMetaData.getIndex().getName());
 
                 builder.field("state", indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
 
@@ -470,8 +476,10 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 builder.startObject("mappings");
                 for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
                     byte[] mappingSource = cursor.value.source().uncompressed();
-                    XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
-                    Map<String, Object> mapping = parser.map();
+                    Map<String, Object> mapping;
+                    try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource)) {
+                        mapping = parser.map();
+                    }
                     if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
                         // the type name is the root value, reduce it
                         mapping = (Map<String, Object>) mapping.get(cursor.key);
@@ -493,8 +501,8 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 }
                 builder.endObject();
 
-                builder.startObject(IndexMetaData.KEY_ACTIVE_ALLOCATIONS);
-                for (IntObjectCursor<Set<String>> cursor : indexMetaData.getActiveAllocationIds()) {
+                builder.startObject(IndexMetaData.KEY_IN_SYNC_ALLOCATIONS);
+                for (IntObjectCursor<Set<String>> cursor : indexMetaData.getInSyncAllocationIds()) {
                     builder.startArray(String.valueOf(cursor.key));
                     for (String allocationId : cursor.value) {
                         builder.value(allocationId);
@@ -522,7 +530,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             builder.startObject("routing_table");
             builder.startObject("indices");
             for (IndexRoutingTable indexRoutingTable : routingTable()) {
-                builder.startObject(indexRoutingTable.getIndex().getName(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(indexRoutingTable.getIndex().getName());
                 builder.startObject("shards");
                 for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                     builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
@@ -549,7 +557,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
             builder.startObject("nodes");
             for (RoutingNode routingNode : getRoutingNodes()) {
-                builder.startArray(routingNode.nodeId() == null ? "null" : routingNode.nodeId(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startArray(routingNode.nodeId() == null ? "null" : routingNode.nodeId());
                 for (ShardRouting shardRouting : routingNode) {
                     shardRouting.toXContent(builder, params);
                 }
@@ -615,6 +623,10 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         public Builder nodes(DiscoveryNodes nodes) {
             this.nodes = nodes;
             return this;
+        }
+
+        public DiscoveryNodes nodes() {
+            return nodes;
         }
 
         public Builder routingResult(RoutingAllocation.Result routingResult) {
@@ -688,7 +700,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
         public ClusterState build() {
             if (UNKNOWN_UUID.equals(uuid)) {
-                uuid = Strings.randomBase64UUID();
+                uuid = UUIDs.randomBase64UUID();
             }
             return new ClusterState(clusterName, version, uuid, metaData, routingTable, nodes, blocks, customs.build(), fromDiff);
         }
@@ -696,7 +708,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         public static byte[] toBytes(ClusterState state) throws IOException {
             BytesStreamOutput os = new BytesStreamOutput();
             state.writeTo(os);
-            return os.bytes().toBytes();
+            return BytesReference.toBytes(os.bytes());
         }
 
         /**
@@ -705,6 +717,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
          */
         public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode) throws IOException {
             return readFrom(StreamInput.wrap(data), localNode);
+
         }
 
         /**
@@ -714,7 +727,6 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         public static ClusterState readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
             return PROTO.readFrom(in, localNode);
         }
-
     }
 
     @Override
@@ -728,7 +740,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
     }
 
     public ClusterState readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
-        ClusterName clusterName = ClusterName.readClusterName(in);
+        ClusterName clusterName = new ClusterName(in);
         Builder builder = new Builder(clusterName);
         builder.version = in.readLong();
         builder.uuid = in.readString();
@@ -747,7 +759,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
     @Override
     public ClusterState readFrom(StreamInput in) throws IOException {
-        return readFrom(in, nodes.localNode());
+        return readFrom(in, nodes.getLocalNode());
     }
 
     @Override
@@ -799,7 +811,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         }
 
         public ClusterStateDiff(StreamInput in, ClusterState proto) throws IOException {
-            clusterName = ClusterName.readClusterName(in);
+            clusterName = new ClusterName(in);
             fromUuid = in.readString();
             toUuid = in.readString();
             toVersion = in.readLong();

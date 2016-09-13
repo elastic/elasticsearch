@@ -19,21 +19,17 @@
 
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.index.CodecReader;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -50,7 +46,7 @@ import java.util.Map;
  */
 public final class ElasticsearchMergePolicy extends MergePolicy {
 
-    private static ESLogger logger = Loggers.getLogger(ElasticsearchMergePolicy.class);
+    private static Logger logger = Loggers.getLogger(ElasticsearchMergePolicy.class);
 
     private final MergePolicy delegate;
 
@@ -67,59 +63,10 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
         this.delegate = delegate;
     }
 
-    /** Return an "upgraded" view of the reader. */
-    static CodecReader filter(CodecReader reader) throws IOException {
-        // TODO: remove 0.90.x/1.x freqs/prox/payloads from _uid?
-        // the previous code never did this, so some indexes carry around trash.
-        return reader;
-    }
-
-    static class IndexUpgraderOneMerge extends OneMerge {
-
-        public IndexUpgraderOneMerge(List<SegmentCommitInfo> segments) {
-            super(segments);
-        }
-
-        @Override
-        public List<CodecReader> getMergeReaders() throws IOException {
-            final List<CodecReader> newReaders = new ArrayList<>();
-            for (CodecReader reader : super.getMergeReaders()) {
-                newReaders.add(filter(reader));
-            }
-            return newReaders;
-        }
-
-    }
-
-    static class IndexUpgraderMergeSpecification extends MergeSpecification {
-
-        @Override
-        public void add(OneMerge merge) {
-            super.add(new IndexUpgraderOneMerge(merge.segments));
-        }
-
-        @Override
-        public String segString(Directory dir) {
-            return "IndexUpgraderMergeSpec[" + super.segString(dir) + "]";
-        }
-
-    }
-
-    static MergeSpecification upgradedMergeSpecification(MergeSpecification spec) {
-        if (spec == null) {
-            return null;
-        }
-        MergeSpecification upgradedSpec = new IndexUpgraderMergeSpecification();
-        for (OneMerge merge : spec.merges) {
-            upgradedSpec.add(merge);
-        }
-        return upgradedSpec;
-    }
-
     @Override
     public MergeSpecification findMerges(MergeTrigger mergeTrigger,
         SegmentInfos segmentInfos, IndexWriter writer) throws IOException {
-        return upgradedMergeSpecification(delegate.findMerges(mergeTrigger, segmentInfos, writer));
+        return delegate.findMerges(mergeTrigger, segmentInfos, writer);
     }
 
     private boolean shouldUpgrade(SegmentCommitInfo info) {
@@ -148,7 +95,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
         throws IOException {
 
         if (upgradeInProgress) {
-            MergeSpecification spec = new IndexUpgraderMergeSpecification();
+            MergeSpecification spec = new MergeSpecification();
             for (SegmentCommitInfo info : segmentInfos) {
 
                 if (shouldUpgrade(info)) {
@@ -183,13 +130,13 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
             // has a chance to decide what to do (e.g. collapse the segments to satisfy maxSegmentCount)
         }
 
-        return upgradedMergeSpecification(delegate.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, writer));
+        return delegate.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, writer);
     }
 
     @Override
     public MergeSpecification findForcedDeletesMerges(SegmentInfos segmentInfos, IndexWriter writer)
         throws IOException {
-        return upgradedMergeSpecification(delegate.findForcedDeletesMerges(segmentInfos, writer));
+        return delegate.findForcedDeletesMerges(segmentInfos, writer);
     }
 
     @Override

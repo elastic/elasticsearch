@@ -39,14 +39,14 @@ public class SubAggCollectionModeTests extends ESTestCase {
     public void testwriteTo() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             SubAggCollectionMode.DEPTH_FIRST.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(0));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             SubAggCollectionMode.BREADTH_FIRST.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(1));
             }
         }
@@ -55,14 +55,14 @@ public class SubAggCollectionModeTests extends ESTestCase {
     public void testReadFrom() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(0);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(SubAggCollectionMode.BREADTH_FIRST.readFrom(in), equalTo(SubAggCollectionMode.DEPTH_FIRST));
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(SubAggCollectionMode.readFromStream(in), equalTo(SubAggCollectionMode.DEPTH_FIRST));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(1);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(SubAggCollectionMode.BREADTH_FIRST.readFrom(in), equalTo(SubAggCollectionMode.BREADTH_FIRST));
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertThat(SubAggCollectionMode.readFromStream(in), equalTo(SubAggCollectionMode.BREADTH_FIRST));
             }
         }
     }
@@ -70,8 +70,8 @@ public class SubAggCollectionModeTests extends ESTestCase {
     public void testInvalidReadFrom() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(randomIntBetween(2, Integer.MAX_VALUE));
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                SubAggCollectionMode.BREADTH_FIRST.readFrom(in);
+            try (StreamInput in = out.bytes().streamInput()) {
+                SubAggCollectionMode.readFromStream(in);
                 fail("Expected IOException");
             } catch(IOException e) {
                 assertThat(e.getMessage(), containsString("Unknown SubAggCollectionMode ordinal ["));

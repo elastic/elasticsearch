@@ -19,7 +19,9 @@
 
 package org.elasticsearch.tribe;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -39,8 +41,9 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
@@ -52,6 +55,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
@@ -87,7 +91,7 @@ import static java.util.Collections.unmodifiableMap;
  * in another cluster, the conflict one will be discarded. This happens because we need to have the correct index name
  * to propagate to the relevant cluster.
  */
-public class TribeService extends AbstractLifecycleComponent<TribeService> {
+public class TribeService extends AbstractLifecycleComponent {
 
     public static final ClusterBlock TRIBE_METADATA_BLOCK = new ClusterBlock(10, "tribe node, metadata not allowed", false, false,
             RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE));
@@ -112,12 +116,17 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         }
         // its a tribe configured node..., force settings
         Settings.Builder sb = Settings.builder().put(settings);
-        sb.put(Node.NODE_CLIENT_SETTING.getKey(), true); // this node should just act as a node client
+        sb.put(Node.NODE_MASTER_SETTING.getKey(), false);
+        sb.put(Node.NODE_DATA_SETTING.getKey(), false);
+        sb.put(Node.NODE_INGEST_SETTING.getKey(), false);
+        if (!NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.exists(settings)) {
+            sb.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), nodesSettings.size());
+        }
         sb.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local"); // a tribe node should not use zen discovery
         // nothing is going to be discovered, since no master will be elected
         sb.put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0);
         if (sb.get("cluster.name") == null) {
-            sb.put("cluster.name", "tribe_" + Strings.randomBase64UUID()); // make sure it won't join other tribe nodes in the same JVM
+            sb.put("cluster.name", "tribe_" + UUIDs.randomBase64UUID()); // make sure it won't join other tribe nodes in the same JVM
         }
         sb.put(TransportMasterNodeReadAction.FORCE_LOCAL_SETTING.getKey(), true);
         return sb.build();
@@ -173,15 +182,14 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
 
     private final List<Node> nodes = new CopyOnWriteArrayList<>();
 
-    @Inject
-    public TribeService(Settings settings, ClusterService clusterService) {
+    public TribeService(Settings settings, ClusterService clusterService, final String tribeNodeId) {
         super(settings);
         this.clusterService = clusterService;
         Map<String, Settings> nodesSettings = new HashMap<>(settings.getGroups("tribe", true));
         nodesSettings.remove("blocks"); // remove prefix settings that don't indicate a client
         nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
-            Settings clientSettings = buildClientSettings(entry.getKey(), settings, entry.getValue());
+            Settings clientSettings = buildClientSettings(entry.getKey(), tribeNodeId, settings, entry.getValue());
             nodes.add(new TribeClientNode(clientSettings));
         }
 
@@ -206,20 +214,17 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
      * Builds node settings for a tribe client node from the tribe node's global settings,
      * combined with tribe specific settings.
      */
-    static Settings buildClientSettings(String tribeName, Settings globalSettings, Settings tribeSettings) {
+    static Settings buildClientSettings(String tribeName, String parentNodeId, Settings globalSettings, Settings tribeSettings) {
         for (String tribeKey : tribeSettings.getAsMap().keySet()) {
             if (tribeKey.startsWith("path.")) {
                 throw new IllegalArgumentException("Setting [" + tribeKey + "] not allowed in tribe client [" + tribeName + "]");
             }
         }
         Settings.Builder sb = Settings.builder().put(tribeSettings);
-        sb.put("node.name", globalSettings.get("node.name") + "/" + tribeName);
+        sb.put(Node.NODE_NAME_SETTING.getKey(), Node.NODE_NAME_SETTING.get(globalSettings) + "/" + tribeName);
         sb.put(Environment.PATH_HOME_SETTING.getKey(), Environment.PATH_HOME_SETTING.get(globalSettings)); // pass through ES home dir
         if (Environment.PATH_CONF_SETTING.exists(globalSettings)) {
             sb.put(Environment.PATH_CONF_SETTING.getKey(), Environment.PATH_CONF_SETTING.get(globalSettings));
-        }
-        if (Environment.PATH_PLUGINS_SETTING.exists(globalSettings)) {
-            sb.put(Environment.PATH_PLUGINS_SETTING.getKey(), Environment.PATH_PLUGINS_SETTING.get(globalSettings));
         }
         if (Environment.PATH_LOGS_SETTING.exists(globalSettings)) {
             sb.put(Environment.PATH_LOGS_SETTING.getKey(), Environment.PATH_LOGS_SETTING.get(globalSettings));
@@ -236,7 +241,15 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         if (sb.get(NetworkModule.HTTP_ENABLED.getKey()) == null) {
             sb.put(NetworkModule.HTTP_ENABLED.getKey(), false);
         }
-        sb.put(Node.NODE_CLIENT_SETTING.getKey(), true);
+        sb.put(Node.NODE_DATA_SETTING.getKey(), false);
+        sb.put(Node.NODE_MASTER_SETTING.getKey(), false);
+        sb.put(Node.NODE_INGEST_SETTING.getKey(), false);
+
+        // node id of a tribe client node is determined by node id of parent node and tribe name
+        final BytesRef seedAsString = new BytesRef(parentNodeId + "/" + tribeName);
+        long nodeIdSeed = MurmurHash3.hash128(seedAsString.bytes, seedAsString.offset, seedAsString.length, 0, new MurmurHash3.Hash128()).h1;
+        sb.put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), nodeIdSeed);
+        sb.put(Node.NODE_LOCAL_STORAGE_SETTING.getKey(), false);
         return sb.build();
     }
 
@@ -256,13 +269,14 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             try {
                 node.injector().getInstance(ClusterService.class).add(new TribeClusterStateListener(node));
                 node.start();
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 // calling close is safe for non started nodes, we can just iterate over all
                 for (Node otherNode : nodes) {
                     try {
                         otherNode.close();
-                    } catch (Throwable t) {
-                        logger.warn("failed to close node {} on failed start", t, otherNode);
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to close node {} on failed start", otherNode), inner);
                     }
                 }
                 if (e instanceof RuntimeException) {
@@ -283,8 +297,8 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         for (Node node : nodes) {
             try {
                 node.close();
-            } catch (Throwable t) {
-                logger.warn("failed to close node {}", t, node);
+            } catch (Exception e) {
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to close node {}", node), e);
             }
         }
     }
@@ -304,11 +318,11 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         public void clusterChanged(final ClusterChangedEvent event) {
             logger.debug("[{}] received cluster event, [{}]", tribeName, event.source());
             clusterService.submitStateUpdateTask(
-                    "cluster event from " + tribeName + ", " + event.source(),
+                    "cluster event from " + tribeName,
                     event,
                     ClusterStateTaskConfig.build(Priority.NORMAL),
                     executor,
-                    (source, t) -> logger.warn("failed to process [{}]", t, source));
+                    (source, e) -> logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to process [{}]", source), e));
         }
     }
 
@@ -319,10 +333,14 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             this.tribeName = tribeName;
         }
 
-
         @Override
         public boolean runOnlyOnMaster() {
             return false;
+        }
+
+        @Override
+        public String describeTasks(List<ClusterChangedEvent> tasks) {
+            return tasks.stream().map(ClusterChangedEvent::source).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
         }
 
         @Override
@@ -334,8 +352,8 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                 // we only need to apply the latest cluster state update
                 accumulator = applyUpdate(accumulator, tasks.get(tasks.size() - 1));
                 builder.successes(tasks);
-            } catch (Throwable t) {
-                builder.failures(tasks, t);
+            } catch (Exception e) {
+                builder.failures(tasks, e);
             }
 
             return builder.build(accumulator);
@@ -348,29 +366,28 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             // -- merge nodes
             // go over existing nodes, and see if they need to be removed
             for (DiscoveryNode discoNode : currentState.nodes()) {
-                String markedTribeName = discoNode.attributes().get(TRIBE_NAME_SETTING.getKey());
+                String markedTribeName = discoNode.getAttributes().get(TRIBE_NAME_SETTING.getKey());
                 if (markedTribeName != null && markedTribeName.equals(tribeName)) {
-                    if (tribeState.nodes().get(discoNode.id()) == null) {
+                    if (tribeState.nodes().get(discoNode.getId()) == null) {
                         clusterStateChanged = true;
                         logger.info("[{}] removing node [{}]", tribeName, discoNode);
-                        nodes.remove(discoNode.id());
+                        nodes.remove(discoNode.getId());
                     }
                 }
             }
             // go over tribe nodes, and see if they need to be added
             for (DiscoveryNode tribe : tribeState.nodes()) {
-                if (currentState.nodes().get(tribe.id()) == null) {
+                if (currentState.nodes().nodeExists(tribe) == false) {
                     // a new node, add it, but also add the tribe name to the attributes
-                    Map<String, String> tribeAttr = new HashMap<>();
-                    for (ObjectObjectCursor<String, String> attr : tribe.attributes()) {
-                        tribeAttr.put(attr.key, attr.value);
-                    }
+                    Map<String, String> tribeAttr = new HashMap<>(tribe.getAttributes());
                     tribeAttr.put(TRIBE_NAME_SETTING.getKey(), tribeName);
-                    DiscoveryNode discoNode = new DiscoveryNode(tribe.name(), tribe.id(), tribe.getHostName(), tribe.getHostAddress(),
-                            tribe.address(), unmodifiableMap(tribeAttr), tribe.version());
+                    DiscoveryNode discoNode = new DiscoveryNode(tribe.getName(), tribe.getId(), tribe.getEphemeralId(),
+                        tribe.getHostName(), tribe.getHostAddress(), tribe.getAddress(), unmodifiableMap(tribeAttr), tribe.getRoles(),
+                        tribe.getVersion());
                     clusterStateChanged = true;
                     logger.info("[{}] adding node [{}]", tribeName, discoNode);
-                    nodes.put(discoNode);
+                    nodes.remove(tribe.getId()); // remove any existing node with the same id but different ephemeral id
+                    nodes.add(discoNode);
                 }
             }
 

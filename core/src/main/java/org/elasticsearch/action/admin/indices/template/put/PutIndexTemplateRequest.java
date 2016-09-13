@@ -47,9 +47,9 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index template.
@@ -71,8 +71,10 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     private Map<String, String> mappings = new HashMap<>();
 
     private final Set<Alias> aliases = new HashSet<>();
-    
+
     private Map<String, IndexMetaData.Custom> customs = new HashMap<>();
+
+    private Integer version;
 
     public PutIndexTemplateRequest() {
     }
@@ -129,6 +131,15 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         return this.order;
     }
 
+    public PutIndexTemplateRequest version(Integer version) {
+        this.version = version;
+        return this;
+    }
+
+    public Integer version() {
+        return this.version;
+    }
+
     /**
      * Set to <tt>true</tt> to force only creation, not an update of an index template. If it already
      * exists, it will fail with an {@link org.elasticsearch.indices.IndexTemplateAlreadyExistsException}.
@@ -162,7 +173,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * The settings to create the index template with (either json/yaml/properties format).
      */
     public PutIndexTemplateRequest settings(String source) {
-        this.settings = Settings.settingsBuilder().loadFromSource(source).build();
+        this.settings = Settings.builder().loadFromSource(source).build();
         return this;
     }
 
@@ -278,16 +289,23 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 template(entry.getValue().toString());
             } else if (name.equals("order")) {
                 order(XContentMapValues.nodeIntegerValue(entry.getValue(), order()));
+            } else if ("version".equals(name)) {
+                if ((entry.getValue() instanceof Integer) == false) {
+                    throw new IllegalArgumentException("Malformed [version] value, should be an integer");
+                }
+                version((Integer)entry.getValue());
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
-                    throw new IllegalArgumentException("Malformed settings section, should include an inner object");
+                    throw new IllegalArgumentException("Malformed [settings] section, should include an inner object");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("mappings")) {
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
                 for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
                     if (!(entry1.getValue() instanceof Map)) {
-                        throw new IllegalArgumentException("Malformed mappings section for type [" + entry1.getKey() + "], should include an inner object describing the mapping");
+                        throw new IllegalArgumentException(
+                            "Malformed [mappings] section for type [" + entry1.getKey() +
+                                "], should include an inner object describing the mapping");
                     }
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
@@ -356,7 +374,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     public Map<String, IndexMetaData.Custom> customs() {
         return this.customs;
     }
-       
+
     public Set<Alias> aliases() {
         return this.aliases;
     }
@@ -393,8 +411,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * Sets the aliases that will be associated with the index when it gets created
      */
     public PutIndexTemplateRequest aliases(BytesReference source) {
-        try {
-            XContentParser parser = XContentHelper.createParser(source);
+        try (XContentParser parser = XContentHelper.createParser(source)) {
             //move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -450,6 +467,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         for (int i = 0; i < aliasesSize; i++) {
             aliases.add(Alias.read(in));
         }
+        version = in.readOptionalVInt();
     }
 
     @Override
@@ -475,5 +493,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         for (Alias alias : aliases) {
             alias.writeTo(out);
         }
+        out.writeOptionalVInt(version);
     }
 }

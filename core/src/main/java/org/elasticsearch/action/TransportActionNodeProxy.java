@@ -35,7 +35,6 @@ public class TransportActionNodeProxy<Request extends ActionRequest, Response ex
     private final GenericAction<Request, Response> action;
     private final TransportRequestOptions transportOptions;
 
-    @Inject
     public TransportActionNodeProxy(Settings settings, GenericAction<Request, Response> action, TransportService transportService) {
         super(settings);
         this.action = action;
@@ -49,11 +48,7 @@ public class TransportActionNodeProxy<Request extends ActionRequest, Response ex
             listener.onFailure(validationException);
             return;
         }
-        transportService.sendRequest(node, action.name(), request, transportOptions, new ActionListenerResponseHandler<Response>(listener) {
-            @Override
-            public Response newInstance() {
-                return action.newResponse();
-            }
-        });
+        transportService.sendRequest(node, action.name(), request, transportOptions,
+            new ActionListenerResponseHandler<>(listener, action::newResponse));
     }
 }

@@ -21,7 +21,7 @@ package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.cluster.ClusterState.Custom;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Meta data about restore processes that are currently executing
@@ -73,22 +74,6 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
         return this.entries;
     }
 
-    /**
-     * Returns currently running restore process with corresponding snapshot id or null if this snapshot is not being
-     * restored
-     *
-     * @param snapshotId snapshot id
-     * @return restore metadata or null
-     */
-    public Entry snapshot(SnapshotId snapshotId) {
-        for (Entry entry : entries) {
-            if (snapshotId.equals(entry.snapshotId())) {
-                return entry;
-            }
-        }
-        return null;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -111,22 +96,22 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
      */
     public static class Entry {
         private final State state;
-        private final SnapshotId snapshotId;
+        private final Snapshot snapshot;
         private final ImmutableOpenMap<ShardId, ShardRestoreStatus> shards;
         private final List<String> indices;
 
         /**
          * Creates new restore metadata
          *
-         * @param snapshotId snapshot id
+         * @param snapshot   snapshot
          * @param state      current state of the restore process
          * @param indices    list of indices being restored
          * @param shards     map of shards being restored to their current restore status
          */
-        public Entry(SnapshotId snapshotId, State state, List<String> indices, ImmutableOpenMap<ShardId, ShardRestoreStatus> shards) {
-            this.snapshotId = snapshotId;
-            this.state = state;
-            this.indices = indices;
+        public Entry(Snapshot snapshot, State state, List<String> indices, ImmutableOpenMap<ShardId, ShardRestoreStatus> shards) {
+            this.snapshot = Objects.requireNonNull(snapshot);
+            this.state = Objects.requireNonNull(state);
+            this.indices = Objects.requireNonNull(indices);
             if (shards == null) {
                 this.shards = ImmutableOpenMap.of();
             } else {
@@ -135,12 +120,12 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
         }
 
         /**
-         * Returns snapshot id
+         * Returns snapshot
          *
-         * @return snapshot id
+         * @return snapshot
          */
-        public SnapshotId snapshotId() {
-            return this.snapshotId;
+        public Snapshot snapshot() {
+            return this.snapshot;
         }
 
         /**
@@ -172,26 +157,22 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Entry entry = (Entry) o;
-
-            if (!indices.equals(entry.indices)) return false;
-            if (!snapshotId.equals(entry.snapshotId)) return false;
-            if (!shards.equals(entry.shards)) return false;
-            if (state != entry.state) return false;
-
-            return true;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            @SuppressWarnings("unchecked") Entry entry = (Entry) o;
+            return snapshot.equals(entry.snapshot) &&
+                       state == entry.state &&
+                       indices.equals(entry.indices) &&
+                       shards.equals(entry.shards);
         }
 
         @Override
         public int hashCode() {
-            int result = state.hashCode();
-            result = 31 * result + snapshotId.hashCode();
-            result = 31 * result + shards.hashCode();
-            result = 31 * result + indices.hashCode();
-            return result;
+            return Objects.hash(snapshot, state, indices, shards);
         }
     }
 
@@ -301,31 +282,29 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
-            ShardRestoreStatus status = (ShardRestoreStatus) o;
-
-            if (nodeId != null ? !nodeId.equals(status.nodeId) : status.nodeId != null) return false;
-            if (reason != null ? !reason.equals(status.reason) : status.reason != null) return false;
-            if (state != status.state) return false;
-
-            return true;
+            @SuppressWarnings("unchecked") ShardRestoreStatus status = (ShardRestoreStatus) o;
+            return state == status.state &&
+                       Objects.equals(nodeId, status.nodeId) &&
+                       Objects.equals(reason, status.reason);
         }
 
         @Override
         public int hashCode() {
-            int result = state != null ? state.hashCode() : 0;
-            result = 31 * result + (nodeId != null ? nodeId.hashCode() : 0);
-            result = 31 * result + (reason != null ? reason.hashCode() : 0);
-            return result;
+            return Objects.hash(state, nodeId, reason);
         }
     }
 
     /**
      * Shard restore process state
      */
-    public static enum State {
+    public enum State {
         /**
          * Initializing state
          */
@@ -409,7 +388,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
     public RestoreInProgress readFrom(StreamInput in) throws IOException {
         Entry[] entries = new Entry[in.readVInt()];
         for (int i = 0; i < entries.length; i++) {
-            SnapshotId snapshotId = SnapshotId.readSnapshotId(in);
+            Snapshot snapshot = new Snapshot(in);
             State state = State.fromValue(in.readByte());
             int indices = in.readVInt();
             List<String> indexBuilder = new ArrayList<>();
@@ -423,7 +402,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
                 ShardRestoreStatus shardState = ShardRestoreStatus.readShardRestoreStatus(in);
                 builder.put(shardId, shardState);
             }
-            entries[i] = new Entry(snapshotId, state, Collections.unmodifiableList(indexBuilder), builder.build());
+            entries[i] = new Entry(snapshot, state, Collections.unmodifiableList(indexBuilder), builder.build());
         }
         return new RestoreInProgress(entries);
     }
@@ -435,7 +414,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(entries.size());
         for (Entry entry : entries) {
-            entry.snapshotId().writeTo(out);
+            entry.snapshot().writeTo(out);
             out.writeByte(entry.state().value());
             out.writeVInt(entry.indices().size());
             for (String index : entry.indices()) {
@@ -471,8 +450,8 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
      */
     public void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.field("snapshot", entry.snapshotId().getSnapshot());
-        builder.field("repository", entry.snapshotId().getRepository());
+        builder.field("snapshot", entry.snapshot().getSnapshotId().getName());
+        builder.field("repository", entry.snapshot().getRepository());
         builder.field("state", entry.state());
         builder.startArray("indices");
         {

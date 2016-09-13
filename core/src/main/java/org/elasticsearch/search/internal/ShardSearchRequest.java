@@ -23,7 +23,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -51,8 +50,6 @@ public interface ShardSearchRequest {
     String[] filteringAliases();
 
     long nowInMillis();
-
-    Template template();
 
     Boolean requestCache();
 

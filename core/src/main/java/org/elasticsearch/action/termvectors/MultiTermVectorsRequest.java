@@ -173,7 +173,7 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
     }
 
     @Override
-    public MultiTermVectorsRequest realtime(Boolean realtime) {
+    public MultiTermVectorsRequest realtime(boolean realtime) {
         for (TermVectorsRequest request : requests) {
             request.realtime(realtime);
         }

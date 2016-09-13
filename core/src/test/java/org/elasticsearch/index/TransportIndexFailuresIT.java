@@ -34,6 +34,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -51,7 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.SuppressLocalMode
 public class TransportIndexFailuresIT extends ESIntegTestCase {
 
-    private static final Settings nodeSettings = Settings.settingsBuilder()
+    private static final Settings nodeSettings = Settings.builder()
             .put("discovery.type", "zen") // <-- To override the local setting if set externally
             .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
             .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // <-- for hitting simulated network failures quickly
@@ -61,7 +62,7 @@ public class TransportIndexFailuresIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class);
     }
 
     @Override

@@ -37,7 +37,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
     public void testDefault() throws IOException {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                                 .put("index.analysis.filter.common_grams_default.type", "common_grams")
                                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                                 .build();
@@ -53,7 +53,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
 
     public void testWithoutCommonWordsMatch() throws IOException {
         {
-            Settings settings = Settings.settingsBuilder().put("index.analysis.filter.common_grams_default.type", "common_grams")
+            Settings settings = Settings.builder().put("index.analysis.filter.common_grams_default.type", "common_grams")
                      .putArray("index.analysis.filter.common_grams_default.common_words", "chromosome", "protein")
                      .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                      .build();
@@ -70,7 +70,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
         }
 
         {
-            Settings settings = Settings.settingsBuilder().put("index.analysis.filter.common_grams_default.type", "common_grams")
+            Settings settings = Settings.builder().put("index.analysis.filter.common_grams_default.type", "common_grams")
                      .put("index.analysis.filter.common_grams_default.query_mode", false)
                      .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                      .putArray("index.analysis.filter.common_grams_default.common_words", "chromosome", "protein")
@@ -89,7 +89,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
 
     public void testSettings() throws IOException {
         {
-            Settings settings = Settings.settingsBuilder().put("index.analysis.filter.common_grams_1.type", "common_grams")
+            Settings settings = Settings.builder().put("index.analysis.filter.common_grams_1.type", "common_grams")
                     .put("index.analysis.filter.common_grams_1.ignore_case", true)
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .putArray("index.analysis.filter.common_grams_1.common_words", "the", "Or", "Not", "a", "is", "an", "they", "are")
@@ -103,7 +103,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
             assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
         }
         {
-            Settings settings = Settings.settingsBuilder().put("index.analysis.filter.common_grams_2.type", "common_grams")
+            Settings settings = Settings.builder().put("index.analysis.filter.common_grams_2.type", "common_grams")
                     .put("index.analysis.filter.common_grams_2.ignore_case", false)
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .putArray("index.analysis.filter.common_grams_2.common_words", "the", "Or", "noT", "a", "is", "an", "they", "are")
@@ -117,7 +117,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
             assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
         }
         {
-            Settings settings = Settings.settingsBuilder().put("index.analysis.filter.common_grams_3.type", "common_grams")
+            Settings settings = Settings.builder().put("index.analysis.filter.common_grams_3.type", "common_grams")
                     .putArray("index.analysis.filter.common_grams_3.common_words", "the", "or", "not", "a", "is", "an", "they", "are")
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build();
@@ -133,7 +133,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
 
     public void testCommonGramsAnalysis() throws IOException {
         String json = "/org/elasticsearch/index/analysis/commongrams/commongrams.json";
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                      .loadFromStream(json, getClass().getResourceAsStream(json))
                      .put(Environment.PATH_HOME_SETTING.getKey(), createHome())
                      .build();
@@ -155,7 +155,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
 
     public void testQueryModeSettings() throws IOException {
         {
-            Settings settings = Settings.settingsBuilder().put("index.analysis.filter.common_grams_1.type", "common_grams")
+            Settings settings = Settings.builder().put("index.analysis.filter.common_grams_1.type", "common_grams")
                     .put("index.analysis.filter.common_grams_1.query_mode", true)
                     .putArray("index.analysis.filter.common_grams_1.common_words", "the", "Or", "Not", "a", "is", "an", "they", "are")
                     .put("index.analysis.filter.common_grams_1.ignore_case", true)
@@ -170,7 +170,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
             assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
         }
         {
-            Settings settings = Settings.settingsBuilder().put("index.analysis.filter.common_grams_2.type", "common_grams")
+            Settings settings = Settings.builder().put("index.analysis.filter.common_grams_2.type", "common_grams")
                     .put("index.analysis.filter.common_grams_2.query_mode", true)
                     .putArray("index.analysis.filter.common_grams_2.common_words", "the", "Or", "noT", "a", "is", "an", "they", "are")
                     .put("index.analysis.filter.common_grams_2.ignore_case", false)
@@ -185,7 +185,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
             assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
         }
         {
-            Settings settings = Settings.settingsBuilder().put("index.analysis.filter.common_grams_3.type", "common_grams")
+            Settings settings = Settings.builder().put("index.analysis.filter.common_grams_3.type", "common_grams")
                     .put("index.analysis.filter.common_grams_3.query_mode", true)
                     .putArray("index.analysis.filter.common_grams_3.common_words", "the", "Or", "noT", "a", "is", "an", "they", "are")
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -199,7 +199,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
             assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
         }
         {
-            Settings settings = Settings.settingsBuilder().put("index.analysis.filter.common_grams_4.type", "common_grams")
+            Settings settings = Settings.builder().put("index.analysis.filter.common_grams_4.type", "common_grams")
                     .put("index.analysis.filter.common_grams_4.query_mode", true)
                     .putArray("index.analysis.filter.common_grams_4.common_words", "the", "or", "not", "a", "is", "an", "they", "are")
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -216,7 +216,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
 
     public void testQueryModeCommonGramsAnalysis() throws IOException {
         String json = "/org/elasticsearch/index/analysis/commongrams/commongrams_query_mode.json";
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .loadFromStream(json, getClass().getResourceAsStream(json))
             .put(Environment.PATH_HOME_SETTING.getKey(), createHome())
                 .build();

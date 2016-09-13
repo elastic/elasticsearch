@@ -118,7 +118,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     // Issue #3629
     public void testExplainDateRangeInQueryString() {
-        assertAcked(prepareCreate("test").setSettings(Settings.settingsBuilder()
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.number_of_shards", 1)));
 
@@ -178,7 +178,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     public void testExplainMatchPhrasePrefix() {
         assertAcked(prepareCreate("test").setSettings(
-                Settings.settingsBuilder().put(indexSettings())
+                Settings.builder().put(indexSettings())
                         .put("index.analysis.filter.syns.type", "synonym")
                         .putArray("index.analysis.filter.syns.synonyms", "one,two")
                         .put("index.analysis.analyzer.syns.tokenizer", "standard")
@@ -212,7 +212,6 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:\"foo (one* two*)\""));
     }
 
-    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 4.0
     public void testExplainWithRewriteValidateQuery() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field", "type=text,analyzer=whitespace")

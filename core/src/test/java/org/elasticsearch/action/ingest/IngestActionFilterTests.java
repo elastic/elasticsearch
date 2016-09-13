@@ -33,10 +33,9 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineExecutionService;
 import org.elasticsearch.ingest.PipelineStore;
 import org.elasticsearch.ingest.TestProcessor;
-import org.elasticsearch.ingest.core.CompoundProcessor;
-import org.elasticsearch.ingest.core.IngestDocument;
-import org.elasticsearch.ingest.core.Pipeline;
-import org.elasticsearch.ingest.core.Processor;
+import org.elasticsearch.ingest.CompoundProcessor;
+import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -163,7 +162,7 @@ public class IngestActionFilterTests extends ESTestCase {
         PipelineStore store = mock(PipelineStore.class);
 
         Processor processor = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field2", "value2"));
-        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", new CompoundProcessor(processor)));
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", randomInt(), new CompoundProcessor(processor)));
         executionService = new PipelineExecutionService(store, threadPool);
         IngestService ingestService = mock(IngestService.class);
         when(ingestService.getPipelineExecutionService()).thenReturn(executionService);

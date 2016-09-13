@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -26,23 +27,22 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ESAllocationTestCase;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
 public class PrimaryNotRelocatedWhileBeingRecoveredTests extends ESAllocationTestCase {
-    private final ESLogger logger = Loggers.getLogger(PrimaryNotRelocatedWhileBeingRecoveredTests.class);
+    private final Logger logger = Loggers.getLogger(PrimaryNotRelocatedWhileBeingRecoveredTests.class);
 
     public void testPrimaryNotRelocatedWhileBeingRecoveredFrom() {
-        AllocationService strategy = createAllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.concurrent_source_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
@@ -54,38 +54,38 @@ public class PrimaryNotRelocatedWhileBeingRecoveredTests extends ESAllocationTes
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
                 .build();
 
-        RoutingTable routingTable = RoutingTable.builder()
+        RoutingTable initialRoutingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
 
         logger.info("Adding two nodes and performing rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1"))).build();
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
+        RoutingAllocation.Result routingResult = strategy.reroute(clusterState, "reroute");
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
 
         logger.info("Start the primary shard (on node1)");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        routingResult = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING));
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
 
-        assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(5));
+        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(5));
 
         logger.info("start another node, replica will start recovering form primary");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node2"))).build();
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
+        routingResult = strategy.reroute(clusterState, "reroute");
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
 
-        assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(5));
-        assertThat(routingTable.shardsWithState(INITIALIZING).size(), equalTo(5));
+        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(5));
+        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(5));
 
         logger.info("start another node, make sure the primary is not relocated");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node3"))).build();
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
+        routingResult = strategy.reroute(clusterState, "reroute");
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
 
-        assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(5));
-        assertThat(routingTable.shardsWithState(INITIALIZING).size(), equalTo(5));
+        assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(5));
+        assertThat(clusterState.routingTable().shardsWithState(INITIALIZING).size(), equalTo(5));
     }
 }

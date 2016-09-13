@@ -19,12 +19,15 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
@@ -41,6 +44,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         assertEquals(0, stats.getStoredFieldsMemoryInBytes());
         assertEquals(0, stats.getTermVectorsMemoryInBytes());
         assertEquals(0, stats.getNormsMemoryInBytes());
+        assertEquals(0, stats.getPointsMemoryInBytes());
         assertEquals(0, stats.getDocValuesMemoryInBytes());
     }
 
@@ -58,12 +62,15 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
                             .field("type", "text")
                             .field("term_vector", "with_positions_offsets_payloads")
                         .endObject()
+                        .startObject("baz")
+                            .field("type", "long")
+                        .endObject()
                     .endObject()
                 .endObject()
             .endObject();
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", mapping));
         ensureGreen("test");
-        client().prepareIndex("test", "doc", "1").setSource("foo", "bar", "bar", "baz").get();
+        client().prepareIndex("test", "doc", "1").setSource("foo", "bar", "bar", "baz", "baz", 42).get();
         client().admin().indices().prepareRefresh("test").get();
 
         IndicesStatsResponse rsp = client().admin().indices().prepareStats("test").get();
@@ -72,10 +79,11 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         assertThat(stats.getStoredFieldsMemoryInBytes(), greaterThan(0L));
         assertThat(stats.getTermVectorsMemoryInBytes(), greaterThan(0L));
         assertThat(stats.getNormsMemoryInBytes(), greaterThan(0L));
+        assertThat(stats.getPointsMemoryInBytes(), greaterThan(0L));
         assertThat(stats.getDocValuesMemoryInBytes(), greaterThan(0L));
 
         // now check multiple segments stats are merged together
-        client().prepareIndex("test", "doc", "2").setSource("foo", "bar", "bar", "baz").get();
+        client().prepareIndex("test", "doc", "2").setSource("foo", "bar", "bar", "baz", "baz", 43).get();
         client().admin().indices().prepareRefresh("test").get();
 
         rsp = client().admin().indices().prepareStats("test").get();
@@ -84,6 +92,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         assertThat(stats2.getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
         assertThat(stats2.getTermVectorsMemoryInBytes(), greaterThan(stats.getTermVectorsMemoryInBytes()));
         assertThat(stats2.getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
+        assertThat(stats2.getPointsMemoryInBytes(), greaterThan(stats.getPointsMemoryInBytes()));
         assertThat(stats2.getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
     }
 
@@ -100,6 +109,14 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
             assertThat(commitStats.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
             assertThat(commitStats.getUserData(), hasKey(Translog.TRANSLOG_UUID_KEY));
         }
+    }
+
+    /**
+     * Gives access to package private IndicesStatsResponse constructor for test purpose.
+     **/
+    public static IndicesStatsResponse newIndicesStatsResponse(ShardStats[] shards, int totalShards, int successfulShards,
+                                                               int failedShards, List<ShardOperationFailedException> shardFailures) {
+        return new IndicesStatsResponse(shards, totalShards, successfulShards, failedShards, shardFailures);
     }
 
 }

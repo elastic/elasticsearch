@@ -50,7 +50,7 @@ public class KeyedLock<T> {
         this(false);
     }
 
-    private final ConcurrentMap<T, KeyLock> map = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<T, KeyLock> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     public Releasable acquire(T key) {
         assert isHeldByCurrentThread(key) == false : "lock for " + key + " is already heald by this thread";
@@ -110,7 +110,7 @@ public class KeyedLock<T> {
     }
 
     @SuppressWarnings("serial")
-    private final static class KeyLock extends ReentrantLock {
+    private static final class KeyLock extends ReentrantLock {
         KeyLock(boolean fair) {
             super(fair);
         }

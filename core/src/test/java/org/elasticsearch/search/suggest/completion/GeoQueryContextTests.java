@@ -20,6 +20,7 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
 
 import java.io.IOException;
@@ -50,8 +51,8 @@ public class GeoQueryContextTests extends QueryContextTestCase<GeoQueryContext> 
     }
 
     @Override
-    protected GeoQueryContext prototype() {
-        return GeoQueryContext.PROTOTYPE;
+    protected GeoQueryContext fromXContent(QueryParseContext context) throws IOException {
+        return GeoQueryContext.fromXContent(context);
     }
 
     public void testNullGeoPointIsIllegal() {

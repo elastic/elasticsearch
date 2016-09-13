@@ -23,9 +23,7 @@ for this file is described in detail here:
 
 https://github.com/elastic/elasticsearch/blob/master/buildSrc/src/main/resources/plugin-descriptor.properties[`/buildSrc/src/main/resources/plugin-descriptor.properties`].
 
-Either fill in this template yourself (see
-https://github.com/lmenezes/elasticsearch-kopf/blob/master/plugin-descriptor.properties[elasticsearch-kopf]
-as an example) or, if you are using Elasticsearch's Gradle build system, you
+Either fill in this template yourself or, if you are using Elasticsearch's Gradle build system, you
 can fill in the necessary values in the `build.gradle` file for your plugin.
 
 [float]

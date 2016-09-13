@@ -125,7 +125,7 @@ public class AllocationExplanation implements Streamable {
             for (int j = 0; j < size2; j++) {
                 DiscoveryNode node = null;
                 if (in.readBoolean()) {
-                    node = DiscoveryNode.readNode(in);
+                    node = new DiscoveryNode(in);
                 }
                 ne.add(new NodeExplanation(node, in.readString()));
             }

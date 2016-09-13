@@ -17,7 +17,6 @@
  * under the License.
  */
 
-
 import org.elasticsearch.gradle.FileContentsTask
 import org.elasticsearch.gradle.vagrant.BatsOverVagrantTask
 import org.elasticsearch.gradle.vagrant.VagrantCommandTask
@@ -25,22 +24,67 @@ import org.elasticsearch.gradle.vagrant.VagrantCommandTask
 String testScripts = '*.bats'
 String testCommand = "cd \$TESTROOT && sudo bats --tap \$BATS/$testScripts"
 String smokeTestCommand = 'echo I work'
-List<String> representativeBoxes = ['ubuntu-1404', 'centos-7']
-List<String> boxes = representativeBoxes + [
-        'ubuntu-1204',
-        'ubuntu-1504',
-        'debian-8',
-        'centos-6',
-        'oel-6',
-        'oel-7',
-        'fedora-22',
-        'opensuse-13',
-        'sles-12'
+
+// the images we allow testing with
+List<String> availableBoxes = [
+    'centos-6',
+    'centos-7',
+    'debian-8',
+    'fedora-24',
+    'oel-6',
+    'oel-7',
+    'opensuse-13',
+    'sles-12',
+    'ubuntu-1204',
+    'ubuntu-1404',
+    'ubuntu-1504',
+    'ubuntu-1604'
 ]
 
-/* The version of elasticsearch that we upgrade *from* as part of testing
- * upgrades. */
-String upgradeFromVersion = '2.0.0'
+String vagrantBoxes = getProperties().get('vagrant.boxes', 'sample')
+List<String> boxes = []
+for (String box : vagrantBoxes.split(',')) {
+  if (box == 'sample') {
+    boxes.add('centos-7')
+    boxes.add('ubuntu-1404')
+  } else if (box == 'all') {
+    boxes = availableBoxes
+    break
+  } else {
+    if (availableBoxes.contains(box) == false) {
+      throw new IllegalArgumentException("Unknown vagrant box '${box}'")
+    }
+    boxes.add(box)
+  }
+}
+
+long seed
+String formattedSeed = null
+String[] upgradeFromVersions
+String upgradeFromVersion
+
+String maybeTestsSeed = System.getProperty("tests.seed", null);
+if (maybeTestsSeed != null) {
+  List<String> seeds = maybeTestsSeed.tokenize(':')
+  if (seeds.size() != 0) {
+    String masterSeed = seeds.get(0)
+    seed = new BigInteger(masterSeed, 16).longValue()
+    formattedSeed = maybeTestsSeed
+  }
+}
+if (formattedSeed == null) {
+  seed = new Random().nextLong()
+  formattedSeed = String.format("%016X", seed)
+}
+
+String maybeUpdradeFromVersions = System.getProperty("tests.packaging.upgrade.from.versions", null)
+if (maybeUpdradeFromVersions != null) {
+  upgradeFromVersions = maybeUpdradeFromVersions.split(",")
+} else {
+  upgradeFromVersions = new File(project.projectDir, 'versions')
+}
+
+upgradeFromVersion = upgradeFromVersions[new Random(seed).nextInt(upgradeFromVersions.length)]
 
 configurations {
   test
@@ -58,7 +102,7 @@ dependencies {
   // Collect all the plugins
   for (Project subproj : project.rootProject.subprojects) {
     if (subproj.path.startsWith(':plugins:')) {
-      test project("${subproj.path}")
+      test project(path: "${subproj.path}", configuration: 'zip')
     }
   }
 
@@ -67,25 +111,49 @@ dependencies {
   test "org.elasticsearch.distribution.rpm:elasticsearch:$upgradeFromVersion@rpm"
 }
 
-task checkPackages {
-  group 'Verification'
-  description 'Check the packages against a representative sample of the ' +
-    'linux distributions we have in our Vagrantfile'
-}
-
-task checkPackagesAllDistros {
-  group 'Verification'
-  description 'Check the packages against all the linux distributions we ' +
-    'have in our Vagrantfile'
-}
-
 task clean(type: Delete) {
   group 'Build'
   delete buildDir
 }
 
+task stop {
+  group 'Verification'
+  description 'Stop any tasks from tests that still may be running'
+}
+
+Set<String> getVersions() {
+  Node xml
+  new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
+    xml = new XmlParser().parse(s)
+  }
+  return new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /2\.\d\.\d/ })
+}
+
+task updatePackagingTestUpgradeFromVersions {
+  group 'Verification'
+  description 'Update file containing options for the\n    "starting" version in the "upgrade from" packaging tests.'
+  doLast {
+    Set<String> versions = getVersions()
+    new File(project.projectDir, 'versions').text = versions.join('\n') + '\n'
+  }
+}
+
+task verifyPackagingTestUpgradeFromVersions {
+  doLast {
+    String maybeUpdateFromVersions = System.getProperty("tests.packaging.upgrade.from.versions", null)
+    if (maybeUpdateFromVersions == null) {
+      Set<String> versions = getVersions()
+      Set<String> actualVersions = new HashSet<>(Arrays.asList(upgradeFromVersions))
+      if (!versions.equals(actualVersions)) {
+        throw new GradleException("out-of-date versions [" + actualVersions + "], expected [" + versions + "]; run gradle updatePackagingTestUpgradeFromVersions")
+      }
+    }
+  }
+}
+
 File testRoot = new File("$buildDir/testroot")
 task createTestRoot {
+  dependsOn verifyPackagingTestUpgradeFromVersions
   outputs.dir testRoot
   doLast {
     testRoot.mkdirs()
@@ -110,11 +178,19 @@ task prepareTestRoot(type: Copy) {
   from configurations.test
 
   dependsOn createVersionFile, createUpgradeFromFile
+  doFirst {
+    gradle.addBuildListener new BuildAdapter() {
+      @Override
+      void buildFinished(BuildResult result) {
+        if (result.failure) {
+          println "Reproduce with: gradle packagingTest -Pvagrant.boxes=${vagrantBoxes} -Dtests.seed=${formattedSeed} -Dtests.packaging.upgrade.from.versions=${upgradeFromVersions.join(",")}"
+        }
+      }
+    }
+  }
 }
 
 task checkVagrantVersion(type: Exec) {
-  group 'Package Verification'
-  description 'Check that the version of vagrant is ok'
   commandLine 'vagrant', '--version'
   standardOutput = new ByteArrayOutputStream()
   doLast {
@@ -127,21 +203,41 @@ task checkVagrantVersion(type: Exec) {
 }
 
 task vagrantSmokeTest {
-  group 'Vagrant'
-  description 'Smoke test some representative distros from the Vagrantfile'
+  group 'Verification'
+  description 'Smoke test the specified vagrant boxes'
 }
 
-task vagrantSmokeTestAllDistros {
-  group 'Vagrant'
-  description 'Smoke test all distros from the Vagrantfile'
+task packagingTest {
+  group 'Verification'
+  description "Tests yum/apt packages using vagrant and bats.\n" +
+              "    Specify the vagrant boxes to test using the gradle property 'vagrant.boxes'.\n" +
+              "    'sample' can be used to test a single yum and apt box. 'all' can be used to\n" +
+              "    test all available boxes. The available boxes are: \n" +
+              "    ${availableBoxes}"
 }
 
 // Each box gets it own set of tasks
-boxes.each { box ->
-  String boxTask = taskifyBoxName box
-  task "vagrantUp${boxTask}"(type: VagrantCommandTask) {
-    group 'Vagrant'
-    description "Startup a vagrant VM running ${box}"
+for (String box : availableBoxes) {
+  String boxTask = box.capitalize().replace('-', '')
+
+  // always add a halt task for all boxes, so clean makes sure they are all shutdown
+  Task halt = tasks.create("vagrant${boxTask}#halt", VagrantCommandTask) {
+    boxName box
+    args 'halt', box
+  }
+  stop.dependsOn(halt)
+  if (boxes.contains(box) == false) {
+    // we only need a halt task if this box was not specified
+    continue;
+  }
+
+  Task update = tasks.create("vagrant${boxTask}#update", VagrantCommandTask) {
+    boxName box
+    args 'box', 'update', box
+    dependsOn checkVagrantVersion
+  }
+
+  Task up = tasks.create("vagrant${boxTask}#up", VagrantCommandTask) {
     boxName box
     /* Its important that we try to reprovision the box even if it already
       exists. That way updates to the vagrant configuration take automatically.
@@ -153,48 +249,26 @@ boxes.each { box ->
       vagrant's default but its possible to change that default and folks do.
       But the boxes that we use are unlikely to work properly with other
       virtualization providers. Thus the lock. */
-    commandLine 'up', box, '--provision', '--provider', 'virtualbox'
+    args 'up', box, '--provision', '--provider', 'virtualbox'
     /* It'd be possible to check if the box is already up here and output
       SKIPPED but that would require running vagrant status which is slow! */
-    dependsOn checkVagrantVersion
-  }
-  task "vagrantHalt${boxTask}"(type: VagrantCommandTask) {
-    group 'Vagrant'
-    description "Shutdown the vagrant VM running $box"
-    boxName box
-    commandLine 'halt', box
+    dependsOn update
   }
 
-  task "smokeTest${boxTask}"(type: Exec) {
-    group 'Vagrant'
-    description "Smoke test the ${box} VM"
-    dependsOn "vagrantUp${boxTask}"
-    finalizedBy "vagrantHalt${boxTask}"
+  Task smoke = tasks.create("vagrant${boxTask}#smoketest", Exec) {
+    dependsOn up
+    finalizedBy halt
     commandLine 'vagrant', 'ssh', box, '--command',
-      "set -o pipefail && ${smokeTestCommand} | sed -ue \'s/^/    ${box}: /'"
-    vagrantSmokeTestAllDistros.dependsOn name
-    if (representativeBoxes.contains(box)) {
-      vagrantSmokeTest.dependsOn name
-    }
+      "set -o pipefail && ${smokeTestCommand} | sed -ue 's/^/    ${box}: /'"
   }
+  vagrantSmokeTest.dependsOn(smoke)
 
-  task "check${boxTask}"(type: BatsOverVagrantTask) {
-    group 'Package Verification'
-    description "Run packaging tests against ${box}"
-    dependsOn "vagrantUp${boxTask}"
-    finalizedBy "vagrantHalt${boxTask}"
+  Task packaging = tasks.create("packagingTest${boxTask}", BatsOverVagrantTask) {
+    dependsOn up
+    finalizedBy halt
     boxName box
     command testCommand
     dependsOn prepareTestRoot
-    checkPackagesAllDistros.dependsOn name
-    if (representativeBoxes.contains(box)) {
-      checkPackages.dependsOn name
-    }
   }
-}
-
-
-// Twists the box name into a sensible task name
-String taskifyBoxName(box) {
-  box.capitalize().replace('-', '')
+  packagingTest.dependsOn(packaging)
 }

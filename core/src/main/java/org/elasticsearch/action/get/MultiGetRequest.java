@@ -38,7 +38,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -198,7 +198,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             version = in.readLong();
             versionType = VersionType.fromValue(in.readByte());
 
-            fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
+            fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
         }
 
         @Override
@@ -220,7 +220,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             out.writeLong(version);
             out.writeByte(versionType.getValue());
 
-            FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
+            out.writeOptionalStreamable(fetchSourceContext);
         }
 
         @Override
@@ -260,10 +260,8 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
     }
 
     String preference;
-    Boolean realtime;
+    boolean realtime = true;
     boolean refresh;
-    public boolean ignoreErrorsOnGeneratedFields = false;
-
     List<Item> items = new ArrayList<>();
 
     public List<Item> getItems() {
@@ -319,11 +317,11 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
     }
 
     public boolean realtime() {
-        return this.realtime == null ? true : this.realtime;
+        return this.realtime;
     }
 
     @Override
-    public MultiGetRequest realtime(Boolean realtime) {
+    public MultiGetRequest realtime(boolean realtime) {
         this.realtime = realtime;
         return this;
     }
@@ -337,11 +335,6 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         return this;
     }
 
-
-    public MultiGetRequest ignoreErrorsOnGeneratedFields(boolean ignoreErrorsOnGeneratedFields) {
-        this.ignoreErrorsOnGeneratedFields = ignoreErrorsOnGeneratedFields;
-        return this;
-    }
 
     public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, byte[] data, int from, int length) throws Exception {
         return add(defaultIndex, defaultType, defaultFields, defaultFetchSource, new BytesArray(data, from, length), true);
@@ -509,13 +502,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         super.readFrom(in);
         preference = in.readOptionalString();
         refresh = in.readBoolean();
-        byte realtime = in.readByte();
-        if (realtime == 0) {
-            this.realtime = false;
-        } else if (realtime == 1) {
-            this.realtime = true;
-        }
-        ignoreErrorsOnGeneratedFields = in.readBoolean();
+        realtime = in.readBoolean();
 
         int size = in.readVInt();
         items = new ArrayList<>(size);
@@ -529,14 +516,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         super.writeTo(out);
         out.writeOptionalString(preference);
         out.writeBoolean(refresh);
-        if (realtime == null) {
-            out.writeByte((byte) -1);
-        } else if (realtime == false) {
-            out.writeByte((byte) 0);
-        } else {
-            out.writeByte((byte) 1);
-        }
-        out.writeBoolean(ignoreErrorsOnGeneratedFields);
+        out.writeBoolean(realtime);
 
         out.writeVInt(items.size());
         for (Item item : items) {

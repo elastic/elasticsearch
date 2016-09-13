@@ -19,20 +19,19 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * This {@link AllocationDecider} controls shard allocation based on
@@ -104,7 +103,6 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
 
-    @Inject
     public AwarenessAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         this.awarenessAttributes = CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
@@ -124,15 +122,6 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             }
         }
         this.forcedAwarenessAttributes = forcedAwarenessAttributes;
-    }
-
-    /**
-     * Get the attributes defined by this instance
-     *
-     * @return attributes defined by this instance
-     */
-    public String[] awarenessAttributes() {
-        return this.awarenessAttributes;
     }
 
     private void setAwarenessAttributes(String[] awarenessAttributes) {
@@ -158,7 +147,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         int shardCount = indexMetaData.getNumberOfReplicas() + 1; // 1 for primary
         for (String awarenessAttribute : awarenessAttributes) {
             // the node the shard exists on must be associated with an awareness attribute
-            if (!node.node().attributes().containsKey(awarenessAttribute)) {
+            if (!node.node().getAttributes().containsKey(awarenessAttribute)) {
                 return allocation.decision(Decision.NO, NAME, "node does not contain the awareness attribute: [%s]", awarenessAttribute);
             }
 
@@ -167,12 +156,12 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
             // build the count of shards per attribute value
             ObjectIntHashMap<String> shardPerAttribute = new ObjectIntHashMap<>();
-            for (ShardRouting assignedShard : allocation.routingNodes().assignedShards(shardRouting)) {
+            for (ShardRouting assignedShard : allocation.routingNodes().assignedShards(shardRouting.shardId())) {
                 if (assignedShard.started() || assignedShard.initializing()) {
                     // Note: this also counts relocation targets as that will be the new location of the shard.
                     // Relocation sources should not be counted as the shard is moving away
                     RoutingNode routingNode = allocation.routingNodes().node(assignedShard.currentNodeId());
-                    shardPerAttribute.addTo(routingNode.node().attributes().get(awarenessAttribute), 1);
+                    shardPerAttribute.addTo(routingNode.node().getAttributes().get(awarenessAttribute), 1);
                 }
             }
 
@@ -181,12 +170,12 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                     String nodeId = shardRouting.relocating() ? shardRouting.relocatingNodeId() : shardRouting.currentNodeId();
                     if (!node.nodeId().equals(nodeId)) {
                         // we work on different nodes, move counts around
-                        shardPerAttribute.putOrAdd(allocation.routingNodes().node(nodeId).node().attributes().get(awarenessAttribute),
+                        shardPerAttribute.putOrAdd(allocation.routingNodes().node(nodeId).node().getAttributes().get(awarenessAttribute),
                                 0, -1);
-                        shardPerAttribute.addTo(node.node().attributes().get(awarenessAttribute), 1);
+                        shardPerAttribute.addTo(node.node().getAttributes().get(awarenessAttribute), 1);
                     }
                 } else {
-                    shardPerAttribute.addTo(node.node().attributes().get(awarenessAttribute), 1);
+                    shardPerAttribute.addTo(node.node().getAttributes().get(awarenessAttribute), 1);
                 }
             }
 
@@ -213,7 +202,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             }
             int leftoverPerAttribute = totalLeftover == 0 ? 0 : 1;
 
-            int currentNodeCount = shardPerAttribute.get(node.node().attributes().get(awarenessAttribute));
+            int currentNodeCount = shardPerAttribute.get(node.node().getAttributes().get(awarenessAttribute));
             // if we are above with leftover, then we know we are not good, even with mod
             if (currentNodeCount > (requiredCountPerAttribute + leftoverPerAttribute)) {
                 return allocation.decision(Decision.NO, NAME,

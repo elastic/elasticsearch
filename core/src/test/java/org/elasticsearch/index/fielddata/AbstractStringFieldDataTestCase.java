@@ -246,11 +246,11 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         // missing value is set to an actual value
         final String[] values = new String[randomIntBetween(2, 30)];
         for (int i = 1; i < values.length; ++i) {
-            values[i] = TestUtil.randomUnicodeString(getRandom());
+            values[i] = TestUtil.randomUnicodeString(random());
         }
         final int numDocs = scaledRandomIntBetween(10, 3072);
         for (int i = 0; i < numDocs; ++i) {
-            final String value = RandomPicks.randomFrom(getRandom(), values);
+            final String value = RandomPicks.randomFrom(random(), values);
             if (value == null) {
                 writer.addDocument(new Document());
             } else {
@@ -302,11 +302,11 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
     public void testSortMissing(boolean first, boolean reverse) throws IOException {
         final String[] values = new String[randomIntBetween(2, 10)];
         for (int i = 1; i < values.length; ++i) {
-            values[i] = TestUtil.randomUnicodeString(getRandom());
+            values[i] = TestUtil.randomUnicodeString(random());
         }
         final int numDocs = scaledRandomIntBetween(10, 3072);
         for (int i = 0; i < numDocs; ++i) {
-            final String value = RandomPicks.randomFrom(getRandom(), values);
+            final String value = RandomPicks.randomFrom(random(), values);
             if (value == null) {
                 writer.addDocument(new Document());
             } else {
@@ -355,7 +355,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
     public void testNestedSorting(MultiValueMode sortMode) throws IOException {
         final String[] values = new String[randomIntBetween(2, 20)];
         for (int i = 0; i < values.length; ++i) {
-            values[i] = TestUtil.randomSimpleString(getRandom());
+            values[i] = TestUtil.randomSimpleString(random());
         }
         final int numParents = scaledRandomIntBetween(10, 3072);
         List<Document> docs = new ArrayList<>();
@@ -367,14 +367,14 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
                 final Document child = new Document();
                 final int numValues = randomInt(3);
                 for (int k = 0; k < numValues; ++k) {
-                    final String value = RandomPicks.randomFrom(getRandom(), values);
+                    final String value = RandomPicks.randomFrom(random(), values);
                     addField(child, "text", value);
                 }
                 docs.add(child);
             }
             final Document parent = new Document();
             parent.add(new StringField("type", "parent", Store.YES));
-            final String value = RandomPicks.randomFrom(getRandom(), values);
+            final String value = RandomPicks.randomFrom(random(), values);
             if (value != null) {
                 addField(parent, "text", value);
             }
@@ -400,10 +400,10 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             missingValue = "_last";
             break;
         case 2:
-            missingValue = new BytesRef(RandomPicks.randomFrom(getRandom(), values));
+            missingValue = new BytesRef(RandomPicks.randomFrom(random(), values));
             break;
         default:
-            missingValue = new BytesRef(TestUtil.randomSimpleString(getRandom()));
+            missingValue = new BytesRef(TestUtil.randomSimpleString(random()));
             break;
         }
         Query parentFilter = new TermQuery(new Term("type", "parent"));

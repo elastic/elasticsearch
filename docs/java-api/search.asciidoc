@@ -55,7 +55,7 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 QueryBuilder qb = termQuery("multi", "test");
 
 SearchResponse scrollResp = client.prepareSearch(test)
-        .setSearchType(SearchType.SCAN)
+        .addSort(FieldSortBuilder.DOC_FIELD_NAME, SortOrder.ASC)
         .setScroll(new TimeValue(60000))
         .setQuery(qb)
         .setSize(100).execute().actionGet(); //100 hits per shard will be returned for each scroll

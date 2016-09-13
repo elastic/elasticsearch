@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
@@ -52,7 +52,7 @@ public class ExplainActionIT extends ESIntegTestCase {
     public void testSimple() throws Exception {
         assertAcked(prepareCreate("test")
                 .addAlias(new Alias("alias"))
-                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen("test");
 
         client().prepareIndex("test", "test", "1").setSource("field", "value1").get();
@@ -114,7 +114,9 @@ public class ExplainActionIT extends ESIntegTestCase {
     }
 
     public void testExplainWithFields() throws Exception {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        assertAcked(prepareCreate("test")
+                .addMapping("test", "obj1.field1", "type=keyword,store=true", "obj1.field2", "type=keyword,store=true")
+                .addAlias(new Alias("alias")));
         ensureGreen("test");
 
         client().prepareIndex("test", "test", "1")

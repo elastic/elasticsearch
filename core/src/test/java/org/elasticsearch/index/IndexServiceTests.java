@@ -43,6 +43,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -52,13 +54,13 @@ import static org.hamcrest.Matchers.nullValue;
 public class IndexServiceTests extends ESSingleNodeTestCase {
     public void testDetermineShadowEngineShouldBeUsed() {
         Settings regularSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(SETTING_NUMBER_OF_SHARDS, 2)
+                .put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
 
         Settings shadowSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(SETTING_NUMBER_OF_SHARDS, 2)
+                .put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
                 .build();
 
@@ -77,7 +79,6 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
     public void testFilteringAliases() throws Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY);
-        IndexShard shard = indexService.getShard(0);
         add(indexService, "cats", filter(termQuery("animal", "cat")));
         add(indexService, "dogs", filter(termQuery("animal", "dog")));
         add(indexService, "all", null);
@@ -101,7 +102,6 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
     public void testAliasFilters() throws Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY);
-        IndexShard shard = indexService.getShard(0);
 
         add(indexService, "cats", filter(termQuery("animal", "cat")));
         add(indexService, "dogs", filter(termQuery("animal", "dog")));
@@ -118,7 +118,6 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
     public void testRemovedAliasFilter() throws Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY);
-        IndexShard shard = indexService.getShard(0);
 
         add(indexService, "cats", filter(termQuery("animal", "cat")));
         remove(indexService, "cats");
@@ -132,7 +131,6 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
     public void testUnknownAliasFilter() throws Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY);
-        IndexShard shard = indexService.getShard(0);
 
         add(indexService, "cats", filter(termQuery("animal", "cat")));
         add(indexService, "dogs", filter(termQuery("animal", "dog")));

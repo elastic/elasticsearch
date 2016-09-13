@@ -42,6 +42,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.search.SearchExtRegistry;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -150,6 +151,9 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
         return new ModulesBuilder().add(
             (b) -> {
+                b.bind(IndicesQueriesRegistry.class).toInstance(searchModule.getQueryParserRegistry());
+                b.bind(SearchRequestParsers.class).toInstance(searchModule.getSearchRequestParsers());
+                b.bind(SearchExtRegistry.class).toInstance(searchModule.getSearchExtRegistry());
                 b.bind(Environment.class).toInstance(new Environment(settings));
                 b.bind(ThreadPool.class).toInstance(threadPool);
                 b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
@@ -157,7 +161,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
                 b.bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
                 b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
             },
-            settingsModule, indicesModule, searchModule, new IndexSettingsModule(index, settings)
+            settingsModule, indicesModule, new IndexSettingsModule(index, settings)
         ).createInjector();
     }
 

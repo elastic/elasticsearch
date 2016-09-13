@@ -57,7 +57,7 @@ public class CapturingLogger {
         public final List<String> trace = new ArrayList<>();
 
         private MockAppender(final String name) throws IllegalAccessException {
-            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], true, null, null), null);
+            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
         }
 
         @Override

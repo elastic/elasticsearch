@@ -391,7 +391,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                         parent = parser.text();
                     } else if ("fields".equals(currentFieldName)) {
                         throw new ParsingException(parser.getTokenLocation(),
-                            "Deprecated field [fields] used, expected [stored_fields] instead");
+                            "Unsupported field [fields] used, expected [stored_fields] instead");
                     } else if ("stored_fields".equals(currentFieldName)) {
                         storedFields = new ArrayList<>();
                         storedFields.add(parser.text());
@@ -411,7 +411,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if ("fields".equals(currentFieldName)) {
                         throw new ParsingException(parser.getTokenLocation(),
-                            "Deprecated field [fields] used, expected [stored_fields] instead");
+                            "Unsupported field [fields] used, expected [stored_fields] instead");
                     } else if ("stored_fields".equals(currentFieldName)) {
                         storedFields = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

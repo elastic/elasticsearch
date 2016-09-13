@@ -25,7 +25,7 @@ GET /_search
 
 An empty array will cause only the `_id` and `_type` for each hit to be
 returned, for example:
-t
+
 [source,js]
 --------------------------------------------------
 GET /_search

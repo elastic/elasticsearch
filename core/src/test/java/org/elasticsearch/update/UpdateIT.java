@@ -639,7 +639,7 @@ public class UpdateIT extends ESIntegTestCase {
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
             .setScript(new Script("field1", ScriptService.ScriptType.INLINE, "field_inc", null))
             .setFetchSource("field1", "field2")
-            .execute().actionGet();
+            .get();
         assertThat(updateResponse.getIndex(), equalTo("test"));
         assertThat(updateResponse.getGetResult(), notNullValue());
         assertThat(updateResponse.getGetResult().getIndex(), equalTo("test"));

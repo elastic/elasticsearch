@@ -47,10 +47,10 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -745,22 +745,17 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
                 } else if ("detect_noop".equals(currentFieldName)) {
                     detectNoop(parser.booleanValue());
                 } else if ("fields".equals(currentFieldName)) {
+                    List<Object> fields = null;
                     if (token == XContentParser.Token.START_ARRAY) {
-                        List<String> strings = parser.list().stream()
-                            .filter((o) -> {
-                                if (o instanceof String == false) {
-                                    throw new IllegalArgumentException("");
-                                }
-                                return true;
-                            })
-                            .map(o -> o.toString())
-                            .collect(Collectors.toList());
-                        fields(strings.toArray(new String[strings.size()]));
+                        fields = (List) parser.list();
                     } else if (token.isValue()) {
-                        fields(parser.text());
+                        fields = Collections.singletonList(parser.text());
+                    }
+                    if (fields != null) {
+                        fields(fields.toArray(new String[fields.size()]));
                     }
                 } else if ("_source".equals(currentFieldName)) {
-                    fetchSourceContext = FetchSourceContext.parse(parser, ParseFieldMatcher.EMPTY);
+                    fetchSourceContext = FetchSourceContext.parse(parser);
                 }
             }
             if (script != null) {

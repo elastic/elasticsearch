@@ -51,10 +51,9 @@ public class FetchSourceContext implements Writeable, ToXContent {
     private String[] includes;
     private String[] excludes;
 
-    public static FetchSourceContext parse(XContentParser parser,
-                                           ParseFieldMatcher parseFieldMatcher) throws IOException {
+    public static FetchSourceContext parse(XContentParser parser) throws IOException {
         FetchSourceContext fetchSourceContext = new FetchSourceContext();
-        fetchSourceContext.fromXContent(parser, parseFieldMatcher);
+        fetchSourceContext.fromXContent(parser, ParseFieldMatcher.STRICT);
         return fetchSourceContext;
     }
 

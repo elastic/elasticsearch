@@ -138,18 +138,17 @@ to put your field pairs of the partial document in the script itself.
 
 [float]
 === Detecting noop updates
-If `doc` is specified its value is merged with the existing `_source`. By
-default the document is only reindexed if the new `_source` field differs from
-the old. Setting `detect_noop` to `false` will cause Elasticsearch to always
-update the document even if it hasn't changed. For example:
+
+If `doc` is specified its value is merged with the existing `_source`.
+By default updates that don't change anything detect that they don't change anything and return "result": "noop" like this:
+
 [source,js]
 --------------------------------------------------
 POST test/type1/1/_update
 {
     "doc" : {
         "name" : "new_name"
-    },
-    "detect_noop": true
+    }
 }
 --------------------------------------------------
 // CONSOLE
@@ -175,6 +174,21 @@ the request was ignored.
 }
 --------------------------------------------------
 // TESTRESPONSE
+
+You can disable this behavior by setting "detect_noop": false like this:
+
+[source,js]
+--------------------------------------------------
+POST test/type1/1/_update
+{
+    "doc" : {
+        "name" : "new_name"
+    },
+    "detect_noop": true
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 [[upserts]]
 [float]

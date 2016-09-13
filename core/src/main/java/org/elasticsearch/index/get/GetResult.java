@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -204,7 +205,6 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         static final String _VERSION = "_version";
         static final String FOUND = "found";
         static final String FIELDS = "fields";
-        static final String _SOURCE = "_source";
     }
 
     public XContentBuilder toXContentEmbedded(XContentBuilder builder, Params params) throws IOException {
@@ -230,7 +230,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         builder.field(Fields.FOUND, exists);
 
         if (source != null) {
-            XContentHelper.writeRawField(Fields._SOURCE, source, builder, params);
+            XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);
         }
 
         if (!otherFields.isEmpty()) {

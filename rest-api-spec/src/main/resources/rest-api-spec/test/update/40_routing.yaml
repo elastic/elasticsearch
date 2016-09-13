@@ -49,7 +49,7 @@
           type:    test
           id:      1
           routing: 5
-          _source:  foo
+          _source: foo
           body:
             doc:        { foo: baz }
 

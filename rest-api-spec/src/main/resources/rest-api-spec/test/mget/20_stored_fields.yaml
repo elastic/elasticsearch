@@ -1,5 +1,5 @@
 ---
-"Fields":
+"Stored fields":
 
   - do:
       indices.create:

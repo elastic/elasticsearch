@@ -283,7 +283,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
 
-
         GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").get();
         GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").get();
         assertTrue(gResp1.isExists());

@@ -30,7 +30,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -361,7 +360,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                             } else if ("fields".equals(currentFieldName)) {
                                 throw new IllegalArgumentException("Action/metadata line [" + line + "] contains a simple value for parameter [fields] while a list is expected");
                             } else if ("_source".equals(currentFieldName)) {
-                                fetchSourceContext = FetchSourceContext.parse(parser, ParseFieldMatcher.EMPTY);
+                                fetchSourceContext = FetchSourceContext.parse(parser);
                             } else {
                                 throw new IllegalArgumentException("Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]");
                             }
@@ -374,7 +373,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                                 throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
                             }
                         } else if (token == XContentParser.Token.START_OBJECT && "_source".equals(currentFieldName)) {
-                            fetchSourceContext = FetchSourceContext.parse(parser, ParseFieldMatcher.STRICT);
+                            fetchSourceContext = FetchSourceContext.parse(parser);
                         } else if (token != XContentParser.Token.VALUE_NULL) {
                             throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
                         }

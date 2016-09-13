@@ -74,9 +74,12 @@ public class UpdateRequestTests extends ESTestCase {
         // script with params
         request = new UpdateRequest("test", "type", "1");
         request.fromXContent(XContentFactory.jsonBuilder().startObject()
-            .startObject("script").field("inline", "script1")
-            .startObject("params").field("param1", "value1")
-            .endObject().endObject().endObject());
+            .startObject("script")
+                .field("inline", "script1")
+                .startObject("params")
+                    .field("param1", "value1")
+                .endObject()
+            .endObject().endObject());
         script = request.script();
         assertThat(script, notNullValue());
         assertThat(script.getScript(), equalTo("script1"));
@@ -103,10 +106,13 @@ public class UpdateRequestTests extends ESTestCase {
 
         // script with params and upsert
         request = new UpdateRequest("test", "type", "1");
-        request.fromXContent(XContentFactory.jsonBuilder().startObject().startObject("script")
-            .startObject("params")
-                .field("param1", "value1").endObject()
-                .field("inline", "script1").endObject()
+        request.fromXContent(XContentFactory.jsonBuilder().startObject()
+            .startObject("script")
+                .startObject("params")
+                    .field("param1", "value1")
+                .endObject()
+                .field("inline", "script1")
+            .endObject()
             .startObject("upsert")
                 .field("field1", "value1")
                 .startObject("compound")
@@ -258,8 +264,8 @@ public class UpdateRequestTests extends ESTestCase {
         request.fromXContent(
             XContentFactory.jsonBuilder().startObject()
                 .startObject("_source")
-                    .field("include", "path.inner.*")
-                    .field("exclude", "another.inner.*")
+                    .field("includes", "path.inner.*")
+                    .field("excludes", "another.inner.*")
                 .endObject()
             .endObject()
         );

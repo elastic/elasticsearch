@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
@@ -327,26 +326,6 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      */
     public UpdateRequestBuilder setUpsert(Object... source) {
         request.upsert(source);
-        return this;
-    }
-
-    public UpdateRequestBuilder fromXContent(XContentBuilder source) throws Exception {
-        request.fromXContent(source);
-        return this;
-    }
-
-    public UpdateRequestBuilder fromXContent(byte[] source) throws Exception {
-        request.fromXContent(source);
-        return this;
-    }
-
-    public UpdateRequestBuilder fromXContent(byte[] source, int offset, int length) throws Exception {
-        request.fromXContent(source, offset, length);
-        return this;
-    }
-
-    public UpdateRequestBuilder fromXContent(BytesReference source) throws Exception {
-        request.fromXContent(source);
         return this;
     }
 

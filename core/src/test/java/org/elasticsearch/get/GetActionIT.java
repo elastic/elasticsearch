@@ -586,21 +586,18 @@ public class GetActionIT extends ESIntegTestCase {
                 .setSource(jsonBuilder().startObject().startObject("field1").field("field2", "value1").endObject().endObject())
                 .get();
 
-        try {
-            client().prepareGet(indexOrAlias(), "my-type1", "1").setStoredFields("field1").get();
-            fail();
-        } catch (IllegalArgumentException e) {
-            //all well
-        }
+
+        IllegalArgumentException exc =
+            expectThrows(IllegalArgumentException.class,
+                () -> client().prepareGet(indexOrAlias(), "my-type1", "1").setStoredFields("field1").get());
+        assertThat(exc.getMessage(), equalTo("field [field1] isn't a leaf field"));
 
         flush();
 
-        try {
-            client().prepareGet(indexOrAlias(), "my-type1", "1").setStoredFields("field1").get();
-            fail();
-        } catch (IllegalArgumentException e) {
-            //all well
-        }
+        exc =
+            expectThrows(IllegalArgumentException.class,
+                () -> client().prepareGet(indexOrAlias(), "my-type1", "1").setStoredFields("field1").get());
+        assertThat(exc.getMessage(), equalTo("field [field1] isn't a leaf field"));
     }
 
     public void testGetFieldsComplexField() throws Exception {

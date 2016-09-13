@@ -145,6 +145,9 @@ public class MatchQueryParser implements QueryParser {
                     } else {
                         throw new QueryParsingException(parseContext, "[match] query does not support [" + currentFieldName + "]");
                     }
+                } else {
+                    throw new QueryParsingException(parseContext,
+                            "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
                 }
             }
             parser.nextToken();

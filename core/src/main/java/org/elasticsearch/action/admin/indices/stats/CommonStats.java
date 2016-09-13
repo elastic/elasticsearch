@@ -97,14 +97,15 @@ public class CommonStats implements Writeable, ToXContent {
     @Nullable
     public RecoveryStats recoveryStats;
 
+    private CommonStatsFlags flags;
+
     public CommonStats() {
         this(CommonStatsFlags.NONE);
     }
 
     public CommonStats(CommonStatsFlags flags) {
-        CommonStatsFlags.Flag[] setFlags = flags.getFlags();
-
-        for (CommonStatsFlags.Flag flag : setFlags) {
+        this.flags = flags;
+        for (CommonStatsFlags.Flag flag : flags.getFlags()) {
             switch (flag) {
                 case Docs:
                     docs = new DocsStats();
@@ -164,8 +165,8 @@ public class CommonStats implements Writeable, ToXContent {
     }
 
     public CommonStats(IndicesQueryCache indicesQueryCache, IndexShard indexShard, CommonStatsFlags flags) {
-        CommonStatsFlags.Flag[] setFlags = flags.getFlags();
-        for (CommonStatsFlags.Flag flag : setFlags) {
+        this.flags = flags;
+        for (CommonStatsFlags.Flag flag : flags.getFlags()) {
             switch (flag) {
                 case Docs:
                     docs = indexShard.docStats();
@@ -225,6 +226,7 @@ public class CommonStats implements Writeable, ToXContent {
     }
 
     public CommonStats(StreamInput in) throws IOException {
+        flags = new CommonStatsFlags(in);
         if (in.readBoolean()) {
             docs = DocsStats.readDocStats(in);
         }
@@ -271,6 +273,7 @@ public class CommonStats implements Writeable, ToXContent {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        flags.writeTo(out);
         if (docs == null) {
             out.writeBoolean(false);
         } else {
@@ -484,6 +487,10 @@ public class CommonStats implements Writeable, ToXContent {
         } else {
             recoveryStats.add(stats.getRecoveryStats());
         }
+    }
+
+    public CommonStatsFlags getFlags() {
+        return this.flags;
     }
 
     @Nullable

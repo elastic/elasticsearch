@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsTests;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -143,25 +144,28 @@ public class RestIndicesActionTests extends ESTestCase {
                     );
                 shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                 shardRouting = shardRouting.moveToStarted();
-                CommonStats stats = new CommonStats();
-                stats.fieldData = new FieldDataStats();
-                stats.queryCache = new QueryCacheStats();
-                stats.docs = new DocsStats();
-                stats.store = new StoreStats();
-                stats.indexing = new IndexingStats();
-                stats.search = new SearchStats();
-                stats.segments = new SegmentsStats();
-                stats.merge = new MergeStats();
-                stats.refresh = new RefreshStats();
-                stats.completion = new CompletionStats();
-                stats.requestCache = new RequestCacheStats();
-                stats.get = new GetStats();
-                stats.flush = new FlushStats();
-                stats.warmer = new WarmerStats();
+                CommonStats stats = new CommonStats(CommonStatsFlags.ALL);
+                // rarely none of the stats fields would be initialized due to the index missing all shards for reporting stats
+                if (frequently()) {
+                    stats.fieldData = new FieldDataStats();
+                    stats.queryCache = new QueryCacheStats();
+                    stats.docs = new DocsStats();
+                    stats.store = new StoreStats();
+                    stats.indexing = new IndexingStats();
+                    stats.search = new SearchStats();
+                    stats.segments = new SegmentsStats();
+                    stats.merge = new MergeStats();
+                    stats.refresh = new RefreshStats();
+                    stats.completion = new CompletionStats();
+                    stats.requestCache = new RequestCacheStats();
+                    stats.get = new GetStats();
+                    stats.flush = new FlushStats();
+                    stats.warmer = new WarmerStats();
+                }
                 shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null));
             }
         }
-        return IndicesStatsTests.newIndicesStatsResponse(
+        return IndicesStatsTests.newIndicesStatsResponse(CommonStatsFlags.ALL,
             shardStats.toArray(new ShardStats[shardStats.size()]), shardStats.size(), shardStats.size(), 0, emptyList()
         );
     }

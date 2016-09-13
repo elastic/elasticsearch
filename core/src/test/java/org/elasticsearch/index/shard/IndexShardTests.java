@@ -337,7 +337,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
             case 2: {
                 // relocation source
-                indexShard = newStartedShard(false);
+                indexShard = newStartedShard(true);
                 ShardRouting routing = indexShard.routingEntry();
                 routing = TestShardRouting.newShardRouting(routing.shardId(), routing.currentNodeId(), "otherNode",
                     false, ShardRoutingState.RELOCATING, AllocationId.newRelocation(routing.allocationId()));

@@ -639,9 +639,7 @@ public class InternalSearchHit implements SearchHit {
                 matchedQueries[i] = in.readString();
             }
         }
-        if (in.readBoolean()) {
-            shard = new SearchShardTarget(in);
-        }
+        shard = in.readOptionalWriteable(SearchShardTarget::new);
         size = in.readVInt();
         if (size > 0) {
             innerHits = new HashMap<>(size);
@@ -732,14 +730,7 @@ public class InternalSearchHit implements SearchHit {
                 out.writeString(matchedFilter);
             }
         }
-
-        if (shard == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            shard.writeTo(out);
-        }
-
+        out.writeOptionalWriteable(shard);
         if (innerHits == null) {
             out.writeVInt(0);
         } else {

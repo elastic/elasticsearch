@@ -46,7 +46,7 @@ The settings which control logging can be updated dynamically with the
 PUT /_cluster/settings
 {
   "transient": {
-    "logger.indices.recovery": "DEBUG"
+    "logger.org.elasticsearch.indices.recovery": "DEBUG"
   }
 }
 -------------------------------

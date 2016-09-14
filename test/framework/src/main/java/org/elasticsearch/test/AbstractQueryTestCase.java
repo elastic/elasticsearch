@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -47,10 +46,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -86,7 +81,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
@@ -101,7 +95,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
@@ -159,6 +152,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static Index index;
     private static String[] currentTypes;
     private static String[] randomTypes;
+
 
     protected static Index getIndex() {
         return index;
@@ -1015,7 +1009,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     private static class ServiceHolder implements Closeable {
 
-        private final Injector injector;
         private final IndicesQueriesRegistry indicesQueriesRegistry;
         private final IndexFieldDataService indexFieldDataService;
         private final SearchModule searchModule;
@@ -1026,18 +1019,14 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         private final MapperService mapperService;
         private final BitsetFilterCache bitsetFilterCache;
         private final ScriptService scriptService;
+        private final Client client;
 
         ServiceHolder(Settings nodeSettings, Settings indexSettings,
                       Collection<Class<? extends Plugin>> plugins, AbstractQueryTestCase<?> testCase) throws IOException {
-            final ThreadPool threadPool = new ThreadPool(nodeSettings);
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-            ClusterServiceUtils.setState(clusterService, new ClusterState.Builder(clusterService.state()).metaData(
-                            new MetaData.Builder().put(new IndexMetaData.Builder(
-                                    index.getName()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
             Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings, null);
             PluginsService pluginsService = new PluginsService(nodeSettings, env.modulesFile(), env.pluginsFile(), plugins);
 
-            final Client proxy = (Client) Proxy.newProxyInstance(
+            client = (Client) Proxy.newProxyInstance(
                     Client.class.getClassLoader(),
                     new Class[]{Client.class},
                     clientInvocationHandler);
@@ -1047,47 +1036,23 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
             SettingsModule settingsModule = new SettingsModule(nodeSettings, scriptSettings, pluginsService.getPluginSettingsFilter());
             searchModule = new SearchModule(nodeSettings, false, pluginsService.filterPlugins(SearchPlugin.class));
-            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class)) {
-                @Override
-                public void configure() {
-                    // skip services
-                    bindMapperExtension();
-                }
-            };
+            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.addAll(indicesModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
-            ModulesBuilder modulesBuilder = new ModulesBuilder();
-            for (Module pluginModule : pluginsService.createGuiceModules()) {
-                modulesBuilder.add(pluginModule);
-            }
-            modulesBuilder.add(
-                    b -> {
-                        b.bind(PluginsService.class).toInstance(pluginsService);
-                        b.bind(Environment.class).toInstance(new Environment(nodeSettings));
-                        b.bind(ThreadPool.class).toInstance(threadPool);
-                        b.bind(Client.class).toInstance(proxy);
-                        b.bind(ClusterService.class).toProvider(Providers.of(clusterService));
-                        b.bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
-                        b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
-                    },
-                    settingsModule, indicesModule, searchModule, new IndexSettingsModule(index, indexSettings)
-            );
-            pluginsService.processModules(modulesBuilder);
-            injector = modulesBuilder.createInjector();
-            IndexScopedSettings indexScopedSettings = injector.getInstance(IndexScopedSettings.class);
+            IndexScopedSettings indexScopedSettings = settingsModule.getIndexScopedSettings();
             idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, indexScopedSettings);
             AnalysisModule analysisModule = new AnalysisModule(new Environment(nodeSettings), emptyList());
             AnalysisService analysisService = analysisModule.getAnalysisRegistry().build(idxSettings);
             scriptService = scriptModule.getScriptService();
             similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
-            MapperRegistry mapperRegistry = injector.getInstance(MapperRegistry.class);
+            MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
             mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry, this::createShardContext);
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
             });
             indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache,
-                    injector.getInstance(CircuitBreakerService.class), mapperService);
+                    new NoneCircuitBreakerService(), mapperService);
             bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
                 @Override
                 public void onCache(ShardId shardId, Accountable accountable) {
@@ -1099,7 +1064,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
                 }
             });
-            indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
+            indicesQueriesRegistry = searchModule.getQueryParserRegistry();
 
             String geoFieldMapping = (idxSettings.getIndexVersionCreated().before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) ?
                 LEGACY_GEO_POINT_FIELD_MAPPING : "type=geo_point";
@@ -1123,24 +1088,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         MapperService.MergeReason.MAPPING_UPDATE, false);
             }
             testCase.initializeAdditionalMappings(mapperService);
-            this.namedWriteableRegistry = injector.getInstance(NamedWriteableRegistry.class);
+            this.namedWriteableRegistry = namedWriteableRegistry;
         }
 
         @Override
         public void close() throws IOException {
-            injector.getInstance(ClusterService.class).close();
-            try {
-                terminate(injector.getInstance(ThreadPool.class));
-            } catch (InterruptedException e) {
-                IOUtils.reThrow(e);
-            }
         }
 
         QueryShardContext createShardContext() {
             ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
-            Client client = injector.getInstance(Client.class);
             return new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
-                    scriptService, indicesQueriesRegistry, client, null, state);
+                    scriptService, indicesQueriesRegistry, this.client, null, state);
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

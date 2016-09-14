@@ -23,7 +23,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
@@ -286,7 +285,7 @@ import static java.util.Objects.requireNonNull;
 /**
  * Sets up things that can be done at search time like queries, aggregations, and suggesters.
  */
-public class SearchModule extends AbstractModule {
+public class SearchModule {
     public static final Setting<Integer> INDICES_MAX_CLAUSE_COUNT_SETTING = Setting.intSetting("indices.query.bool.max_clause_count",
             1024, 1, Integer.MAX_VALUE, Setting.Property.NodeScope);
 
@@ -373,16 +372,6 @@ public class SearchModule extends AbstractModule {
      */
     public AggregatorParsers getAggregatorParsers() {
         return aggregatorParsers;
-    }
-
-
-    @Override
-    protected void configure() {
-        if (false == transportClient) {
-            bind(IndicesQueriesRegistry.class).toInstance(queryParserRegistry);
-            bind(SearchRequestParsers.class).toInstance(searchRequestParsers);
-            bind(SearchExtRegistry.class).toInstance(searchExtParserRegistry);
-        }
     }
 
     private void registerAggregations(List<SearchPlugin> plugins) {
@@ -810,5 +799,9 @@ public class SearchModule extends AbstractModule {
 
     public FetchPhase getFetchPhase() {
         return new FetchPhase(fetchSubPhases);
+    }
+
+    public SearchExtRegistry getSearchExtRegistry() {
+        return searchExtParserRegistry;
     }
 }

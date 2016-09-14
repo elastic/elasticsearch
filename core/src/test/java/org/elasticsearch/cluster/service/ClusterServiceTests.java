@@ -38,7 +38,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.TestLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -677,18 +677,30 @@ public class ClusterServiceTests extends ESTestCase {
         latch.await();
     }
 
-    @TestLogging("cluster:TRACE") // To ensure that we log cluster state events on TRACE level
+    @TestLogging("org.elasticsearch.cluster.service:TRACE") // To ensure that we log cluster state events on TRACE level
     public void testClusterStateUpdateLogging() throws Exception {
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test1", "cluster.service", Level.DEBUG,
-            "*processing [test1]: took [1s] no change in cluster_state"));
-        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test2", "cluster.service", Level.TRACE,
-            "*failed to execute cluster state update in [2s]*"));
-        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test3", "cluster.service", Level.DEBUG,
-            "*processing [test3]: took [3s] done applying updated cluster_state (version: *, uuid: *)"));
+        mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                        "test1",
+                        "org.elasticsearch.cluster.service.ClusterServiceTests$TimedClusterService",
+                        Level.DEBUG,
+                        "*processing [test1]: took [1s] no change in cluster_state"));
+        mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                        "test2",
+                        "org.elasticsearch.cluster.service.ClusterServiceTests$TimedClusterService",
+                        Level.TRACE,
+                        "*failed to execute cluster state update in [2s]*"));
+        mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                        "test3",
+                        "org.elasticsearch.cluster.service.ClusterServiceTests$TimedClusterService",
+                        Level.DEBUG,
+                        "*processing [test3]: took [3s] done applying updated cluster_state (version: *, uuid: *)"));
 
-        Logger rootLogger = LogManager.getRootLogger();
-        TestLoggers.addAppender(rootLogger, mockAppender);
+        Logger clusterLogger = Loggers.getLogger("org.elasticsearch.cluster.service");
+        Loggers.addAppender(clusterLogger, mockAppender);
         try {
             final CountDownLatch latch = new CountDownLatch(4);
             clusterService.currentTimeOverride = System.nanoTime();
@@ -743,7 +755,7 @@ public class ClusterServiceTests extends ESTestCase {
                     fail();
                 }
             });
-            // Additional update task to make sure all previous logging made it to the logger
+            // Additional update task to make sure all previous logging made it to the loggerName
             // We don't check logging for this on since there is no guarantee that it will occur before our check
             clusterService.submitStateUpdateTask("test4", new ClusterStateUpdateTask() {
                 @Override
@@ -763,25 +775,41 @@ public class ClusterServiceTests extends ESTestCase {
             });
             latch.await();
         } finally {
-            TestLoggers.removeAppender(rootLogger, mockAppender);
+            Loggers.removeAppender(clusterLogger, mockAppender);
         }
         mockAppender.assertAllExpectationsMatched();
     }
 
-    @TestLogging("cluster:WARN") // To ensure that we log cluster state events on WARN level
+    @TestLogging("org.elasticsearch.cluster.service:WARN") // To ensure that we log cluster state events on WARN level
     public void testLongClusterStateUpdateLogging() throws Exception {
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(new MockLogAppender.UnseenEventExpectation("test1 shouldn't see because setting is too low",
-            "cluster.service", Level.WARN, "*cluster state update task [test1] took [*] above the warn threshold of *"));
-        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test2", "cluster.service", Level.WARN,
-            "*cluster state update task [test2] took [32s] above the warn threshold of *"));
-        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test3", "cluster.service", Level.WARN,
-            "*cluster state update task [test3] took [33s] above the warn threshold of *"));
-        mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation("test4", "cluster.service", Level.WARN,
-            "*cluster state update task [test4] took [34s] above the warn threshold of *"));
+        mockAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                        "test1 shouldn't see because setting is too low",
+                        "org.elasticsearch.cluster.service.ClusterServiceTests$TimedClusterService",
+                        Level.WARN,
+                        "*cluster state update task [test1] took [*] above the warn threshold of *"));
+        mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                        "test2",
+                        "org.elasticsearch.cluster.service.ClusterServiceTests$TimedClusterService",
+                        Level.WARN,
+                        "*cluster state update task [test2] took [32s] above the warn threshold of *"));
+        mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                        "test3",
+                        "org.elasticsearch.cluster.service.ClusterServiceTests$TimedClusterService",
+                        Level.WARN,
+                        "*cluster state update task [test3] took [33s] above the warn threshold of *"));
+        mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                        "test4",
+                        "org.elasticsearch.cluster.service.ClusterServiceTests$TimedClusterService",
+                        Level.WARN,
+                        "*cluster state update task [test4] took [34s] above the warn threshold of *"));
 
-        Logger rootLogger = LogManager.getRootLogger();
-        TestLoggers.addAppender(rootLogger, mockAppender);
+        Logger clusterLogger = Loggers.getLogger("org.elasticsearch.cluster.service");
+        Loggers.addAppender(clusterLogger, mockAppender);
         try {
             final CountDownLatch latch = new CountDownLatch(5);
             final CountDownLatch processedFirstTask = new CountDownLatch(1);
@@ -857,7 +885,7 @@ public class ClusterServiceTests extends ESTestCase {
                     fail();
                 }
             });
-            // Additional update task to make sure all previous logging made it to the logger
+            // Additional update task to make sure all previous logging made it to the loggerName
             // We don't check logging for this on since there is no guarantee that it will occur before our check
             clusterService.submitStateUpdateTask("test5", new ClusterStateUpdateTask() {
                 @Override
@@ -877,7 +905,7 @@ public class ClusterServiceTests extends ESTestCase {
             });
             latch.await();
         } finally {
-            TestLoggers.removeAppender(rootLogger, mockAppender);
+            Loggers.removeAppender(clusterLogger, mockAppender);
         }
         mockAppender.assertAllExpectationsMatched();
     }

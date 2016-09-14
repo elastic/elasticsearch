@@ -45,7 +45,14 @@ public abstract class ScriptTestCase extends ESTestCase {
 
     @Before
     public void setup() {
-        scriptEngine = new PainlessScriptEngineService(Settings.EMPTY);
+        scriptEngine = new PainlessScriptEngineService(scriptEngineSettings());
+    }
+
+    /**
+     * Settings used to build the script engine. Override to customize settings like {@link RegexTests} does to enable regexes.
+     */
+    protected Settings scriptEngineSettings() {
+        return Settings.EMPTY;
     }
 
     /** Compiles and returns the result of {@code script} */
@@ -71,6 +78,7 @@ public abstract class ScriptTestCase extends ESTestCase {
         if (picky) {
             CompilerSettings pickySettings = new CompilerSettings();
             pickySettings.setPicky(true);
+            pickySettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(scriptEngineSettings()));
             Walker.buildPainlessTree(getTestName(), script, pickySettings, null);
         }
         // test actual script execution

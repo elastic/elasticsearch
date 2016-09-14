@@ -1,0 +1,9 @@
+[[breaking_60_rest_changes]]
+=== REST changes
+
+==== Unquoted JSON
+
+In previous versions of Elasticsearch, JSON documents were allowed to contain unquoted field names.
+This feature was removed in the 5.x series, but a backwards-compability layer was added via the
+system property `elasticsearch.json.allow_unquoted_field_names`. This backwards-compability layer
+has been removed in Elasticsearch 6.0.0.

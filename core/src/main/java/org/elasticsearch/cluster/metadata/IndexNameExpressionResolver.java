@@ -607,22 +607,20 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                     add = false;
                     expression = expression.substring(1);
                 }
+                if (result == null) {
+                    // add all the previous ones...
+                    result = new HashSet<>(expressions.subList(0, i));
+                }
                 if (!Regex.isSimpleMatchPattern(expression)) {
                     if (!unavailableIgnoredOrExists(options, metaData, expression)) {
                         throw infe(expression);
                     }
-                    if (result != null) {
-                        if (add) {
-                            result.add(expression);
-                        } else {
-                            result.remove(expression);
-                        }
+                    if (add) {
+                        result.add(expression);
+                    } else {
+                        result.remove(expression);
                     }
                     continue;
-                }
-                if (result == null) {
-                    // add all the previous ones...
-                    result = new HashSet<>(expressions.subList(0, i));
                 }
 
                 final IndexMetaData.State excludeState = excludeState(options);

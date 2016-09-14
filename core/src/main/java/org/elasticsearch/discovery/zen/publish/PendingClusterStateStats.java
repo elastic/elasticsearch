@@ -21,7 +21,7 @@ package org.elasticsearch.discovery.zen.publish;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -30,20 +30,29 @@ import java.io.IOException;
 /**
  * Class encapsulating stats about the PendingClusterStatsQueue
  */
-public class PendingClusterStateStats implements Streamable, ToXContent {
+public class PendingClusterStateStats implements Writeable, ToXContent {
 
-    private int total;
-    private int pending;
-    private int committed;
-
-    public PendingClusterStateStats() {
-
-    }
+    private final int total;
+    private final int pending;
+    private final int committed;
 
     public PendingClusterStateStats(int total, int pending, int committed) {
         this.total = total;
         this.pending = pending;
         this.committed = committed;
+    }
+
+    public PendingClusterStateStats(StreamInput in) throws IOException {
+        total = in.readVInt();
+        pending = in.readVInt();
+        committed = in.readVInt();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(total);
+        out.writeVInt(pending);
+        out.writeVInt(committed);
     }
 
     public int getCommitted() {
@@ -66,20 +75,6 @@ public class PendingClusterStateStats implements Streamable, ToXContent {
         builder.field(Fields.COMMITTED, committed);
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        total = in.readVInt();
-        pending = in.readVInt();
-        committed = in.readVInt();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(total);
-        out.writeVInt(pending);
-        out.writeVInt(committed);
     }
 
     static final class Fields {

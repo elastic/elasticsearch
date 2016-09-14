@@ -21,7 +21,6 @@ package org.elasticsearch.indices;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -31,7 +30,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardTests;
+import org.elasticsearch.index.shard.IndexShardIT;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -443,7 +442,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
                 shard.writeIndexingBuffer();
             }
         };
-        final IndexShard newShard = IndexShardTests.newIndexShard(indexService, shard, wrapper, imc);
+        final IndexShard newShard = IndexShardIT.newIndexShard(indexService, shard, wrapper, imc);
         shardRef.set(newShard);
         try {
             assertEquals(0, imc.availableShards().size());

@@ -285,7 +285,10 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext originalContext, List<Field> fields) throws IOException {
+        // IP fields, by default, will not be included in _all
+        final ParseContext context = originalContext.setIncludeInAllDefault(false);
+
         Object addressAsObject;
         if (context.externalValueSet()) {
             addressAsObject = context.externalValue();

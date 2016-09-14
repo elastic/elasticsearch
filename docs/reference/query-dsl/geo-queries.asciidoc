@@ -31,11 +31,6 @@ The queries in this group are:
 
     Find documents with geo-points within the specified polygon.
 
-<<query-dsl-geohash-cell-query,`geohash_cell`>> query::
-
-    Find geo-points whose geohash intersects with the geohash of the specified
-    point.
-
 
 include::geo-shape-query.asciidoc[]
 
@@ -46,5 +41,3 @@ include::geo-distance-query.asciidoc[]
 include::geo-distance-range-query.asciidoc[]
 
 include::geo-polygon-query.asciidoc[]
-
-include::geohash-cell-query.asciidoc[]

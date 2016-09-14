@@ -40,7 +40,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
     private String routing;
     private String preference;
     private QueryBuilder query;
-    private String[] fields;
+    private String[] storedFields;
     private FetchSourceContext fetchSourceContext;
 
     private String[] filteringAlias = Strings.EMPTY_ARRAY;
@@ -122,12 +122,12 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
     }
 
 
-    public String[] fields() {
-        return fields;
+    public String[] storedFields() {
+        return storedFields;
     }
 
-    public ExplainRequest fields(String[] fields) {
-        this.fields = fields;
+    public ExplainRequest storedFields(String[] fields) {
+        this.storedFields = fields;
         return this;
     }
 
@@ -167,8 +167,8 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
         preference = in.readOptionalString();
         query = in.readNamedWriteable(QueryBuilder.class);
         filteringAlias = in.readStringArray();
-        fields = in.readOptionalStringArray();
-        fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
+        storedFields = in.readOptionalStringArray();
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         nowInMillis = in.readVLong();
     }
 
@@ -181,8 +181,8 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
         out.writeOptionalString(preference);
         out.writeNamedWriteable(query);
         out.writeStringArray(filteringAlias);
-        out.writeOptionalStringArray(fields);
-        out.writeOptionalStreamable(fetchSourceContext);
+        out.writeOptionalStringArray(storedFields);
+        out.writeOptionalWriteable(fetchSourceContext);
         out.writeVLong(nowInMillis);
     }
 }

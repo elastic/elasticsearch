@@ -217,6 +217,10 @@ fi
     install_and_check_plugin discovery ec2 aws-java-sdk-core-*.jar
 }
 
+@test "[$GROUP] install discovery-file plugin" {
+    install_and_check_plugin discovery file
+}
+
 @test "[$GROUP] install ingest-attachment plugin" {
     # we specify the version on the poi-3.15-beta1.jar so that the test does
     # not spuriously pass if the jar is missing but the other poi jars
@@ -300,7 +304,7 @@ fi
 }
 
 @test "[$GROUP] check the installed plugins can be listed with 'plugins list' and result matches the list of plugins in plugins pom" {
-    "$ESHOME/bin/elasticsearch-plugin" list > /tmp/installed
+    "$ESHOME/bin/elasticsearch-plugin" list | cut -d'@' -f1 > /tmp/installed
     compare_plugins_list "/tmp/installed" "'plugins list'"
 }
 
@@ -351,6 +355,10 @@ fi
 
 @test "[$GROUP] remove discovery-ec2 plugin" {
     remove_plugin discovery-ec2
+}
+
+@test "[$GROUP] remove discovery-file plugin" {
+    remove_plugin discovery-file
 }
 
 @test "[$GROUP] remove ingest-attachment plugin" {

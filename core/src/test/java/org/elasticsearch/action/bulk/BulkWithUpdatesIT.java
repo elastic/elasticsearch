@@ -235,14 +235,11 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                 .add(client().prepareUpdate("test", "type", "e1")
                         .setDoc("field", "2").setVersion(10)) // INTERNAL
                 .add(client().prepareUpdate("test", "type", "e1")
-                        .setDoc("field", "3").setVersion(20).setVersionType(VersionType.FORCE))
-                .add(client().prepareUpdate("test", "type", "e1")
-                        .setDoc("field", "4").setVersion(20).setVersionType(VersionType.INTERNAL))
+                        .setDoc("field", "3").setVersion(13).setVersionType(VersionType.INTERNAL))
                 .get();
 
         assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("version conflict"));
-        assertThat(bulkResponse.getItems()[1].getResponse().getVersion(), equalTo(20L));
-        assertThat(bulkResponse.getItems()[2].getResponse().getVersion(), equalTo(21L));
+        assertThat(bulkResponse.getItems()[1].getFailureMessage(), containsString("version conflict"));
     }
 
     public void testBulkUpdateMalformedScripts() throws Exception {
@@ -298,7 +295,8 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             builder.add(
                     client().prepareUpdate()
-                            .setIndex("test").setType("type1").setId(Integer.toString(i)).setFields("counter")
+                            .setIndex("test").setType("type1").setId(Integer.toString(i))
+                            .setFields("counter")
                             .setScript(script)
                             .setUpsert(jsonBuilder().startObject().field("counter", 1).endObject()));
         }
@@ -408,8 +406,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
             assertThat(response.getItems()[i].getType(), equalTo("type1"));
             assertThat(response.getItems()[i].getOpType(), equalTo("update"));
             for (int j = 0; j < 5; j++) {
-                GetResponse getResponse = client().prepareGet("test", "type1", Integer.toString(i)).setFields("counter").execute()
-                        .actionGet();
+                GetResponse getResponse = client().prepareGet("test", "type1", Integer.toString(i)).get();
                 assertThat(getResponse.isExists(), equalTo(false));
             }
         }

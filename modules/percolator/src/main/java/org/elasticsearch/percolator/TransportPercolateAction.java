@@ -45,6 +45,7 @@ import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.SearchExtRegistry;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchRequestParsers;
@@ -69,7 +70,8 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
     public TransportPercolateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                     Client client, SearchRequestParsers searchRequestParsers) {
-        super(settings, PercolateAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, PercolateRequest::new);
+        super(settings, PercolateAction.NAME, threadPool, transportService, actionFilters,
+                indexNameExpressionResolver, PercolateRequest::new);
         this.client = client;
         this.searchRequestParsers = searchRequestParsers;
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
@@ -84,7 +86,8 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
                     if (getResponse.isExists()) {
                         innerDoExecute(request, getResponse.getSourceAsBytesRef(), listener);
                     } else {
-                        onFailure(new ResourceNotFoundException("percolate document [{}/{}/{}] doesn't exist", request.getRequest().index(), request.getRequest().type(), request.getRequest().id()));
+                        onFailure(new ResourceNotFoundException("percolate document [{}/{}/{}] doesn't exist",
+                                request.getRequest().index(), request.getRequest().type(), request.getRequest().id()));
                     }
                 }
 
@@ -102,7 +105,7 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
         SearchRequest searchRequest;
         try {
             searchRequest = createSearchRequest(request, docSource, searchRequestParsers.queryParsers,
-                searchRequestParsers.aggParsers, parseFieldMatcher);
+                searchRequestParsers.aggParsers, searchRequestParsers.searchExtParsers, parseFieldMatcher);
         } catch (IOException e) {
             listener.onFailure(e);
             return;
@@ -124,7 +127,10 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
         });
     }
 
-    public static SearchRequest createSearchRequest(PercolateRequest percolateRequest, BytesReference documentSource, IndicesQueriesRegistry queryRegistry, AggregatorParsers aggParsers, ParseFieldMatcher parseFieldMatcher) throws IOException {
+    public static SearchRequest createSearchRequest(PercolateRequest percolateRequest, BytesReference documentSource,
+                                                    IndicesQueriesRegistry queryRegistry, AggregatorParsers aggParsers,
+                                                    SearchExtRegistry searchExtRegistry, ParseFieldMatcher parseFieldMatcher)
+            throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         if (percolateRequest.indices() != null) {
             searchRequest.indices(percolateRequest.indices());
@@ -220,7 +226,7 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(source)) {
             QueryParseContext context = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
-            searchSourceBuilder.parseXContent(context, aggParsers, null);
+            searchSourceBuilder.parseXContent(context, aggParsers, null, searchExtRegistry);
             searchRequest.source(searchSourceBuilder);
             return searchRequest;
         }
@@ -235,7 +241,8 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
             matches = new PercolateResponse.Match[hits.getHits().length];
             for (int i = 0; i < hits.getHits().length; i++) {
                 SearchHit hit = hits.getHits()[i];
-                matches[i] = new PercolateResponse.Match(new Text(hit.getIndex()), new Text(hit.getId()), hit.getScore(), hit.getHighlightFields());
+                matches[i] = new PercolateResponse.Match(new Text(hit.getIndex()),
+                        new Text(hit.getId()), hit.getScore(), hit.getHighlightFields());
             }
         }
 
@@ -246,8 +253,8 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
         }
 
         return new PercolateResponse(
-            searchResponse.getTotalShards(), searchResponse.getSuccessfulShards(), searchResponse.getFailedShards(),
-            shardFailures, matches, hits.getTotalHits(), searchResponse.getTookInMillis(), (InternalAggregations) searchResponse.getAggregations()
+            searchResponse.getTotalShards(), searchResponse.getSuccessfulShards(), searchResponse.getFailedShards(), shardFailures,
+                matches, hits.getTotalHits(), searchResponse.getTookInMillis(), (InternalAggregations) searchResponse.getAggregations()
         );
     }
 

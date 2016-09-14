@@ -117,6 +117,12 @@ public class JarHellTests extends ESTestCase {
         JarHell.checkJarHell(jars);
     }
 
+    public void testLog4jServerLeniency() throws Exception {
+        Path dir = createTempDir();
+        URL[] jars = {makeJar(dir, "foo.jar", null, "org.apache.logging.log4j.core.jmx.Server.class"), makeJar(dir, "bar.jar", null, "org.apache.logging.log4j.core.jmx.Server.class")};
+        JarHell.checkJarHell(jars);
+    }
+
     public void testWithinSingleJar() throws Exception {
         // the java api for zip file does not allow creating duplicate entries (good!) so
         // this bogus jar had to be constructed with ant

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.monitoring.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +29,7 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
 
     public static final String MONITORING_ID = "system_id";
     public static final String MONITORING_VERSION = "system_api_version";
+    public static final String INTERVAL = "interval";
 
     @Inject
     public RestMonitoringBulkAction(Settings settings, RestController controller) {
@@ -45,12 +45,17 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
         String defaultType = request.param("type");
 
         String id = request.param(MONITORING_ID);
-        if (Strings.hasLength(id) == false) {
-            throw new IllegalArgumentException("no monitoring id for monitoring bulk request");
+        if (Strings.isEmpty(id)) {
+            throw new IllegalArgumentException("no [" + MONITORING_ID + "] for monitoring bulk request");
         }
         String version = request.param(MONITORING_VERSION);
-        if (Strings.hasLength(version) == false) {
-            throw new IllegalArgumentException("no monitoring version for monitoring bulk request");
+        if (Strings.isEmpty(version)) {
+            throw new IllegalArgumentException("no [" + MONITORING_VERSION + "] for monitoring bulk request");
+        }
+        // we don't currently use the interval, but in future releases we can incorporate it without breaking BWC since it was here from
+        //  the beginning
+        if (Strings.isEmpty(request.param(INTERVAL))) {
+            throw new IllegalArgumentException("no [" + INTERVAL + "] for monitoring bulk request");
         }
 
         if (!RestActions.hasBodyContent(request)) {

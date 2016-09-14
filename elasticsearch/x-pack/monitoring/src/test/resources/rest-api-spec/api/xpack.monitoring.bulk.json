@@ -19,6 +19,10 @@
         "system_api_version" : {
           "type" : "string",
           "description" : "API Version of the monitored system"
+        },
+        "interval": {
+          "type" : "string",
+          "description" : "Collection interval (e.g., '10s' or '10000ms') of the payload"
         }
       }
     },

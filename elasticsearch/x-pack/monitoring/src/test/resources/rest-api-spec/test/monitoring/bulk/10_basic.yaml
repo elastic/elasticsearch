@@ -17,8 +17,9 @@ setup:
 
   - do:
       xpack.monitoring.bulk:
-        system_id:      "kibana"
+        system_id:          "kibana"
         system_api_version: "2"
+        interval:           "10s"
         body:
           - index:
               _type:  test_type
@@ -51,8 +52,9 @@ setup:
 
   - do:
       xpack.monitoring.bulk:
-        system_id:      "kibana"
+        system_id:          "kibana"
         system_api_version: "2"
+        interval:           "10000ms"
         type: "default_type"
         body:
           - '{"index": {}}'
@@ -89,3 +91,36 @@ setup:
         type:  kibana
 
   - match: { hits.total: 1 }
+
+  # Missing a system_id causes it to fail
+  - do:
+      catch: request
+      xpack.monitoring.bulk:
+        system_api_version: "2"
+        interval:           "10s"
+        type: "default_type"
+        body:
+          - '{"index": {}}'
+          - '{"field_1": "value_1"}'
+
+  # Missing a system_api_version causes it to fail
+  - do:
+      catch: request
+      xpack.monitoring.bulk:
+        system_id:          "kibana"
+        interval:           "10s"
+        type: "default_type"
+        body:
+          - '{"index": {}}'
+          - '{"field_1": "value_1"}'
+
+  # Missing an interval causes it to fail
+  - do:
+      catch: request
+      xpack.monitoring.bulk:
+        system_id:          "kibana"
+        system_api_version: "2"
+        type: "default_type"
+        body:
+          - '{"index": {}}'
+          - '{"field_1": "value_1"}'

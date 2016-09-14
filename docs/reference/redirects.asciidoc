@@ -248,6 +248,12 @@ The `fuzzy_like_this_field` or `flt_field` query has been removed.  Instead use
 the <<query-dsl-match-query-fuzziness,`fuzziness`>> parameter with the
 <<query-dsl-match-query,`match` query>> or the <<query-dsl-mlt-query>>.
 
+[role="exclude",id="query-dsl-geohash-cell-query"]
+=== Geohash Cell Query
+
+The `geohash_cell` query has been removed. Instead use the 
+<<query-dsl-geo-bounding-box-query, Geo Bounding Box Query>>.
+
 [role="exclude",id="search-more-like-this"]
 === More Like This API
 

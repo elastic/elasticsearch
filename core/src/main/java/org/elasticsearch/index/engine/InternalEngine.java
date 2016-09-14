@@ -789,30 +789,30 @@ public class InternalEngine extends Engine {
                     } catch (Exception e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }
-                }
-                /*
-                 * we have to inc-ref the store here since if the engine is closed by a tragic event
-                 * we don't acquire the write lock and wait until we have exclusive access. This might also
-                 * dec the store reference which can essentially close the store and unless we can inc the reference
-                 * we can't use it.
-                 */
-                store.incRef();
-                try {
-                    // reread the last committed segment infos
-                    lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-                } catch (Exception e) {
-                    if (isClosed.get() == false) {
-                        try {
-                            logger.warn("failed to read latest segment infos on flush", e);
-                        } catch (Exception inner) {
-                            e.addSuppressed(inner);
+                    /*
+                     * we have to inc-ref the store here since if the engine is closed by a tragic event
+                     * we don't acquire the write lock and wait until we have exclusive access. This might also
+                     * dec the store reference which can essentially close the store and unless we can inc the reference
+                     * we can't use it.
+                     */
+                    store.incRef();
+                    try {
+                        // reread the last committed segment infos
+                        lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+                    } catch (Exception e) {
+                        if (isClosed.get() == false) {
+                            try {
+                                logger.warn("failed to read latest segment infos on flush", e);
+                            } catch (Exception inner) {
+                                e.addSuppressed(inner);
+                            }
+                            if (Lucene.isCorruptionException(e)) {
+                                throw new FlushFailedEngineException(shardId, e);
+                            }
                         }
-                        if (Lucene.isCorruptionException(e)) {
-                            throw new FlushFailedEngineException(shardId, e);
-                        }
+                    } finally {
+                        store.decRef();
                     }
-                } finally {
-                    store.decRef();
                 }
                 newCommitId = lastCommittedSegmentInfos.getId();
             } catch (FlushFailedEngineException ex) {

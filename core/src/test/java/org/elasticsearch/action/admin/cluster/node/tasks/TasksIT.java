@@ -96,7 +96,7 @@ import static org.hamcrest.Matchers.not;
  * <p>
  * We need at least 2 nodes so we have a master node a non-master node
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, minNumDataNodes = 2, transportClientRatio = 0.0)
 public class TasksIT extends ESIntegTestCase {
 
     private Map<Tuple<String, String>, RecordingTaskManagerListener> listeners = new HashMap<>();

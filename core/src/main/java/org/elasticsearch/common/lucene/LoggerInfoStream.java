@@ -25,19 +25,12 @@ import org.elasticsearch.common.logging.Loggers;
 
 /** An InfoStream (for Lucene's IndexWriter) that redirects
  *  messages to "lucene.iw.ifd" and "lucene.iw" Logger.trace. */
-
 public final class LoggerInfoStream extends InfoStream {
-    /** Used for component-specific logging: */
 
-    /** Logger for everything */
-    private final Logger logger;
+    private final Logger parentLogger;
 
-    /** Logger for IndexFileDeleter */
-    private final Logger ifdLogger;
-
-    public LoggerInfoStream(Logger parentLogger) {
-        logger = Loggers.getLogger(parentLogger, ".lucene.iw");
-        ifdLogger = Loggers.getLogger(parentLogger, ".lucene.iw.ifd");
+    public LoggerInfoStream(final Logger parentLogger) {
+        this.parentLogger = parentLogger;
     }
 
     @Override
@@ -53,14 +46,11 @@ public final class LoggerInfoStream extends InfoStream {
     }
 
     private Logger getLogger(String component) {
-        if (component.equals("IFD")) {
-            return ifdLogger;
-        } else {
-            return logger;
-        }
+        return Loggers.getLogger(parentLogger, "." + component);
     }
 
     @Override
     public void close() {
+
     }
 }

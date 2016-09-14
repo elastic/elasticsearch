@@ -48,23 +48,7 @@ import static org.elasticsearch.common.util.CollectionUtils.asArrayList;
  */
 public class Loggers {
 
-    static final String commonPrefix = System.getProperty("es.logger.prefix", "org.elasticsearch.");
-
     public static final String SPACE = " ";
-
-    private static boolean consoleLoggingEnabled = true;
-
-    public static void disableConsoleLogging() {
-        consoleLoggingEnabled = false;
-    }
-
-    public static void enableConsoleLogging() {
-        consoleLoggingEnabled = true;
-    }
-
-    public static boolean consoleLoggingEnabled() {
-        return consoleLoggingEnabled;
-    }
 
     public static Logger getLogger(Class<?> clazz, Settings settings, ShardId shardId, String... prefixes) {
         return getLogger(clazz, settings, shardId.getIndex(), asArrayList(Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
@@ -84,10 +68,16 @@ public class Loggers {
     }
 
     public static Logger getLogger(Class<?> clazz, Settings settings, String... prefixes) {
-        return getLogger(buildClassLoggerName(clazz), settings, prefixes);
+        final List<String> prefixesList = prefixesList(settings, prefixes);
+        return getLogger(clazz, prefixesList.toArray(new String[prefixesList.size()]));
     }
 
     public static Logger getLogger(String loggerName, Settings settings, String... prefixes) {
+        final List<String> prefixesList = prefixesList(settings, prefixes);
+        return getLogger(loggerName, prefixesList.toArray(new String[prefixesList.size()]));
+    }
+
+    private static List<String> prefixesList(Settings settings, String... prefixes) {
         List<String> prefixesList = new ArrayList<>();
         if (Node.NODE_NAME_SETTING.exists(settings)) {
             prefixesList.add(Node.NODE_NAME_SETTING.get(settings));
@@ -95,27 +85,31 @@ public class Loggers {
         if (prefixes != null && prefixes.length > 0) {
             prefixesList.addAll(asList(prefixes));
         }
-        return getLogger(getLoggerName(loggerName), prefixesList.toArray(new String[prefixesList.size()]));
+        return prefixesList;
     }
 
     public static Logger getLogger(Logger parentLogger, String s) {
         assert parentLogger instanceof PrefixLogger;
-        return ESLoggerFactory.getLogger(((PrefixLogger)parentLogger).prefix(), getLoggerName(parentLogger.getName() + s));
+        return ESLoggerFactory.getLogger(((PrefixLogger)parentLogger).prefix(), parentLogger.getName() + s);
     }
 
     public static Logger getLogger(String s) {
-        return ESLoggerFactory.getLogger(getLoggerName(s));
+        return ESLoggerFactory.getLogger(s);
     }
 
     public static Logger getLogger(Class<?> clazz) {
-        return ESLoggerFactory.getLogger(getLoggerName(buildClassLoggerName(clazz)));
+        return ESLoggerFactory.getLogger(clazz);
     }
 
     public static Logger getLogger(Class<?> clazz, String... prefixes) {
-        return getLogger(buildClassLoggerName(clazz), prefixes);
+        return ESLoggerFactory.getLogger(formatPrefix(prefixes), clazz);
     }
 
     public static Logger getLogger(String name, String... prefixes) {
+        return ESLoggerFactory.getLogger(formatPrefix(prefixes), name);
+    }
+
+    private static String formatPrefix(String... prefixes) {
         String prefix = null;
         if (prefixes != null && prefixes.length > 0) {
             StringBuilder sb = new StringBuilder();
@@ -133,7 +127,7 @@ public class Loggers {
                 prefix = sb.toString();
             }
         }
-        return ESLoggerFactory.getLogger(prefix, getLoggerName(name));
+        return prefix;
     }
 
     /**
@@ -168,21 +162,6 @@ public class Loggers {
                 Configurator.setLevel(loggerConfig.getName(), level);
             }
         }
-    }
-
-    private static String buildClassLoggerName(Class<?> clazz) {
-        String name = clazz.getName();
-        if (name.startsWith("org.elasticsearch.")) {
-            name = Classes.getPackageName(clazz);
-        }
-        return name;
-    }
-
-    private static String getLoggerName(String name) {
-        if (name.startsWith("org.elasticsearch.")) {
-            name = name.substring("org.elasticsearch.".length());
-        }
-        return commonPrefix + name;
     }
 
     public static void addAppender(final Logger logger, final Appender appender) {

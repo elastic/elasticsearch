@@ -1516,11 +1516,11 @@ public class InternalEngineTests extends ESTestCase {
         public void append(LogEvent event) {
             final String formattedMessage = event.getMessage().getFormattedMessage();
             if (event.getLevel() == Level.TRACE && event.getMarker().getName().contains("[index][1] ")) {
-                if (event.getLoggerName().endsWith("lucene.iw") &&
+                if (event.getLoggerName().endsWith(".IW") &&
                     formattedMessage.contains("IW: apply all deletes during flush")) {
                     sawIndexWriterMessage = true;
                 }
-                if (event.getLoggerName().endsWith("lucene.iw.ifd")) {
+                if (event.getLoggerName().endsWith(".IFD")) {
                     sawIndexWriterIFDMessage = true;
                 }
             }
@@ -1564,16 +1564,7 @@ public class InternalEngineTests extends ESTestCase {
         assumeFalse("who tests the tester?", VERBOSE);
         MockAppender mockAppender = new MockAppender("testIndexWriterIFDInfoStream");
 
-        final Logger iwIFDLogger;
-        if (LogManager.getContext(false).hasLogger("org.elasticsearch.index.engine.lucene.iw.ifd")) {
-            // Works when running this test inside Intellij:
-            iwIFDLogger = LogManager.getLogger("org.elasticsearch.index.engine.lucene.iw.ifd");
-            assertNotNull(iwIFDLogger);
-        } else {
-            // Works when running this test from command line:
-            assertTrue(LogManager.getContext(false).hasLogger("index.engine.lucene.iw.ifd"));
-            iwIFDLogger = LogManager.getLogger("index.engine.lucene.iw.ifd");
-        }
+        final Logger iwIFDLogger = Loggers.getLogger("org.elasticsearch.index.engine.Engine.IFD");
 
         Loggers.addAppender(iwIFDLogger, mockAppender);
         Loggers.setLevel(iwIFDLogger, Level.DEBUG);

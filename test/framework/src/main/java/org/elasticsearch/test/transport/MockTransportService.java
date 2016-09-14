@@ -74,6 +74,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class MockTransportService extends TransportService {
 
+    private boolean allowDoubleRegister = false;
+
     public static class TestPlugin extends Plugin {
         public void onModule(NetworkModule module) {
             module.registerTransportService("mock", MockTransportService.class);
@@ -123,6 +125,14 @@ public class MockTransportService extends TransportService {
          } else {
             return super.createTaskManager();
         }
+    }
+
+    @Override
+    protected <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
+        if (allowDoubleRegister && getRequestHandler(reg.getAction()) != null) {
+            return;
+        }
+        super.registerRequestHandler(reg);
     }
 
     /**
@@ -641,6 +651,14 @@ public class MockTransportService extends TransportService {
                 tracer.requestSent(node, requestId, action, options);
             }
         }
+    }
+
+    /**
+     * If this is set to <code>true</code> this transport service will not throw an exception if any actions are
+     * registered more than once. Yet, only the first action registered will be used.
+     */
+    public void setAllowDoubleRegister(boolean allowDoubleRegister) {
+        this.allowDoubleRegister = allowDoubleRegister;
     }
 
 

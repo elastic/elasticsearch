@@ -96,7 +96,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
      * @param version          the version of the node
      */
     public DiscoveryNode(final String id, TransportAddress address, Version version) {
-        this(id, address, Collections.emptyMap(), Collections.emptySet(), version);
+        this(id, address, Collections.emptyMap(), EnumSet.allOf(Role.class), version);
     }
 
     /**

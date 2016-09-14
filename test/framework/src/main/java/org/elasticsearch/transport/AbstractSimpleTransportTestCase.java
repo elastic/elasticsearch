@@ -1703,4 +1703,16 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceC.close();
 
     }
+
+    public void testRegisterHandlerTwice() {
+        serviceB.registerRequestHandler("action1", TestRequest::new, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
+            (request, message) -> {throw new AssertionError("boom");});
+        expectThrows(IllegalArgumentException.class, () ->
+            serviceB.registerRequestHandler("action1", TestRequest::new, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
+                (request, message) -> {throw new AssertionError("boom");})
+        );
+
+        serviceA.registerRequestHandler("action1", TestRequest::new, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
+            (request, message) -> {throw new AssertionError("boom");});
+    }
 }

@@ -1,0 +1,63 @@
+{
+  "mappings": {
+    "_default_": {
+      "_all": {
+        "enabled": true,
+        "norms": {
+          "enabled": false
+        }
+      },
+      "dynamic_templates": [
+        {
+          "template1": {
+            "mapping": {
+              "doc_values": true,
+              "ignore_above": 1024,
+              "index": "not_analyzed",
+              "type": "{dynamic_type}"
+            },
+            "match": "*"
+          }
+        }
+      ],
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "client_location": {
+          "type": "geo_point"
+        },
+        "params": {
+          "index": "analyzed",
+          "norms": {
+            "enabled": false
+          },
+          "type": "string"
+        },
+        "query": {
+          "doc_values": true,
+          "index": "not_analyzed",
+          "type": "string"
+        },
+        "request": {
+          "index": "analyzed",
+          "norms": {
+            "enabled": false
+          },
+          "type": "string"
+        },
+        "response": {
+          "index": "analyzed",
+          "norms": {
+            "enabled": false
+          },
+          "type": "string"
+        }
+      }
+    }
+  },
+  "settings": {
+    "index.refresh_interval": "5s"
+  },
+  "template": "packetbeat-*"
+}

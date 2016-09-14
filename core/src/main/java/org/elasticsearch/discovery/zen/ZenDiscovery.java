@@ -284,8 +284,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     protected void doClose() {
         masterFD.close();
         nodesFD.close();
-        publishClusterState.close();
-        membership.close();
         pingService.close();
     }
 

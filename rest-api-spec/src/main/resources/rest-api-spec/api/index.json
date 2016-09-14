@@ -39,7 +39,7 @@
         },
         "refresh": {
           "type" : "boolean",
-          "description" : "Refresh the index after performing the operation"
+          "description" : "Refresh the affected shards after performing the operation"
         },
         "routing": {
           "type" : "string",

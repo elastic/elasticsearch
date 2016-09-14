@@ -53,9 +53,11 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchExtRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -93,69 +95,30 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
 public class SearchSourceBuilderTests extends ESTestCase {
-    private static Injector injector;
 
-    private static NamedWriteableRegistry namedWriteableRegistry;
+    private NamedWriteableRegistry namedWriteableRegistry;
 
-    private static SearchRequestParsers searchRequestParsers;
+    private SearchRequestParsers searchRequestParsers;
 
-    private static Index index;
+    private String[] currentTypes;
 
-    private static String[] currentTypes;
+    private ParseFieldMatcher parseFieldMatcher;
 
-    private static ParseFieldMatcher parseFieldMatcher;
-
-    @BeforeClass
-    public static void init() throws IOException {
+    public void setUp() throws Exception {
+        super.setUp();
         // we have to prefer CURRENT since with the range of versions we support
         // it's rather unlikely to get the current actually.
-        Version version = randomBoolean() ? Version.CURRENT
-                : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
         Settings settings = Settings.builder()
                 .put("node.name", AbstractQueryTestCase.class.toString())
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false).build();
-
-        index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        final ThreadPool threadPool = new ThreadPool(settings);
-        final ClusterService clusterService = createClusterService(threadPool);
-        setState(clusterService, new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder()
-                .put(new IndexMetaData.Builder(index.getName()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
-        ScriptModule scriptModule = newTestScriptModule();
-        List<Setting<?>> scriptSettings = scriptModule.getSettings();
-        scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
-        SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, Collections.emptyList());
-        IndicesModule indicesModule = new IndicesModule(Collections.emptyList()) {
-            @Override
-            protected void configure() {
-                bindMapperExtension();
-            }
-        };
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
         SearchModule searchModule = new SearchModule(settings, false,
                 Collections.singletonList(new FetchSubPhasePluginIT.FetchTermVectorsPlugin()));
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(indicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());
         namedWriteableRegistry = new NamedWriteableRegistry(entries);
-        injector = new ModulesBuilder().add(
-                (b) -> {
-                    b.bind(Environment.class).toInstance(new Environment(settings));
-                    b.bind(ThreadPool.class).toInstance(threadPool);
-                    b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
-                },
-                settingsModule, indicesModule, searchModule,
-                new IndexSettingsModule(index, settings),
-                new AbstractModule() {
-                    @Override
-                    protected void configure() {
-                        bind(ClusterService.class).toProvider(Providers.of(clusterService));
-                        bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
-                        bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
-                    }
-                }
-        ).createInjector();
-        searchRequestParsers = injector.getInstance(SearchRequestParsers.class);
+        searchRequestParsers = searchModule.getSearchRequestParsers();
         // create some random type with some default field, those types will
         // stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
@@ -164,17 +127,6 @@ public class SearchSourceBuilderTests extends ESTestCase {
             currentTypes[i] = type;
         }
         parseFieldMatcher = ParseFieldMatcher.STRICT;
-    }
-
-    @AfterClass
-    public static void afterClass() throws Exception {
-        injector.getInstance(ClusterService.class).close();
-        terminate(injector.getInstance(ThreadPool.class));
-        injector = null;
-        index = null;
-        searchRequestParsers = null;
-        currentTypes = null;
-        namedWriteableRegistry = null;
     }
 
     public static SearchSourceBuilder createSearchSourceBuilder() throws IOException {
@@ -410,11 +362,11 @@ public class SearchSourceBuilderTests extends ESTestCase {
         assertParseSearchSource(testSearchSourceBuilder, builder.bytes());
     }
 
-    private static void assertParseSearchSource(SearchSourceBuilder testBuilder, BytesReference searchSourceAsBytes) throws IOException {
+    private void assertParseSearchSource(SearchSourceBuilder testBuilder, BytesReference searchSourceAsBytes) throws IOException {
         assertParseSearchSource(testBuilder, searchSourceAsBytes, ParseFieldMatcher.STRICT);
     }
 
-    private static void assertParseSearchSource(SearchSourceBuilder testBuilder, BytesReference searchSourceAsBytes, ParseFieldMatcher pfm)
+    private void assertParseSearchSource(SearchSourceBuilder testBuilder, BytesReference searchSourceAsBytes, ParseFieldMatcher pfm)
             throws IOException {
         XContentParser parser = XContentFactory.xContent(searchSourceAsBytes).createParser(searchSourceAsBytes);
         QueryParseContext parseContext = new QueryParseContext(searchRequestParsers.queryParsers, parser, pfm);
@@ -429,7 +381,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         assertEquals(testBuilder.hashCode(), newBuilder.hashCode());
     }
 
-    private static QueryParseContext createParseContext(XContentParser parser) {
+    private QueryParseContext createParseContext(XContentParser parser) {
         return new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
     }
 
@@ -474,7 +426,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
     }
 
     //we use the streaming infra to create a copy of the builder provided as argument
-    protected static SearchSourceBuilder copyBuilder(SearchSourceBuilder builder) throws IOException {
+    protected SearchSourceBuilder copyBuilder(SearchSourceBuilder builder) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             builder.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {

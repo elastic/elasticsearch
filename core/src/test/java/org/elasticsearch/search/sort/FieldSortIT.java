@@ -122,7 +122,6 @@ public class FieldSortIT extends ESIntegTestCase {
         }
     }
 
-    @LuceneTestCase.BadApple(bugUrl = "simon is working on this")
     public void testIssue6614() throws ExecutionException, InterruptedException {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         boolean strictTimeBasedIndices = randomBoolean();

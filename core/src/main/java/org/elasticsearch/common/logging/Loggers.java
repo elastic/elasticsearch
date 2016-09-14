@@ -35,10 +35,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 import static java.util.Arrays.asList;
+import static javax.security.auth.login.Configuration.getConfiguration;
 import static org.elasticsearch.common.util.CollectionUtils.asArrayList;
 
 /**
@@ -149,14 +151,22 @@ public class Loggers {
     }
 
     public static void setLevel(Logger logger, Level level) {
-        if (!"".equals(logger.getName())) {
+        if (!LogManager.ROOT_LOGGER_NAME.equals(logger.getName())) {
             Configurator.setLevel(logger.getName(), level);
         } else {
-            LoggerContext ctx = LoggerContext.getContext(false);
-            Configuration config = ctx.getConfiguration();
-            LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
+            final LoggerContext ctx = LoggerContext.getContext(false);
+            final Configuration config = ctx.getConfiguration();
+            final LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
             loggerConfig.setLevel(level);
             ctx.updateLoggers();
+        }
+
+        // we have to descend the hierarchy
+        final LoggerContext ctx = LoggerContext.getContext(false);
+        for (final LoggerConfig loggerConfig : ctx.getConfiguration().getLoggers().values()) {
+            if (LogManager.ROOT_LOGGER_NAME.equals(logger.getName()) || loggerConfig.getName().startsWith(logger.getName() + ".")) {
+                Configurator.setLevel(loggerConfig.getName(), level);
+            }
         }
     }
 

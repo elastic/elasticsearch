@@ -30,7 +30,6 @@ import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
 import org.apache.logging.log4j.core.config.composite.CompositeConfiguration;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfiguration;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationFactory;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
@@ -44,7 +43,6 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -81,13 +79,14 @@ public class LogConfigurator {
         }
 
         if (ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.exists(settings)) {
-            Loggers.setLevel(ESLoggerFactory.getRootLogger(), ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings));
+            final Level level = ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings);
+            Loggers.setLevel(ESLoggerFactory.getRootLogger(), level);
         }
 
         final Map<String, String> levels = settings.filter(ESLoggerFactory.LOG_LEVEL_SETTING::match).getAsMap();
         for (String key : levels.keySet()) {
             final Level level = ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings);
-            Loggers.setLevel(Loggers.getLogger(key.substring("logger.".length())), level);
+            Loggers.setLevel(ESLoggerFactory.getLogger(key.substring("logger.".length())), level);
         }
     }
 

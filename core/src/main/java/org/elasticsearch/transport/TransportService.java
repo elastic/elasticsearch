@@ -620,7 +620,7 @@ public class TransportService extends AbstractLifecycleComponent {
         registerRequestHandler(reg);
     }
 
-    private final <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
+    private <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
         synchronized (requestHandlerMutex) {
             if (requestHandlers.containsKey(reg.getAction())) {
                 throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.internal;
 
-import com.carrotsearch.hppc.IntObjectHashMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,15 +28,10 @@ import org.elasticsearch.search.SearchShardTarget;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.IdentityHashMap;
 import java.util.Iterator;
-import java.util.Map;
 
 import static org.elasticsearch.search.internal.InternalSearchHit.readSearchHit;
 
-/**
- *
- */
 public class InternalSearchHits implements SearchHits {
 
     public static InternalSearchHits empty() {

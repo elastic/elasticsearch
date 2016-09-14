@@ -107,11 +107,6 @@ public class PublishClusterStateAction extends AbstractComponent {
         transportService.registerRequestHandler(COMMIT_ACTION_NAME, CommitClusterStateRequest::new, ThreadPool.Names.SAME, new CommitClusterStateRequestHandler());
     }
 
-    public void close() {
-        transportService.removeHandler(SEND_ACTION_NAME);
-        transportService.removeHandler(COMMIT_ACTION_NAME);
-    }
-
     public PendingClusterStatesQueue pendingStatesQueue() {
         return pendingStatesQueue;
     }

@@ -195,7 +195,6 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             zenDiscovery.close();
             clusterService.close();
             for (MockNode curNode : nodes.values()) {
-                curNode.action.close();
                 curNode.service.close();
             }
             terminate(threadPool);

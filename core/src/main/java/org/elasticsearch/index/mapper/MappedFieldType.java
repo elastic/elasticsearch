@@ -133,7 +133,7 @@ public abstract class MappedFieldType extends FieldType {
             eagerGlobalOrdinals, similarity == null ? null : similarity.name(), nullValue, nullValueAsString);
     }
 
-    // norelease: we need to override freeze() and add safety checks that all settings are actually set
+    // TODO: we need to override freeze() and add safety checks that all settings are actually set
 
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();

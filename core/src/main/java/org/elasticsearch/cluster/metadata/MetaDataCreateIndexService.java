@@ -500,15 +500,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 validationErrors.add("custom path [" + customPath + "] is not a sub-path of path.shared_data [" + env.sharedDataFile() + "]");
             }
         }
-        //norelease - this can be removed?
-        Integer number_of_primaries = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
-        Integer number_of_replicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);
-        if (number_of_primaries != null && number_of_primaries <= 0) {
-            validationErrors.add("index must have 1 or more primary shards");
-        }
-        if (number_of_replicas != null && number_of_replicas < 0) {
-            validationErrors.add("index must have 0 or more replica shards");
-        }
         return validationErrors;
     }
 

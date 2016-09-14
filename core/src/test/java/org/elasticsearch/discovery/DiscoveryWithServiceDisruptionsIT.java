@@ -529,7 +529,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                         } catch (InterruptedException e) {
                             // fine - semaphore interrupt
                         } catch (AssertionError | Exception e) {
-                            logger.info("unexpected exception in background thread of [{}]", e, node);
+                            logger.info((Supplier<?>) () -> new ParameterizedMessage("unexpected exception in background thread of [{}]", node), e);
                         }
                     }
                 });

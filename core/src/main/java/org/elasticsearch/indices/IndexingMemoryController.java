@@ -386,7 +386,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
         try {
             shard.checkIdle(inactiveTimeNS);
         } catch (EngineClosedException e) {
-            logger.trace("ignore exception while checking if shard {} is inactive", e, shard.shardId());
+            logger.trace((Supplier<?>) () -> new ParameterizedMessage("ignore exception while checking if shard {} is inactive", shard.shardId()), e);
         }
     }
 }

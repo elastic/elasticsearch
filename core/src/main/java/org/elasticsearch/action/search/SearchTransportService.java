@@ -43,9 +43,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
@@ -263,8 +261,8 @@ public class SearchTransportService extends AbstractComponent {
                 boolean freed = searchService.freeContext(request.id());
                 channel.sendResponse(new SearchFreeContextResponse(freed));
             });
-        transportService.registerRequestHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, () -> TransportRequest.Empty.INSTANCE, ThreadPool.Names.SAME,
-            (request, channel) -> {
+        transportService.registerRequestHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, () -> TransportRequest.Empty.INSTANCE,
+            ThreadPool.Names.SAME, (request, channel) -> {
                 searchService.freeAllScrollContexts();
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             });

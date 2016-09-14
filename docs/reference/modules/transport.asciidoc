@@ -91,13 +91,13 @@ the JVM. It is automatically enabled when using
 === Transport Tracer
 
 The transport module has a dedicated tracer logger which, when activated, logs incoming and out going requests. The log can be dynamically activated
-by settings the level of the `transport.tracer` logger to `TRACE`:
+by settings the level of the `org.elasticsearch.transport.TransportService.tracer` logger to `TRACE`:
 
 [source,js]
 --------------------------------------------------
 curl -XPUT localhost:9200/_cluster/settings -d '{
     "transient" : {
-        "logger.transport.tracer" : "TRACE"
+        "logger.org.elasticsearch.transport.TransportService.tracer" : "TRACE"
     }
 }'
 --------------------------------------------------

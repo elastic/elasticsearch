@@ -28,7 +28,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -47,13 +46,12 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
 
     @Inject
     public TransportSearchScrollAction(Settings settings, BigArrays bigArrays, ThreadPool threadPool, ScriptService scriptService,
-                                       TransportService transportService,
-                                       ClusterService clusterService, SearchService searchService,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                       TransportService transportService, ClusterService clusterService, ActionFilters actionFilters,
+                                       IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 SearchScrollRequest::new);
         this.clusterService = clusterService;
-        this.searchTransportService = new SearchTransportService(settings, transportService, searchService);
+        this.searchTransportService = new SearchTransportService(settings, transportService);
         this.searchPhaseController = new SearchPhaseController(settings, bigArrays, scriptService, clusterService);
     }
 

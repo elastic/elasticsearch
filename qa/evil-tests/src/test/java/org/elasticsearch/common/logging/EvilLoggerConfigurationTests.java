@@ -96,7 +96,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         final Environment environment = new Environment(settings);
         LogConfigurator.configure(environment, true);
 
-        final String loggerName = Loggers.commonPrefix + "test";
+        final String loggerName = "test";
         final Logger logger = ESLoggerFactory.getLogger(loggerName);
         assertThat(logger.getLevel().toString(), equalTo(level));
     }
@@ -113,9 +113,28 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         LogConfigurator.configure(environment, true);
 
         // args should overwrite whatever is in the config
-        final String loggerName = Loggers.commonPrefix + "test_resolve_order";
+        final String loggerName = "test_resolve_order";
         final Logger logger = ESLoggerFactory.getLogger(loggerName);
         assertTrue(logger.isTraceEnabled());
+    }
+
+    public void testHierarchy() throws Exception {
+        final Path configDir = getDataPath("hierarchy");
+        final Settings settings = Settings.builder()
+                .put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .build();
+        final Environment environment = new Environment(settings);
+        LogConfigurator.configure(environment, true);
+
+        assertThat(ESLoggerFactory.getLogger("x").getLevel(), equalTo(Level.TRACE));
+        assertThat(ESLoggerFactory.getLogger("x.y").getLevel(), equalTo(Level.DEBUG));
+
+        final Level level = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
+        Loggers.setLevel(ESLoggerFactory.getLogger("x"), level);
+
+        assertThat(ESLoggerFactory.getLogger("x").getLevel(), equalTo(level));
+        assertThat(ESLoggerFactory.getLogger("x.y").getLevel(), equalTo(level));
     }
 
 }

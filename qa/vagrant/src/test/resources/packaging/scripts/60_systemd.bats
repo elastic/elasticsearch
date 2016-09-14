@@ -84,8 +84,8 @@ setup() {
 
     # Verifies that no new entries in journald have been added
     # since the last start
-    run journalctl _SYSTEMD_UNIT=elasticsearch.service --since "$since"
-    [ "$status" -eq 1 ]
+    result="$(journalctl _SYSTEMD_UNIT=elasticsearch.service --since "$since" --output cat | wc -l)"
+    [ "$result" -eq "0" ]
 }
 
 @test "[SYSTEMD] start (running)" {

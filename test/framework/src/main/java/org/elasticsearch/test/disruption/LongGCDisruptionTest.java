@@ -51,7 +51,7 @@ public class LongGCDisruptionTest extends ESTestCase {
             @Override
             protected Pattern[] getUnsafeClasses() {
                 return new Pattern[]{
-                    Pattern.compile("LockedExecutor")
+                    Pattern.compile(LockedExecutor.class.getSimpleName())
                 };
             }
 
@@ -100,13 +100,17 @@ public class LongGCDisruptionTest extends ESTestCase {
         }
     }
 
+    /**
+     * Checks that a GC disruption never blocks threads while they are doing something "unsafe"
+     * but does keep retrying until all threads can be safely paused
+     */
     public void testNotBlockingUnsafeStackTraces() throws Exception {
         final String nodeName = "test_node";
         LongGCDisruption disruption = new LongGCDisruption(random(), nodeName) {
             @Override
             protected Pattern[] getUnsafeClasses() {
                 return new Pattern[]{
-                    Pattern.compile("LockedExecutor")
+                    Pattern.compile(LockedExecutor.class.getSimpleName())
                 };
             }
         };

@@ -24,11 +24,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.InternalTestCluster;
 
+import java.util.Arrays;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Suspends all threads on the specified node in order to simulate a long gc.
@@ -36,7 +38,7 @@ import java.util.regex.Pattern;
 public class LongGCDisruption extends SingleNodeDisruption {
 
     private static final Pattern[] unsafeClasses = new Pattern[]{
-            // logging has shared JVM locks - we may suspend a thread and block other nodes from doing their thing
+        // logging has shared JVM locks - we may suspend a thread and block other nodes from doing their thing
         Pattern.compile("logging\\.log4j")
     };
 
@@ -70,7 +72,12 @@ public class LongGCDisruption extends SingleNodeDisruption {
 
                     @Override
                     protected void doRun() throws Exception {
-                        while (stopNodeThreads(disruptedNode, suspendedThreads)) ;
+                        // keep trying to stop threads, until no new threads are discovered.
+                        while (stopNodeThreads(disruptedNode, suspendedThreads)) {
+                            if (Thread.interrupted()) {
+                                return;
+                            }
+                        }
                     }
                 });
                 stoppingThread.setName(currentThreadName + "[LongGCDisruption][threadStopper]");
@@ -78,7 +85,8 @@ public class LongGCDisruption extends SingleNodeDisruption {
                 try {
                     stoppingThread.join(getStoppingTimeoutInMillis());
                 } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
+                    stoppingThread.interrupt(); // best effort to signal stopping
+                    throw new RuntimeException(e);
                 }
                 if (stoppingError.get() != null) {
                     throw new RuntimeException("unknown error while stopping threads", stoppingError.get());
@@ -103,12 +111,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
     }
 
     private String stackTrace(Thread thread) {
-        String result = "";
-        for (StackTraceElement s : thread.getStackTrace()) {
-            result += "\tat " + s.getClassName() + "." + s.getMethodName()
-                + "(" + s.getFileName() + ":" + s.getLineNumber() + ")" + "\n";
-        }
-        return result;
+        return Arrays.stream(thread.getStackTrace()).map(Object::toString).collect(Collectors.joining("\n"));
     }
 
     @Override
@@ -130,16 +133,15 @@ public class LongGCDisruption extends SingleNodeDisruption {
         return TimeValue.timeValueMillis(0);
     }
 
-    @SuppressWarnings("deprecation") // stops/resumes threads intentionally
-    @SuppressForbidden(reason = "stops/resumes threads intentionally")
     /**
      * resolves all threads belonging to given node and suspends them if their current stack trace
      * is "safe". Threads are added to nodeThreads if suspended.
      *
      * returns true if some live threads were found. The caller is expected to call this method
      * until no more "live" are found.
-     *
      */
+    @SuppressWarnings("deprecation") // stops/resumes threads intentionally
+    @SuppressForbidden(reason = "stops/resumes threads intentionally")
     protected boolean stopNodeThreads(String node, Set<Thread> nodeThreads) {
         Thread[] allThreads = null;
         while (allThreads == null) {

@@ -2064,8 +2064,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
             throw new IllegalStateException(builder.toString());
         }
-        Path src = list[0];
-        Path dest = dataDir.resolve(internalCluster().getClusterName());
+        Path src = list[0].resolve(NodeEnvironment.NODES_FOLDER);
+        Path dest = dataDir.resolve(NodeEnvironment.NODES_FOLDER);
         assertTrue(Files.exists(src));
         Files.move(src, dest);
         assertFalse(Files.exists(src));

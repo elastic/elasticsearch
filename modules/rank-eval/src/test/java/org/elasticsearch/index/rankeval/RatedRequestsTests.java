@@ -112,6 +112,7 @@ public class RatedRequestsTests extends ESTestCase {
     }
 
     public void testParseFromXContent() throws IOException {
+        // we modify the order of index/type/docId to make sure it doesn't matter for parsing xContent
         String querySpecString = " {\n"
          + "   \"id\": \"my_qa_query\",\n"
          + "   \"request\": {\n"
@@ -126,9 +127,9 @@ public class RatedRequestsTests extends ESTestCase {
          + "           \"size\": 10\n"
          + "   },\n"
          + "   \"ratings\": [ "
-         + "        {\"key\": {\"index\": \"test\", \"type\": \"testtype\", \"doc_id\": \"1\"}, \"rating\" : 1 }, "
-         + "        {\"key\": {\"index\": \"test\", \"type\": \"testtype\", \"doc_id\": \"2\"}, \"rating\" : 0 }, "
-         + "        {\"key\": {\"index\": \"test\", \"type\": \"testtype\", \"doc_id\": \"3\"}, \"rating\" : 1 }]\n"
+         + "        {\"index\": \"test\", \"type\": \"testtype\", \"doc_id\": \"1\", \"rating\" : 1 }, "
+         + "        {\"type\": \"testtype\", \"index\": \"test\", \"doc_id\": \"2\", \"rating\" : 0 }, "
+         + "        {\"doc_id\": \"3\", \"index\": \"test\", \"type\": \"testtype\", \"rating\" : 1 }]\n"
          + "}";
         XContentParser parser = XContentFactory.xContent(querySpecString).createParser(querySpecString);
         QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, parser, ParseFieldMatcher.STRICT);
@@ -139,13 +140,15 @@ public class RatedRequestsTests extends ESTestCase {
         assertNotNull(specification.getTestRequest());
         List<RatedDocument> ratedDocs = specification.getRatedDocs();
         assertEquals(3, ratedDocs.size());
-        assertEquals("1", ratedDocs.get(0).getKey().getDocID());
-        assertEquals(1, ratedDocs.get(0).getRating());
-        assertEquals("2", ratedDocs.get(1).getKey().getDocID());
-        assertEquals(0, ratedDocs.get(1).getRating());
-        assertEquals("3", ratedDocs.get(2).getKey().getDocID());
-        assertEquals(1, ratedDocs.get(2).getRating());
+        for (int i = 0; i < 3; i++) {
+            assertEquals("" + (i + 1), ratedDocs.get(i).getDocID());
+            assertEquals("test", ratedDocs.get(i).getIndex());
+            assertEquals("testtype", ratedDocs.get(i).getType());
+            if (i == 1) {
+                assertEquals(0, ratedDocs.get(i).getRating());
+            } else {
+                assertEquals(1, ratedDocs.get(i).getRating());
+            }
+        }
     }
-
-
 }

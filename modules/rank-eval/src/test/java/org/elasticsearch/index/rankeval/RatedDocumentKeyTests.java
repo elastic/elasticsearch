@@ -19,24 +19,49 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+
 public class RatedDocumentKeyTests extends ESTestCase {
 
-    public void testXContentRoundtrip() throws IOException {
+    public void testEqualsAndHash() throws IOException {
         String index = randomAsciiOfLengthBetween(0, 10);
         String type = randomAsciiOfLengthBetween(0, 10);
         String docId = randomAsciiOfLengthBetween(0, 10);
 
         RatedDocumentKey testItem = new RatedDocumentKey(index, type, docId);
-        XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
-        RatedDocumentKey parsedItem = RatedDocumentKey.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
-        assertNotSame(testItem, parsedItem);
-        assertEquals(testItem, parsedItem);
-        assertEquals(testItem.hashCode(), parsedItem.hashCode());
+
+        assertFalse("key is equal to null", testItem.equals(null));
+        assertFalse("key is equal to incompatible type", testItem.equals(""));
+        assertTrue("key is not equal to self", testItem.equals(testItem));
+        assertThat("same key's hashcode returns different values if called multiple times", testItem.hashCode(),
+                equalTo(testItem.hashCode()));
+
+        RatedDocumentKey mutation;
+        switch (randomIntBetween(0, 2)) {
+        case 0:
+            mutation = new RatedDocumentKey(testItem.getIndex() + "_foo", testItem.getType(), testItem.getDocID());
+            break;
+        case 1:
+            mutation = new RatedDocumentKey(testItem.getIndex(), testItem.getType()  + "_foo", testItem.getDocID());
+            break;
+        case 2:
+            mutation = new RatedDocumentKey(testItem.getIndex(), testItem.getType(), testItem.getDocID()  + "_foo");
+            break;
+        default:
+            throw new IllegalStateException("The test should only allow three parameters mutated");
+        }
+
+        assertThat("different keys should not be equal", mutation, not(equalTo(testItem)));
+
+        RatedDocumentKey secondEqualKey = new RatedDocumentKey(index, type, docId);
+        assertTrue("key is not equal to its copy", testItem.equals(secondEqualKey));
+        assertTrue("equals is not symmetric", secondEqualKey.equals(testItem));
+        assertThat("key copy's hashcode is different from original hashcode", secondEqualKey.hashCode(),
+                equalTo(testItem.hashCode()));
     }
 }

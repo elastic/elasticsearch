@@ -17,17 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.search.action;
+package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -75,8 +73,7 @@ public class SearchTransportService extends AbstractComponent {
     private final TransportService transportService;
     private final SearchService searchService;
 
-    @Inject
-    public SearchTransportService(Settings settings, TransportService transportService, SearchService searchService) {
+    SearchTransportService(Settings settings, TransportService transportService, SearchService searchService) {
         super(settings);
         this.transportService = transportService;
         this.searchService = searchService;

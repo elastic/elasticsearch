@@ -55,7 +55,7 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
         int[] relevanceRatings = new int[] { 3, 2, 3, 0, 1, 2 };
         InternalSearchHit[] hits = new InternalSearchHit[6];
         for (int i = 0; i < 6; i++) {
-            rated.add(new RatedDocument(new RatedDocumentKey("index", "type", Integer.toString(i)), relevanceRatings[i]));
+            rated.add(new RatedDocument("index", "type", Integer.toString(i), relevanceRatings[i]));
             hits[i] = new InternalSearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0)));
         }
@@ -100,7 +100,7 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
         InternalSearchHit[] hits = new InternalSearchHit[6];
         for (int i = 0; i < 6; i++) {
             if (i < relevanceRatings.length) {
-                rated.add(new RatedDocument(new RatedDocumentKey("index", "type", Integer.toString(i)), relevanceRatings[i]));
+                rated.add(new RatedDocument("index", "type", Integer.toString(i), relevanceRatings[i]));
             }
             hits[i] = new InternalSearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0)));
@@ -121,7 +121,7 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
         assertEquals(8, dcgAt.getPosition());
         assertEquals(true, dcgAt.getNormalize());
     }
-    
+
     public static DiscountedCumulativeGainAt createTestItem() {
         int position = randomIntBetween(0, 1000);
         boolean normalize = randomBoolean();

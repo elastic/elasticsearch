@@ -19,7 +19,6 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -38,6 +37,7 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -50,8 +50,8 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -96,7 +96,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class);
+        return Collections.singletonList(InternalSettingsPlugin.class);
     }
 
     public void testHighlightingWithWildcardName() throws IOException {
@@ -2850,5 +2850,22 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertThat(field.getFragments().length, equalTo(2));
         assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
         assertThat(field.getFragments()[1].string(), equalTo("<em>cow</em>"));
+    }
+
+    public void testFunctionScoreQueryHighlight() throws Exception {
+        client().prepareIndex("test", "type", "1")
+            .setSource(jsonBuilder().startObject().field("text", "brown").endObject())
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(new FunctionScoreQueryBuilder(QueryBuilders.prefixQuery("text", "bro")))
+            .highlighter(new HighlightBuilder()
+                .field(new Field("text")))
+            .get();
+        assertHitCount(searchResponse, 1);
+        HighlightField field = searchResponse.getHits().getAt(0).highlightFields().get("text");
+        assertThat(field.getFragments().length, equalTo(1));
+        assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
     }
 }

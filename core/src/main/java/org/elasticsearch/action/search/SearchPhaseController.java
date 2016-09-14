@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.controller;
+package org.elasticsearch.action.search;
 
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
@@ -89,8 +89,7 @@ public class SearchPhaseController extends AbstractComponent {
     private final ScriptService scriptService;
     private final ClusterService clusterService;
 
-    @Inject
-    public SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService, ClusterService clusterService) {
+    SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService, ClusterService clusterService) {
         super(settings);
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;

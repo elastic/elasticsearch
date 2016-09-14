@@ -143,15 +143,14 @@ public class PercolatorBackwardsCompatibilityTests extends ESIntegTestCase {
     }
 
     private void setupNode() throws Exception {
-        Path dataDir = createTempDir();
-        Path clusterDir = Files.createDirectory(dataDir.resolve(cluster().getClusterName()));
+        Path clusterDir = createTempDir();
         try (InputStream stream = PercolatorBackwardsCompatibilityTests.class.
                 getResourceAsStream("/indices/percolator/bwc_index_2.0.0.zip")) {
             TestUtil.unzip(stream, clusterDir);
         }
 
         Settings.Builder nodeSettings = Settings.builder()
-            .put(Environment.PATH_DATA_SETTING.getKey(), dataDir);
+            .put(Environment.PATH_DATA_SETTING.getKey(), clusterDir);
         internalCluster().startNode(nodeSettings.build());
         ensureGreen(INDEX_NAME);
     }

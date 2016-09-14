@@ -21,6 +21,10 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -61,4 +65,14 @@ public class RankEvalResponseTests extends ESTestCase {
         }
     }
 
+    public void testToXContent() throws IOException {
+        RankEvalResponse randomResponse = createRandomResponse();
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        if (ESTestCase.randomBoolean()) {
+            builder.prettyPrint();
+        }
+        builder.startObject();
+        randomResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+    }
 }

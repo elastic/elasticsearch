@@ -19,45 +19,15 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
-    public static final ParseField DOC_ID_FIELD = new ParseField("doc_id");
-    public static final ParseField TYPE_FIELD = new ParseField("type");
-    public static final ParseField INDEX_FIELD = new ParseField("index");
+public class RatedDocumentKey implements Writeable {
 
-    private static final ConstructingObjectParser<RatedDocumentKey, ParseFieldMatcherSupplier> PARSER =
-            new ConstructingObjectParser<>("ratings",
-            a -> new RatedDocumentKey((String) a[0], (String) a[1], (String) a[2]));
-
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), DOC_ID_FIELD);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(INDEX_FIELD.getPreferredName(), index);
-        builder.field(TYPE_FIELD.getPreferredName(), type);
-        builder.field(DOC_ID_FIELD.getPreferredName(), docId);
-        builder.endObject();
-        return builder;
-    }
-
-    // TODO instead of docId use path to id and id itself
     private String docId;
     private String type;
     private String index;
@@ -69,7 +39,7 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
     void setType(String type) {
         this.type = type;
     }
-    
+
     void setDocId(String docId) {
         this.docId = docId;
     }
@@ -105,11 +75,6 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
         out.writeString(docId);
     }
 
-    public static RatedDocumentKey fromXContent(
-            XContentParser parser, ParseFieldMatcherSupplier context) throws IOException {
-        return PARSER.apply(parser, context);
-    }
-
     @Override
     public final boolean equals(Object obj) {
         if (this == obj) {
@@ -123,7 +88,7 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
                 Objects.equals(type, other.type) &&
                 Objects.equals(docId, other.docId);
     }
-    
+
     @Override
     public final int hashCode() {
         return Objects.hash(index, type, docId);

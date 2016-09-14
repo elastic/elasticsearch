@@ -26,8 +26,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.action.SearchTransportService;
-import org.elasticsearch.search.controller.SearchPhaseController;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -45,15 +46,15 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     private final SearchPhaseController searchPhaseController;
 
     @Inject
-    public TransportSearchScrollAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                       ClusterService clusterService, SearchTransportService searchTransportService,
-                                       SearchPhaseController searchPhaseController,
+    public TransportSearchScrollAction(Settings settings, BigArrays bigArrays, ThreadPool threadPool, ScriptService scriptService,
+                                       TransportService transportService,
+                                       ClusterService clusterService, SearchService searchService,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 SearchScrollRequest::new);
         this.clusterService = clusterService;
-        this.searchTransportService = searchTransportService;
-        this.searchPhaseController = searchPhaseController;
+        this.searchTransportService = new SearchTransportService(settings, transportService, searchService);
+        this.searchPhaseController = new SearchPhaseController(settings, bigArrays, scriptService, clusterService);
     }
 
     @Override

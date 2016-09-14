@@ -64,10 +64,6 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
         transportService.registerRequestHandler(ACTION_NAME, VerifyNodeRepositoryRequest::new, ThreadPool.Names.SAME, new VerifyNodeRepositoryRequestHandler());
     }
 
-    public void close() {
-        transportService.removeHandler(ACTION_NAME);
-    }
-
     public void verify(String repository, String verificationToken, final ActionListener<VerifyResponse> listener) {
         final DiscoveryNodes discoNodes = clusterService.state().nodes();
         final DiscoveryNode localNode = discoNodes.getLocalNode();

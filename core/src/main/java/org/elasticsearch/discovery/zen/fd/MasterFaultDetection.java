@@ -168,7 +168,6 @@ public class MasterFaultDetection extends FaultDetection {
         super.close();
         stop("closing");
         this.listeners.clear();
-        transportService.removeHandler(MASTER_PING_ACTION_NAME);
     }
 
     @Override

@@ -139,7 +139,6 @@ public class NodesFaultDetection extends FaultDetection {
     public void close() {
         super.close();
         stop();
-        transportService.removeHandler(PING_ACTION_NAME);
     }
 
     @Override

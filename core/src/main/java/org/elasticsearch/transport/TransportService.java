@@ -620,19 +620,12 @@ public class TransportService extends AbstractLifecycleComponent {
         registerRequestHandler(reg);
     }
 
-    protected <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
+    private <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
         synchronized (requestHandlerMutex) {
-            RequestHandlerRegistry replaced = requestHandlers.get(reg.getAction());
-            requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
-            if (replaced != null) {
-                logger.warn("registered two transport handlers for action {}, handlers: {}, {}", reg.getAction(), reg, replaced);
+            if (requestHandlers.containsKey(reg.getAction())) {
+                throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
             }
-        }
-    }
-
-    public void removeHandler(String action) {
-        synchronized (requestHandlerMutex) {
-            requestHandlers = MapBuilder.newMapBuilder(requestHandlers).remove(action).immutableMap();
+            requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
         }
     }
 

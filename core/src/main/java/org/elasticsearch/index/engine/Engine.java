@@ -479,7 +479,9 @@ public abstract class Engine implements Closeable {
             try {
                 length = directory.fileLength(file);
             } catch (NoSuchFileException | FileNotFoundException e) {
-                logger.warn("Tried to query fileLength but file is gone [{}] [{}]", e, directory, file);
+                final Directory finalDirectory = directory;
+                logger.warn((Supplier<?>)
+                    () -> new ParameterizedMessage("Tried to query fileLength but file is gone [{}] [{}]", finalDirectory, file), e);
             } catch (IOException e) {
                 final Directory finalDirectory = directory;
                 logger.warn(

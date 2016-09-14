@@ -37,8 +37,10 @@ import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateActionTests.AssertingAckListener;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateActionTests.MockNode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -166,7 +168,9 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             // build the zen discovery and cluster service
             clusterService = createClusterService(threadPool, master.discoveryNode);
             setState(clusterService, state);
-            zenDiscovery = buildZenDiscovery(settings, master, clusterService, threadPool);
+            master.service.setAllowDoubleRegister(true);
+            zenDiscovery = buildZenDiscovery(settings, master.service,
+                clusterService, threadPool);
 
             // a new cluster state with a new discovery node (we will test if the cluster state
             // was updated by the presence of this node in NodesFaultDetection)
@@ -201,11 +205,11 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         }
     }
 
-    private ZenDiscovery buildZenDiscovery(Settings settings, MockNode master, ClusterService clusterService, ThreadPool threadPool) {
+    private ZenDiscovery buildZenDiscovery(Settings settings, TransportService service, ClusterService clusterService, ThreadPool threadPool) {
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ZenPingService zenPingService = new ZenPingService(settings, Collections.emptySet());
         ElectMasterService electMasterService = new ElectMasterService(settings);
-        ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, master.service, clusterService,
+        ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service, clusterService,
                                                         clusterSettings, zenPingService, electMasterService);
         zenDiscovery.start();
         return zenDiscovery;

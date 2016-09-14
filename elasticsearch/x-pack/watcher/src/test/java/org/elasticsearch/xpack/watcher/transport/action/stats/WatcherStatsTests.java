@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 @ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false)
-@TestLogging("watcher:TRACE")
+@TestLogging("org.elasticsearch.watcher:TRACE")
 public class WatcherStatsTests extends AbstractWatcherIntegrationTestCase {
     public void testStartedStats() throws Exception {
         WatcherStatsRequest watcherStatsRequest = watcherClient().prepareWatcherStats().request();

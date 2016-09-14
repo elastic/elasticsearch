@@ -60,7 +60,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
         return plugins;
     }
 
-    @TestLogging("watcher.support.http:TRACE")
+    @TestLogging("org.elasticsearch.watcher.support.http:TRACE")
     public void testHttpInput() throws Exception {
         createIndex("index");
         client().prepareIndex("index", "type", "id").setSource("{}").setRefreshPolicy(IMMEDIATE).get();
@@ -104,7 +104,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
         assertWatchWithMinimumPerformedActionsCount("_name", 1, false);
     }
 
-    @TestLogging("watcher.support.http:TRACE")
+    @TestLogging("org.elasticsearch.watcher.support.http:TRACE")
     public void testInputFiltering() throws Exception {
         WatcherClient watcherClient = watcherClient();
         createIndex("idx");

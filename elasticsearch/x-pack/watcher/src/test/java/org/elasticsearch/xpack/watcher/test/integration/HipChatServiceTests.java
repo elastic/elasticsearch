@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 @Network
-@TestLogging("watcher.support.http:TRACE")
+@TestLogging("org.elasticsearch.watcher.support.http:TRACE")
 public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
     @Override
     protected boolean timeWarped() {

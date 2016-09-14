@@ -20,7 +20,7 @@ import static org.hamcrest.core.Is.is;
 
 /**
  */
-@TestLogging("cluster:DEBUG,action.admin.cluster.settings:DEBUG,watcher:DEBUG")
+@TestLogging("org.elasticsearch.cluster:DEBUG,org.elasticsearch.action.admin.cluster.settings:DEBUG,org.elasticsearch.watcher:DEBUG")
 @ESIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false,
         supportsDedicatedMasters = false, numDataNodes = 1)
 public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTestCase {

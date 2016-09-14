@@ -53,7 +53,7 @@ import static org.hamcrest.core.Is.is;
 
 //test is just too slow, please fix it to not be sleep-based
 @BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
-@TestLogging("discovery:TRACE,watcher:TRACE")
+@TestLogging("org.elasticsearch.discovery:TRACE,org.elasticsearch.watcher:TRACE")
 @ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 0)
 @SuppressLocalMode
 public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {

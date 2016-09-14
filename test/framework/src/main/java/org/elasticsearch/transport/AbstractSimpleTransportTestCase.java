@@ -224,8 +224,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (Exception e) {
             assertThat(e.getMessage(), false, equalTo(true));
         }
-
-        serviceA.removeHandler("sayHello");
     }
 
     public void testThreadContext() throws ExecutionException, InterruptedException {
@@ -281,8 +279,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertEquals("ping_user", threadPool.getThreadContext().getHeader("test.ping.user"));
         assertSame(context, threadPool.getThreadContext().getTransient("my_private_context"));
         assertNull("this header is only visible in the handler context", threadPool.getThreadContext().getHeader("some.temp.header"));
-
-        serviceA.removeHandler("sayHello");
     }
 
     public void testLocalNodeConnection() throws InterruptedException {
@@ -375,8 +371,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (Exception e) {
             assertThat(e.getMessage(), false, equalTo(true));
         }
-
-        serviceA.removeHandler("sayHello");
     }
 
     public void testHelloWorldCompressed() {
@@ -426,8 +420,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (Exception e) {
             assertThat(e.getMessage(), false, equalTo(true));
         }
-
-        serviceA.removeHandler("sayHello");
     }
 
     public void testErrorMessage() {
@@ -469,8 +461,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (Exception e) {
             assertThat(e.getCause().getMessage(), equalTo("runtime_exception: bad message !!!"));
         }
-
-        serviceA.removeHandler("sayHelloException");
     }
 
     public void testDisconnectListener() throws Exception {
@@ -635,7 +625,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (TransportException ex) {
 
         }
-        serviceA.removeHandler("sayHelloTimeoutDelayedResponse");
     }
 
     public void testTimeoutSendExceptionWithNeverSendingBackResponse() throws Exception {
@@ -678,8 +667,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (Exception e) {
             assertThat(e, instanceOf(ReceiveTimeoutTransportException.class));
         }
-
-        serviceA.removeHandler("sayHelloTimeoutNoResponse");
     }
 
     public void testTimeoutSendExceptionWithDelayedResponse() throws Exception {
@@ -785,7 +772,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         for (Runnable runnable : assertions) {
             runnable.run();
         }
-        serviceA.removeHandler("sayHelloTimeoutDelayedResponse");
         waitForever.countDown();
         doneWaitingForever.await();
         assertTrue(inFlight.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
@@ -1325,8 +1311,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (ConnectTransportException e) {
             // all is well
         }
-
-        serviceA.removeHandler("sayHello");
     }
 
     public void testMockUnresponsiveRule() {
@@ -1385,8 +1369,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (ConnectTransportException e) {
             // all is well
         }
-
-        serviceA.removeHandler("sayHello");
     }
 
 
@@ -1720,5 +1702,17 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         logger.debug("DONE");
         serviceC.close();
 
+    }
+
+    public void testRegisterHandlerTwice() {
+        serviceB.registerRequestHandler("action1", TestRequest::new, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
+            (request, message) -> {throw new AssertionError("boom");});
+        expectThrows(IllegalArgumentException.class, () ->
+            serviceB.registerRequestHandler("action1", TestRequest::new, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
+                (request, message) -> {throw new AssertionError("boom");})
+        );
+
+        serviceA.registerRequestHandler("action1", TestRequest::new, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
+            (request, message) -> {throw new AssertionError("boom");});
     }
 }

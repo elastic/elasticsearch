@@ -223,7 +223,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         for (MockNode curNode : nodes.values()) {
-            curNode.action.close();
             curNode.service.close();
         }
         terminate(threadPool);

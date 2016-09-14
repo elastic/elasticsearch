@@ -211,7 +211,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
 
     @Override
     protected void doClose() {
-        transportService.removeHandler(ACTION_NAME);
         ThreadPool.terminate(unicastConnectExecutor, 0, TimeUnit.SECONDS);
         try {
             IOUtils.close(receivedResponses.values());

@@ -1,4 +1,4 @@
-[[breaking_60_document_api_changes]]
+[[breaking_60_docs_changes]]
 === Document API changes
 
 ==== version type 'force' removed

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.update;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -28,9 +29,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -51,6 +54,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -76,7 +80,7 @@ public class UpdateHelper extends AbstractComponent {
     public Result prepare(UpdateRequest request, IndexShard indexShard) {
         final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
                 new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME, TimestampFieldMapper.NAME},
-                true, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE, false);
+                true, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE);
         return prepare(indexShard.shardId(), request, getResult);
     }
 
@@ -267,17 +271,19 @@ public class UpdateHelper extends AbstractComponent {
     }
 
     /**
-     * Extracts the fields from the updated document to be returned in a update response
+     * Applies {@link UpdateRequest#fetchSource()} to the _source of the updated document to be returned in a update response.
+     * For BWC this function also extracts the {@link UpdateRequest#fields()} from the updated document to be returned in a update response
      */
     public GetResult extractGetResult(final UpdateRequest request, String concreteIndex, long version, final Map<String, Object> source, XContentType sourceContentType, @Nullable final BytesReference sourceAsBytes) {
-        if (request.fields() == null || request.fields().length == 0) {
+        if ((request.fields() == null || request.fields().length == 0) &&
+            (request.fetchSource() == null || request.fetchSource().fetchSource() == false)) {
             return null;
         }
+        SourceLookup sourceLookup = new SourceLookup();
+        sourceLookup.setSource(source);
         boolean sourceRequested = false;
         Map<String, GetField> fields = null;
         if (request.fields() != null && request.fields().length > 0) {
-            SourceLookup sourceLookup = new SourceLookup();
-            sourceLookup.setSource(source);
             for (String field : request.fields()) {
                 if (field.equals("_source")) {
                     sourceRequested = true;
@@ -298,8 +304,26 @@ public class UpdateHelper extends AbstractComponent {
             }
         }
 
+        BytesReference sourceFilteredAsBytes = sourceAsBytes;
+        if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
+            sourceRequested = true;
+            if (request.fetchSource().includes().length > 0 || request.fetchSource().excludes().length > 0) {
+                Object value = sourceLookup.filter(request.fetchSource().includes(), request.fetchSource().excludes());
+                try {
+                    final int initialCapacity = Math.min(1024, sourceAsBytes.length());
+                    BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
+                    try (XContentBuilder builder = new XContentBuilder(sourceContentType.xContent(), streamOutput)) {
+                        builder.value(value);
+                        sourceFilteredAsBytes = builder.bytes();
+                    }
+                } catch (IOException e) {
+                    throw new ElasticsearchException("Error filtering source", e);
+                }
+            }
+        }
+
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)
-        return new GetResult(concreteIndex, request.type(), request.id(), version, true, sourceRequested ? sourceAsBytes : null, fields);
+        return new GetResult(concreteIndex, request.type(), request.id(), version, true, sourceRequested ? sourceFilteredAsBytes : null, fields);
     }
 
     public static class Result {

@@ -160,18 +160,10 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
         }
 
         logger.debug("using initial hosts {}, with concurrent_connects [{}]", hosts, concurrentConnects);
-
         List<DiscoveryNode> configuredTargetNodes = new ArrayList<>();
-        for (String host : hosts) {
-            try {
-                TransportAddress[] addresses = transportService.addressesFromString(host, limitPortCounts);
-                for (TransportAddress address : addresses) {
-                    configuredTargetNodes.add(new DiscoveryNode(UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "#",
-                            address, emptyMap(), emptySet(), getVersion().minimumCompatibilityVersion()));
-                }
-            } catch (Exception e) {
-                throw new IllegalArgumentException("Failed to resolve address for [" + host + "]", e);
-            }
+        for (final String host : hosts) {
+            configuredTargetNodes.addAll(resolveDiscoveryNodes(host, limitPortCounts, transportService,
+                () -> UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "#"));
         }
         this.configuredTargetNodes = configuredTargetNodes.toArray(new DiscoveryNode[configuredTargetNodes.size()]);
 
@@ -181,6 +173,32 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
         ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[unicast_connect]");
         unicastConnectExecutor = EsExecutors.newScaling("unicast_connect", 0, concurrentConnects, 60, TimeUnit.SECONDS,
                 threadFactory, threadPool.getThreadContext());
+    }
+
+    /**
+     * Resolves a host to a list of discovery nodes.  The host is resolved into a transport
+     * address (or a collection of addresses if the number of ports is greater than one) and
+     * the transport addresses are used to created discovery nodes.
+     *
+     * @param host the host to resolve
+     * @param limitPortCounts the number of ports to resolve (should be 1 for non-local transport)
+     * @param transportService the transport service
+     * @param idGenerator the generator to supply unique ids for each discovery node
+     * @return a list of discovery nodes with resolved transport addresses
+     */
+    public static List<DiscoveryNode> resolveDiscoveryNodes(final String host, final int limitPortCounts,
+                                                            final TransportService transportService, final Supplier<String> idGenerator) {
+        List<DiscoveryNode> discoveryNodes = new ArrayList<>();
+        try {
+            TransportAddress[] addresses = transportService.addressesFromString(host, limitPortCounts);
+            for (TransportAddress address : addresses) {
+                discoveryNodes.add(new DiscoveryNode(idGenerator.get(), address, emptyMap(), emptySet(),
+                                                        Version.CURRENT.minimumCompatibilityVersion()));
+            }
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Failed to resolve address for [" + host + "]", e);
+        }
+        return discoveryNodes;
     }
 
     @Override
@@ -193,7 +211,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
 
     @Override
     protected void doClose() {
-        transportService.removeHandler(ACTION_NAME);
         ThreadPool.terminate(unicastConnectExecutor, 0, TimeUnit.SECONDS);
         try {
             IOUtils.close(receivedResponses.values());

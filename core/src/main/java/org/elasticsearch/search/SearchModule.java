@@ -23,7 +23,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
@@ -95,7 +94,6 @@ import org.elasticsearch.plugins.SearchPlugin.QuerySpec;
 import org.elasticsearch.plugins.SearchPlugin.ScoreFunctionSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtensionSpec;
-import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
@@ -243,7 +241,6 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator;
-import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
@@ -288,7 +285,7 @@ import static java.util.Objects.requireNonNull;
 /**
  * Sets up things that can be done at search time like queries, aggregations, and suggesters.
  */
-public class SearchModule extends AbstractModule {
+public class SearchModule {
     public static final Setting<Integer> INDICES_MAX_CLAUSE_COUNT_SETTING = Setting.intSetting("indices.query.bool.max_clause_count",
             1024, 1, Integer.MAX_VALUE, Setting.Property.NodeScope);
 
@@ -375,17 +372,6 @@ public class SearchModule extends AbstractModule {
      */
     public AggregatorParsers getAggregatorParsers() {
         return aggregatorParsers;
-    }
-
-
-    @Override
-    protected void configure() {
-        if (false == transportClient) {
-            bind(IndicesQueriesRegistry.class).toInstance(queryParserRegistry);
-            bind(SearchRequestParsers.class).toInstance(searchRequestParsers);
-            bind(SearchExtRegistry.class).toInstance(searchExtParserRegistry);
-            configureSearch();
-        }
     }
 
     private void registerAggregations(List<SearchPlugin> plugins) {
@@ -572,13 +558,6 @@ public class SearchModule extends AbstractModule {
         for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> resultReader : spec.getResultReaders().entrySet()) {
             namedWriteables.add(new Entry(InternalAggregation.class, resultReader.getKey(), resultReader.getValue()));
         }
-    }
-
-    protected void configureSearch() {
-        // configure search private classes...
-        bind(SearchPhaseController.class).asEagerSingleton();
-        bind(FetchPhase.class).toInstance(new FetchPhase(fetchSubPhases));
-        bind(SearchTransportService.class).asEagerSingleton();
     }
 
     private void registerShapes() {
@@ -816,5 +795,13 @@ public class SearchModule extends AbstractModule {
     private void registerQuery(QuerySpec<?> spec) {
         queryParserRegistry.register(spec.getParser(), spec.getName());
         namedWriteables.add(new Entry(QueryBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
+    }
+
+    public FetchPhase getFetchPhase() {
+        return new FetchPhase(fetchSubPhases);
+    }
+
+    public SearchExtRegistry getSearchExtRegistry() {
+        return searchExtParserRegistry;
     }
 }

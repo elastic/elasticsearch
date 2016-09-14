@@ -88,10 +88,10 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
     }
 
     /**
-     * Explicitly specify the fields that will be returned for the explained document. By default, nothing is returned.
+     * Explicitly specify the stored fields that will be returned for the explained document. By default, nothing is returned.
      */
-    public ExplainRequestBuilder setFields(String... fields) {
-        request.fields(fields);
+    public ExplainRequestBuilder setStoredFields(String... fields) {
+        request.storedFields(fields);
         return this;
     }
 

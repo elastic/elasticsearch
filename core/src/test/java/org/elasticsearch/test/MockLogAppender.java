@@ -40,7 +40,7 @@ public class MockLogAppender extends AbstractAppender {
     private List<LoggingExpectation> expectations;
 
     public MockLogAppender() throws IllegalAccessException {
-        super("mock", RegexFilter.createFilter(".*(\n.*)*", new String[0], true, null, null), null);
+        super("mock", RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
         expectations = new ArrayList<>();
     }
 

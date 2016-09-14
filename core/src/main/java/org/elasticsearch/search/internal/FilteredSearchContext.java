@@ -100,8 +100,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void preProcess() {
-        in.preProcess();
+    public void preProcess(boolean rewrite) {
+        in.preProcess(rewrite);
     }
 
     @Override

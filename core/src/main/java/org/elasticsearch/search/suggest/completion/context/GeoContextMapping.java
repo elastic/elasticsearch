@@ -207,7 +207,8 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                     if (field instanceof StringField) {
                         spare.resetFromString(field.stringValue());
                     } else {
-                        spare.resetFromIndexHash(Long.parseLong(field.stringValue()));
+                        // todo return this to .stringValue() once LatLonPoint implements it
+                        spare.resetFromIndexableField(field);
                     }
                     geohashes.add(spare.geohash());
                 }

@@ -76,12 +76,6 @@ public class MembershipAction extends AbstractComponent {
         transportService.registerRequestHandler(DISCOVERY_LEAVE_ACTION_NAME, LeaveRequest::new, ThreadPool.Names.GENERIC, new LeaveRequestRequestHandler());
     }
 
-    public void close() {
-        transportService.removeHandler(DISCOVERY_JOIN_ACTION_NAME);
-        transportService.removeHandler(DISCOVERY_JOIN_VALIDATE_ACTION_NAME);
-        transportService.removeHandler(DISCOVERY_LEAVE_ACTION_NAME);
-    }
-
     public void sendLeaveRequest(DiscoveryNode masterNode, DiscoveryNode node) {
         transportService.sendRequest(node, DISCOVERY_LEAVE_ACTION_NAME, new LeaveRequest(masterNode), EmptyTransportResponseHandler.INSTANCE_SAME);
     }

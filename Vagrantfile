@@ -37,6 +37,13 @@ Vagrant.configure(2) do |config|
       [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
     SHELL
   end
+  config.vm.define "ubuntu-1604" do |config|
+    config.vm.box = "elastic/ubuntu-16.04-x86_64"
+    ubuntu_common config, extra: <<-SHELL
+      # Install Jayatana so we can work around it being present.
+      [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
+    SHELL
+  end
   # Wheezy's backports don't contain Openjdk 8 and the backflips required to
   # get the sun jdk on there just aren't worth it. We have jessie for testing
   # debian and it works fine.

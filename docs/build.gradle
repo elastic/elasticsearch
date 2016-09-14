@@ -24,6 +24,9 @@ integTest {
     setting 'script.inline', 'true'
     setting 'script.stored', 'true'
     setting 'script.max_compilations_per_minute', '1000'
+    /* Enable regexes in painless so our tests don't complain about example
+     * snippets that use them. */
+    setting 'script.painless.regex.enabled', 'true'
     Closure configFile = {
       extraConfigFile it, "src/test/cluster/config/$it"
     }

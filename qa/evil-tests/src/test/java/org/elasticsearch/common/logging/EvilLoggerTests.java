@@ -147,26 +147,24 @@ public class EvilLoggerTests extends ESTestCase {
             System.setSecurityManager(new SecurityManager() {
                 @Override
                 public void checkPermission(Permission perm) {
-                    if (perm instanceof RuntimePermission && "setSecurityManager".equals(perm.getName())) {
-                        // so we can restore the security manager at the end of the test
-                        return;
-                    }
+                    // just grant all permissions to Log4j, except we deny MBeanServerPermission
+                    // "createMBeanServer" as this will trigger the Log4j bug
                     if (perm instanceof MBeanServerPermission && "createMBeanServer".equals(perm.getName())) {
                         // without the hack in place, Log4j will try to get an MBean server which we will deny
                         // with the hack in place, this permission should never be requested by Log4j
                         denied.set(true);
                         throw new AccessControlException("denied");
                     }
-                    super.checkPermission(perm);
                 }
 
                 @Override
                 public void checkPropertyAccess(String key) {
-                    // so that Log4j can check if its usage of JMX is disabled or not
-                    if ("log4j2.disable.jmx".equals(key)) {
-                        return;
-                    }
-                    super.checkPropertyAccess(key);
+                    /*
+                     * grant access to all properties; this is so that Log4j can check if its usage
+                     * of JMX is disabled or not by reading log4j2.disable.jmx but there are other
+                     * properties that Log4j will try to read as well and its simpler to just grant
+                     * them all
+                     */
                 }
             });
 

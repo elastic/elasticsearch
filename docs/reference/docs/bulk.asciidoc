@@ -72,7 +72,7 @@ POST _bulk
 { "delete" : { "_index" : "test", "_type" : "type1", "_id" : "2" } }
 { "create" : { "_index" : "test", "_type" : "type1", "_id" : "3" } }
 { "field1" : "value3" }
-{ "update" : {"_id" : "4", "_type" : "type1", "_index" : "index1"} }
+{ "update" : {"_id" : "1", "_type" : "type1", "_index" : "test"} }
 { "doc" : {"field2" : "value2"} }
 --------------------------------------------------
 // CONSOLE
@@ -82,11 +82,11 @@ The result of this bulk operation is:
 [source,js]
 --------------------------------------------------
 {
-   "took": ...,
-   "errors": true, <1>
+   "took": 30,
+   "errors": false,
    "items": [
       {
-         "index": { <2>
+         "index": {
             "_index": "test",
             "_type": "type1",
             "_id": "1",
@@ -102,7 +102,7 @@ The result of this bulk operation is:
          }
       },
       {
-         "delete": { <3>
+         "delete": {
             "found": false,
             "_index": "test",
             "_type": "type1",
@@ -118,7 +118,7 @@ The result of this bulk operation is:
          }
       },
       {
-         "create": { <4>
+         "create": {
             "_index": "test",
             "_type": "type1",
             "_id": "3",
@@ -134,29 +134,24 @@ The result of this bulk operation is:
          }
       },
       {
-         "update": { <5>
-            "_index": "index1",
+         "update": {
+            "_index": "test",
             "_type": "type1",
-            "_id": "4",
-            "status": 404,
-            "error": {
-               "type": "document_missing_exception",
-               "reason": "[type1][4]: document missing",
-               "index_uuid": ...,
-               "shard": "2",
-               "index": "index1"
-            }
+            "_id": "1",
+            "_version": 2,
+            "result": "updated",
+            "_shards": {
+                "total": 2,
+                "successful": 1,
+                "failed": 0
+            },
+            "status": 200
          }
       }
    ]
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"took": .../"took": $body.took/ s/"index_uuid": .../"index_uuid": $body.items.3.update.error.index_uuid/]
-<1> Some operation(s) in the _bulk request failed
-<2> The first operation succeeded with 201 status
-<3> The delete operation failed because the targeted document does not exist
-<4> The create operation succeeded with 201 status
-<5> The update operation failed because the targeted document is missing (create and update the same document in a single _bulk request does not work)
+// TESTRESPONSE[s/"took": 30/"took": $body.took/ s/"index_uuid": .../"index_uuid": $body.items.3.update.error.index_uuid/]
 
 The endpoints are `/_bulk`, `/{index}/_bulk`, and `{index}/{type}/_bulk`.
 When the index or the index/type are provided, they will be used by

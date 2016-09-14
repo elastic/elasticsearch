@@ -38,6 +38,7 @@ List projects = [
   'plugins:analysis-stempel',
   'plugins:discovery-azure-classic',
   'plugins:discovery-ec2',
+  'plugins:discovery-file',
   'plugins:discovery-gce',
   'plugins:ingest-geoip',
   'plugins:ingest-attachment',

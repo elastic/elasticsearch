@@ -21,16 +21,16 @@ package org.elasticsearch.search.suggest;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.suggest.CompletionSuggestSearchIT.CompletionMappingBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.context.CategoryContextMapping;
@@ -40,7 +40,6 @@ import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.GeoContextMapping;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,6 +53,8 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.core.IsEqual.equalTo;
 
 @SuppressCodecs("*") // requires custom completion format
 public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
@@ -158,6 +159,27 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         indexRandom(true, indexRequestBuilders);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg", Fuzziness.ONE);
         assertSuggestions("foo", prefix, "sugxgestion9", "sugxgestion8", "sugxgestion7", "sugxgestion6", "sugxgestion5");
+    }
+
+    public void testContextFilteringWorksWithUTF8Categories() throws Exception {
+        CategoryContextMapping contextMapping = ContextBuilder.category("cat").field("cat").build();
+        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>(Collections.singletonMap("cat", contextMapping));
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
+        createIndexAndMapping(mapping);
+        IndexResponse indexResponse = client().prepareIndex(INDEX, TYPE, "1")
+                .setSource(jsonBuilder().startObject()
+                        .startObject(FIELD)
+                        .field("input", "suggestion")
+                        .endObject()
+                        .field("cat", "ctx\\u00e4")
+                        .endObject())
+                .get();
+        assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
+        assertNoFailures(client().admin().indices().prepareRefresh(INDEX).get());
+        CompletionSuggestionBuilder contextSuggestQuery = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg")
+                .contexts(Collections.singletonMap("cat",
+                        Collections.singletonList(CategoryQueryContext.builder().setCategory("ctx\\u00e4").build())));
+        assertSuggestions("foo", contextSuggestQuery, "suggestion");
     }
 
     public void testSingleContextFiltering() throws Exception {

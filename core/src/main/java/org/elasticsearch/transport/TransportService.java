@@ -131,7 +131,7 @@ public class TransportService extends AbstractLifecycleComponent {
         adapter = createAdapter();
         taskManager = createTaskManager();
         this.interceptor = transportInterceptor;
-        this.asyncSender = interceptor.asyncSender(this::sendRequestInternal);
+        this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
     }
 
     /**
@@ -1093,7 +1093,7 @@ public class TransportService extends AbstractLifecycleComponent {
          * {@link #sendRequest(DiscoveryNode, String, TransportRequest, TransportRequestOptions, TransportResponseHandler)}.
          * This allows plugins to perform actions on each send request including modifying the request context etc.
          */
-        default AsyncSender asyncSender(AsyncSender sender) {
+        default AsyncSender interceptSender(AsyncSender sender) {
             return sender;
         }
     }

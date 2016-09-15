@@ -170,7 +170,7 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         IngestProxyActionFilter filter = buildFilter(randomIntBetween(1, totalNodes - 1), totalNodes,
             new TransportService.TransportInterceptor() {
                 @Override
-                public TransportService.AsyncSender asyncSender(TransportService.AsyncSender sender) {
+                public TransportService.AsyncSender interceptSender(TransportService.AsyncSender sender) {
                     return new TransportService.AsyncSender() {
                         @Override
                         public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
@@ -204,7 +204,7 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         IngestProxyActionFilter filter = buildFilter(randomIntBetween(1, totalNodes - 1), totalNodes,
             new TransportService.TransportInterceptor() {
                 @Override
-                public TransportService.AsyncSender asyncSender(TransportService.AsyncSender sender) {
+                public TransportService.AsyncSender interceptSender(TransportService.AsyncSender sender) {
                     return new TransportService.AsyncSender() {
                         @Override
                         public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
@@ -251,7 +251,7 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         IngestProxyActionFilter filter = buildFilter(randomIntBetween(1, totalNodes - 1), totalNodes,
             new TransportService.TransportInterceptor() {
                 @Override
-                public TransportService.AsyncSender asyncSender(TransportService.AsyncSender sender) {
+                public TransportService.AsyncSender interceptSender(TransportService.AsyncSender sender) {
                     return new TransportService.AsyncSender() {
                         @Override
                         public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,

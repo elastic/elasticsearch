@@ -199,9 +199,9 @@ public class NetworkModule extends AbstractModule {
         }
 
         @Override
-        public TransportService.AsyncSender asyncSender(TransportService.AsyncSender sender) {
+        public TransportService.AsyncSender interceptSender(TransportService.AsyncSender sender) {
             for (TransportService.TransportInterceptor interceptor : this.transportInterceptors) {
-                sender = interceptor.asyncSender(sender);
+                sender = interceptor.interceptSender(sender);
             }
             return sender;
         }

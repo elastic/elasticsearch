@@ -77,7 +77,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             };
             transportService = new TransportService(settings, transport, threadPool, new TransportService.TransportInterceptor() {
                 @Override
-                public TransportService.AsyncSender asyncSender(TransportService.AsyncSender sender) {
+                public TransportService.AsyncSender interceptSender(TransportService.AsyncSender sender) {
                     return new TransportService.AsyncSender() {
                         @Override
                         public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,

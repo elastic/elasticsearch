@@ -127,8 +127,8 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                     }
 
                     @Override
-                    public TransportService.AsyncSender asyncSender(TransportService.AsyncSender sender) {
-                        return instance.asyncSender(sender);
+                    public TransportService.AsyncSender interceptSender(TransportService.AsyncSender sender) {
+                        return instance.interceptSender(sender);
                     }
                 });
             }
@@ -137,7 +137,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
         final CountDownLatch clusterStateLatch = new CountDownLatch(1);
 
         @Override
-        public TransportService.AsyncSender asyncSender(TransportService.AsyncSender sender) {
+        public TransportService.AsyncSender interceptSender(TransportService.AsyncSender sender) {
             return new TransportService.AsyncSender() {
                 @Override
                 public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,

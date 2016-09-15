@@ -76,10 +76,18 @@ public class MainActionTests extends ESTestCase {
         String clusterUUID = randomAsciiOfLengthBetween(10, 20);
         final MainResponse mainResponse = new MainResponse("node1", Version.CURRENT, new ClusterName("cluster1"), clusterUUID,
                 Build.CURRENT, false);
-        final String expected = "{\"name\":\"node1\",\"cluster_name\":\"cluster1\",\"cluster_uuid\":\"" + clusterUUID + "\"," +
-                "\"version\":{\"number\":\"" + Version.CURRENT.toString() + "\",\"build_hash\":\"" + Build.CURRENT.shortHash() +
-                "\",\"build_date\":\"" + Build.CURRENT.date() + "\"," + "\"build_snapshot\":" + Build.CURRENT.isSnapshot() +
-                ",\"lucene_version\":\"" + Version.CURRENT.luceneVersion.toString() + "\"},\"tagline\":\"You Know, for Search\"}";
+        final String expected = "{" +
+                "\"name\":\"node1\"," +
+                "\"cluster_name\":\"cluster1\"," +
+                "\"cluster_uuid\":\"" + clusterUUID + "\"," +
+                "\"version\":{" +
+                "\"number\":\"" + Version.CURRENT.toString() + "\"," +
+                "\"build_hash\":\"" + Build.CURRENT.shortHash() + "\"," +
+                "\"build_date\":\"" + Build.CURRENT.date() + "\"," +
+                "\"build_snapshot\":" + Build.CURRENT.isSnapshot() +
+                ",\"lucene_version\":\"" + Version.CURRENT.luceneVersion.toString() +
+                "\"}," +
+                "\"tagline\":\"You Know, for Search\"}";
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         mainResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);

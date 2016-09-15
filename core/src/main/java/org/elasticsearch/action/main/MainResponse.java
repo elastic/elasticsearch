@@ -35,18 +35,18 @@ public class MainResponse extends ActionResponse implements ToXContent {
     private String nodeName;
     private Version version;
     private ClusterName clusterName;
-    private String clusterUUID;
+    private String clusterUuid;
     private Build build;
     private boolean available;
 
     MainResponse() {
     }
 
-    public MainResponse(String nodeName, Version version, ClusterName clusterName, String clusterUUID, Build build, boolean available) {
+    public MainResponse(String nodeName, Version version, ClusterName clusterName, String clusterUuid, Build build, boolean available) {
         this.nodeName = nodeName;
         this.version = version;
         this.clusterName = clusterName;
-        this.clusterUUID = clusterUUID;
+        this.clusterUuid = clusterUuid;
         this.build = build;
         this.available = available;
     }
@@ -63,8 +63,8 @@ public class MainResponse extends ActionResponse implements ToXContent {
         return clusterName;
     }
 
-    public String getClusterUUID() {
-        return clusterUUID;
+    public String getClusterUuid() {
+        return clusterUuid;
     }
 
     public Build getBuild() {
@@ -81,7 +81,7 @@ public class MainResponse extends ActionResponse implements ToXContent {
         out.writeString(nodeName);
         Version.writeVersion(version, out);
         clusterName.writeTo(out);
-        out.writeString(clusterUUID);
+        out.writeString(clusterUuid);
         Build.writeBuild(build, out);
         out.writeBoolean(available);
     }
@@ -92,7 +92,7 @@ public class MainResponse extends ActionResponse implements ToXContent {
         nodeName = in.readString();
         version = Version.readVersion(in);
         clusterName = new ClusterName(in);
-        clusterUUID = in.readString();
+        clusterUuid = in.readString();
         build = Build.readBuild(in);
         available = in.readBoolean();
     }
@@ -102,7 +102,7 @@ public class MainResponse extends ActionResponse implements ToXContent {
         builder.startObject();
         builder.field("name", nodeName);
         builder.field("cluster_name", clusterName.value());
-        builder.field("cluster_uuid", clusterUUID);
+        builder.field("cluster_uuid", clusterUuid);
         builder.startObject("version")
             .field("number", version.toString())
             .field("build_hash", build.shortHash())

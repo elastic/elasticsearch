@@ -25,8 +25,12 @@ task oldClusterTest(type: RestIntegTestTask) {
   mustRunAfter(precommit)
   cluster {
     distribution = 'zip'
-    bwcVersion = '5.0.0-alpha5' // TODO: either randomize, or make this settable with sysprop
-    numBwcNodes = 2
+    // TODO: Right now, this just forms a cluster with the current version of ES,
+    // because we don't support clusters with nodes on different alpha/beta releases of ES.
+    // When the GA is released, we should change the bwcVersion to 5.0.0 and uncomment
+    // numBwcNodes = 2
+    //bwcVersion = '5.0.0-alpha5' // TODO: either randomize, or make this settable with sysprop
+    //numBwcNodes = 2
     numNodes = 2
     clusterName = 'rolling-upgrade'
   }

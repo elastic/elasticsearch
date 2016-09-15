@@ -88,7 +88,7 @@ public final class MockTransportService extends TransportService {
                 return version;
             }
         };
-        return new MockTransportService(settings, transport, threadPool, new TransportInterceptor() {});
+        return new MockTransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR);
     }
 
     private final Transport original;

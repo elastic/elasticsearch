@@ -28,6 +28,7 @@ import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.appender.CountingNoOpAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -59,7 +60,7 @@ public class EvilLoggerTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testLocationInfoTest() throws IOException {
+    public void testLocationInfoTest() throws IOException, UserException {
         setupLogging("location_info");
 
         final Logger testLogger = ESLoggerFactory.getLogger("test");
@@ -81,7 +82,7 @@ public class EvilLoggerTests extends ESTestCase {
         assertLogLine(events.get(4), Level.TRACE, location, "This is a trace message");
     }
 
-    public void testDeprecationLogger() throws IOException {
+    public void testDeprecationLogger() throws IOException, UserException {
         setupLogging("deprecation");
 
         final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
@@ -97,7 +98,7 @@ public class EvilLoggerTests extends ESTestCase {
             "This is a deprecation message");
     }
 
-    public void testFindAppender() throws IOException {
+    public void testFindAppender() throws IOException, UserException {
         setupLogging("find_appender");
 
         final Logger hasConsoleAppender = ESLoggerFactory.getLogger("has_console_appender");
@@ -111,7 +112,7 @@ public class EvilLoggerTests extends ESTestCase {
         assertThat(countingNoOpAppender.getName(), equalTo("counting_no_op"));
     }
 
-    public void testPrefixLogger() throws IOException, IllegalAccessException {
+    public void testPrefixLogger() throws IOException, IllegalAccessException, UserException {
         setupLogging("prefix");
 
         final String prefix = randomBoolean() ? null : randomAsciiOfLength(16);
@@ -179,7 +180,7 @@ public class EvilLoggerTests extends ESTestCase {
         }
     }
 
-    private void setupLogging(final String config) throws IOException {
+    private void setupLogging(final String config) throws IOException, UserException {
         final Path configDir = getDataPath(config);
         // need to set custom path.conf so we can use a custom log4j2.properties file for the test
         final Settings settings = Settings.builder()

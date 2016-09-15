@@ -66,9 +66,6 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.listSetting;
 
-/**
- *
- */
 public class TransportService extends AbstractLifecycleComponent {
 
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
@@ -79,15 +76,18 @@ public class TransportService extends AbstractLifecycleComponent {
     protected final ThreadPool threadPool;
     protected final ClusterName clusterName;
     protected final TaskManager taskManager;
+    private final AsyncSender asyncSender;
 
     volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
     final Object requestHandlerMutex = new Object();
 
     final ConcurrentMapLong<RequestHolder> clientHandlers = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
-    final AtomicLong requestIds = new AtomicLong();
+    private final AtomicLong requestIds = new AtomicLong();
 
     final CopyOnWriteArrayList<TransportConnectionListener> connectionListeners = new CopyOnWriteArrayList<>();
+
+    private final TransportInterceptor interceptor;
 
     // An LRU (don't really care about concurrency here) that holds the latest timed out requests so if they
     // do show up, we can print more descriptive information about them
@@ -100,6 +100,8 @@ public class TransportService extends AbstractLifecycleComponent {
         });
 
     private final TransportService.Adapter adapter;
+
+    public static final TransportInterceptor NOOP_TRANSPORT_INTERCEPTOR = new TransportInterceptor() {};
 
     // tracer log
 
@@ -118,7 +120,7 @@ public class TransportService extends AbstractLifecycleComponent {
     volatile DiscoveryNode localNode = null;
 
     @Inject
-    public TransportService(Settings settings, Transport transport, ThreadPool threadPool) {
+    public TransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor transportInterceptor) {
         super(settings);
         this.transport = transport;
         this.threadPool = threadPool;
@@ -128,6 +130,8 @@ public class TransportService extends AbstractLifecycleComponent {
         tracerLog = Loggers.getLogger(logger, ".tracer");
         adapter = createAdapter();
         taskManager = createTaskManager();
+        this.interceptor = transportInterceptor;
+        this.asyncSender = interceptor.asyncSender(this::sendRequestInternal);
     }
 
     /**
@@ -241,11 +245,11 @@ public class TransportService extends AbstractLifecycleComponent {
      * when the transport layer starts up it will block any incoming requests until
      * this method is called
      */
-    public void acceptIncomingRequests() {
+    public final void acceptIncomingRequests() {
         blockIncomingRequestsLatch.countDown();
     }
 
-    public boolean addressSupported(Class<? extends TransportAddress> address) {
+    public final boolean addressSupported(Class<? extends TransportAddress> address) {
         return transport.addressSupported(address);
     }
 
@@ -442,13 +446,23 @@ public class TransportService extends AbstractLifecycleComponent {
         return futureHandler;
     }
 
-    public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action, final TransportRequest request,
-                                                          final TransportResponseHandler<T> handler) {
+    public final <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
+                                                                final TransportRequest request,
+                                                                final TransportResponseHandler<T> handler) {
         sendRequest(node, action, request, TransportRequestOptions.EMPTY, handler);
     }
 
-    public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action, final TransportRequest request,
-                                                          final TransportRequestOptions options, TransportResponseHandler<T> handler) {
+    public final <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
+                                                                final TransportRequest request,
+                                                                final TransportRequestOptions options,
+                                                                TransportResponseHandler<T> handler) {
+        asyncSender.sendRequest(node, action, request, options, handler);
+    }
+
+    private <T extends TransportResponse> void sendRequestInternal(final DiscoveryNode node, final String action,
+                                                                   final TransportRequest request,
+                                                                   final TransportRequestOptions options,
+                                                                   TransportResponseHandler<T> handler) {
         if (node == null) {
             throw new IllegalStateException("can't send request to a null node");
         }
@@ -594,8 +608,9 @@ public class TransportService extends AbstractLifecycleComponent {
      * @param executor       The executor the request handling will be executed on
      * @param handler        The handler itself that implements the request handling
      */
-    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory, String executor,
-                                                                          TransportRequestHandler<Request> handler) {
+    public final <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory,
+                                                    String executor, TransportRequestHandler<Request> handler) {
+        handler = interceptor.interceptHandler(action, handler);
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
             action, requestFactory, taskManager, handler, executor, false, true);
         registerRequestHandler(reg);
@@ -611,10 +626,11 @@ public class TransportService extends AbstractLifecycleComponent {
      * @param canTripCircuitBreaker Check the request size and raise an exception in case the limit is breached.
      * @param handler               The handler itself that implements the request handling
      */
-    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request,
+    public final <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request,
                                                                           String executor, boolean forceExecution,
                                                                           boolean canTripCircuitBreaker,
                                                                           TransportRequestHandler<Request> handler) {
+        handler = interceptor.interceptHandler(action, handler);
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
             action, request, taskManager, handler, executor, forceExecution, canTripCircuitBreaker);
         registerRequestHandler(reg);
@@ -744,12 +760,9 @@ public class TransportService extends AbstractLifecycleComponent {
 
         @Override
         public void raiseNodeConnected(final DiscoveryNode node) {
-            threadPool.generic().execute(new Runnable() {
-                @Override
-                public void run() {
-                    for (TransportConnectionListener connectionListener : connectionListeners) {
-                        connectionListener.onNodeConnected(node);
-                    }
+            threadPool.generic().execute(() -> {
+                for (TransportConnectionListener connectionListener : connectionListeners) {
+                    connectionListener.onNodeConnected(node);
                 }
             });
         }
@@ -758,12 +771,7 @@ public class TransportService extends AbstractLifecycleComponent {
         public void raiseNodeDisconnected(final DiscoveryNode node) {
             try {
                 for (final TransportConnectionListener connectionListener : connectionListeners) {
-                    threadPool.generic().execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            connectionListener.onNodeDisconnected(node);
-                        }
-                    });
+                    threadPool.generic().execute(() -> connectionListener.onNodeDisconnected(node));
                 }
                 for (Map.Entry<Long, RequestHolder> entry : clientHandlers.entrySet()) {
                     RequestHolder holder = entry.getValue();
@@ -772,12 +780,8 @@ public class TransportService extends AbstractLifecycleComponent {
                         if (holderToNotify != null) {
                             // callback that an exception happened, but on a different thread since we don't
                             // want handlers to worry about stack overflows
-                            threadPool.generic().execute(new Runnable() {
-                                @Override
-                                public void run() {
-                                    holderToNotify.handler().handleException(new NodeDisconnectedException(node, holderToNotify.action()));
-                                }
-                            });
+                            threadPool.generic().execute(() -> holderToNotify.handler().handleException(new NodeDisconnectedException(node,
+                                holderToNotify.action())));
                         }
                     }
                 }
@@ -1065,6 +1069,41 @@ public class TransportService extends AbstractLifecycleComponent {
         public String getChannelType() {
             return "direct";
         }
+    }
 
+    /**
+     * This interface allows plugins to intercept requests on both the sender and the receiver side.
+     */
+    public interface TransportInterceptor {
+        /**
+         * This is called for each handler that is registered via
+         * {@link #registerRequestHandler(String, Supplier, String, boolean, boolean, TransportRequestHandler)} or
+         * {@link #registerRequestHandler(String, Supplier, String, TransportRequestHandler)}. The returned handler is
+         * used instead of the passed in handler. By default the provided handler is returned.
+         */
+        default <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action,
+                                                                                         TransportRequestHandler<T> actualHandler) {
+            return actualHandler;
+        }
+
+        /**
+         * This is called up-front providing the actual low level {@link AsyncSender} that performs the low level send request.
+         * The returned sender is used to send all requests that come in via
+         * {@link #sendRequest(DiscoveryNode, String, TransportRequest, TransportResponseHandler)} or
+         * {@link #sendRequest(DiscoveryNode, String, TransportRequest, TransportRequestOptions, TransportResponseHandler)}.
+         * This allows plugins to perform actions on each send request including modifying the request context etc.
+         */
+        default AsyncSender asyncSender(AsyncSender sender) {
+            return sender;
+        }
+    }
+
+    /**
+     * A simple interface to decorate
+     * {@link #sendRequest(DiscoveryNode, String, TransportRequest, TransportRequestOptions, TransportResponseHandler)}
+     */
+    public interface AsyncSender {
+        <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action, final TransportRequest request,
+                                                              final TransportRequestOptions options, TransportResponseHandler<T> handler);
     }
 }

@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.net.InetAddress;
@@ -55,7 +56,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                 return version;
             }
         };
-        return new MockTransportService(Settings.EMPTY, transport, threadPool);
+        return new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR);
     }
 
     @Override

@@ -92,7 +92,8 @@ public class ClusterStateHealthTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         clusterService = createClusterService(threadPool);
-        transportService = new TransportService(clusterService.getSettings(), new CapturingTransport(), threadPool);
+        transportService = new TransportService(clusterService.getSettings(), new CapturingTransport(), threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR);
         transportService.start();
         transportService.acceptIncomingRequests();
     }

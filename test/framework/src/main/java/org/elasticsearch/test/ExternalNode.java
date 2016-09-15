@@ -109,7 +109,6 @@ final class ExternalNode implements Closeable {
                 case "path.home":
                 case NetworkModule.TRANSPORT_TYPE_KEY:
                 case "discovery.type":
-                case NetworkModule.TRANSPORT_SERVICE_TYPE_KEY:
                 case "config.ignore_system_properties":
                     continue;
                 default:

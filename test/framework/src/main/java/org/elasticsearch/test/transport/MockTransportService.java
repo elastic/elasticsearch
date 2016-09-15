@@ -29,7 +29,6 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -72,20 +71,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * (for example, @see org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing, which constructs
  * fake DiscoveryNode instances where the publish address is one of the bound addresses).
  */
-public class MockTransportService extends TransportService {
+public final class MockTransportService extends TransportService {
 
     public static class TestPlugin extends Plugin {
-        public void onModule(NetworkModule module) {
-            module.registerTransportService("mock", MockTransportService.class);
-        }
-
         @Override
         public List<Setting<?>> getSettings() {
             return Arrays.asList(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING);
-        }
-        @Override
-        public Settings additionalSettings() {
-            return Settings.builder().put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, "mock").build();
         }
     }
 
@@ -97,14 +88,14 @@ public class MockTransportService extends TransportService {
                 return version;
             }
         };
-        return new MockTransportService(settings, transport, threadPool);
+        return new MockTransportService(settings, transport, threadPool, new TransportInterceptor() {});
     }
 
     private final Transport original;
 
     @Inject
-    public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
-        super(settings, new LookupTestTransport(transport), threadPool);
+    public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor) {
+        super(settings, new LookupTestTransport(transport), threadPool, interceptor);
         this.original = transport;
     }
 

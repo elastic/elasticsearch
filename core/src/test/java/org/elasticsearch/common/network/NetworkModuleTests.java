@@ -35,17 +35,13 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 
 public class NetworkModuleTests extends ModuleTestCase {
-
-    static class FakeTransportService extends TransportService {
-        public FakeTransportService() {
-            super(null, null, null);
-        }
-    }
 
     static class FakeTransport extends AssertingLocalTransport {
         public FakeTransport() {
@@ -101,23 +97,6 @@ public class NetworkModuleTests extends ModuleTestCase {
         }
     }
 
-    public void testRegisterTransportService() {
-        Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, "custom")
-            .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-            .put(NetworkModule.TRANSPORT_TYPE_KEY, "local")
-            .build();
-        NetworkModule module = new NetworkModule(new NetworkService(settings, Collections.emptyList()), settings, false);
-        module.registerTransportService("custom", FakeTransportService.class);
-        assertBinding(module, TransportService.class, FakeTransportService.class);
-        assertFalse(module.isTransportClient());
-
-        // check it works with transport only as well
-        module = new NetworkModule(new NetworkService(settings, Collections.emptyList()), settings, true);
-        module.registerTransportService("custom", FakeTransportService.class);
-        assertBinding(module, TransportService.class, FakeTransportService.class);
-        assertTrue(module.isTransportClient());
-    }
-
     public void testRegisterTransport() {
         Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "custom")
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
@@ -160,5 +139,28 @@ public class NetworkModuleTests extends ModuleTestCase {
         module = new NetworkModule(new NetworkService(settings, Collections.emptyList()), settings, false);
         assertNotBound(module, HttpServerTransport.class);
         assertFalse(module.isTransportClient());
+    }
+
+    public void testRegisterInterceptor() {
+        Settings settings = Settings.builder()
+            .put(NetworkModule.HTTP_ENABLED.getKey(), false)
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
+
+        NetworkModule module = new NetworkModule(new NetworkService(settings, Collections.emptyList()), settings, false);
+        TransportService.TransportInterceptor interceptor = new TransportService.TransportInterceptor() {};
+        module.addTransportInterceptor(interceptor);
+        assertInstanceBinding(module, TransportService.TransportInterceptor.class, i -> {
+            if (i instanceof NetworkModule.CompositeTransportInterceptor) {
+                assertEquals(((NetworkModule.CompositeTransportInterceptor)i).transportInterceptors.size(), 1);
+                return ((NetworkModule.CompositeTransportInterceptor)i).transportInterceptors.get(0) == interceptor;
+            }
+            return false;
+        });
+
+        NullPointerException nullPointerException = expectThrows(NullPointerException.class, () -> {
+            module.addTransportInterceptor(null);
+        });
+        assertEquals("interceptor must not be null", nullPointerException.getMessage());
+
     }
 }

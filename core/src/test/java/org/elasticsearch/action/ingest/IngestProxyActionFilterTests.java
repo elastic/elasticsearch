@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -88,7 +89,7 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(localNode);
         when(clusterService.state()).thenReturn(clusterState.build());
-        transportService = mock(TransportService.class);
+        transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR);
         return new IngestProxyActionFilter(clusterService, transportService);
     }
 

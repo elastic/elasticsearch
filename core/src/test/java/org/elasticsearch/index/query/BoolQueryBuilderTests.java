@@ -370,7 +370,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         String query = "{\"bool\" : {\"" + clauseType
                 + "\" : { \"match\" : { \"foo\" : \"bar\" } , \"match\" : { \"baz\" : \"buzz\" } } } }";
         ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query, ParseFieldMatcher.EMPTY));
-        assertEquals("expected [END_OBJECT] but got [FIELD_NAME], possibly too many query clauses", ex.getMessage());
+        assertEquals("[match] malformed query, unexpected [FIELD_NAME] found [match]", ex.getMessage());
     }
 
     public void testRewrite() throws IOException {

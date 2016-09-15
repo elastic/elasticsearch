@@ -715,7 +715,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 "        }\n" +
                 "    }\n" +
                 "}";
-        expectParsingException(json, "[query] is already defined.");
+        expectParsingException(json, equalTo("[bool] malformed query, unexpected [FIELD_NAME] found [ignored_field_name]"));
     }
 
     private void expectParsingException(String json, Matcher<String> messageMatcher) {

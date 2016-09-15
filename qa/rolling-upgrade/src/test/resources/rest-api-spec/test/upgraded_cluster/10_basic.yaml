@@ -4,6 +4,8 @@
      cluster.health:
         wait_for_status: green
 
+ - match: { number_of_nodes: 2 }
+
  - do:
      search:
        index: test_index

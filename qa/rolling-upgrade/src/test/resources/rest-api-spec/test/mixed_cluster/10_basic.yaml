@@ -4,11 +4,7 @@
      cluster.health:
         wait_for_status: green
 
- - do:
-      indices.get_settings:
-        index: test_index
-
- - match: { test_index.settings.index.number_of_replicas: "0" }
+ - match: { number_of_nodes: 2 }
 
  - do:
      search:

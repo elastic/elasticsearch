@@ -163,7 +163,7 @@ public class UnicastZenPingTests extends ESTestCase {
             assertThat(pingResponses.size(), equalTo(1));
             ZenPing.PingResponse ping = pingResponses.iterator().next();
             assertThat(ping.node().getId(), equalTo("UZP_B"));
-            assertThat(ping.clusterStateVersion(), equalTo(state.version()));
+            assertThat(ping.getClusterStateVersion(), equalTo(state.version()));
             assertCounters(handleA, handleA, handleB, handleC, handleD);
 
             // ping again, this time from B,
@@ -172,7 +172,7 @@ public class UnicastZenPingTests extends ESTestCase {
             assertThat(pingResponses.size(), equalTo(1));
             ping = pingResponses.iterator().next();
             assertThat(ping.node().getId(), equalTo("UZP_A"));
-            assertThat(ping.clusterStateVersion(), equalTo(ElectMasterService.Candidate.UNRECOVERED_CLUSTER_VERSION));
+            assertThat(ping.getClusterStateVersion(), equalTo(ElectMasterService.MasterCandidate.UNRECOVERED_CLUSTER_VERSION));
             assertCounters(handleB, handleA, handleB, handleC, handleD);
 
             logger.info("ping from UZP_C");

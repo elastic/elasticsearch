@@ -48,7 +48,11 @@ public class ElectMasterService extends AbstractComponent {
 
     private volatile int minimumMasterNodes;
 
-    public static class Candidate {
+    /**
+     * a class to encapsulate all the information about a candidate in a master election
+     * that is needed to decided which of the candidates should win
+     */
+    public static class MasterCandidate {
 
         public static final long UNRECOVERED_CLUSTER_VERSION = -1;
 
@@ -56,9 +60,9 @@ public class ElectMasterService extends AbstractComponent {
 
         final long clusterStateVersion;
 
-        public Candidate(DiscoveryNode node, long clusterStateVersion) {
+        public MasterCandidate(DiscoveryNode node, long clusterStateVersion) {
             Objects.requireNonNull(node);
-            assert clusterStateVersion >= -1;
+            assert clusterStateVersion >= -1 : "got: " + clusterStateVersion;
             assert node.isMasterNode();
             this.node = node;
             this.clusterStateVersion = clusterStateVersion;
@@ -81,13 +85,15 @@ public class ElectMasterService extends AbstractComponent {
         }
 
         /**
-         * compares two candidate to indicate who's the a better master.
+         * compares two candidates to indicate which the a better master.
          * A higher cluster state version is better
          *
          * @return -1 if c1 is a batter candidate, 1 if c2.
          */
-        public static int compare(Candidate c1, Candidate c2) {
-            int ret = -1 * Long.compare(c1.clusterStateVersion, c2.clusterStateVersion);
+        public static int compare(MasterCandidate c1, MasterCandidate c2) {
+            // we explicitly swap c1 and c2 here. the code expects "better" is lower in a sorted
+            // list, so if c2 has a higher cluster state version, it needs to come first.
+            int ret = Long.compare(c2.clusterStateVersion, c1.clusterStateVersion);
             if (ret == 0) {
                 ret = compareNodes(c1.getNode(), c2.getNode());
             }
@@ -120,14 +126,14 @@ public class ElectMasterService extends AbstractComponent {
         return count > 0 && (minimumMasterNodes < 0 || count >= minimumMasterNodes);
     }
 
-    public boolean hasEnoughCandidates(Collection<Candidate> candidates) {
+    public boolean hasEnoughCandidates(Collection<MasterCandidate> candidates) {
         if (candidates.isEmpty()) {
             return false;
         }
         if (minimumMasterNodes < 1) {
             return true;
         }
-        assert candidates.stream().map(Candidate::getNode).collect(Collectors.toSet()).size() == candidates.size() :
+        assert candidates.stream().map(MasterCandidate::getNode).collect(Collectors.toSet()).size() == candidates.size() :
             "duplicates ahead: " + candidates;
         return candidates.size() >= minimumMasterNodes;
     }
@@ -136,18 +142,16 @@ public class ElectMasterService extends AbstractComponent {
      * Elects a new master out of the possible nodes, returning it. Returns <tt>null</tt>
      * if no master has been elected.
      */
-    public Candidate electMaster(Collection<Candidate> candidates) {
+    public MasterCandidate electMaster(Collection<MasterCandidate> candidates) {
         assert hasEnoughCandidates(candidates);
-        List<Candidate> sortedCandidates = new ArrayList<>(candidates);
-        sortedCandidates.sort(Candidate::compare);
+        List<MasterCandidate> sortedCandidates = new ArrayList<>(candidates);
+        sortedCandidates.sort(MasterCandidate::compare);
         return sortedCandidates.get(0);
     }
 
-    /** selects the best active master to join, where multiple are discovered (oh noes) */
+    /** selects the best active master to join, where multiple are discovered */
     public DiscoveryNode tieBreakActiveMasters(Collection<DiscoveryNode> activeMasters) {
-        List<DiscoveryNode> tmp = new ArrayList<>(activeMasters);
-        tmp.sort(ElectMasterService::compareNodes);
-        return tmp.get(0);
+        return activeMasters.stream().min(ElectMasterService::compareNodes).get();
     }
 
     public boolean hasTooManyMasterNodes(Iterable<DiscoveryNode> nodes) {

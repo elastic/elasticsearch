@@ -78,7 +78,7 @@ public class ZenPingTests extends ESTestCase {
             int nodeId = Integer.parseInt(ping.node().getId());
             assertThat(maxIdPerNode[nodeId], equalTo(ping.id()));
             assertThat(masterPerNode[nodeId], equalTo(ping.master()));
-            assertThat(clusterStateVersionPerNode[nodeId], equalTo(ping.clusterStateVersion()));
+            assertThat(clusterStateVersionPerNode[nodeId], equalTo(ping.getClusterStateVersion()));
 
             maxIdPerNode[nodeId] = -1; // mark as seen
         }

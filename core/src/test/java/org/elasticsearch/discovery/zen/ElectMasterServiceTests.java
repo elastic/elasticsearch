@@ -23,7 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
-import org.elasticsearch.discovery.zen.ElectMasterService.Candidate;
+import org.elasticsearch.discovery.zen.ElectMasterService.MasterCandidate;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -59,15 +59,15 @@ public class ElectMasterServiceTests extends ESTestCase {
         return nodes;
     }
 
-    List<Candidate> generateRandomCandidates() {
+    List<MasterCandidate> generateRandomCandidates() {
         int count = scaledRandomIntBetween(1, 100);
-        ArrayList<Candidate> candidates = new ArrayList<>(count);
+        ArrayList<MasterCandidate> candidates = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             Set<DiscoveryNode.Role> roles = new HashSet<>();
             roles.add(DiscoveryNode.Role.MASTER);
             DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
                 roles, Version.CURRENT);
-            candidates.add(new Candidate(node, randomBoolean() ? Candidate.UNRECOVERED_CLUSTER_VERSION : randomPositiveLong()));
+            candidates.add(new MasterCandidate(node, randomBoolean() ? MasterCandidate.UNRECOVERED_CLUSTER_VERSION : randomPositiveLong()));
         }
 
         Collections.shuffle(candidates, random());
@@ -92,7 +92,7 @@ public class ElectMasterServiceTests extends ESTestCase {
     }
 
     public void testTieBreakActiveMasters() {
-        List<DiscoveryNode> nodes = generateRandomCandidates().stream().map(Candidate::getNode).collect(Collectors.toList());
+        List<DiscoveryNode> nodes = generateRandomCandidates().stream().map(MasterCandidate::getNode).collect(Collectors.toList());
         DiscoveryNode bestMaster = electMasterService().tieBreakActiveMasters(nodes);
         for (DiscoveryNode node: nodes) {
             if (node.equals(bestMaster) == false) {
@@ -112,7 +112,7 @@ public class ElectMasterServiceTests extends ESTestCase {
     }
 
     public void testHasEnoughCandidates() {
-        List<Candidate> candidates = rarely() ? Collections.emptyList() : generateRandomCandidates();
+        List<MasterCandidate> candidates = rarely() ? Collections.emptyList() : generateRandomCandidates();
         ElectMasterService service = electMasterService();
         service.minimumMasterNodes(randomIntBetween(-1, candidates.size()));
         assertThat(service.hasEnoughCandidates(candidates), equalTo(candidates.size() > 0));
@@ -121,22 +121,22 @@ public class ElectMasterServiceTests extends ESTestCase {
     }
 
     public void testElectMaster() {
-        List<Candidate> candidates = generateRandomCandidates();
+        List<MasterCandidate> candidates = generateRandomCandidates();
         ElectMasterService service = electMasterService();
-        int min_master_nodes = randomIntBetween(0, candidates.size());
-        service.minimumMasterNodes(min_master_nodes);
-        Candidate master = service.electMaster(candidates);
-            assertNotNull(master);
-            for (Candidate candidate : candidates) {
-                if (candidate.getNode().equals(master.getNode())) {
-                       // meh
-                } else if (candidate.getClusterStateVersion() == master.getClusterStateVersion()) {
-                    assertThat("candidate " + candidate + " has a lower or equal id than master " + master, candidate.getNode().getId(),
-                        greaterThan(master.getNode().getId()));
-                } else {
-                    assertThat("candidate " + master + " has a higher id than candidate " + candidate, master.getClusterStateVersion(),
-                        greaterThan(candidate.getClusterStateVersion()));
-                }
+        int minMasterNodes = randomIntBetween(0, candidates.size());
+        service.minimumMasterNodes(minMasterNodes);
+        MasterCandidate master = service.electMaster(candidates);
+        assertNotNull(master);
+        for (MasterCandidate candidate : candidates) {
+            if (candidate.getNode().equals(master.getNode())) {
+                // nothing much to test here
+            } else if (candidate.getClusterStateVersion() == master.getClusterStateVersion()) {
+                assertThat("candidate " + candidate + " has a lower or equal id than master " + master, candidate.getNode().getId(),
+                    greaterThan(master.getNode().getId()));
+            } else {
+                assertThat("candidate " + master + " has a higher cluster state version than candidate " + candidate,
+                    master.getClusterStateVersion(), greaterThan(candidate.getClusterStateVersion()));
             }
+        }
     }
 }

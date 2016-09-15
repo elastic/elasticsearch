@@ -916,16 +916,16 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         }
 
         // nodes discovered during pinging
-        List<ElectMasterService.Candidate> masterCandidates = new ArrayList<>();
+        List<ElectMasterService.MasterCandidate> masterCandidates = new ArrayList<>();
         for (ZenPing.PingResponse pingResponse : pingResponses) {
             if (pingResponse.node().isMasterNode()) {
-                masterCandidates.add(new ElectMasterService.Candidate(pingResponse.node(), pingResponse.clusterStateVersion()));
+                masterCandidates.add(new ElectMasterService.MasterCandidate(pingResponse.node(), pingResponse.getClusterStateVersion()));
             }
         }
 
         if (activeMasters.isEmpty()) {
             if (electMaster.hasEnoughCandidates(masterCandidates)) {
-                final ElectMasterService.Candidate winner = electMaster.electMaster(masterCandidates);
+                final ElectMasterService.MasterCandidate winner = electMaster.electMaster(masterCandidates);
                 logger.trace("candidate {} won election", winner);
                 return winner.getNode();
             } else {

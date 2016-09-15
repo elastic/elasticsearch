@@ -81,7 +81,7 @@ public interface ZenPing extends LifecycleComponent {
          * @param master              the current master of the node
          * @param clusterName         the cluster name of the node
          * @param clusterStateVersion the current cluster state version of that node
-         *                            ({@link ElectMasterService.Candidate#UNRECOVERED_CLUSTER_VERSION} for not recovered)
+         *                            ({@link ElectMasterService.MasterCandidate#UNRECOVERED_CLUSTER_VERSION} for not recovered)
          */
         public PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, long clusterStateVersion) {
             this.id = idGenerator.incrementAndGet();
@@ -94,7 +94,7 @@ public interface ZenPing extends LifecycleComponent {
         public PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterState state) {
             this(node, master, state.getClusterName(),
                 state.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) ?
-                    ElectMasterService.Candidate.UNRECOVERED_CLUSTER_VERSION : state.version());
+                    ElectMasterService.MasterCandidate.UNRECOVERED_CLUSTER_VERSION : state.version());
         }
 
             /**
@@ -120,9 +120,9 @@ public interface ZenPing extends LifecycleComponent {
         }
 
         /**
-         * the current cluster state version of that node ({@link ElectMasterService.Candidate#UNRECOVERED_CLUSTER_VERSION}
+         * the current cluster state version of that node ({@link ElectMasterService.MasterCandidate#UNRECOVERED_CLUSTER_VERSION}
          * for not recovered) */
-        public long clusterStateVersion() {
+        public long getClusterStateVersion() {
             return clusterStateVersion;
         }
 
@@ -159,7 +159,7 @@ public interface ZenPing extends LifecycleComponent {
 
         @Override
         public String toString() {
-            return "ping_response{node [" + node + "], id[" + id + "], master [" + master + "], cs version [" + clusterStateVersion
+            return "ping_response{node [" + node + "], id[" + id + "], master [" + master + "], cluster_state_version [" + clusterStateVersion
                 + "], cluster_name[" + clusterName.value() + "]}";
         }
     }
@@ -199,7 +199,7 @@ public interface ZenPing extends LifecycleComponent {
             }
         }
 
-        /** serialize current pings to an array. It is guaranteed that the array contains one ping response per node */
+        /** serialize current pings to a list. It is guaranteed that the list contains one ping response per node */
         public synchronized List<PingResponse> toList() {
             return new ArrayList<>(pings.values());
         }

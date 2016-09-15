@@ -294,6 +294,7 @@ final class RemoteResponseParsers {
         MAIN_ACTION_PARSER.declareInt((p, v) -> {}, new ParseField("status"));
         MAIN_ACTION_PARSER.declareString((p, v) -> {}, new ParseField("name"));
         MAIN_ACTION_PARSER.declareString((p, v) -> {}, new ParseField("cluster_name"));
+        MAIN_ACTION_PARSER.declareString((p, v) -> {}, new ParseField("cluster_uuid"));
         MAIN_ACTION_PARSER.declareString((p, v) -> {}, new ParseField("name"));
         MAIN_ACTION_PARSER.declareString((p, v) -> {}, new ParseField("tagline"));
         MAIN_ACTION_PARSER.declareObject(constructorArg(), VERSION_PARSER, new ParseField("version"));

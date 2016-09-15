@@ -130,6 +130,10 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
                     "[" + queryName + "] malformed query, expected [END_OBJECT] but found [" + parser.currentToken() + "]");
         }
         parser.nextToken();
+        if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "[" + queryName + "] malformed query, unexpected [FIELD_NAME] found [" + parser.currentName() + "]");
+        }
         return result;
     }
 

@@ -46,7 +46,10 @@ public class PrecisionAtNTests extends ESTestCase {
         InternalSearchHit[] hits = new InternalSearchHit[1];
         hits[0] = new InternalSearchHit(0, "0", new Text("testtype"), Collections.emptyMap());
         hits[0].shard(new SearchShardTarget("testnode", new Index("test", "uuid"), 0));
-        assertEquals(1, (new PrecisionAtN(5)).evaluate("id", hits, rated).getQualityLevel(), 0.00001);
+        EvalQueryQuality evaluated = (new PrecisionAtN(5)).evaluate("id", hits, rated);
+        assertEquals(1, evaluated.getQualityLevel(), 0.00001);
+        assertEquals(1, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(1, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
     public void testPrecisionAtFiveIgnoreOneResult() throws IOException, InterruptedException, ExecutionException {
@@ -61,7 +64,10 @@ public class PrecisionAtNTests extends ESTestCase {
             hits[i] = new InternalSearchHit(i, i+"", new Text("testtype"), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new Index("test", "uuid"), 0));
         }
-        assertEquals((double) 4 / 5, (new PrecisionAtN(5)).evaluate("id", hits, rated).getQualityLevel(), 0.00001);
+        EvalQueryQuality evaluated = (new PrecisionAtN(5)).evaluate("id", hits, rated);
+        assertEquals((double) 4 / 5, evaluated.getQualityLevel(), 0.00001);
+        assertEquals(4, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(5, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
     /**
@@ -82,7 +88,10 @@ public class PrecisionAtNTests extends ESTestCase {
         }
         PrecisionAtN precisionAtN = new PrecisionAtN(5);
         precisionAtN.setRelevantRatingThreshhold(2);
-        assertEquals((double) 3 / 5, precisionAtN.evaluate("id", hits, rated).getQualityLevel(), 0.00001);
+        EvalQueryQuality evaluated = precisionAtN.evaluate("id", hits, rated);
+        assertEquals((double) 3 / 5, evaluated.getQualityLevel(), 0.00001);
+        assertEquals(3, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(5, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
     public void testPrecisionAtFiveCorrectIndex() throws IOException, InterruptedException, ExecutionException {
@@ -97,7 +106,10 @@ public class PrecisionAtNTests extends ESTestCase {
             hits[i] = new InternalSearchHit(i, i+"", new Text("testtype"), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new Index("test", "uuid"), 0));
         }
-        assertEquals((double) 2 / 3, (new PrecisionAtN(5)).evaluate("id", hits, rated).getQualityLevel(), 0.00001);
+        EvalQueryQuality evaluated = (new PrecisionAtN(5)).evaluate("id", hits, rated);
+        assertEquals((double) 2 / 3, evaluated.getQualityLevel(), 0.00001);
+        assertEquals(2, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(3, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
     public void testPrecisionAtFiveCorrectType() throws IOException, InterruptedException, ExecutionException {
@@ -112,7 +124,10 @@ public class PrecisionAtNTests extends ESTestCase {
             hits[i] = new InternalSearchHit(i, i+"", new Text("testtype"), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new Index("test", "uuid"), 0));
         }
-        assertEquals((double) 2 / 3, (new PrecisionAtN(5)).evaluate("id", hits, rated).getQualityLevel(), 0.00001);
+        EvalQueryQuality evaluated = (new PrecisionAtN(5)).evaluate("id", hits, rated);
+        assertEquals((double) 2 / 3, evaluated.getQualityLevel(), 0.00001);
+        assertEquals(2, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(3, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
     public void testParseFromXContent() throws IOException {

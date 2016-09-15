@@ -31,6 +31,7 @@ import org.elasticsearch.search.SearchHit;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -155,13 +156,16 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
                 unknownDocIds.add(id);
                 if (unknownDocRating != null) {
                     ratings.add(unknownDocRating);
+                } else {
+                    // we add null here so that the later computation knows this position had no rating
+                    ratings.add(null);
                 }
             }
         }
         double dcg = computeDCG(ratings);
 
         if (normalize) {
-            Collections.sort(ratings, Collections.reverseOrder());
+            Collections.sort(ratings, Comparator.nullsLast(Collections.reverseOrder()));
             double idcg = computeDCG(ratings);
             dcg = dcg / idcg;
         }
@@ -171,8 +175,10 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
     private static double computeDCG(List<Integer> ratings) {
         int rank = 1;
         double dcg = 0;
-        for (int rating : ratings) {
-            dcg += (Math.pow(2, rating) - 1) / ((Math.log(rank + 1) / LOG2));
+        for (Integer rating : ratings) {
+            if (rating != null) {
+                dcg += (Math.pow(2, rating) - 1) / ((Math.log(rank + 1) / LOG2));
+            }
             rank++;
         }
         return dcg;
@@ -226,4 +232,6 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
     public final int hashCode() {
         return Objects.hash(position, normalize, unknownDocRating);
     }
+
+    // TODO maybe also add debugging breakdown here
 }

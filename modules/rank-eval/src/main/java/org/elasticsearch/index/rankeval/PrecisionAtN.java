@@ -146,7 +146,9 @@ public class PrecisionAtN extends RankedListQualityMetric {
             }
         }
         double precision = (double) good / (good + bad);
-        return new EvalQueryQuality(taskId, precision, unknownDocIds);
+        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, precision, unknownDocIds);
+        evalQueryQuality.addMetricDetails(new PrecisionAtN.Breakdown(good, good + bad));
+        return evalQueryQuality;
     }
 
     // TODO add abstraction that also works for other metrics
@@ -198,5 +200,67 @@ public class PrecisionAtN extends RankedListQualityMetric {
     @Override
     public final int hashCode() {
         return Objects.hash(n);
+    }
+
+    public static class Breakdown implements MetricDetails {
+
+        public static final String RETRIEVED_DOCS_FIELD = "retrieved_docs";
+        public static final String RELEVANT_DOCS_RETRIEVED_FIELD = "relevant_docs_retrieved";
+        private int relevantRetrieved;
+        private int retrieved;
+
+        public Breakdown(int relevantRetrieved, int retrieved) {
+            this.relevantRetrieved = relevantRetrieved;
+            this.retrieved = retrieved;
+        }
+
+        public Breakdown(StreamInput in) throws IOException {
+            this.relevantRetrieved = in.readVInt();
+            this.retrieved = in.readVInt();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(RELEVANT_DOCS_RETRIEVED_FIELD, relevantRetrieved);
+            builder.field(RETRIEVED_DOCS_FIELD, retrieved);
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(relevantRetrieved);
+            out.writeVInt(retrieved);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        public int getRelevantRetrieved() {
+            return relevantRetrieved;
+        }
+
+        public int getRetrieved() {
+            return retrieved;
+        }
+
+        @Override
+        public final boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            PrecisionAtN.Breakdown other = (PrecisionAtN.Breakdown) obj;
+            return Objects.equals(relevantRetrieved, other.relevantRetrieved) &&
+                    Objects.equals(retrieved, other.retrieved);
+        }
+
+        @Override
+        public final int hashCode() {
+            return Objects.hash(relevantRetrieved, retrieved);
+        }
     }
 }

@@ -140,7 +140,9 @@ public class ReciprocalRank extends RankedListQualityMetric {
         }
 
         double reciprocalRank = (firstRelevant == -1) ? 0 : 1.0d / firstRelevant;
-        return new EvalQueryQuality(taskId, reciprocalRank, unknownDocIds);
+        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, reciprocalRank, unknownDocIds);
+        evalQueryQuality.addMetricDetails(new Breakdown(firstRelevant));
+        return evalQueryQuality;
     }
 
     @Override
@@ -187,5 +189,55 @@ public class ReciprocalRank extends RankedListQualityMetric {
     @Override
     public final int hashCode() {
         return Objects.hash(maxAcceptableRank);
+    }
+
+    public static class Breakdown implements MetricDetails {
+
+        private int firstRelevantRank;
+
+        public Breakdown(int firstRelevantRank) {
+            this.firstRelevantRank = firstRelevantRank;
+        }
+
+        public Breakdown(StreamInput in) throws IOException {
+            this.firstRelevantRank = in.readVInt();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field("first_relevant", firstRelevantRank);
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(firstRelevantRank);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        public int getFirstRelevantRank() {
+            return firstRelevantRank;
+        }
+        @Override
+        public final boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            ReciprocalRank.Breakdown other = (ReciprocalRank.Breakdown) obj;
+            return Objects.equals(firstRelevantRank, other.firstRelevantRank) &&
+                    Objects.equals(firstRelevantRank, other.firstRelevantRank);
+        }
+
+        @Override
+        public final int hashCode() {
+            return Objects.hash(firstRelevantRank, firstRelevantRank);
+        }
     }
 }

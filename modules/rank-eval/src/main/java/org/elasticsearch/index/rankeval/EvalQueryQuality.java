@@ -42,6 +42,7 @@ public class EvalQueryQuality implements ToXContent, Writeable {
     private List<RatedDocumentKey> unknownDocs;
     private String id;
     private double qualityLevel;
+    private MetricDetails optionalMetricDetails;
 
     public EvalQueryQuality(String id, double qualityLevel, List<RatedDocumentKey> unknownDocs) {
         this.id = id;
@@ -57,6 +58,7 @@ public class EvalQueryQuality implements ToXContent, Writeable {
         for (int i = 0; i < size; i++) {
             unknownDocs.add(new RatedDocumentKey(in));
         }
+        this.optionalMetricDetails = in.readOptionalNamedWriteable(MetricDetails.class);
     }
 
     public String getId() {
@@ -71,6 +73,14 @@ public class EvalQueryQuality implements ToXContent, Writeable {
         return Collections.unmodifiableList(this.unknownDocs);
     }
 
+    public void addMetricDetails(MetricDetails breakdown) {
+        this.optionalMetricDetails = breakdown;
+    }
+
+    public MetricDetails getMetricDetails() {
+        return this.optionalMetricDetails;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
@@ -79,6 +89,7 @@ public class EvalQueryQuality implements ToXContent, Writeable {
         for (RatedDocumentKey key : unknownDocs) {
             key.writeTo(out);
         }
+        out.writeOptionalNamedWriteable(this.optionalMetricDetails);
     }
 
     @Override
@@ -90,6 +101,11 @@ public class EvalQueryQuality implements ToXContent, Writeable {
             key.toXContent(builder, params);
         }
         builder.endArray();
+        if (optionalMetricDetails != null) {
+            builder.startObject("metric_details");
+            optionalMetricDetails.toXContent(builder, params);
+            builder.endObject();
+        }
         builder.endObject();
         return builder;
     }
@@ -105,11 +121,12 @@ public class EvalQueryQuality implements ToXContent, Writeable {
         EvalQueryQuality other = (EvalQueryQuality) obj;
         return Objects.equals(id, other.id) &&
                 Objects.equals(qualityLevel, other.qualityLevel) &&
-                Objects.equals(unknownDocs, other.unknownDocs);
+                Objects.equals(unknownDocs, other.unknownDocs) &&
+                Objects.equals(optionalMetricDetails, other.optionalMetricDetails);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(id, qualityLevel, unknownDocs);
+        return Objects.hash(id, qualityLevel, unknownDocs, optionalMetricDetails);
     }
 }

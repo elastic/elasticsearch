@@ -97,7 +97,7 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("rank_eval");
         builder.field("quality_level", qualityLevel);
-        builder.startObject("partial_results");
+        builder.startObject("details");
         for (String key : partialResults.keySet()) {
             partialResults.get(key).toXContent(builder, params);
         }

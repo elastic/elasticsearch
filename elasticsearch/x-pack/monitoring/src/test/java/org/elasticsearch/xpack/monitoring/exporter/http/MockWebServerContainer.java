@@ -9,6 +9,8 @@ import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.QueueDispatcher;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.Loggers;
 
@@ -75,7 +77,9 @@ public class MockWebServerContainer implements AutoCloseable {
                 failedPorts.add(port);
                 webServer = null;
             } catch (final IOException e) {
-                logger.error("unrecoverable failure while trying to start MockWebServer with port [{}]", e, port);
+                final int finalPort = port;
+                logger.error((Supplier<?>) () -> new ParameterizedMessage(
+                        "unrecoverable failure while trying to start MockWebServer with port [{}]", finalPort), e);
                 throw new ElasticsearchException(e);
             }
         }

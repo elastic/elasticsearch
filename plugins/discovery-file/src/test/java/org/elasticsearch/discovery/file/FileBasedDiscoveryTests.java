@@ -47,7 +47,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
  */
 @ESIntegTestCase.SuppressLocalMode
 @ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numDataNodes = 2, numClientNodes = 0)
-// TODO this should be a IT but currently all ITs in this project run against a real cluster
 public class FileBasedDiscoveryTests extends ESIntegTestCase {
 
     private static final int BASE_PORT = 14723; // pick a port unlikely to be used by any other running process
@@ -61,20 +60,14 @@ public class FileBasedDiscoveryTests extends ESIntegTestCase {
     }
 
     @BeforeClass
-    public static void initConfigDir() throws Exception {
+    public static void initUnicastHostsFile() throws Exception {
         CONFIG_DIR = createTempDir().resolve("config");
+        // write the unicast_hosts.txt file, only write it once as all nodes share the same config dir
+        writeUnicastHostsFileForNodes(CONFIG_DIR);
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        // write the unicast_hosts.txt file, only write it once as all nodes share the same config dir
-        if (nodeOrdinal == 0) {
-            try {
-                writeUnicastHostsFileForNodes(CONFIG_DIR);
-            } catch (IOException e) {
-                throw new RuntimeException("failed to write unicast_hosts.txt to config dir", e);
-            }
-        }
         // set the network host to a known binding so we can configure unicast_hosts.txt accordingly
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                    .put(Environment.PATH_CONF_SETTING.getKey(), CONFIG_DIR)
@@ -84,7 +77,7 @@ public class FileBasedDiscoveryTests extends ESIntegTestCase {
                    .build();
     }
 
-    private List<String> getHostAddresses() {
+    private static List<String> getHostAddresses() {
         final List<String> entries = new ArrayList<>();
         for (int i = 0; i < NUM_NODES; i++) {
             entries.add(DEFAULT_HOST + ":" + Integer.toString(BASE_PORT + i));
@@ -92,7 +85,7 @@ public class FileBasedDiscoveryTests extends ESIntegTestCase {
         return entries;
     }
 
-    private void writeUnicastHostsFileForNodes(final Path configDir) throws IOException {
+    private static void writeUnicastHostsFileForNodes(final Path configDir) throws IOException {
         final List<String> entries = getHostAddresses();
         final byte[] fileContents = String.join("\n", entries).getBytes();
         // write the unicast_hosts.txt file for each node

@@ -31,6 +31,7 @@ import org.elasticsearch.transport.TransportSettings;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -87,7 +88,7 @@ public class FileBasedDiscoveryTests extends ESIntegTestCase {
 
     private static void writeUnicastHostsFileForNodes(final Path configDir) throws IOException {
         final List<String> entries = getHostAddresses();
-        final byte[] fileContents = String.join("\n", entries).getBytes();
+        final byte[] fileContents = String.join("\n", entries).getBytes(StandardCharsets.UTF_8);
         // write the unicast_hosts.txt file for each node
         final Path discoFileDir = configDir.resolve("discovery-file");
         Files.createDirectories(discoFileDir);

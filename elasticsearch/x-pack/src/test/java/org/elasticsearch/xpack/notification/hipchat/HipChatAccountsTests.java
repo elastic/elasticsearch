@@ -9,13 +9,23 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpClient;
+import org.elasticsearch.xpack.common.http.HttpProxy;
+import org.elasticsearch.xpack.common.http.HttpRequest;
+import org.elasticsearch.xpack.common.http.HttpResponse;
+import org.elasticsearch.xpack.common.text.TextTemplate;
+import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
+
+import java.util.HashMap;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  *
@@ -124,6 +134,29 @@ public class HipChatAccountsTests extends ESTestCase {
         } catch (SettingsException e) {
             assertThat(e.getMessage(), is("could not find default hipchat account [unknown]"));
         }
+    }
+
+    public void testProxy() throws Exception {
+        Settings.Builder builder = Settings.builder()
+                .put("default_account", "account1");
+        addAccountSettings("account1", builder);
+        HipChatAccounts accounts = new HipChatAccounts(builder.build(), httpClient, logger);
+        HipChatAccount account = accounts.account("account1");
+
+        HipChatMessage.Template template = new HipChatMessage.Template.Builder(new TextTemplate("foo"))
+                .addRooms(new TextTemplate("room"))
+                .setFrom("from")
+                .build();
+        HipChatMessage hipChatMessage = template.render(new MockTextTemplateEngine(), new HashMap());
+
+        ArgumentCaptor<HttpRequest> argumentCaptor = ArgumentCaptor.forClass(HttpRequest.class);
+        when(httpClient.execute(argumentCaptor.capture())).thenReturn(new HttpResponse(200));
+
+        HttpProxy proxy = new HttpProxy("localhost", 8080);
+        account.send(hipChatMessage, proxy);
+
+        HttpRequest request = argumentCaptor.getValue();
+        assertThat(request.proxy(), is(proxy));
     }
 
     private void addAccountSettings(String name, Settings.Builder builder) {

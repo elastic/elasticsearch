@@ -12,6 +12,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
+import org.elasticsearch.xpack.common.http.HttpProxy;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.common.http.Scheme;
@@ -75,11 +76,11 @@ public class V1Account extends HipChatAccount {
     }
 
     @Override
-    public SentMessages send(HipChatMessage message) {
+    public SentMessages send(HipChatMessage message, @Nullable HttpProxy proxy) {
         List<SentMessages.SentMessage> sentMessages = new ArrayList<>();
         if (message.rooms != null) {
             for (String room : message.rooms) {
-                HttpRequest request = buildRoomRequest(room, message);
+                HttpRequest request = buildRoomRequest(room, message, proxy);
                 try {
                     HttpResponse response = httpClient.execute(request);
                     sentMessages.add(SentMessages.SentMessage.responded(room, SentMessages.SentMessage.TargetType.ROOM, message, request,
@@ -94,7 +95,7 @@ public class V1Account extends HipChatAccount {
         return new SentMessages(name, sentMessages);
     }
 
-    public HttpRequest buildRoomRequest(String room, HipChatMessage message) {
+    public HttpRequest buildRoomRequest(String room, HipChatMessage message, HttpProxy proxy) {
         HttpRequest.Builder builder = server.httpRequest();
         builder.method(HttpMethod.POST);
         builder.scheme(Scheme.HTTPS);
@@ -102,7 +103,9 @@ public class V1Account extends HipChatAccount {
         builder.setHeader("Content-Type", "application/x-www-form-urlencoded");
         builder.setParam("format", "json");
         builder.setParam("auth_token", authToken);
-
+        if (proxy != null) {
+            builder.proxy(proxy);
+        }
         StringBuilder body = new StringBuilder();
         body.append("room_id=").append(room);
         body.append("&from=").append(HttpRequest.encodeUrl(message.from));

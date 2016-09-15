@@ -240,7 +240,7 @@ public class UserAccountTests extends ESTestCase {
         when(resU2.status()).thenReturn(200);
         when(httpClient.execute(reqU2)).thenReturn(resU2);
 
-        account.send(message);
+        account.send(message, null);
 
         verify(httpClient).execute(reqR1);
         verify(httpClient).execute(reqR2);
@@ -257,7 +257,8 @@ public class UserAccountTests extends ESTestCase {
 
         TextTemplate body = new TextTemplate("body");
         TextTemplate[] rooms = new TextTemplate[] { new TextTemplate("room")};
-        HipChatMessage.Template template = new HipChatMessage.Template(body, rooms, null, "sender", HipChatMessage.Format.TEXT, null, true);
+        HipChatMessage.Template template =
+                new HipChatMessage.Template(body, rooms, null, "sender", HipChatMessage.Format.TEXT, null, true);
 
         HipChatMessage message = userAccount.render("watchId", "actionId", new MockTextTemplateEngine(), template, new HashMap<>());
         assertThat(message.color, is(nullValue()));

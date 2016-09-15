@@ -160,7 +160,7 @@ public class IntegrationAccountTests extends ESTestCase {
         when(res.status()).thenReturn(200);
         when(httpClient.execute(req)).thenReturn(res);
 
-        account.send(message);
+        account.send(message, null);
 
         verify(httpClient).execute(req);
     }

@@ -52,7 +52,7 @@ public class ExecutableHipChatAction extends ExecutableAction<HipChatAction> {
             return new HipChatAction.Result.Simulated(message);
         }
 
-        SentMessages sentMessages = account.send(message);
+        SentMessages sentMessages = account.send(message, action.proxy);
         return new HipChatAction.Result.Executed(sentMessages);
     }
 

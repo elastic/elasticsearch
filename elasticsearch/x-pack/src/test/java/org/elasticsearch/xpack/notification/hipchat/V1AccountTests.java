@@ -161,7 +161,7 @@ public class V1AccountTests extends ESTestCase {
         when(res2.status()).thenReturn(200);
         when(httpClient.execute(req2)).thenReturn(res2);
 
-        account.send(message);
+        account.send(message, null);
 
         verify(httpClient).execute(req1);
         verify(httpClient).execute(req2);

@@ -6,24 +6,19 @@
 package org.elasticsearch.xpack.watcher.actions.hipchat;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.notification.hipchat.HipChatAccount;
-import org.elasticsearch.xpack.notification.hipchat.HipChatMessage;
 import org.elasticsearch.xpack.notification.hipchat.HipChatService;
-import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.junit.Before;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.hipchatAction;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -66,142 +61,6 @@ public class HipChatActionFactoryTests extends ESTestCase {
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), is("could not parse [hipchat] action [_w1]. unknown hipchat account [_unknown]"));
-        }
-    }
-
-    public void testParser() throws Exception {
-        XContentBuilder builder = jsonBuilder().startObject();
-
-        String accountName = randomAsciiOfLength(10);
-        builder.field("account", accountName);
-        builder.startObject("message");
-
-        TextTemplate body = new TextTemplate("_body");
-        builder.field("body", body);
-
-        TextTemplate[] rooms = null;
-        if (randomBoolean()) {
-            TextTemplate r1 = new TextTemplate("_r1");
-            TextTemplate r2 = new TextTemplate("_r2");
-            rooms = new TextTemplate[] { r1, r2 };
-            builder.array("room", r1, r2);
-        }
-        TextTemplate[] users = null;
-        if (randomBoolean()) {
-            TextTemplate u1 = new TextTemplate("_u1");
-            TextTemplate u2 = new TextTemplate("_u2");
-            users = new TextTemplate[] { u1, u2 };
-            builder.array("user", u1, u2);
-        }
-        String from = null;
-        if (randomBoolean()) {
-            from = randomAsciiOfLength(10);
-            builder.field("from", from);
-        }
-        HipChatMessage.Format format = null;
-        if (randomBoolean()) {
-            format = randomFrom(HipChatMessage.Format.values());
-            builder.field("format", format.value());
-        }
-        TextTemplate color = null;
-        if (randomBoolean()) {
-            color = new TextTemplate(randomFrom(HipChatMessage.Color.values()).value());
-            builder.field("color", color);
-        }
-        Boolean notify = null;
-        if (randomBoolean()) {
-            notify = randomBoolean();
-            builder.field("notify", notify);
-        }
-
-        builder.endObject();
-        builder.endObject();
-
-        BytesReference bytes = builder.bytes();
-        logger.info("hipchat action json [{}]", bytes.utf8ToString());
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
-        parser.nextToken();
-
-        HipChatAction action = HipChatAction.parse("_watch", "_action", parser);
-
-        assertThat(action, notNullValue());
-        assertThat(action.account, is(accountName));
-        assertThat(action.message, notNullValue());
-        assertThat(action.message, is(new HipChatMessage.Template(body, rooms, users, from, format, color, notify)));
-    }
-
-    public void testParserSelfGenerated() throws Exception {
-        String accountName = randomAsciiOfLength(10);
-        TextTemplate body = new TextTemplate("_body");
-        HipChatMessage.Template.Builder templateBuilder = new HipChatMessage.Template.Builder(body);
-
-        XContentBuilder builder = jsonBuilder().startObject();
-        builder.field("account", accountName);
-        builder.startObject("message");
-        builder.field("body", body);
-
-        if (randomBoolean()) {
-            TextTemplate r1 = new TextTemplate("_r1");
-            TextTemplate r2 = new TextTemplate("_r2");
-            templateBuilder.addRooms(r1, r2);
-            builder.array("room", r1, r2);
-        }
-        if (randomBoolean()) {
-            TextTemplate u1 = new TextTemplate("_u1");
-            TextTemplate u2 = new TextTemplate("_u2");
-            templateBuilder.addUsers(u1, u2);
-            builder.array("user", u1, u2);
-        }
-        if (randomBoolean()) {
-            String from = randomAsciiOfLength(10);
-            templateBuilder.setFrom(from);
-            builder.field("from", from);
-        }
-        if (randomBoolean()) {
-            HipChatMessage.Format format = randomFrom(HipChatMessage.Format.values());
-            templateBuilder.setFormat(format);
-            builder.field("format", format.value());
-        }
-        if (randomBoolean()) {
-            TextTemplate color = new TextTemplate(randomFrom(HipChatMessage.Color.values()).value());
-            templateBuilder.setColor(color);
-            builder.field("color", color);
-        }
-        if (randomBoolean()) {
-            boolean notify = randomBoolean();
-            templateBuilder.setNotify(notify);
-            builder.field("notify", notify);
-        }
-
-        builder.endObject();
-        builder.endObject();
-
-        HipChatMessage.Template template = templateBuilder.build();
-
-        HipChatAction action = new HipChatAction(accountName, template);
-
-        XContentBuilder jsonBuilder = jsonBuilder();
-        action.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-        BytesReference bytes = builder.bytes();
-        logger.info("{}", bytes.utf8ToString());
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
-        parser.nextToken();
-
-        HipChatAction parsedAction = HipChatAction.parse("_watch", "_action", parser);
-
-        assertThat(parsedAction, notNullValue());
-        assertThat(parsedAction, is(action));
-    }
-
-    public void testParserInvalid() throws Exception {
-        XContentBuilder builder = jsonBuilder().startObject().field("unknown_field", "value").endObject();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
-        parser.nextToken();
-        try {
-            HipChatAction.parse("_watch", "_action", parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("failed to parse [hipchat] action [_watch/_action]. unexpected token [VALUE_STRING]"));
         }
     }
 }

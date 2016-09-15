@@ -6,12 +6,14 @@
 package org.elasticsearch.xpack.notification.hipchat;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.http.HttpClient;
+import org.elasticsearch.xpack.common.http.HttpProxy;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 
 import java.io.IOException;
@@ -59,7 +61,7 @@ public abstract class HipChatAccount  {
     public abstract HipChatMessage render(String watchId, String actionId, TextTemplateEngine engine, HipChatMessage.Template template,
                                           Map<String, Object> model);
 
-    public abstract SentMessages send(HipChatMessage message);
+    public abstract SentMessages send(HipChatMessage message, @Nullable HttpProxy proxy);
 
     public enum Profile implements ToXContent {
 

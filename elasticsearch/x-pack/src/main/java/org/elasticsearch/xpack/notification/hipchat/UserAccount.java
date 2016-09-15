@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
+import org.elasticsearch.xpack.common.http.HttpProxy;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.common.http.Scheme;
@@ -81,11 +82,11 @@ public class UserAccount extends HipChatAccount {
     }
 
     @Override
-    public SentMessages send(HipChatMessage message) {
+    public SentMessages send(HipChatMessage message, HttpProxy proxy) {
         List<SentMessages.SentMessage> sentMessages = new ArrayList<>();
         if (message.rooms != null) {
             for (String room : message.rooms) {
-                HttpRequest request = buildRoomRequest(room, message);
+                HttpRequest request = buildRoomRequest(room, message, proxy);
                 try {
                     HttpResponse response = httpClient.execute(request);
                     sentMessages.add(SentMessages.SentMessage.responded(room, SentMessages.SentMessage.TargetType.ROOM, message, request,
@@ -99,7 +100,7 @@ public class UserAccount extends HipChatAccount {
         }
         if (message.users != null) {
             for (String user : message.users) {
-                HttpRequest request = buildUserRequest(user, message);
+                HttpRequest request = buildUserRequest(user, message, proxy);
                 try {
                     HttpResponse response = httpClient.execute(request);
                     sentMessages.add(SentMessages.SentMessage.responded(user, SentMessages.SentMessage.TargetType.USER, message, request,
@@ -114,8 +115,8 @@ public class UserAccount extends HipChatAccount {
         return new SentMessages(name, sentMessages);
     }
 
-    public HttpRequest buildRoomRequest(String room, final HipChatMessage message) {
-        return server.httpRequest()
+    public HttpRequest buildRoomRequest(String room, final HipChatMessage message, HttpProxy proxy) {
+        HttpRequest.Builder builder = server.httpRequest()
                 .method(HttpMethod.POST)
                 .scheme(Scheme.HTTPS)
                 .path("/v2/room/" + room + "/notification")
@@ -136,12 +137,15 @@ public class UserAccount extends HipChatAccount {
                         }
                         return xbuilder;
                     }
-                }))
-                .build();
+                }));
+        if (proxy != null) {
+            builder.proxy(proxy);
+        }
+        return builder.build();
     }
 
-    public HttpRequest buildUserRequest(String user, final HipChatMessage message) {
-        return server.httpRequest()
+    public HttpRequest buildUserRequest(String user, final HipChatMessage message, HttpProxy proxy) {
+        HttpRequest.Builder builder = server.httpRequest()
                 .method(HttpMethod.POST)
                 .scheme(Scheme.HTTPS)
                 .path("/v2/user/" + user + "/message")
@@ -159,8 +163,11 @@ public class UserAccount extends HipChatAccount {
                         }
                         return xbuilder;
                     }
-                }))
-                .build();
+                }));
+        if (proxy != null) {
+            builder.proxy(proxy);
+        }
+        return builder.build();
     }
 
     static class Defaults {

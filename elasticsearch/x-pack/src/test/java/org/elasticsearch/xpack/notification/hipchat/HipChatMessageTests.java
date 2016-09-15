@@ -77,7 +77,7 @@ public class HipChatMessageTests extends ESTestCase {
             } else if ("notify".equals(currentFieldName)) {
                 notify = parser.booleanValue();
             } else {
-                fail("unexpected xconent field [" + currentFieldName + "] in hipchat message");
+                fail("unexpected xcontent field [" + currentFieldName + "] in hipchat message");
             }
         }
 

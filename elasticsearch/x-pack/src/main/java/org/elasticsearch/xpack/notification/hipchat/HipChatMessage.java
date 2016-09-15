@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 public class HipChatMessage implements ToXContent {
 
@@ -82,14 +83,13 @@ public class HipChatMessage implements ToXContent {
         if (o == null || getClass() != o.getClass()) return false;
 
         HipChatMessage that = (HipChatMessage) o;
-
-        if (!body.equals(that.body)) return false;
-        if (!Arrays.equals(rooms, that.rooms)) return false;
-        if (!Arrays.equals(users, that.users)) return false;
-        if (from != null ? !from.equals(that.from) : that.from != null) return false;
-        if (format != that.format) return false;
-        if (color != that.color) return false;
-        return !(notify != null ? !notify.equals(that.notify) : that.notify != null);
+        return Objects.equals(body, that.body) &&
+               Objects.deepEquals(rooms, that.rooms) &&
+               Objects.deepEquals(users, that.users) &&
+               Objects.equals(from, that.from) &&
+               Objects.equals(format, that.format) &&
+               Objects.equals(color, that.color) &&
+               Objects.equals(notify, that.notify);
     }
 
     @Override
@@ -142,8 +142,7 @@ public class HipChatMessage implements ToXContent {
         @Nullable final TextTemplate[] users;
         @Nullable final String from;
         @Nullable final Format format;
-        @Nullable final
-        TextTemplate color;
+        @Nullable final TextTemplate color;
         @Nullable final Boolean notify;
 
         public Template(TextTemplate body,
@@ -169,25 +168,18 @@ public class HipChatMessage implements ToXContent {
 
             Template template = (Template) o;
 
-            if (!body.equals(template.body)) return false;
-            if (!Arrays.equals(rooms, template.rooms)) return false;
-            if (!Arrays.equals(users, template.users)) return false;
-            if (from != null ? !from.equals(template.from) : template.from != null) return false;
-            if (format != template.format) return false;
-            if (color != null ? !color.equals(template.color) : template.color != null) return false;
-            return !(notify != null ? !notify.equals(template.notify) : template.notify != null);
+            return Objects.equals(body, template.body) &&
+                   Objects.deepEquals(rooms, template.rooms) &&
+                   Objects.deepEquals(users, template.users) &&
+                   Objects.equals(from, template.from) &&
+                   Objects.equals(format, template.format) &&
+                   Objects.equals(color, template.color) &&
+                   Objects.equals(notify, template.notify);
         }
 
         @Override
         public int hashCode() {
-            int result = body.hashCode();
-            result = 31 * result + (rooms != null ? Arrays.hashCode(rooms) : 0);
-            result = 31 * result + (users != null ? Arrays.hashCode(users) : 0);
-            result = 31 * result + (from != null ? from.hashCode() : 0);
-            result = 31 * result + (format != null ? format.hashCode() : 0);
-            result = 31 * result + (color != null ? color.hashCode() : 0);
-            result = 31 * result + (notify != null ? notify.hashCode() : 0);
-            return result;
+            return Objects.hash(body, rooms, users, from, format, color, notify);
         }
 
         public HipChatMessage render(TextTemplateEngine engine, Map<String, Object> model) {
@@ -347,8 +339,7 @@ public class HipChatMessage implements ToXContent {
             final List<TextTemplate> users = new ArrayList<>();
             @Nullable String from;
             @Nullable Format format;
-            @Nullable
-            TextTemplate color;
+            @Nullable TextTemplate color;
             @Nullable Boolean notify;
 
             public Builder(TextTemplate body) {

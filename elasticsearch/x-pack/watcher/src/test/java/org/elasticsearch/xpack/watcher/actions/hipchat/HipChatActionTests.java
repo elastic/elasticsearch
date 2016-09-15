@@ -13,17 +13,18 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.common.http.HttpProxy;
+import org.elasticsearch.xpack.common.http.HttpRequest;
+import org.elasticsearch.xpack.common.http.HttpResponse;
+import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.notification.hipchat.HipChatAccount;
 import org.elasticsearch.xpack.notification.hipchat.HipChatMessage;
 import org.elasticsearch.xpack.notification.hipchat.HipChatService;
 import org.elasticsearch.xpack.notification.hipchat.SentMessages;
+import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.Wid;
-import org.elasticsearch.xpack.common.http.HttpRequest;
-import org.elasticsearch.xpack.common.http.HttpResponse;
-import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -63,7 +64,7 @@ public class HipChatActionTests extends ESTestCase {
 
         HipChatMessage.Template messageTemplate = messageBuilder.build();
 
-        HipChatAction action = new HipChatAction(accountName, messageTemplate);
+        HipChatAction action = new HipChatAction(accountName, messageTemplate, null);
         ExecutableHipChatAction executable = new ExecutableHipChatAction(action, logger, service, templateEngine);
 
         Map<String, Object> data = new HashMap<>();
@@ -108,7 +109,7 @@ public class HipChatActionTests extends ESTestCase {
         SentMessages sentMessages = new SentMessages(accountName, Arrays.asList(
                 SentMessages.SentMessage.responded("_r1", SentMessages.SentMessage.TargetType.ROOM, message, request, response)
         ));
-        when(account.send(message)).thenReturn(sentMessages);
+        when(account.send(message, null)).thenReturn(sentMessages);
         when(service.getAccount(accountName)).thenReturn(account);
 
         Action.Result result = executable.execute("_id", ctx, payload);
@@ -163,8 +164,12 @@ public class HipChatActionTests extends ESTestCase {
             notify = randomBoolean();
             builder.field("notify", notify);
         }
-
         builder.endObject();
+        HttpProxy proxy = null;
+        if (randomBoolean()) {
+            proxy = new HttpProxy("localhost", 8080);
+            builder.startObject("proxy").field("host", "localhost").field("port", 8080).endObject();
+        }
         builder.endObject();
 
         BytesReference bytes = builder.bytes();
@@ -176,6 +181,7 @@ public class HipChatActionTests extends ESTestCase {
 
         assertThat(action, notNullValue());
         assertThat(action.account, is(accountName));
+        assertThat(action.proxy, is(proxy));
         assertThat(action.message, notNullValue());
         assertThat(action.message, is(new HipChatMessage.Template(body, rooms, users, from, format, color, notify)));
     }
@@ -187,6 +193,13 @@ public class HipChatActionTests extends ESTestCase {
 
         XContentBuilder builder = jsonBuilder().startObject();
         builder.field("account", accountName);
+
+        HttpProxy proxy = null;
+        if (randomBoolean()) {
+            proxy = new HttpProxy("localhost", 8080);
+            builder.startObject("proxy").field("host", "localhost").field("port", 8080).endObject();
+        }
+
         builder.startObject("message");
         builder.field("body", body);
 
@@ -228,7 +241,7 @@ public class HipChatActionTests extends ESTestCase {
 
         HipChatMessage.Template template = templateBuilder.build();
 
-        HipChatAction action = new HipChatAction(accountName, template);
+        HipChatAction action = new HipChatAction(accountName, template, proxy);
 
         XContentBuilder jsonBuilder = jsonBuilder();
         action.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);

@@ -6,16 +6,18 @@
 package org.elasticsearch.xpack.watcher.actions.hipchat;
 
 
+import com.google.common.base.Objects;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.watcher.actions.Action;
+import org.elasticsearch.xpack.common.http.HttpProxy;
+import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.notification.hipchat.HipChatMessage;
 import org.elasticsearch.xpack.notification.hipchat.SentMessages;
-import org.elasticsearch.xpack.common.text.TextTemplate;
+import org.elasticsearch.xpack.watcher.actions.Action;
 
 import java.io.IOException;
 
@@ -24,11 +26,13 @@ public class HipChatAction implements Action {
     public static final String TYPE = "hipchat";
 
     @Nullable final String account;
+    @Nullable final HttpProxy proxy;
     final HipChatMessage.Template message;
 
-    public HipChatAction(@Nullable String account, HipChatMessage.Template message) {
+    public HipChatAction(@Nullable String account, HipChatMessage.Template message, @Nullable HttpProxy proxy) {
         this.account = account;
         this.message = message;
+        this.proxy = proxy;
     }
 
     @Override
@@ -43,15 +47,14 @@ public class HipChatAction implements Action {
 
         HipChatAction that = (HipChatAction) o;
 
-        if (!account.equals(that.account)) return false;
-        return message.equals(that.message);
+        return Objects.equal(account, that.account) &&
+               Objects.equal(message, that.message) &&
+               Objects.equal(proxy, that.proxy);
     }
 
     @Override
     public int hashCode() {
-        int result = account.hashCode();
-        result = 31 * result + message.hashCode();
-        return result;
+        return Objects.hashCode(account, message, proxy);
     }
 
     @Override
@@ -60,6 +63,9 @@ public class HipChatAction implements Action {
         if (account != null) {
             builder.field(Field.ACCOUNT.getPreferredName(), account);
         }
+        if (proxy != null) {
+            proxy.toXContent(builder, params);
+        }
         builder.field(Field.MESSAGE.getPreferredName(), message);
         return builder.endObject();
     }
@@ -67,6 +73,7 @@ public class HipChatAction implements Action {
     public static HipChatAction parse(String watchId, String actionId, XContentParser parser) throws IOException {
         String account = null;
         HipChatMessage.Template message = null;
+        HttpProxy proxy = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -80,6 +87,8 @@ public class HipChatAction implements Action {
                     throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. expected [{}] to be of type string, but " +
                             "found [{}] instead", TYPE, watchId, actionId, Field.ACCOUNT.getPreferredName(), token);
                 }
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PROXY)) {
+                proxy = HttpProxy.parse(parser);
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.MESSAGE)) {
                 try {
                     message = HipChatMessage.Template.parse(parser);
@@ -98,7 +107,7 @@ public class HipChatAction implements Action {
                     actionId, Field.MESSAGE.getPreferredName());
         }
 
-        return new HipChatAction(account, message);
+        return new HipChatAction(account, message, proxy);
     }
 
     public static Builder builder(String account, TextTemplate body) {
@@ -168,6 +177,7 @@ public class HipChatAction implements Action {
 
         final String account;
         final HipChatMessage.Template.Builder messageBuilder;
+        private HttpProxy proxy;
 
         public Builder(String account, TextTemplate body) {
             this.account = account;
@@ -225,14 +235,20 @@ public class HipChatAction implements Action {
             return this;
         }
 
+        public Builder setProxy(HttpProxy proxy) {
+            this.proxy = proxy;
+            return this;
+        }
+
         @Override
         public HipChatAction build() {
-            return new HipChatAction(account, messageBuilder.build());
+            return new HipChatAction(account, messageBuilder.build(), proxy);
         }
     }
 
     public interface Field {
         ParseField ACCOUNT = new ParseField("account");
         ParseField MESSAGE = new ParseField("message");
+        ParseField PROXY = new ParseField("proxy");
     }
 }

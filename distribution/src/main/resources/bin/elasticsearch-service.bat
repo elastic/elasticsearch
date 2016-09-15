@@ -75,7 +75,7 @@ echo Unknown option "%SERVICE_CMD%"
 
 :displayUsage
 echo.
-echo Usage: service.bat install^|remove^|start^|stop^|manager [SERVICE_ID]
+echo Usage: elasticsearch-service.bat install^|remove^|start^|stop^|manager [SERVICE_ID]
 goto:eof
 
 :doStart

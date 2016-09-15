@@ -123,7 +123,8 @@ class Elasticsearch extends SettingCommand {
      *
      * http://commons.apache.org/proper/commons-daemon/procrun.html
      *
-     * NOTE: If this method is renamed and/or moved, make sure to update service.bat!
+     * NOTE: If this method is renamed and/or moved, make sure to
+     * update elasticsearch-service.bat!
      */
     static void close(String[] args) throws IOException {
         Bootstrap.stop();

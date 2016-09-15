@@ -1,6 +1,14 @@
 ---
 "Index data and search on the old cluster":
  - do:
+     indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+ - do:
      bulk:
         refresh: true
         body:

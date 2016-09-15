@@ -1,6 +1,10 @@
 ---
 "Index data and search on the upgraded cluster":
  - do:
+     cluster.health:
+        wait_for_status: green
+
+ - do:
      search:
        index: test_index
 

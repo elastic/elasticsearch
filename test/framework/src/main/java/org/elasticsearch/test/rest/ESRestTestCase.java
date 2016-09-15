@@ -138,13 +138,16 @@ public class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeCluster() throws IOException {
-        // wipe indices
-        try {
-            adminClient().performRequest("DELETE", "*");
-        } catch (ResponseException e) {
-            // 404 here just means we had no indexes
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw e;
+        final boolean preserveIndices = Boolean.parseBoolean(System.getProperty("tests.rest.preserve_indices"));
+        if (preserveIndices == false) {
+            // wipe indices
+            try {
+                adminClient().performRequest("DELETE", "*");
+            } catch (ResponseException e) {
+                // 404 here just means we had no indexes
+                if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                    throw e;
+                }
             }
         }
 

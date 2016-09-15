@@ -31,6 +31,7 @@ task oldClusterTest(type: RestIntegTestTask) {
     clusterName = 'rolling-upgrade'
   }
   systemProperty 'tests.rest.suite', 'old_cluster'
+  systemProperty 'tests.rest.preserve_indices', 'true'
 }
 
 task mixedClusterTest(type: RestIntegTestTask) {
@@ -42,7 +43,7 @@ task mixedClusterTest(type: RestIntegTestTask) {
     dataDir = "${-> oldClusterTest.nodes[1].dataDir}"
   }
   systemProperty 'tests.rest.suite', 'mixed_cluster'
-
+  systemProperty 'tests.rest.preserve_indices', 'true'
 }
 
 task upgradedClusterTest(type: RestIntegTestTask) {

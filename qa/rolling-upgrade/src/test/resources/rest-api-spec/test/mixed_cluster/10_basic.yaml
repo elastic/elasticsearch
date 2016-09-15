@@ -1,6 +1,16 @@
 ---
 "Index data and search on the mixed cluster":
  - do:
+     cluster.health:
+        wait_for_status: green
+
+ - do:
+      indices.get_settings:
+        index: test_index
+
+ - match: { test_index.settings.index.number_of_replicas: "0" }
+
+ - do:
      search:
         index: test_index
 

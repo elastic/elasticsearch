@@ -24,49 +24,13 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.search.fetch.FetchSubPhasePluginIT;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 
-import static java.util.Collections.emptyList;
-import static org.elasticsearch.search.builder.SearchSourceBuilderTests.createSearchSourceBuilder;
-
-public class SearchRequestTests extends ESTestCase {
-
-    private static NamedWriteableRegistry namedWriteableRegistry;
-
-    @BeforeClass
-    public static void beforeClass() {
-        IndicesModule indicesModule = new IndicesModule(emptyList()) {
-            @Override
-            protected void configure() {
-                bindMapperExtension();
-            }
-        };
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false,
-                Collections.singletonList(new FetchSubPhasePluginIT.FetchTermVectorsPlugin()));
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(indicesModule.getNamedWriteables());
-        entries.addAll(searchModule.getNamedWriteables());
-        namedWriteableRegistry = new NamedWriteableRegistry(entries);
-    }
-
-    @AfterClass
-    public static void afterClass() {
-        namedWriteableRegistry = null;
-    }
+public class SearchRequestTests extends AbstractSearchTestCase {
 
     public void testSerialization() throws Exception {
         SearchRequest searchRequest = createSearchRequest();
@@ -202,38 +166,6 @@ public class SearchRequestTests extends ESTestCase {
             assertEquals(firstSearchRequest, secondSearchRequest);
             assertEquals(firstSearchRequest.hashCode(), secondSearchRequest.hashCode());
         }
-    }
-
-    public static SearchRequest createSearchRequest() throws IOException {
-        SearchRequest searchRequest = new SearchRequest();
-        if (randomBoolean()) {
-            searchRequest.indices(generateRandomStringArray(10, 10, false, false));
-        }
-        if (randomBoolean()) {
-            searchRequest.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
-        }
-        if (randomBoolean()) {
-            searchRequest.types(generateRandomStringArray(10, 10, false, false));
-        }
-        if (randomBoolean()) {
-            searchRequest.preference(randomAsciiOfLengthBetween(3, 10));
-        }
-        if (randomBoolean()) {
-            searchRequest.requestCache(randomBoolean());
-        }
-        if (randomBoolean()) {
-            searchRequest.routing(randomAsciiOfLengthBetween(3, 10));
-        }
-        if (randomBoolean()) {
-            searchRequest.scroll(randomPositiveTimeValue());
-        }
-        if (randomBoolean()) {
-            searchRequest.searchType(randomFrom(SearchType.values()));
-        }
-        if (randomBoolean()) {
-            searchRequest.source(createSearchSourceBuilder());
-        }
-        return searchRequest;
     }
 
     private static SearchRequest copyRequest(SearchRequest searchRequest) throws IOException {

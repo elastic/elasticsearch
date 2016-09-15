@@ -148,10 +148,10 @@ will be compressed as they are rolled.
 Multiple configuration files can be loaded (in which case they will get merged)
 as long as they are named `log4j2.properties` and have the Elasticsearch config
 directory as an ancestor; this is useful for plugins that expose additional
-loggers.  The logger section contains the java packages and their corresponding
-log level, where it is possible to omit the `org.elasticsearch` prefix. The
-appender section contains the destinations for the logs. Extensive information
-on how to customize logging and all the supported appenders can be found on the
+loggers. The logger section contains the java packages and their corresponding
+log level. The appender section contains the destinations for the logs.
+Extensive information on how to customize logging and all the supported
+appenders can be found on the
 http://logging.apache.org/log4j/2.x/manual/configuration.html[Log4j
 documentation].
 

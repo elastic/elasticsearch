@@ -293,7 +293,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startArray("dynamic_templates").startObject().startObject("georule")
                 .field("match", "foo*")
-                .startObject("mapping").field("type", "geo_point").endObject()
+                .startObject("mapping").field("type", "geo_point").field("doc_values", false).endObject()
             .endObject().endObject().endArray().endObject().endObject().string();
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 
@@ -373,7 +373,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
     public void testMappedGeoPointArray() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("foo").field("type", "geo_point")
+                .startObject("properties").startObject("foo").field("type", "geo_point").field("doc_values", false)
                 .endObject().endObject().endObject().endObject().string();
         DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
 

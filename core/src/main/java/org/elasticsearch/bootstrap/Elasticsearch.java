@@ -44,6 +44,7 @@ class Elasticsearch extends SettingCommand {
     private final OptionSpecBuilder versionOption;
     private final OptionSpecBuilder daemonizeOption;
     private final OptionSpec<Path> pidfileOption;
+    private final OptionSpecBuilder quietOption;
 
     // visible for testing
     Elasticsearch() {
@@ -58,6 +59,10 @@ class Elasticsearch extends SettingCommand {
             .availableUnless(versionOption)
             .withRequiredArg()
             .withValuesConvertedBy(new PathConverter());
+        quietOption = parser.acceptsAll(Arrays.asList("q", "quiet"),
+            "Turns off standard ouput/error streams logging in console")
+            .availableUnless(versionOption)
+            .availableUnless(daemonizeOption);
     }
 
     /**
@@ -92,17 +97,19 @@ class Elasticsearch extends SettingCommand {
 
         final boolean daemonize = options.has(daemonizeOption);
         final Path pidFile = pidfileOption.value(options);
+        final boolean quiet = options.has(quietOption);
 
         try {
-            init(daemonize, pidFile, settings);
+            init(daemonize, pidFile, quiet, settings);
         } catch (NodeValidationException e) {
             throw new UserException(ExitCodes.CONFIG, e.getMessage());
         }
     }
 
-    void init(final boolean daemonize, final Path pidFile, final Map<String, String> esSettings) throws NodeValidationException {
+    void init(final boolean daemonize, final Path pidFile, final boolean quiet, final Map<String, String> esSettings)
+            throws  NodeValidationException {
         try {
-            Bootstrap.init(!daemonize, pidFile, esSettings);
+            Bootstrap.init(!daemonize, pidFile, quiet, esSettings);
         } catch (BootstrapException | RuntimeException e) {
             // format exceptions to the console in a special way
             // to avoid 2MB stacktraces from guice, etc.

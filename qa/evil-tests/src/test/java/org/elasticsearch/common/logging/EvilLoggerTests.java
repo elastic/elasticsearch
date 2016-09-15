@@ -27,6 +27,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.appender.CountingNoOpAppender;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -34,8 +35,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import javax.management.MBeanServerPermission;
-
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessControlException;
@@ -46,6 +48,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class EvilLoggerTests extends ESTestCase {
 
@@ -108,6 +111,35 @@ public class EvilLoggerTests extends ESTestCase {
         assertThat(countingNoOpAppender.getName(), equalTo("counting_no_op"));
     }
 
+    public void testPrefixLogger() throws IOException, IllegalAccessException {
+        setupLogging("prefix");
+
+        final String prefix = randomBoolean() ? null : randomAsciiOfLength(16);
+        final Logger logger = Loggers.getLogger("prefix", prefix);
+        logger.info("test");
+        logger.info("{}", "test");
+        final Exception e = new Exception("exception");
+        logger.info(new ParameterizedMessage("{}", "test"), e);
+
+        final String path = System.getProperty("es.logs") + ".log";
+        final List<String> events = Files.readAllLines(PathUtils.get(path));
+
+        final StringWriter sw = new StringWriter();
+        final PrintWriter pw = new PrintWriter(sw);
+        e.printStackTrace(pw);
+        final int stackTraceLength = sw.toString().split(System.getProperty("line.separator")).length;
+        final int expectedLogLines = 3;
+        assertThat(events.size(), equalTo(expectedLogLines + stackTraceLength));
+        for (int i = 0; i < expectedLogLines; i++) {
+            if (prefix == null) {
+                assertThat(events.get(i), startsWith("test"));
+            } else {
+                assertThat(events.get(i), startsWith("[" + prefix + "] test"));
+            }
+        }
+    }
+
+
     public void testLog4jShutdownHack() {
         final AtomicBoolean denied = new AtomicBoolean();
         final SecurityManager sm = System.getSecurityManager();
@@ -115,26 +147,24 @@ public class EvilLoggerTests extends ESTestCase {
             System.setSecurityManager(new SecurityManager() {
                 @Override
                 public void checkPermission(Permission perm) {
-                    if (perm instanceof RuntimePermission && "setSecurityManager".equals(perm.getName())) {
-                        // so we can restore the security manager at the end of the test
-                        return;
-                    }
+                    // just grant all permissions to Log4j, except we deny MBeanServerPermission
+                    // "createMBeanServer" as this will trigger the Log4j bug
                     if (perm instanceof MBeanServerPermission && "createMBeanServer".equals(perm.getName())) {
                         // without the hack in place, Log4j will try to get an MBean server which we will deny
                         // with the hack in place, this permission should never be requested by Log4j
                         denied.set(true);
                         throw new AccessControlException("denied");
                     }
-                    super.checkPermission(perm);
                 }
 
                 @Override
                 public void checkPropertyAccess(String key) {
-                    // so that Log4j can check if its usage of JMX is disabled or not
-                    if ("log4j2.disable.jmx".equals(key)) {
-                        return;
-                    }
-                    super.checkPropertyAccess(key);
+                    /*
+                     * grant access to all properties; this is so that Log4j can check if its usage
+                     * of JMX is disabled or not by reading log4j2.disable.jmx but there are other
+                     * properties that Log4j will try to read as well and its simpler to just grant
+                     * them all
+                     */
                 }
             });
 

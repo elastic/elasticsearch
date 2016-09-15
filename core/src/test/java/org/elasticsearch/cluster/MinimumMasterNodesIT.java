@@ -31,7 +31,6 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -65,7 +64,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 @ESIntegTestCase.SuppressLocalMode
-@TestLogging("_root:DEBUG,cluster.service:TRACE,discovery.zen:TRACE")
+@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.discovery.zen:TRACE")
 public class MinimumMasterNodesIT extends ESIntegTestCase {
 
     @Override
@@ -364,7 +363,6 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     public void testCanNotPublishWithoutMinMastNodes() throws Exception {
         Settings settings = Settings.builder()
                 .put("discovery.type", "zen")
-                .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1h") // disable it
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
                 .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "100ms") // speed things up
@@ -379,7 +377,6 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
             new TwoPartitions(Collections.singleton(master), otherNodes),
             new NetworkDelay(TimeValue.timeValueMinutes(1)));
         internalCluster().setDisruptionScheme(partition);
-        partition.startDisrupting();
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> failure = new AtomicReference<>();
@@ -393,6 +390,8 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                logger.debug("--> starting the disruption, preventing cluster state publishing");
+                partition.startDisrupting();
                 MetaData.Builder metaData = MetaData.builder(currentState.metaData()).persistentSettings(
                         Settings.builder().put(currentState.metaData().persistentSettings()).put("_SHOULD_NOT_BE_THERE_", true).build()
                 );

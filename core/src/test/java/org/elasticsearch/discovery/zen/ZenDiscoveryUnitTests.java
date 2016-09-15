@@ -19,7 +19,9 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -35,18 +37,18 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateActionTests.AssertingAckListener;
-import org.elasticsearch.discovery.zen.publish.PublishClusterStateActionTests.MockNode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -55,14 +57,11 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.discovery.zen.ZenDiscovery.shouldIgnoreOrRejectNewClusterState;
 import static org.elasticsearch.discovery.zen.elect.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
-import static org.elasticsearch.discovery.zen.publish.PublishClusterStateActionTests.createMockNode;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class ZenDiscoveryUnitTests extends ESTestCase {
 
     public void testShouldIgnoreNewClusterState() {
@@ -154,59 +153,76 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         Settings settings = Settings.builder()
                                 .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.toString(minMasterNodes)).build();
 
-        Map<String, MockNode> nodes = new HashMap<>();
-        ZenDiscovery zenDiscovery = null;
-        ClusterService clusterService = null;
+        ArrayList<Closeable> toClose = new ArrayList<>();
         try {
             Set<DiscoveryNode> expectedFDNodes = null;
-            // create master node and its mocked up services
-            MockNode master = createMockNode("master", settings, null, threadPool, logger, nodes).setAsMaster();
-            ClusterState state = master.clusterState; // initial cluster state
 
+            final MockTransportService masterTransport = MockTransportService.local(settings, Version.CURRENT, threadPool);
+            masterTransport.start();
+            DiscoveryNode masterNode = new DiscoveryNode("master",  masterTransport.boundAddress().publishAddress(), Version.CURRENT);
+            toClose.add(masterTransport);
+            masterTransport.setLocalNode(masterNode);
+            ClusterState state = ClusterStateCreationUtils.state(masterNode, masterNode, masterNode);
             // build the zen discovery and cluster service
-            clusterService = createClusterService(threadPool, master.discoveryNode);
-            setState(clusterService, state);
-            zenDiscovery = buildZenDiscovery(settings, master, clusterService, threadPool);
+            ClusterService masterClusterService = createClusterService(threadPool, masterNode);
+            toClose.add(masterClusterService);
+            // TODO: clustername shouldn't be stored twice in cluster service, but for now, work around it
+            state = ClusterState.builder(masterClusterService.getClusterName()).nodes(state.nodes()).build();
+            setState(masterClusterService, state);
+            ZenDiscovery masterZen = buildZenDiscovery(settings, masterTransport, masterClusterService, threadPool);
+            toClose.add(masterZen);
+            masterTransport.acceptIncomingRequests();
+
+            final MockTransportService otherTransport = MockTransportService.local(settings, Version.CURRENT, threadPool);
+            otherTransport.start();
+            toClose.add(otherTransport);
+            DiscoveryNode otherNode = new DiscoveryNode("other", otherTransport.boundAddress().publishAddress(), Version.CURRENT);
+            otherTransport.setLocalNode(otherNode);
+            final ClusterState otherState = ClusterState.builder(masterClusterService.getClusterName())
+                .nodes(DiscoveryNodes.builder().add(otherNode).localNodeId(otherNode.getId())).build();
+            ClusterService otherClusterService = createClusterService(threadPool, masterNode);
+            toClose.add(otherClusterService);
+            setState(otherClusterService, otherState);
+            ZenDiscovery otherZen = buildZenDiscovery(settings, otherTransport, otherClusterService, threadPool);
+            toClose.add(otherZen);
+            otherTransport.acceptIncomingRequests();
+
+
+            masterTransport.connectToNode(otherNode);
+            otherTransport.connectToNode(masterNode);
 
             // a new cluster state with a new discovery node (we will test if the cluster state
             // was updated by the presence of this node in NodesFaultDetection)
-            MockNode newNode = createMockNode("new_node", settings, null, threadPool, logger, nodes);
-            ClusterState newState = ClusterState.builder(state).incrementVersion().nodes(
-                DiscoveryNodes.builder(state.nodes()).add(newNode.discoveryNode).masterNodeId(master.discoveryNode.getId())
+            ClusterState newState = ClusterState.builder(masterClusterService.state()).incrementVersion().nodes(
+                DiscoveryNodes.builder(state.nodes()).add(otherNode).masterNodeId(masterNode.getId())
             ).build();
 
             try {
                 // publishing a new cluster state
                 ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent("testing", newState, state);
                 AssertingAckListener listener = new AssertingAckListener(newState.nodes().getSize() - 1);
-                expectedFDNodes = zenDiscovery.getFaultDetectionNodes();
-                zenDiscovery.publish(clusterChangedEvent, listener);
+                expectedFDNodes = masterZen.getFaultDetectionNodes();
+                masterZen.publish(clusterChangedEvent, listener);
                 listener.await(1, TimeUnit.HOURS);
                 // publish was a success, update expected FD nodes based on new cluster state
-                expectedFDNodes = fdNodesForState(newState, master.discoveryNode);
+                expectedFDNodes = fdNodesForState(newState, masterNode);
             } catch (Discovery.FailedToCommitClusterStateException e) {
                 // not successful, so expectedFDNodes above should remain what it was originally assigned
                 assertEquals(3, minMasterNodes); // ensure min master nodes is the higher value, otherwise we shouldn't fail
             }
 
-            assertEquals(expectedFDNodes, zenDiscovery.getFaultDetectionNodes());
+            assertEquals(expectedFDNodes, masterZen.getFaultDetectionNodes());
         } finally {
-            // clean close of transport service and publish action for each node
-            zenDiscovery.close();
-            clusterService.close();
-            for (MockNode curNode : nodes.values()) {
-                curNode.action.close();
-                curNode.service.close();
-            }
+            IOUtils.close(toClose);
             terminate(threadPool);
         }
     }
 
-    private ZenDiscovery buildZenDiscovery(Settings settings, MockNode master, ClusterService clusterService, ThreadPool threadPool) {
+    private ZenDiscovery buildZenDiscovery(Settings settings, TransportService service, ClusterService clusterService, ThreadPool threadPool) {
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ZenPingService zenPingService = new ZenPingService(settings, Collections.emptySet());
         ElectMasterService electMasterService = new ElectMasterService(settings);
-        ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, master.service, clusterService,
+        ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service, clusterService,
                                                         clusterSettings, zenPingService, electMasterService);
         zenDiscovery.start();
         return zenDiscovery;

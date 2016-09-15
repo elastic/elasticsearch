@@ -107,7 +107,7 @@ class Elasticsearch extends SettingCommand {
     }
 
     void init(final boolean daemonize, final Path pidFile, final boolean quiet, final Map<String, String> esSettings)
-            throws  NodeValidationException {
+        throws NodeValidationException, UserException {
         try {
             Bootstrap.init(!daemonize, pidFile, quiet, esSettings);
         } catch (BootstrapException | RuntimeException e) {

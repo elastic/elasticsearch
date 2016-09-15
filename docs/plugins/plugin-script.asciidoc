@@ -94,7 +94,7 @@ sudo bin/elasticsearch-plugin list
 -----------------------------------
 
 Alternatively, use the {ref}/cluster-nodes-info.html[node-info API] to find
-out which plugins are installed on each node in the cluster
+out which plugins are installed on each node in the cluster. Using the verbose parameter will also reveal plugin versions.
 
 [float]
 === Removing plugins

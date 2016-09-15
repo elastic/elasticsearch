@@ -236,7 +236,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
         temporalResponses.clear();
     }
 
-    public PingResponse[] pingAndWait(TimeValue duration) {
+    /** For testing purpose **/
+    PingResponse[] pingAndWait(TimeValue duration) {
         final AtomicReference<PingResponse[]> response = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
         ping(pings -> {
@@ -335,7 +336,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
         }
     }
 
-
     void sendPings(final TimeValue timeout, @Nullable TimeValue waitTime, final SendPingsHandler sendPingsHandler) {
         final UnicastPingRequest pingRequest = new UnicastPingRequest();
         pingRequest.id = sendPingsHandler.id();
@@ -399,7 +399,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
                         logger.trace("replacing {} with temp node {}", nodeToSend, tempNode);
                         nodeToSend = tempNode;
                     }
-                    sendPingsHandler.nodeToDisconnect.add(nodeToSend);
                 }
                 // fork the connection to another thread
                 final DiscoveryNode finalNodeToSend = nodeToSend;
@@ -415,6 +414,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
                             if (!nodeFoundByAddress) {
                                 logger.trace("[{}] connecting (light) to {}", sendPingsHandler.id(), finalNodeToSend);
                                 transportService.connectToNodeLightAndHandshake(finalNodeToSend, timeout.getMillis());
+
+                                logger.trace("[{}] add node {} to the list of nodes to disconnect", sendPingsHandler.id(), finalNodeToSend);
+                                sendPingsHandler.nodeToDisconnect.add(finalNodeToSend);
                             } else {
                                 logger.trace("[{}] connecting to {}", sendPingsHandler.id(), finalNodeToSend);
                                 transportService.connectToNode(finalNodeToSend);

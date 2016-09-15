@@ -47,6 +47,7 @@ import org.elasticsearch.discovery.BlockingClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
+import org.elasticsearch.discovery.zen.publish.PendingClusterStateStats;
 
 import java.util.HashSet;
 import java.util.Optional;
@@ -281,7 +282,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
 
     @Override
     public DiscoveryStats stats() {
-        return new DiscoveryStats(null);
+        return new DiscoveryStats((PendingClusterStateStats)null);
     }
 
     @Override

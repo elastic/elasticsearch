@@ -48,7 +48,7 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
 
     public static class Defaults extends BaseGeoPointFieldMapper.Defaults {
 
-        public static final GeoPointFieldType FIELD_TYPE = new GeoPointFieldType();
+        public static final GeoPointFieldType FIELD_TYPE = new LegacyGeoPointFieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
@@ -110,7 +110,10 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
     }
 
     @Override
-    protected void parse(ParseContext context, GeoPoint point, String geoHash) throws IOException {
+    protected void parse(ParseContext originalContext, GeoPoint point, String geoHash) throws IOException {
+        // Geopoint fields, by default, will not be included in _all
+        final ParseContext context = originalContext.setIncludeInAllDefault(false);
+
         if (ignoreMalformed.value() == false) {
             if (point.lat() > 90.0 || point.lat() < -90.0) {
                 throw new IllegalArgumentException("illegal latitude value [" + point.lat() + "] for " + name());
@@ -126,5 +129,10 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
             context.doc().add(new GeoPointField(fieldType().name(), point.lat(), point.lon(), fieldType()));
         }
         super.parse(context, point, geoHash);
+    }
+
+    @Override
+    public LegacyGeoPointFieldType fieldType() {
+        return (LegacyGeoPointFieldType) super.fieldType();
     }
 }

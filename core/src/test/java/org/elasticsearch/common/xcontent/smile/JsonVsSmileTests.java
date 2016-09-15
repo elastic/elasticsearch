@@ -48,8 +48,10 @@ public class JsonVsSmileTests extends ESTestCase {
         xsonGen.writeStringField("test", "value");
         jsonGen.writeStringField("test", "value");
 
-        xsonGen.writeArrayFieldStart("arr");
-        jsonGen.writeArrayFieldStart("arr");
+        xsonGen.writeFieldName("arr");
+        xsonGen.writeStartArray();
+        jsonGen.writeFieldName("arr");
+        jsonGen.writeStartArray();
         xsonGen.writeNumber(1);
         jsonGen.writeNumber(1);
         xsonGen.writeNull();

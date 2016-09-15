@@ -112,7 +112,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
 
         response = client().prepareSearch("test-idx")
-                .setPostFilter(QueryBuilders.geoDistanceRangeQuery("field.point", 42.0, 51.0).to("1km"))
+                .setPostFilter(QueryBuilders.geoDistanceQuery("field.point").point(42.0, 51.0).distance("1km"))
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) 1));

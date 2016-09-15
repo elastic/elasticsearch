@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.search.GeoPointDistanceQuery;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
@@ -155,18 +157,21 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     private void assertGeoPointQuery(GeoDistanceQueryBuilder queryBuilder, Query query) throws IOException {
-        assertThat(query, instanceOf(GeoPointDistanceQuery.class));
-        GeoPointDistanceQuery geoQuery = (GeoPointDistanceQuery) query;
-        assertThat(geoQuery.getField(), equalTo(queryBuilder.fieldName()));
-        if (queryBuilder.point() != null) {
-            assertThat(geoQuery.getCenterLat(), equalTo(queryBuilder.point().lat()));
-            assertThat(geoQuery.getCenterLon(), equalTo(queryBuilder.point().lon()));
-        }
-        double distance = queryBuilder.distance();
-        if (queryBuilder.geoDistance() != null) {
-            distance = queryBuilder.geoDistance().normalize(distance, DistanceUnit.DEFAULT);
-            distance = org.elasticsearch.common.geo.GeoUtils.maxRadialDistance(queryBuilder.point(), distance);
-            assertThat(geoQuery.getRadiusMeters(), closeTo(distance, GeoUtils.TOLERANCE));
+        Version version = createShardContext().indexVersionCreated();
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            assertThat(query, instanceOf(GeoPointDistanceQuery.class));
+            GeoPointDistanceQuery geoQuery = (GeoPointDistanceQuery) query;
+            assertThat(geoQuery.getField(), equalTo(queryBuilder.fieldName()));
+            if (queryBuilder.point() != null) {
+                assertThat(geoQuery.getCenterLat(), equalTo(queryBuilder.point().lat()));
+                assertThat(geoQuery.getCenterLon(), equalTo(queryBuilder.point().lon()));
+            }
+            double distance = queryBuilder.distance();
+            if (queryBuilder.geoDistance() != null) {
+                distance = queryBuilder.geoDistance().normalize(distance, DistanceUnit.DEFAULT);
+                distance = org.elasticsearch.common.geo.GeoUtils.maxRadialDistance(queryBuilder.point(), distance);
+                assertThat(geoQuery.getRadiusMeters(), closeTo(distance, GeoUtils.TOLERANCE));
+            }
         }
     }
 
@@ -345,7 +350,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
             assertThat(q.lon(), closeTo(lon, 1E-5D));
             assertThat(q.minInclusiveDistance(), equalTo(Double.NEGATIVE_INFINITY));
             assertThat(q.maxInclusiveDistance(), closeTo(distanceUnit.convert(distance, DistanceUnit.MILES), 1E-5D));
-        } else {
+        } else if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             GeoPointDistanceQuery q = (GeoPointDistanceQuery) parsedQuery;
             assertThat(q.getField(), equalTo(GEO_POINT_FIELD_NAME));
             assertThat(q.getCenterLat(), closeTo(lat, 1E-5D));

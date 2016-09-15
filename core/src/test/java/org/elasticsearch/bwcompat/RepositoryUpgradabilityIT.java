@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 // this test sometimes fails in recovery when the recovery is reset, increasing the logging level to help debug
-@TestLogging("indices.recovery:DEBUG")
+@TestLogging("org.elasticsearch.indices.recovery:DEBUG")
 public class RepositoryUpgradabilityIT extends AbstractSnapshotIntegTestCase {
 
     /**

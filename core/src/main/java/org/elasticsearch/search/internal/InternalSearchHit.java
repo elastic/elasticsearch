@@ -39,7 +39,6 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
-import org.elasticsearch.search.internal.InternalSearchHits.StreamContext.ShardTargetType;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -554,18 +553,14 @@ public class InternalSearchHit implements SearchHit {
         return builder;
     }
 
-    public static InternalSearchHit readSearchHit(StreamInput in, InternalSearchHits.StreamContext context) throws IOException {
+    public static InternalSearchHit readSearchHit(StreamInput in) throws IOException {
         InternalSearchHit hit = new InternalSearchHit();
-        hit.readFrom(in, context);
+        hit.readFrom(in);
         return hit;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        readFrom(in, InternalSearchHits.streamContext().streamShardTarget(ShardTargetType.STREAM));
-    }
-
-    public void readFrom(StreamInput in, InternalSearchHits.StreamContext context) throws IOException {
         score = in.readFloat();
         id = in.readOptionalText();
         type = in.readOptionalText();
@@ -644,26 +639,13 @@ public class InternalSearchHit implements SearchHit {
                 matchedQueries[i] = in.readString();
             }
         }
-
-        if (context.streamShardTarget() == ShardTargetType.STREAM) {
-            if (in.readBoolean()) {
-                shard = new SearchShardTarget(in);
-            }
-        } else if (context.streamShardTarget() == ShardTargetType.LOOKUP) {
-            int lookupId = in.readVInt();
-            if (lookupId > 0) {
-                shard = context.handleShardLookup().get(lookupId);
-            }
-        }
-
+        shard = in.readOptionalWriteable(SearchShardTarget::new);
         size = in.readVInt();
         if (size > 0) {
             innerHits = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
                 String key = in.readString();
-                ShardTargetType shardTarget = context.streamShardTarget();
-                InternalSearchHits value = InternalSearchHits.readSearchHits(in, context.streamShardTarget(ShardTargetType.NO_STREAM));
-                context.streamShardTarget(shardTarget);
+                InternalSearchHits value = InternalSearchHits.readSearchHits(in);
                 innerHits.put(key, value);
             }
         }
@@ -671,10 +653,6 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writeTo(out, InternalSearchHits.streamContext().streamShardTarget(ShardTargetType.STREAM));
-    }
-
-    public void writeTo(StreamOutput out, InternalSearchHits.StreamContext context) throws IOException {
         out.writeFloat(score);
         out.writeOptionalText(id);
         out.writeOptionalText(type);
@@ -752,31 +730,14 @@ public class InternalSearchHit implements SearchHit {
                 out.writeString(matchedFilter);
             }
         }
-
-        if (context.streamShardTarget() == ShardTargetType.STREAM) {
-            if (shard == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                shard.writeTo(out);
-            }
-        } else if (context.streamShardTarget() == ShardTargetType.LOOKUP) {
-            if (shard == null) {
-                out.writeVInt(0);
-            } else {
-                out.writeVInt(context.shardHandleLookup().get(shard));
-            }
-        }
-
+        out.writeOptionalWriteable(shard);
         if (innerHits == null) {
             out.writeVInt(0);
         } else {
             out.writeVInt(innerHits.size());
             for (Map.Entry<String, InternalSearchHits> entry : innerHits.entrySet()) {
                 out.writeString(entry.getKey());
-                ShardTargetType shardTarget = context.streamShardTarget();
-                entry.getValue().writeTo(out, context.streamShardTarget(ShardTargetType.NO_STREAM));
-                context.streamShardTarget(shardTarget);
+                entry.getValue().writeTo(out);
             }
         }
     }

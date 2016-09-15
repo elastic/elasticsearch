@@ -41,6 +41,8 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -92,6 +94,14 @@ public class NodesFaultDetection extends FaultDetection {
     }
 
     /**
+     * Gets the current set of nodes involved in node fault detection.
+     * NB: For testing purposes.
+     */
+    public Set<DiscoveryNode> getNodes() {
+        return Collections.unmodifiableSet(nodesFD.keySet());
+    }
+
+    /**
      * make sure that nodes in clusterState are pinged. Any pinging to nodes which are not
      * part of the cluster will be stopped
      */
@@ -129,7 +139,6 @@ public class NodesFaultDetection extends FaultDetection {
     public void close() {
         super.close();
         stop();
-        transportService.removeHandler(PING_ACTION_NAME);
     }
 
     @Override

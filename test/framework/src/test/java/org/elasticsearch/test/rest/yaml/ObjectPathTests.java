@@ -22,8 +22,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
-import org.elasticsearch.test.rest.yaml.Stash;
 
 import java.io.IOException;
 import java.util.HashMap;

@@ -36,7 +36,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -95,7 +94,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
                 ObjectParser.ValueType.OBJECT_ARRAY);
         PARSER.declareField((p, i, c) -> {
             try {
-                i.setFetchSourceContext(FetchSourceContext.parse(c));
+                i.setFetchSourceContext(FetchSourceContext.parse(c.parser()));
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner _source definition", e);
             }
@@ -220,7 +219,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
                 scriptFields.add(new ScriptField(in));
             }
         }
-        fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         if (in.readBoolean()) {
             int size = in.readVInt();
             sorts = new ArrayList<>(size);
@@ -259,7 +258,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
                 scriptField.writeTo(out);
             }
         }
-        out.writeOptionalStreamable(fetchSourceContext);
+        out.writeOptionalWriteable(fetchSourceContext);
         boolean hasSorts = sorts != null;
         out.writeBoolean(hasSorts);
         if (hasSorts) {
@@ -572,12 +571,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
             innerHitsContext.storedFieldsContext(storedFieldsContext);
         }
         if (docValueFields != null) {
-            DocValueFieldsContext docValueFieldsContext = innerHitsContext
-                    .getFetchSubPhaseContext(DocValueFieldsFetchSubPhase.CONTEXT_FACTORY);
-            for (String field : docValueFields) {
-                docValueFieldsContext.add(new DocValueFieldsContext.DocValueField(field));
-            }
-            docValueFieldsContext.setHitExecutionNeeded(true);
+            innerHitsContext.docValueFieldsContext(new DocValueFieldsContext(docValueFields));
         }
         if (scriptFields != null) {
             for (ScriptField field : scriptFields) {

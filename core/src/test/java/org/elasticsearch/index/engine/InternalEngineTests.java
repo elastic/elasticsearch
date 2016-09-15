@@ -61,8 +61,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.PrefixMessageFactory;
-import org.elasticsearch.common.logging.TestLoggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -1511,18 +1509,18 @@ public class InternalEngineTests extends ESTestCase {
         public boolean sawIndexWriterIFDMessage;
 
         public MockAppender(final String name) throws IllegalAccessException {
-            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], true, null, null), null);
+            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
         }
 
         @Override
         public void append(LogEvent event) {
             final String formattedMessage = event.getMessage().getFormattedMessage();
-            if (event.getLevel() == Level.TRACE && formattedMessage.contains("[index][1] ")) {
-                if (event.getLoggerName().endsWith("lucene.iw") &&
+            if (event.getLevel() == Level.TRACE && event.getMarker().getName().contains("[index][1] ")) {
+                if (event.getLoggerName().endsWith(".IW") &&
                     formattedMessage.contains("IW: apply all deletes during flush")) {
                     sawIndexWriterMessage = true;
                 }
-                if (event.getLoggerName().endsWith("lucene.iw.ifd")) {
+                if (event.getLoggerName().endsWith(".IFD")) {
                     sawIndexWriterIFDMessage = true;
                 }
             }
@@ -1538,7 +1536,7 @@ public class InternalEngineTests extends ESTestCase {
 
         Logger rootLogger = LogManager.getRootLogger();
         Level savedLevel = rootLogger.getLevel();
-        TestLoggers.addAppender(rootLogger, mockAppender);
+        Loggers.addAppender(rootLogger, mockAppender);
         Loggers.setLevel(rootLogger, Level.DEBUG);
         rootLogger = LogManager.getRootLogger();
 
@@ -1556,8 +1554,8 @@ public class InternalEngineTests extends ESTestCase {
             assertTrue(mockAppender.sawIndexWriterMessage);
 
         } finally {
-            TestLoggers.removeAppender(rootLogger, mockAppender);
-            Loggers.setLevel(rootLogger, savedLevel.toString());
+            Loggers.removeAppender(rootLogger, mockAppender);
+            Loggers.setLevel(rootLogger, savedLevel);
         }
     }
 
@@ -1566,18 +1564,9 @@ public class InternalEngineTests extends ESTestCase {
         assumeFalse("who tests the tester?", VERBOSE);
         MockAppender mockAppender = new MockAppender("testIndexWriterIFDInfoStream");
 
-        final Logger iwIFDLogger;
-        if (LogManager.getContext(false).hasLogger("org.elasticsearch.index.engine.lucene.iw.ifd", new PrefixMessageFactory())) {
-            // Works when running this test inside Intellij:
-            iwIFDLogger = LogManager.getLogger("org.elasticsearch.index.engine.lucene.iw.ifd");
-            assertNotNull(iwIFDLogger);
-        } else {
-            // Works when running this test from command line:
-            assertTrue(LogManager.getContext(false).hasLogger("index.engine.lucene.iw.ifd", new PrefixMessageFactory()));
-            iwIFDLogger = LogManager.getLogger("index.engine.lucene.iw.ifd");
-        }
+        final Logger iwIFDLogger = Loggers.getLogger("org.elasticsearch.index.engine.Engine.IFD");
 
-        TestLoggers.addAppender(iwIFDLogger, mockAppender);
+        Loggers.addAppender(iwIFDLogger, mockAppender);
         Loggers.setLevel(iwIFDLogger, Level.DEBUG);
 
         try {
@@ -1596,7 +1585,7 @@ public class InternalEngineTests extends ESTestCase {
             assertTrue(mockAppender.sawIndexWriterIFDMessage);
 
         } finally {
-            TestLoggers.removeAppender(iwIFDLogger, mockAppender);
+            Loggers.removeAppender(iwIFDLogger, mockAppender);
             Loggers.setLevel(iwIFDLogger, (Level) null);
         }
     }

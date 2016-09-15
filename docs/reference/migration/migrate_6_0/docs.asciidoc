@@ -1,0 +1,7 @@
+[[breaking_60_docs_changes]]
+=== Document API changes
+
+==== version type 'force' removed
+
+Document modification operations may no longer specify the `version_type` of
+`force` to override any previous version checks.

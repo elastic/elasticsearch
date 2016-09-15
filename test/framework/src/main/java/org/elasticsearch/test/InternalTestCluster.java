@@ -83,6 +83,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
@@ -825,7 +826,11 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         void startNode() {
-            node.start();
+            try {
+                node.start();
+            } catch (NodeValidationException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         void closeNode() throws IOException {

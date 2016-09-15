@@ -28,11 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -87,7 +82,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testIncludes() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_source").field("includes", new String[]{"path1*"}).endObject()
+            .startObject("_source").array("includes", new String[]{"path1*"}).endObject()
             .endObject().endObject().string();
 
         DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
@@ -108,7 +103,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testExcludes() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_source").field("excludes", new String[]{"path1*"}).endObject()
+            .startObject("_source").array("excludes", new String[]{"path1*"}).endObject()
             .endObject().endObject().string();
 
         DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));

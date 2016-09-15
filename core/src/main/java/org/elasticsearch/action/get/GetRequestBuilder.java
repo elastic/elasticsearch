@@ -88,8 +88,8 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      * Explicitly specify the fields that will be returned. By default, the <tt>_source</tt>
      * field will be returned.
      */
-    public GetRequestBuilder setFields(String... fields) {
-        request.fields(fields);
+    public GetRequestBuilder setStoredFields(String... fields) {
+        request.storedFields(fields);
         return this;
     }
 
@@ -152,11 +152,6 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
 
     public GetRequestBuilder setRealtime(boolean realtime) {
         request.realtime(realtime);
-        return this;
-    }
-
-    public GetRequestBuilder setIgnoreErrorsOnGeneratedFields(Boolean ignoreErrorsOnGeneratedFields) {
-        request.ignoreErrorsOnGeneratedFields(ignoreErrorsOnGeneratedFields);
         return this;
     }
 

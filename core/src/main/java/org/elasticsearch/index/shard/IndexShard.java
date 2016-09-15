@@ -48,7 +48,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
@@ -116,9 +115,9 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.search.suggest.completion.CompletionFieldStats;
@@ -135,7 +134,6 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -368,60 +366,46 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws IOException                  if shard state could not be persisted
      */
     public void updateRoutingEntry(final ShardRouting newRouting) throws IOException {
-        final ShardRouting currentRouting = this.shardRouting;
-        if (!newRouting.shardId().equals(shardId())) {
-            throw new IllegalArgumentException("Trying to set a routing entry with shardId " + newRouting.shardId() + " on a shard with shardId " + shardId() + "");
-        }
-        if ((currentRouting == null || newRouting.isSameAllocation(currentRouting)) == false) {
-            throw new IllegalArgumentException("Trying to set a routing entry with a different allocation. Current " + currentRouting + ", new " + newRouting);
-        }
-        if (currentRouting != null) {
-            if (!newRouting.primary() && currentRouting.primary()) {
-                logger.warn("suspect illegal state: trying to move shard from primary mode to replica mode");
-            }
-            // if its the same routing, return
-            if (currentRouting.equals(newRouting)) {
-                return;
-            }
-        }
+        final ShardRouting currentRouting;
+        synchronized (mutex) {
+            currentRouting = this.shardRouting;
 
-        if (state == IndexShardState.POST_RECOVERY) {
-            // if the state is started or relocating (cause it might move right away from started to relocating)
-            // then move to STARTED
-            if (newRouting.state() == ShardRoutingState.STARTED || newRouting.state() == ShardRoutingState.RELOCATING) {
+            if (!newRouting.shardId().equals(shardId())) {
+                throw new IllegalArgumentException("Trying to set a routing entry with shardId " + newRouting.shardId() + " on a shard with shardId " + shardId() + "");
+            }
+            if ((currentRouting == null || newRouting.isSameAllocation(currentRouting)) == false) {
+                throw new IllegalArgumentException("Trying to set a routing entry with a different allocation. Current " + currentRouting + ", new " + newRouting);
+            }
+            if (currentRouting != null && currentRouting.primary() && newRouting.primary() == false) {
+                throw new IllegalArgumentException("illegal state: trying to move shard from primary mode to replica mode. Current "
+                    + currentRouting + ", new " + newRouting);
+            }
+
+            if (state == IndexShardState.POST_RECOVERY && newRouting.active()) {
+                assert currentRouting.active() == false : "we are in POST_RECOVERY, but our shard routing is active " + currentRouting;
                 // we want to refresh *before* we move to internal STARTED state
                 try {
                     getEngine().refresh("cluster_state_started");
                 } catch (Exception e) {
                     logger.debug("failed to refresh due to move to cluster wide started", e);
                 }
-
-                boolean movedToStarted = false;
-                synchronized (mutex) {
-                    // do the check under a mutex, so we make sure to only change to STARTED if in POST_RECOVERY
-                    if (state == IndexShardState.POST_RECOVERY) {
-                        changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
-                        movedToStarted = true;
-                    } else {
-                        logger.debug("state [{}] not changed, not in POST_RECOVERY, global state is [{}]", state, newRouting.state());
-                    }
-                }
-                if (movedToStarted) {
-                    indexEventListener.afterIndexShardStarted(this);
-                }
+                changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
+            } else if (state == IndexShardState.RELOCATED &&
+                (newRouting.relocating() == false || newRouting.equalsIgnoringMetaData(currentRouting) == false)) {
+                // if the shard is marked as RELOCATED we have to fail when any changes in shard routing occur (e.g. due to recovery
+                // failure / cancellation). The reason is that at the moment we cannot safely move back to STARTED without risking two
+                // active primaries.
+                throw new IndexShardRelocatedException(shardId(), "Shard is marked as relocated, cannot safely move to state " + newRouting.state());
             }
+            this.shardRouting = newRouting;
+            persistMetadata(newRouting, currentRouting);
         }
-
-        if (state == IndexShardState.RELOCATED &&
-            (newRouting.relocating() == false || newRouting.equalsIgnoringMetaData(currentRouting) == false)) {
-            // if the shard is marked as RELOCATED we have to fail when any changes in shard routing occur (e.g. due to recovery
-            // failure / cancellation). The reason is that at the moment we cannot safely move back to STARTED without risking two
-            // active primaries.
-            throw new IndexShardRelocatedException(shardId(), "Shard is marked as relocated, cannot safely move to state " + newRouting.state());
+        if (currentRouting != null && currentRouting.active() == false && newRouting.active()) {
+            indexEventListener.afterIndexShardStarted(this);
         }
-        this.shardRouting = newRouting;
-        indexEventListener.shardRoutingChanged(this, currentRouting, newRouting);
-        persistMetadata(newRouting, currentRouting);
+        if (newRouting.equals(currentRouting) == false) {
+            indexEventListener.shardRoutingChanged(this, currentRouting, newRouting);
+        }
     }
 
     /**
@@ -451,6 +435,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void relocated(String reason) throws IllegalIndexShardStateException, InterruptedException {
+        assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try {
             indexShardOperationsLock.blockOperations(30, TimeUnit.MINUTES, () -> {
                 // no shard operation locks are being held here, move state from started to relocated
@@ -459,6 +444,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 synchronized (mutex) {
                     if (state != IndexShardState.STARTED) {
                         throw new IndexShardNotStartedException(shardId, state);
+                    }
+                    // if the master cancelled the recovery, the target will be removed
+                    // and the recovery will stopped.
+                    // However, it is still possible that we concurrently end up here
+                    // and therefore have to protect we don't mark the shard as relocated when
+                    // its shard routing says otherwise.
+                    if (shardRouting.relocating() == false) {
+                        throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED,
+                            ": shard is no longer relocating " + shardRouting);
                     }
                     changeState(IndexShardState.RELOCATED, reason);
                 }

@@ -10,13 +10,6 @@ setup:
             location: "test_repo_status_1_loc"
 
 ---
-teardown:
-
-  - do:
-      snapshot.delete_repository:
-        repository: test_repo_status_1
-
----
 "Get snapshot status":
 
   - do:
@@ -39,7 +32,7 @@ teardown:
         snapshot: test_snapshot
 
   - is_true: snapshots
-  
+
 ---
 "Get missing snapshot status throws an exception":
 
@@ -48,7 +41,7 @@ teardown:
       snapshot.status:
         repository: test_repo_status_1
         snapshot: test_nonexistent_snapshot
-   
+
 ---
 "Get missing snapshot status succeeds when ignoreUnavailable is true":
 

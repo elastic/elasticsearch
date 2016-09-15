@@ -30,6 +30,8 @@ import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
 import org.apache.logging.log4j.core.config.composite.CompositeConfiguration;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfiguration;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationFactory;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
@@ -50,7 +52,7 @@ import java.util.Set;
 
 public class LogConfigurator {
 
-    public static void configure(final Environment environment, final boolean resolveConfig) throws IOException {
+    public static void configure(final Environment environment, final boolean resolveConfig) throws IOException, UserException {
         final Settings settings = environment.settings();
 
         setLogConfigurationSystemProperty(environment, settings);
@@ -75,6 +77,13 @@ public class LogConfigurator {
                     return FileVisitResult.CONTINUE;
                 }
             });
+
+            if (configurations.isEmpty()) {
+                throw new UserException(
+                    ExitCodes.CONFIG,
+                    "no log4j2.properties found; tried [" + environment.configFile() + "] and its subdirectories");
+            }
+
             context.start(new CompositeConfiguration(configurations));
         }
 

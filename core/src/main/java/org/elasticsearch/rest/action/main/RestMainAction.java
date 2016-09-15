@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -55,7 +56,8 @@ public class RestMainAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, RestChannel channel, final Client client) throws Exception {
 
         RestStatus status = RestStatus.OK;
-        if (clusterService.state().blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
+        ClusterState clusterState = clusterService.state();
+        if (clusterState.blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
             status = RestStatus.SERVICE_UNAVAILABLE;
         }
         if (request.method() == RestRequest.Method.HEAD) {
@@ -75,6 +77,7 @@ public class RestMainAction extends BaseRestHandler {
             builder.field("name", settings.get("name"));
         }
         builder.field("cluster_name", clusterName.value());
+        builder.field("cluster_uuid", clusterState.metaData().clusterUUID());
         builder.startObject("version")
                 .field("number", version.number())
                 .field("build_hash", Build.CURRENT.hash())

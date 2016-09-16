@@ -31,6 +31,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTcpTransport;
+import org.elasticsearch.transport.TransportService;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -73,7 +74,7 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
                                     new NoneCircuitBreakerService(),
                                     new NamedWriteableRegistry(Collections.emptyList()),
                                     new NetworkService(Settings.EMPTY, Collections.emptyList()));
-        transportService = new MockTransportService(Settings.EMPTY, transport, threadPool);
+        transportService = new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR);
     }
 
     public void testBuildDynamicNodes() throws Exception {

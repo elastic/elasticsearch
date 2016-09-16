@@ -210,7 +210,8 @@ public class UnicastZenPingTests extends ESTestCase {
                                         Version version) {
         MockTcpTransport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(), new NamedWriteableRegistry(Collections.emptyList()), networkService, version);
-        final TransportService transportService = new TransportService(settings, transport, threadPool);
+        final TransportService transportService = new TransportService(settings, transport, threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR);
         transportService.start();
         transportService.acceptIncomingRequests();
         ConcurrentMap<TransportAddress, AtomicInteger> counters = ConcurrentCollections.newConcurrentMap();

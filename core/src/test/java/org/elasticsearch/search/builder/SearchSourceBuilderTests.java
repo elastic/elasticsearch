@@ -437,8 +437,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 "    }\n" +
                 "  } }";
         try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-            ParsingException e = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent
-                    (createParseContext(parser),
+            ParsingException e = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(createParseContext(parser),
                     searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers));
             assertEquals("[multi_match] malformed query, expected [END_OBJECT] but found [FIELD_NAME]", e.getMessage());
         }

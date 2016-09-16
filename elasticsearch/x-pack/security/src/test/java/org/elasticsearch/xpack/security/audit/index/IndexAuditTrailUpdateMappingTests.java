@@ -16,8 +16,6 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.Before;
 
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.DAILY;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.HOURLY;
@@ -35,8 +33,9 @@ public class IndexAuditTrailUpdateMappingTests extends SecurityIntegTestCase {
     private ThreadPool threadPool;
     private IndexAuditTrail auditor;
 
-    @Before
-    public void setup() {
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
         threadPool = new TestThreadPool("index audit trail update mapping tests");
     }
 
@@ -63,17 +62,13 @@ public class IndexAuditTrailUpdateMappingTests extends SecurityIntegTestCase {
         // default mapping
         GetMappingsResponse response = client().admin().indices().prepareGetMappings(indexName).get();
 
-        try {
-            // start the audit trail which should update the mappings since it is the master
-            auditor.start(true);
+        // start the audit trail which should update the mappings since it is the master
+        auditor.start(true);
 
-            // get the updated mappings
-            GetMappingsResponse updated = client().admin().indices().prepareGetMappings(indexName).get();
-            assertThat(response.mappings().get(indexName).get(IndexAuditTrail.DOC_TYPE), nullValue());
-            assertThat(updated.mappings().get(indexName).get(IndexAuditTrail.DOC_TYPE), notNullValue());
-        } finally {
-            auditor.close();
-        }
+        // get the updated mappings
+        GetMappingsResponse updated = client().admin().indices().prepareGetMappings(indexName).get();
+        assertThat(response.mappings().get(indexName).get(IndexAuditTrail.DOC_TYPE), nullValue());
+        assertThat(updated.mappings().get(indexName).get(IndexAuditTrail.DOC_TYPE), notNullValue());
     }
 
     @Override
@@ -81,13 +76,14 @@ public class IndexAuditTrailUpdateMappingTests extends SecurityIntegTestCase {
         // no-op here because of the shard counter check
     }
 
-    @After
-    public void shutdown() {
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
         if (auditor != null) {
             auditor.stop();
         }
         if (threadPool != null) {
-            threadPool.shutdownNow();
+            terminate(threadPool);
         }
     }
 }

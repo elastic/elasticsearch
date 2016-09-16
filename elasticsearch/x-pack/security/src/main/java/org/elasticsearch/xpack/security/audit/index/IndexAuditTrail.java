@@ -80,6 +80,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -282,33 +283,25 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         }
     }
 
-    public void stop() {
+    public synchronized void stop() {
         if (state.compareAndSet(State.STARTED, State.STOPPING)) {
+            queueConsumer.interrupt();
+        }
+
+        if (state() != State.STOPPED) {
             try {
-                queueConsumer.interrupt();
                 if (bulkProcessor != null) {
-                    bulkProcessor.flush();
+                    if (bulkProcessor.awaitClose(10, TimeUnit.SECONDS) == false) {
+                        logger.warn("index audit trail failed to store all pending events after waiting for 10s");
+                    }
                 }
+            } catch (InterruptedException exc) {
+                Thread.currentThread().interrupt();
             } finally {
-                state.set(State.STOPPED);
-            }
-        }
-    }
-
-    public void close() {
-        if (state.get() != State.STOPPED) {
-            stop();
-        }
-
-        try {
-            if (bulkProcessor != null) {
-                bulkProcessor.close();
-            }
-        } finally {
-            if (indexToRemoteCluster) {
-                if (client != null) {
+                if (indexToRemoteCluster) {
                     client.close();
                 }
+                state.set(State.STOPPED);
             }
         }
     }

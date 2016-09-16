@@ -33,7 +33,6 @@ task oldClusterTest(type: RestIntegTestTask) {
     //numBwcNodes = 2
     numNodes = 2
     clusterName = 'rolling-upgrade'
-    stopNodesOnCompletion = false
   }
   systemProperty 'tests.rest.suite', 'old_cluster'
   systemProperty 'tests.rest.preserve_indices', 'true'
@@ -46,10 +45,10 @@ task mixedClusterTest(type: RestIntegTestTask) {
     clusterName = 'rolling-upgrade'
     unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
     dataDir = "${-> oldClusterTest.nodes[1].dataDir}"
-    stopNodesOnCompletion = false
   }
   systemProperty 'tests.rest.suite', 'mixed_cluster'
   systemProperty 'tests.rest.preserve_indices', 'true'
+  finalizedBy 'oldClusterTest#node0.stop'
 }
 
 task upgradedClusterTest(type: RestIntegTestTask) {
@@ -61,10 +60,9 @@ task upgradedClusterTest(type: RestIntegTestTask) {
     dataDir = "${-> oldClusterTest.nodes[0].dataDir}"
   }
   systemProperty 'tests.rest.suite', 'upgraded_cluster'
+  // only need to kill the mixed cluster tests node here because we explicitly told it to not stop nodes upon completion
+  finalizedBy 'mixedClusterTest#stop'
 }
-
-// only need to kill the mixed cluster tests node here because we explicitly told it to not stop nodes upon completion
-upgradedClusterTest.finalizedBy 'mixedClusterTest#stop'
 
 task integTest {
   dependsOn = [upgradedClusterTest]

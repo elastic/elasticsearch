@@ -62,14 +62,6 @@ class ClusterConfiguration {
     @Input
     boolean debug = false
 
-    /**
-     * Whether to stop the nodes in the cluster upon task completion. The only reason to
-     * set this to false is if you want the nodes in the cluster to hang around and you
-     * will clean them up later by calling the `taskName#nodeX.stop` task explicitly.
-     */
-    @Input
-    boolean stopNodesOnCompletion = true
-
     @Input
     String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
             " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +

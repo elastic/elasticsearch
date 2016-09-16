@@ -173,9 +173,9 @@ class ClusterFormationTasks {
 
         Task start = configureStartTask(taskName(task, node, 'start'), project, setup, node)
 
-        if (node.config.daemonize) {
+        Task stop = configureStopTask(taskName(task, node, 'stop'), project, [], node)
+        if (node.config.daemonize && node.config.stopNodesOnCompletion) {
             // if we are running in the background, make sure to stop the server when the task completes
-            Task stop = configureStopTask(taskName(task, node, 'stop'), project, [], node)
             task.finalizedBy(stop)
         }
         return start

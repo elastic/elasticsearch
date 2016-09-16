@@ -62,6 +62,14 @@ class ClusterConfiguration {
     @Input
     boolean debug = false
 
+    /**
+     * Whether to stop the nodes in the cluster upon task completion. The only reason to
+     * set this to false is if you want the nodes in the cluster to hang around and you
+     * will clean them up later by calling the `taskName#nodeX.stop` task explicitly.
+     */
+    @Input
+    boolean stopNodesOnCompletion = true
+
     @Input
     String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
             " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
@@ -95,8 +103,11 @@ class ClusterConfiguration {
     @Input
     Closure waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
-        ant.echo("==> Current time: " + new Date());
-        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}",
+        ant.echo("==> [${new Date()}] checking health: http://${node.httpUri()}/_cluster/health?wait_for_nodes>=${numNodes}")
+        // checking here for wait_for_nodes to be >= the number of nodes because its possible
+        // this cluster is attempting to connect to nodes created by another task (same cluster name),
+        // so there will be more nodes in that case in the cluster state
+        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes>=${numNodes}",
                 dest: tmpFile.toString(),
                 ignoreerrors: true, // do not fail on error, so logging buffers can be flushed by the wait task
                 retries: 10)

@@ -188,6 +188,13 @@
             <optional>true</optional>
         </dependency>
 
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>securemock</artifactId>
+            <version>1.2</version>
+            <scope>test</scope>
+        </dependency>
+
         <!-- remove this for java 8 -->
         <dependency>
             <groupId>com.twitter</groupId>

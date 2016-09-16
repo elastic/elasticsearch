@@ -83,6 +83,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
@@ -825,7 +826,11 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         void startNode() {
-            node.start();
+            try {
+                node.start();
+            } catch (NodeValidationException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         void closeNode() throws IOException {
@@ -1655,10 +1660,18 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public void clearDisruptionScheme() {
+        clearDisruptionScheme(true);
+    }
+
+    public void clearDisruptionScheme(boolean ensureHealthyCluster) {
         if (activeDisruptionScheme != null) {
             TimeValue expectedHealingTime = activeDisruptionScheme.expectedTimeToHeal();
             logger.info("Clearing active scheme {}, expected healing time {}", activeDisruptionScheme, expectedHealingTime);
-            activeDisruptionScheme.removeAndEnsureHealthy(this);
+            if (ensureHealthyCluster) {
+                activeDisruptionScheme.removeAndEnsureHealthy(this);
+            } else {
+                activeDisruptionScheme.removeFromCluster(this);
+            }
         }
         activeDisruptionScheme = null;
     }

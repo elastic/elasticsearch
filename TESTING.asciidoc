@@ -364,10 +364,12 @@ These are the linux flavors the Vagrantfile currently supports:
 * ubuntu-1204 aka precise
 * ubuntu-1404 aka trusty
 * ubuntu-1504 aka vivid
+* ubuntu-1604 aka xenial
 * debian-8 aka jessie, the current debian stable distribution
 * centos-6
 * centos-7
-* fedora-22
+* fedora-24
+* oel-6 aka Oracle Enterprise Linux 6
 * oel-7 aka Oracle Enterprise Linux 7
 * sles-12
 * opensuse-13
@@ -376,7 +378,6 @@ We're missing the following from the support matrix because there aren't high
 quality boxes available in vagrant atlas:
 
 * sles-11
-* oel-6
 
 We're missing the follow because our tests are very linux/bash centric:
 

@@ -33,7 +33,8 @@ import org.elasticsearch.index.mapper.LegacyGeoPointFieldMapper;
 @Deprecated
 public class LegacyIndexedGeoBoundingBoxQuery {
 
-    public static Query create(GeoPoint topLeft, GeoPoint bottomRight, LegacyGeoPointFieldMapper.GeoPointFieldType fieldType) {
+    public static Query create(GeoPoint topLeft, GeoPoint bottomRight,
+                               LegacyGeoPointFieldMapper.LegacyGeoPointFieldType fieldType) {
         if (!fieldType.isLatLonEnabled()) {
             throw new IllegalArgumentException("lat/lon is not enabled (indexed) for field [" + fieldType.name()
                 + "], can't use indexed filter on it");
@@ -47,7 +48,7 @@ public class LegacyIndexedGeoBoundingBoxQuery {
     }
 
     private static Query westGeoBoundingBoxFilter(GeoPoint topLeft, GeoPoint bottomRight,
-                                                  LegacyGeoPointFieldMapper.GeoPointFieldType fieldType) {
+                                                  LegacyGeoPointFieldMapper.LegacyGeoPointFieldType fieldType) {
         BooleanQuery.Builder filter = new BooleanQuery.Builder();
         filter.setMinimumNumberShouldMatch(1);
         filter.add(fieldType.lonFieldType().rangeQuery(null, bottomRight.lon(), true, true), Occur.SHOULD);
@@ -57,7 +58,7 @@ public class LegacyIndexedGeoBoundingBoxQuery {
     }
 
     private static Query eastGeoBoundingBoxFilter(GeoPoint topLeft, GeoPoint bottomRight,
-                                                  LegacyGeoPointFieldMapper.GeoPointFieldType fieldType) {
+                                                  LegacyGeoPointFieldMapper.LegacyGeoPointFieldType fieldType) {
         BooleanQuery.Builder filter = new BooleanQuery.Builder();
         filter.add(fieldType.lonFieldType().rangeQuery(topLeft.lon(), bottomRight.lon(), true, true), Occur.MUST);
         filter.add(fieldType.latFieldType().rangeQuery(bottomRight.lat(), topLeft.lat(), true, true), Occur.MUST);

@@ -30,7 +30,8 @@ import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
 import org.apache.logging.log4j.core.config.composite.CompositeConfiguration;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfiguration;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationFactory;
-import org.elasticsearch.Version;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
@@ -44,7 +45,6 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -52,7 +52,7 @@ import java.util.Set;
 
 public class LogConfigurator {
 
-    public static void configure(final Environment environment, final boolean resolveConfig) throws IOException {
+    public static void configure(final Environment environment, final boolean resolveConfig) throws IOException, UserException {
         final Settings settings = environment.settings();
 
         setLogConfigurationSystemProperty(environment, settings);
@@ -77,43 +77,26 @@ public class LogConfigurator {
                     return FileVisitResult.CONTINUE;
                 }
             });
+
+            if (configurations.isEmpty()) {
+                throw new UserException(
+                    ExitCodes.CONFIG,
+                    "no log4j2.properties found; tried [" + environment.configFile() + "] and its subdirectories");
+            }
+
             context.start(new CompositeConfiguration(configurations));
-            warnIfOldConfigurationFilePresent(environment);
         }
 
         if (ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.exists(settings)) {
-            Loggers.setLevel(ESLoggerFactory.getRootLogger(), ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings));
+            final Level level = ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings);
+            Loggers.setLevel(ESLoggerFactory.getRootLogger(), level);
         }
 
         final Map<String, String> levels = settings.filter(ESLoggerFactory.LOG_LEVEL_SETTING::match).getAsMap();
         for (String key : levels.keySet()) {
             final Level level = ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings);
-            Loggers.setLevel(Loggers.getLogger(key.substring("logger.".length())), level);
+            Loggers.setLevel(ESLoggerFactory.getLogger(key.substring("logger.".length())), level);
         }
-    }
-
-    private static void warnIfOldConfigurationFilePresent(final Environment environment) throws IOException {
-        // TODO: the warning for unsupported logging configurations can be removed in 6.0.0
-        assert Version.CURRENT.major < 6;
-        final List<String> suffixes = Arrays.asList(".yml", ".yaml", ".json", ".properties");
-        final Set<FileVisitOption> options = EnumSet.of(FileVisitOption.FOLLOW_LINKS);
-        Files.walkFileTree(environment.configFile(), options, Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                final String fileName = file.getFileName().toString();
-                if (fileName.startsWith("logging")) {
-                    for (final String suffix : suffixes) {
-                        if (fileName.endsWith(suffix)) {
-                            Loggers.getLogger(LogConfigurator.class).warn(
-                                "ignoring unsupported logging configuration file [{}], logging is configured via [{}]",
-                                file.toString(),
-                                file.getParent().resolve("log4j2.properties"));
-                        }
-                    }
-                }
-                return FileVisitResult.CONTINUE;
-            }
-        });
     }
 
     @SuppressForbidden(reason = "sets system property for logging configuration")

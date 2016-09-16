@@ -22,6 +22,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -66,6 +67,44 @@ public class SettingTests extends ESTestCase {
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
         assertEquals(new ByteSizeValue(12), value.get());
+    }
+
+    public void testMemorySize() {
+        Setting<ByteSizeValue> memorySizeValueSetting = Setting.memorySizeSetting("a.byte.size", new ByteSizeValue(1024), Property.Dynamic,
+                Property.NodeScope);
+
+        assertFalse(memorySizeValueSetting.isGroupSetting());
+        ByteSizeValue memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
+        assertEquals(memorySizeValue.bytes(), 1024);
+
+        memorySizeValueSetting = Setting.memorySizeSetting("a.byte.size", s -> "2048b", Property.Dynamic, Property.NodeScope);
+        memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
+        assertEquals(memorySizeValue.bytes(), 2048);
+
+        memorySizeValueSetting = Setting.memorySizeSetting("a.byte.size", "50%", Property.Dynamic, Property.NodeScope);
+        assertFalse(memorySizeValueSetting.isGroupSetting());
+        memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
+        assertEquals(memorySizeValue.bytes(), JvmInfo.jvmInfo().getMem().getHeapMax().bytes() * 0.5, 1.0);
+
+        memorySizeValueSetting = Setting.memorySizeSetting("a.byte.size", s -> "25%", Property.Dynamic, Property.NodeScope);
+        memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
+        assertEquals(memorySizeValue.bytes(), JvmInfo.jvmInfo().getMem().getHeapMax().bytes() * 0.25, 1.0);
+
+        AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
+        ClusterSettings.SettingUpdater<ByteSizeValue> settingUpdater = memorySizeValueSetting.newUpdater(value::set, logger);
+        try {
+            settingUpdater.apply(Settings.builder().put("a.byte.size", 12).build(), Settings.EMPTY);
+            fail("no unit");
+        } catch (IllegalArgumentException ex) {
+            assertEquals("failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized",
+                    ex.getMessage());
+        }
+
+        assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
+        assertEquals(new ByteSizeValue(12), value.get());
+
+        assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "20%").build(), Settings.EMPTY));
+        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().bytes() * 0.2)), value.get());
     }
 
     public void testSimpleUpdate() {

@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Objects;
 
 public abstract class FieldStats<T> implements Writeable, ToXContent {
     private final byte type;
@@ -46,13 +47,11 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
     protected T minValue;
     protected T maxValue;
 
-    FieldStats(byte type, long maxDoc, boolean isSearchable, boolean isAggregatable) {
-        this(type, maxDoc, 0, 0, 0, isSearchable, isAggregatable, null, null);
-    }
-
     FieldStats(byte type,
                long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
                boolean isSearchable, boolean isAggregatable, T minValue, T maxValue) {
+        Objects.requireNonNull(minValue, "minValue must not be null");
+        Objects.requireNonNull(maxValue, "maxValue must not be null");
         this.type = type;
         this.maxDoc = maxDoc;
         this.docCount = docCount;
@@ -220,14 +219,10 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
     }
 
     private void updateMinMax(T min, T max) {
-        if (minValue == null) {
-            minValue = min;
-        } else if (min != null && compare(minValue, min) > 0) {
+        if (compare(minValue, min) > 0) {
             minValue = min;
         }
-        if (maxValue == null) {
-            maxValue = max;
-        } else if (max != null && compare(maxValue, max) < 0) {
+        if (compare(maxValue, max) < 0) {
             maxValue = max;
         }
     }
@@ -266,11 +261,7 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
         out.writeLong(sumTotalTermFreq);
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
-        boolean hasMinMax = minValue != null;
-        out.writeBoolean(hasMinMax);
-        if (hasMinMax) {
-            writeMinMax(out);
-        }
+        writeMinMax(out);
     }
 
     protected abstract void writeMinMax(StreamOutput out) throws IOException;
@@ -280,9 +271,6 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
      * otherwise <code>false</code> is returned
      */
     public boolean match(IndexConstraint constraint) {
-        if (minValue == null) {
-            return false;
-        }
         int cmp;
         T value  = valueOf(constraint.getValue(), constraint.getOptionalFormat());
         if (constraint.getProperty() == IndexConstraint.Property.MIN) {
@@ -307,23 +295,37 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
         }
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        FieldStats<?> that = (FieldStats<?>) o;
+
+        if (type != that.type) return false;
+        if (maxDoc != that.maxDoc) return false;
+        if (docCount != that.docCount) return false;
+        if (sumDocFreq != that.sumDocFreq) return false;
+        if (sumTotalTermFreq != that.sumTotalTermFreq) return false;
+        if (isSearchable != that.isSearchable) return false;
+        if (isAggregatable != that.isAggregatable) return false;
+        if (!minValue.equals(that.minValue)) return false;
+        return maxValue.equals(that.maxValue);
+
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(type, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, isSearchable, isAggregatable,
+            minValue, maxValue);
+    }
+
     public static class Long extends FieldStats<java.lang.Long> {
         public Long(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
                     boolean isSearchable, boolean isAggregatable,
                     long minValue, long maxValue) {
             super((byte) 0, maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
                 isSearchable, isAggregatable, minValue, maxValue);
-        }
-
-        public Long(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
-                    boolean isSearchable, boolean isAggregatable) {
-            super((byte) 0, maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
-                isSearchable, isAggregatable, null, null);
-        }
-
-        public Long(long maxDoc,
-                    boolean isSearchable, boolean isAggregatable) {
-            super((byte) 0, maxDoc, isSearchable, isAggregatable);
         }
 
         @Override
@@ -344,12 +346,12 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
 
         @Override
         public String getMinValueAsString() {
-            return minValue != null ? java.lang.Long.toString(minValue) : null;
+            return java.lang.Long.toString(minValue);
         }
 
         @Override
         public String getMaxValueAsString() {
-            return maxValue != null ? java.lang.Long.toString(maxValue) : null;
+            return java.lang.Long.toString(maxValue);
         }
     }
 
@@ -359,15 +361,6 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
                       double minValue, double maxValue) {
             super((byte) 1, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, isSearchable, isAggregatable,
                 minValue, maxValue);
-        }
-
-        public Double(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
-                      boolean isSearchable, boolean isAggregatable) {
-            super((byte) 1, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, isSearchable, isAggregatable, null, null);
-        }
-
-        public Double(long maxDoc, boolean isSearchable, boolean isAggregatable) {
-            super((byte) 1, maxDoc, isSearchable, isAggregatable);
         }
 
         @Override
@@ -391,12 +384,12 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
 
         @Override
         public String getMinValueAsString() {
-            return minValue != null ? java.lang.Double.toString(minValue) : null;
+            return java.lang.Double.toString(minValue);
         }
 
         @Override
         public String getMaxValueAsString() {
-            return maxValue != null ? java.lang.Double.toString(maxValue) : null;
+            return java.lang.Double.toString(maxValue);
         }
     }
 
@@ -409,20 +402,6 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
                     long minValue, long maxValue) {
             super((byte) 2, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, isSearchable, isAggregatable,
                 minValue, maxValue);
-            this.formatter = formatter;
-        }
-
-        public Date(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq,
-                    boolean isSearchable, boolean isAggregatable,
-                    FormatDateTimeFormatter formatter) {
-            super((byte) 2, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, isSearchable, isAggregatable,
-                null, null);
-            this.formatter = formatter;
-        }
-
-        public Date(long maxDoc, boolean isSearchable, boolean isAggregatable,
-                    FormatDateTimeFormatter formatter) {
-            super((byte) 2, maxDoc, isSearchable, isAggregatable);
             this.formatter = formatter;
         }
 
@@ -449,12 +428,29 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
 
         @Override
         public String getMinValueAsString() {
-            return minValue != null ? formatter.printer().print(minValue) : null;
+            return formatter.printer().print(minValue);
         }
 
         @Override
         public String getMaxValueAsString() {
-            return maxValue != null ? formatter.printer().print(maxValue) : null;
+            return formatter.printer().print(maxValue);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            if (!super.equals(o)) return false;
+
+            Date that = (Date) o;
+            return Objects.equals(formatter.format(), that.formatter.format());
+        }
+
+        @Override
+        public int hashCode() {
+            int result = super.hashCode();
+            result = 31 * result + formatter.format().hashCode();
+            return result;
         }
     }
 
@@ -465,10 +461,6 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
             super((byte) 3, maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
                 isSearchable, isAggregatable,
                 minValue, maxValue);
-        }
-
-        public Text(long maxDoc, boolean isSearchable, boolean isAggregatable) {
-            super((byte) 3, maxDoc, isSearchable, isAggregatable);
         }
 
         @Override
@@ -492,12 +484,12 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
 
         @Override
         public String getMinValueAsString() {
-            return minValue != null ? minValue.utf8ToString() : null;
+            return minValue.utf8ToString();
         }
 
         @Override
         public String getMaxValueAsString() {
-            return maxValue != null ? maxValue.utf8ToString() : null;
+            return maxValue.utf8ToString();
         }
 
         @Override
@@ -514,10 +506,6 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
             super((byte) 4, maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
                 isSearchable, isAggregatable,
                 minValue, maxValue);
-        }
-
-        public Ip(long maxDoc, boolean isSearchable, boolean isAggregatable) {
-            super((byte) 4, maxDoc, isSearchable, isAggregatable);
         }
 
         @Override
@@ -544,12 +532,12 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
 
         @Override
         public String getMinValueAsString() {
-            return  minValue != null ? NetworkAddress.format(minValue) : null;
+            return NetworkAddress.format(minValue);
         }
 
         @Override
         public String getMaxValueAsString() {
-            return  maxValue != null ? NetworkAddress.format(maxValue) : null;
+            return NetworkAddress.format(maxValue);
         }
     }
 
@@ -561,53 +549,35 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
         long sumTotalTermFreq = in.readLong();
         boolean isSearchable = in.readBoolean();
         boolean isAggregatable = in.readBoolean();
-        boolean hasMinMax = in.readBoolean();
 
         switch (type) {
             case 0:
-                if (hasMinMax) {
-                    return new Long(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
-                        isSearchable, isAggregatable, in.readLong(), in.readLong());
-                }
                 return new Long(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
-                    isSearchable, isAggregatable);
+                        isSearchable, isAggregatable, in.readLong(), in.readLong());
 
             case 1:
-                if (hasMinMax) {
-                    return new Double(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
-                        isSearchable, isAggregatable, in.readDouble(), in.readDouble());
-                }
                 return new Double(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
-                    isSearchable, isAggregatable);
+                    isSearchable, isAggregatable, in.readDouble(), in.readDouble());
 
             case 2:
                 FormatDateTimeFormatter formatter = Joda.forPattern(in.readString());
-                if (hasMinMax) {
-                    return new Date(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
-                        isSearchable, isAggregatable, formatter, in.readLong(), in.readLong());
-                }
                 return new Date(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
-                    isSearchable, isAggregatable, formatter);
+                    isSearchable, isAggregatable, formatter, in.readLong(), in.readLong());
+
 
             case 3:
-                if (hasMinMax) {
-                    return new Text(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
-                        isSearchable, isAggregatable, in.readBytesRef(), in.readBytesRef());
-                }
                 return new Text(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
-                        isSearchable, isAggregatable, null, null);
+                    isSearchable, isAggregatable, in.readBytesRef(), in.readBytesRef());
 
             case 4:
-                InetAddress min = null;
-                InetAddress max = null;
-                if (hasMinMax) {
-                    int l1 = in.readByte();
-                    byte[] b1 = new byte[l1];
-                    int l2 = in.readByte();
-                    byte[] b2 = new byte[l2];
-                    min = InetAddressPoint.decode(b1);
-                    max = InetAddressPoint.decode(b2);
-                }
+                int l1 = in.readByte();
+                byte[] b1 = new byte[l1];
+                in.readBytes(b1, 0, l1);
+                int l2 = in.readByte();
+                byte[] b2 = new byte[l2];
+                in.readBytes(b2, 0, l2);
+                InetAddress min = InetAddressPoint.decode(b1);
+                InetAddress max = InetAddressPoint.decode(b2);
                 return new Ip(maxDoc, docCount, sumDocFreq, sumTotalTermFreq,
                     isSearchable, isAggregatable, min, max);
 

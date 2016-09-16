@@ -41,9 +41,9 @@
           "type" : "string",
           "description" : "The default field for query string query (default: _all)"
         },
-        "fields": {
+        "stored_fields": {
           "type": "list",
-          "description" : "A comma-separated list of fields to return in the response"
+          "description" : "A comma-separated list of stored fields to return in the response"
         },
         "lenient": {
           "type" : "boolean",

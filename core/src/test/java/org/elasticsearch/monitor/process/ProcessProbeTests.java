@@ -65,11 +65,11 @@ public class ProcessProbeTests extends ESTestCase {
         assertThat(cpu.getPercent(), anyOf(lessThan((short) 0), allOf(greaterThanOrEqualTo((short) 0), lessThanOrEqualTo((short) 100))));
 
         // CPU time can return -1 if the platform does not support this operation, let's see which platforms fail
-        assertThat(cpu.total, greaterThan(0L));
+        assertThat(cpu.getTotal().millis(), greaterThan(0L));
 
         ProcessStats.Mem mem = stats.getMem();
         assertNotNull(mem);
         // Commited total virtual memory can return -1 if not supported, let's see which platforms fail
-        assertThat(mem.totalVirtual, greaterThan(0L));
+        assertThat(mem.getTotalVirtual().bytes(), greaterThan(0L));
     }
 }

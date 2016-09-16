@@ -23,6 +23,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
@@ -33,36 +35,10 @@ import org.elasticsearch.test.TestSearchContext;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 public class FetchSourceSubPhaseTests extends ESTestCase {
-
-    static class FetchSourceSubPhaseTestSearchContext extends TestSearchContext {
-
-        FetchSourceContext context;
-        BytesReference source;
-
-        FetchSourceSubPhaseTestSearchContext(FetchSourceContext context, BytesReference source) {
-            super(null);
-            this.context = context;
-            this.source = source;
-        }
-
-        @Override
-        public boolean sourceRequested() {
-            return context != null && context.fetchSource();
-        }
-
-        @Override
-        public FetchSourceContext fetchSourceContext() {
-            return context;
-        }
-
-        @Override
-        public SearchLookup lookup() {
-            SearchLookup lookup = super.lookup();
-            lookup.source().setSource(source);
-            return lookup;
-        }
-    }
 
     public void testFetchSource() throws IOException {
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
@@ -109,11 +85,14 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
         hitContext = hitExecute(null, false, null, null);
         assertNull(hitContext.hit().sourceAsMap());
 
-        hitContext = hitExecute(null, true, "field1", null);
-        assertNull(hitContext.hit().sourceAsMap());
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> hitExecute(null, true, "field1", null));
+        assertEquals("unable to fetch fields from _source field: _source is disabled in the mappings " +
+                "for index [index]", exception.getMessage());
 
-        hitContext = hitExecuteMultiple(null, true, new String[]{"*"}, new String[]{"field2"});
-        assertNull(hitContext.hit().sourceAsMap());
+        exception = expectThrows(IllegalArgumentException.class,
+                () -> hitExecuteMultiple(null, true, new String[]{"*"}, new String[]{"field2"}));
+        assertEquals("unable to fetch fields from _source field: _source is disabled in the mappings " +
+                "for index [index]", exception.getMessage());
     }
 
     private FetchSubPhase.HitContext hitExecute(XContentBuilder source, boolean fetchSource, String include, String exclude) {
@@ -130,5 +109,41 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
         FetchSourceSubPhase phase = new FetchSourceSubPhase();
         phase.hitExecute(searchContext, hitContext);
         return hitContext;
+    }
+
+    private static class FetchSourceSubPhaseTestSearchContext extends TestSearchContext {
+        final FetchSourceContext context;
+        final BytesReference source;
+        final IndexShard indexShard;
+
+        FetchSourceSubPhaseTestSearchContext(FetchSourceContext context, BytesReference source) {
+            super(null);
+            this.context = context;
+            this.source = source;
+            this.indexShard = mock(IndexShard.class);
+            when(indexShard.shardId()).thenReturn(new ShardId("index", "index", 1));
+        }
+
+        @Override
+        public boolean sourceRequested() {
+            return context != null && context.fetchSource();
+        }
+
+        @Override
+        public FetchSourceContext fetchSourceContext() {
+            return context;
+        }
+
+        @Override
+        public SearchLookup lookup() {
+            SearchLookup lookup = super.lookup();
+            lookup.source().setSource(source);
+            return lookup;
+        }
+
+        @Override
+        public IndexShard indexShard() {
+            return indexShard;
+        }
     }
 }

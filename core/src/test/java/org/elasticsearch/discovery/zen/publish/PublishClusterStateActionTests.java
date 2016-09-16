@@ -82,7 +82,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@TestLogging("discovery.zen.publish:TRACE")
+@TestLogging("org.elasticsearch.discovery.zen.publish:TRACE")
 public class PublishClusterStateActionTests extends ESTestCase {
 
     private static final ClusterName CLUSTER_NAME = ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
@@ -145,21 +145,22 @@ public class PublishClusterStateActionTests extends ESTestCase {
     }
 
     public MockNode createMockNode(final String name) throws Exception {
-        return createMockNode(name, Settings.EMPTY);
-    }
-
-    public MockNode createMockNode(String name, Settings settings) throws Exception {
-        return createMockNode(name, settings, null);
+        return createMockNode(name, Settings.EMPTY, null);
     }
 
     public MockNode createMockNode(String name, final Settings basSettings, @Nullable ClusterStateListener listener) throws Exception {
+        return createMockNode(name, basSettings, listener, threadPool, logger, nodes);
+    }
+
+    public static MockNode createMockNode(String name, final Settings basSettings, @Nullable ClusterStateListener listener,
+                                          ThreadPool threadPool, Logger logger, Map<String, MockNode> nodes) throws Exception {
         final Settings settings = Settings.builder()
                 .put("name", name)
                 .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "", TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                 .put(basSettings)
                 .build();
 
-        MockTransportService service = buildTransportService(settings);
+        MockTransportService service = buildTransportService(settings, threadPool);
         DiscoveryNode discoveryNode = DiscoveryNode.createLocal(settings, service.boundAddress().publishAddress(),
             NodeEnvironment.generateNodeId(settings));
         MockNode node = new MockNode(discoveryNode, service, listener, logger);
@@ -222,20 +223,19 @@ public class PublishClusterStateActionTests extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         for (MockNode curNode : nodes.values()) {
-            curNode.action.close();
             curNode.service.close();
         }
         terminate(threadPool);
     }
 
-    protected MockTransportService buildTransportService(Settings settings) {
-        MockTransportService transportService = MockTransportService.local(Settings.EMPTY, Version.CURRENT, threadPool);
+    private static MockTransportService buildTransportService(Settings settings, ThreadPool threadPool) {
+        MockTransportService transportService = MockTransportService.local(settings, Version.CURRENT, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
         return transportService;
     }
 
-    protected MockPublishAction buildPublishClusterStateAction(
+    private static MockPublishAction buildPublishClusterStateAction(
             Settings settings,
             MockTransportService transportService,
             Supplier<ClusterState> clusterStateSupplier,
@@ -253,8 +253,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
     }
 
     public void testSimpleClusterStatePublishing() throws Exception {
-        MockNode nodeA = createMockNode("nodeA", Settings.EMPTY).setAsMaster();
-        MockNode nodeB = createMockNode("nodeB", Settings.EMPTY);
+        MockNode nodeA = createMockNode("nodeA").setAsMaster();
+        MockNode nodeB = createMockNode("nodeB");
 
         // Initial cluster state
         ClusterState clusterState = nodeA.clusterState;
@@ -282,7 +282,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         // Adding new node - this node should get full cluster state while nodeB should still be getting diffs
 
-        MockNode nodeC = createMockNode("nodeC", Settings.EMPTY);
+        MockNode nodeC = createMockNode("nodeC");
 
         // cluster state update 3 - register node C
         previousClusterState = clusterState;
@@ -336,7 +336,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
             fail("Shouldn't send cluster state to myself");
         }).setAsMaster();
 
-        MockNode nodeB = createMockNode("nodeB", Settings.EMPTY);
+        MockNode nodeB = createMockNode("nodeB");
 
         // Initial cluster state with both states - the second node still shouldn't get diff even though it's present in the previous cluster state
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(nodeA.nodes()).add(nodeB.discoveryNode).build();
@@ -444,7 +444,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
             }
         }).setAsMaster();
 
-        MockNode nodeB = createMockNode("nodeB", Settings.EMPTY);
+        MockNode nodeB = createMockNode("nodeB");
 
         // Initial cluster state with both states - the second node still shouldn't get diff even though it's present in the previous cluster state
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(nodeA.nodes()).add(nodeB.discoveryNode).build();
@@ -495,7 +495,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         final int dataNodes = randomIntBetween(0, 5);
         final Settings dataSettings = Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build();
         for (int i = 0; i < dataNodes; i++) {
-            discoveryNodesBuilder.add(createMockNode("data_" + i, dataSettings).discoveryNode);
+            discoveryNodesBuilder.add(createMockNode("data_" + i, dataSettings, null).discoveryNode);
         }
         discoveryNodesBuilder.localNodeId(master.discoveryNode.getId()).masterNodeId(master.discoveryNode.getId());
         DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
@@ -521,7 +521,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         settings.put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), expectingToCommit == false && timeOutNodes > 0 ? "100ms" : "1h")
                 .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "5ms"); // test is about committing
 
-        MockNode master = createMockNode("master", settings.build());
+        MockNode master = createMockNode("master", settings.build(), null);
 
         // randomize things a bit
         int[] nodeTypes = new int[goodNodes + errorNodes + timeOutNodes];
@@ -551,7 +551,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
         final int dataNodes = randomIntBetween(0, 3); // data nodes don't matter
         for (int i = 0; i < dataNodes; i++) {
-            final MockNode mockNode = createMockNode("data_" + i, Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build());
+            final MockNode mockNode = createMockNode("data_" + i,
+                Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build(), null);
             discoveryNodesBuilder.add(mockNode.discoveryNode);
             if (randomBoolean()) {
                 // we really don't care - just chaos monkey
@@ -726,8 +727,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "1ms").build(); // short but so we will sometime commit sometime timeout
 
-        MockNode master = createMockNode("master", settings);
-        MockNode node = createMockNode("node", settings);
+        MockNode master = createMockNode("master", settings, null);
+        MockNode node = createMockNode("node", settings, null);
         ClusterState state = ClusterState.builder(master.clusterState)
                 .nodes(DiscoveryNodes.builder(master.clusterState.nodes()).add(node.discoveryNode).masterNodeId(master.discoveryNode.getId())).build();
 
@@ -843,7 +844,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         assertFalse(actual.wasReadFromDiff());
     }
 
-    static class MockPublishAction extends PublishClusterStateAction {
+    public static class MockPublishAction extends PublishClusterStateAction {
 
         AtomicBoolean timeoutOnSend = new AtomicBoolean();
         AtomicBoolean errorOnSend = new AtomicBoolean();

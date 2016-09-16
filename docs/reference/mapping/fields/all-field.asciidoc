@@ -1,14 +1,14 @@
 [[mapping-all-field]]
 === `_all` field
 
-The `_all` field is a special _catch-all_ field which concatenates the values
-of all of the other fields into one big string, using space as a delimiter, which is then
-<<analysis,analyzed>> and indexed, but not stored.  This means that it can be
-searched, but not retrieved.
+The `_all` field is a special _catch-all_ field which concatenates the values of
+all of the other string fields into one big string, using space as a delimiter,
+which is then <<analysis,analyzed>> and indexed, but not stored. This means that
+it can be searched, but not retrieved.
 
-The `_all` field allows you to search for values in documents without knowing
-which field contains the value.  This makes it a useful option when getting
-started with a new dataset. For instance:
+The `_all` field allows you to search for string values in documents without
+knowing which field contains the value. This makes it a useful option when
+getting started with a new dataset. For instance:
 
 [source,js]
 --------------------------------
@@ -16,29 +16,28 @@ PUT my_index/user/1 <1>
 {
   "first_name":    "John",
   "last_name":     "Smith",
-  "date_of_birth": "1970-10-24"
+  "place_of_birth": "New York City"
 }
 
 GET my_index/_search
 {
   "query": {
     "match": {
-      "_all": "john smith 1970"
+      "_all": "john smith new york"
     }
   }
 }
 --------------------------------
 // CONSOLE
-<1> The `_all` field will contain the terms: [ `"john"`, `"smith"`, `"1970"`, `"10"`, `"24"` ]
+<1> The `_all` field will contain the terms: [ `"john"`, `"smith"`, `"new"`, `"york"`, `"city"` ]
 
 [NOTE]
-.All values treated as strings
+.Only string values are added to _all
 =============================================================================
 
-The `date_of_birth` field in the above example is recognised as a `date` field
-and so will index a single term representing `1970-10-24 00:00:00 UTC`. The
-`_all` field, however, treats all values as strings, so the date value is
-indexed as the three string terms: `"1970"`, `"24"`, `"10"`.
+If a `date_of_birth` field mapped as a date were used, or an `age` field that
+was an integer were added, they would not be included in the `_all` field, as
+`_all` only contains content from _string_ fields.
 
 It is important to note that the `_all` field combines the original values
 from each field as a string. It does not combine the _terms_ from each field.
@@ -72,7 +71,7 @@ GET _search
 {
   "query": {
     "query_string": {
-      "query": "john smith 1970"
+      "query": "john smith new york"
     }
   }
 }
@@ -84,7 +83,7 @@ requests>> (which is rewritten to a `query_string` query internally):
 
 [source,js]
 --------------------------------
-GET _search?q=john+smith+1970
+GET _search?q=john+smith+new+york
 --------------------------------
 
 Other queries, such as the <<query-dsl-match-query,`match`>> and

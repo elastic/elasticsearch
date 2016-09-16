@@ -54,9 +54,9 @@ public class FsRepository extends BlobStoreRepository {
     public static final Setting<String> REPOSITORIES_LOCATION_SETTING =
         new Setting<>("repositories.fs.location", LOCATION_SETTING, Function.identity(), Property.NodeScope);
     public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING =
-        Setting.byteSizeSetting("chunk_size", "-1", Property.NodeScope);
+        Setting.byteSizeSetting("chunk_size", new ByteSizeValue(-1), Property.NodeScope);
     public static final Setting<ByteSizeValue> REPOSITORIES_CHUNK_SIZE_SETTING =
-        Setting.byteSizeSetting("repositories.fs.chunk_size", "-1", Property.NodeScope);
+        Setting.byteSizeSetting("repositories.fs.chunk_size", new ByteSizeValue(-1), Property.NodeScope);
     public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Property.NodeScope);
     public static final Setting<Boolean> REPOSITORIES_COMPRESS_SETTING =
         Setting.boolSetting("repositories.fs.compress", false, Property.NodeScope);

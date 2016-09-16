@@ -30,6 +30,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
+import org.elasticsearch.search.SearchExtBuilder;
+import org.elasticsearch.search.SearchExtParser;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -80,6 +82,12 @@ public interface SearchPlugin {
      * The new {@link FetchSubPhase}s defined by this plugin.
      */
     default List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
+        return emptyList();
+    }
+    /**
+     * The new {@link SearchExtParser}s defined by this plugin.
+     */
+    default List<SearchExtSpec<?>> getSearchExts() {
         return emptyList();
     }
     /**
@@ -160,7 +168,7 @@ public interface SearchPlugin {
     /**
      * Specification for an {@link Aggregation}.
      */
-    public static class AggregationSpec extends SearchExtensionSpec<AggregationBuilder, Aggregator.Parser> {
+    class AggregationSpec extends SearchExtensionSpec<AggregationBuilder, Aggregator.Parser> {
         private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
 
         /**
@@ -217,7 +225,7 @@ public interface SearchPlugin {
     /**
      * Specification for a {@link PipelineAggregator}.
      */
-    public static class PipelineAggregationSpec extends SearchExtensionSpec<PipelineAggregationBuilder, PipelineAggregator.Parser> {
+    class PipelineAggregationSpec extends SearchExtensionSpec<PipelineAggregationBuilder, PipelineAggregator.Parser> {
         private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
         private final Writeable.Reader<? extends PipelineAggregator> aggregatorReader;
 
@@ -290,6 +298,19 @@ public interface SearchPlugin {
         }
     }
 
+    /**
+     * Specification for a {@link SearchExtBuilder} which represents an additional section that can be
+     * parsed in a search request (within the ext element).
+     */
+    class SearchExtSpec<T extends SearchExtBuilder> extends SearchExtensionSpec<T, SearchExtParser<T>> {
+        public SearchExtSpec(ParseField name, Writeable.Reader<? extends T> reader, SearchExtParser<T> parser) {
+            super(name, reader, parser);
+        }
+
+        public SearchExtSpec(String name, Writeable.Reader<? extends T> reader, SearchExtParser<T> parser) {
+            super(name, reader, parser);
+        }
+    }
 
     /**
      * Specification of search time behavior extension like a custom {@link MovAvgModel} or {@link ScoreFunction}.

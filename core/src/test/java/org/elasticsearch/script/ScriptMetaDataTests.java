@@ -98,15 +98,15 @@ public class ScriptMetaDataTests extends ESTestCase {
 
     public void testDiff() throws Exception {
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
-        builder.storeScript("lang", "1", new BytesArray("abc"));
-        builder.storeScript("lang", "2", new BytesArray("def"));
-        builder.storeScript("lang", "3", new BytesArray("ghi"));
+        builder.storeScript("lang", "1", new BytesArray("{\"foo\":\"abc\"}"));
+        builder.storeScript("lang", "2", new BytesArray("{\"foo\":\"def\"}"));
+        builder.storeScript("lang", "3", new BytesArray("{\"foo\":\"ghi\"}"));
         ScriptMetaData scriptMetaData1 = builder.build();
 
         builder = new ScriptMetaData.Builder(scriptMetaData1);
-        builder.storeScript("lang", "2", new BytesArray("changed"));
+        builder.storeScript("lang", "2", new BytesArray("{\"foo\":\"changed\"}"));
         builder.deleteScript("lang", "3");
-        builder.storeScript("lang", "4", new BytesArray("jkl"));
+        builder.storeScript("lang", "4", new BytesArray("{\"foo\":\"jkl\"}"));
         ScriptMetaData scriptMetaData2 = builder.build();
 
         ScriptMetaData.ScriptMetadataDiff diff = (ScriptMetaData.ScriptMetadataDiff) scriptMetaData2.diff(scriptMetaData1);
@@ -118,19 +118,19 @@ public class ScriptMetaDataTests extends ESTestCase {
         assertNotNull(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().get("lang#4"));
 
         ScriptMetaData result = (ScriptMetaData) diff.apply(scriptMetaData1);
-        assertEquals(new BytesArray("abc"), result.getScriptAsBytes("lang", "1"));
-        assertEquals(new BytesArray("changed"), result.getScriptAsBytes("lang", "2"));
-        assertEquals(new BytesArray("jkl"), result.getScriptAsBytes("lang", "4"));
+        assertEquals(new BytesArray("{\"foo\":\"abc\"}"), result.getScriptAsBytes("lang", "1"));
+        assertEquals(new BytesArray("{\"foo\":\"changed\"}"), result.getScriptAsBytes("lang", "2"));
+        assertEquals(new BytesArray("{\"foo\":\"jkl\"}"), result.getScriptAsBytes("lang", "4"));
     }
 
     public void testBuilder() {
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
         builder.storeScript("_lang", "_id", new BytesArray("{\"script\":\"1 + 1\"}"));
 
-        IllegalArgumentException e =
-                expectThrows(IllegalArgumentException.class, () -> builder.storeScript("_lang#", "_id", new BytesArray("{}")));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> builder.storeScript("_lang#", "_id", new BytesArray("{\"foo\": \"bar\"}")));
         assertEquals("stored script language can't contain: '#'", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class, () -> builder.storeScript("_lang", "_id#", new BytesArray("{}")));
+        e = expectThrows(IllegalArgumentException.class, () -> builder.storeScript("_lang", "_id#", new BytesArray("{\"foo\": \"bar\"}")));
         assertEquals("stored script id can't contain: '#'", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> builder.deleteScript("_lang#", "_id"));
         assertEquals("stored script language can't contain: '#'", e.getMessage());

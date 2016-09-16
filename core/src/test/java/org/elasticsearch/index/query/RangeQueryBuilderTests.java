@@ -501,4 +501,21 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[range] query doesn't support multiple fields, found [age] and [price]", e.getMessage());
     }
+
+    public void testParseFailsWithMultipleFieldsWhenOneIsDate() throws IOException {
+        String json =
+                "{\n" +
+                "    \"range\": {\n" +
+                "      \"age\": {\n" +
+                "        \"gte\": 30,\n" +
+                "        \"lte\": 40\n" +
+                "      },\n" +
+                "      \"" + DATE_FIELD_NAME + "\": {\n" +
+                "        \"gte\": \"2016-09-13 05:01:14\"\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[range] query doesn't support multiple fields, found [age] and [" + DATE_FIELD_NAME + "]", e.getMessage());
+    }
 }

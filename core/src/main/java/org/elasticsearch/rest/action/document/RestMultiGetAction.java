@@ -59,10 +59,12 @@ public class RestMultiGetAction extends BaseRestHandler {
         multiGetRequest.refresh(request.paramAsBoolean("refresh", multiGetRequest.refresh()));
         multiGetRequest.preference(request.param("preference"));
         multiGetRequest.realtime(request.paramAsBoolean("realtime", multiGetRequest.realtime()));
-        multiGetRequest.ignoreErrorsOnGeneratedFields(request.paramAsBoolean("ignore_errors_on_generated_fields", false));
-
+        if (request.param("fields") != null) {
+            throw new IllegalArgumentException("The parameter [fields] is no longer supported, " +
+                "please use [stored_fields] to retrieve stored fields or _source filtering if the field is not stored");
+        }
         String[] sFields = null;
-        String sField = request.param("fields");
+        String sField = request.param("stored_fields");
         if (sField != null) {
             sFields = Strings.splitStringByCommaToArray(sField);
         }

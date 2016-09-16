@@ -30,8 +30,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.RestRequest.Method;
-import org.elasticsearch.rest.action.RestMainAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
@@ -45,12 +43,13 @@ public class RestMainActionTests extends ESTestCase {
     public void testHeadResponse() throws Exception {
         final String nodeName = "node1";
         final ClusterName clusterName = new ClusterName("cluster1");
+        final String clusterUUID = randomAsciiOfLengthBetween(10, 20);
         final boolean available = randomBoolean();
         final RestStatus expectedStatus = available ? RestStatus.OK : RestStatus.SERVICE_UNAVAILABLE;
         final Version version = Version.CURRENT;
         final Build build = Build.CURRENT;
 
-        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, build, available);
+        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, clusterUUID, build, available);
         XContentBuilder builder = JsonXContent.contentBuilder();
         RestRequest restRequest = new FakeRestRequest() {
             @Override
@@ -70,13 +69,14 @@ public class RestMainActionTests extends ESTestCase {
     public void testGetResponse() throws Exception {
         final String nodeName = "node1";
         final ClusterName clusterName = new ClusterName("cluster1");
+        final String clusterUUID = randomAsciiOfLengthBetween(10, 20);
         final boolean available = randomBoolean();
         final RestStatus expectedStatus = available ? RestStatus.OK : RestStatus.SERVICE_UNAVAILABLE;
         final Version version = Version.CURRENT;
         final Build build = Build.CURRENT;
         final boolean prettyPrint = randomBoolean();
 
-        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, build, available);
+        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, clusterUUID, build, available);
         XContentBuilder builder = JsonXContent.contentBuilder();
 
         Map<String, String> params = new HashMap<>();

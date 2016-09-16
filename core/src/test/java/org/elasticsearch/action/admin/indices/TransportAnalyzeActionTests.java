@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices;
 
+import org.apache.lucene.analysis.minhash.MinHashFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
@@ -191,75 +192,80 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     }
 
     public void testGetIndexAnalyserWithoutAnalysisService() throws IOException {
-        AnalyzeRequest request = new AnalyzeRequest();
-        request.analyzer("custom_analyzer");
-        request.text("the qu1ck brown fox-dog");
-        try {
-            TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, null, registry, environment);
-            fail("no analysis service provided");
-        } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "failed to find global analyzer [custom_analyzer]");
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> TransportAnalyzeAction.analyze(
+                new AnalyzeRequest()
+                    .analyzer("custom_analyzer")
+                    .text("the qu1ck brown fox-dog"),
+                AllFieldMapper.NAME, null, null, registry, environment));
+        assertEquals(e.getMessage(), "failed to find global analyzer [custom_analyzer]");
     }
 
     public void testUnknown() throws IOException {
         boolean notGlobal = randomBoolean();
-        try {
-            AnalyzeRequest request = new AnalyzeRequest();
-            request.analyzer("foobar");
-            request.text("the qu1ck brown fox");
-            TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, notGlobal ? analysisService : null, registry, environment);
-            fail("no such analyzer");
-        } catch (IllegalArgumentException e) {
-            if (notGlobal) {
-                assertEquals(e.getMessage(),  "failed to find analyzer [foobar]");
-            } else {
-                assertEquals(e.getMessage(),  "failed to find global analyzer [foobar]");
-            }
-        }
-        try {
-            AnalyzeRequest request = new AnalyzeRequest();
-            request.tokenizer("foobar");
-            request.text("the qu1ck brown fox");
-            TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, notGlobal ? analysisService : null, registry, environment);
-            fail("no such analyzer");
-        } catch (IllegalArgumentException e) {
-            if (notGlobal) {
-                assertEquals(e.getMessage(), "failed to find tokenizer under [foobar]");
-            } else {
-                assertEquals(e.getMessage(), "failed to find global tokenizer under [foobar]");
-            }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> TransportAnalyzeAction.analyze(
+                new AnalyzeRequest()
+                    .analyzer("foobar")
+                    .text("the qu1ck brown fox"),
+                AllFieldMapper.NAME, null, notGlobal ? analysisService : null, registry, environment));
+        if (notGlobal) {
+            assertEquals(e.getMessage(), "failed to find analyzer [foobar]");
+        } else {
+            assertEquals(e.getMessage(), "failed to find global analyzer [foobar]");
         }
 
-        try {
-            AnalyzeRequest request = new AnalyzeRequest();
-            request.tokenizer("whitespace");
-            request.addTokenFilter("foobar");
-            request.text("the qu1ck brown fox");
-            TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, notGlobal ? analysisService : null, registry, environment);
-            fail("no such analyzer");
-        } catch (IllegalArgumentException e) {
-            if (notGlobal) {
-                assertEquals(e.getMessage(), "failed to find token filter under [foobar]");
-            } else {
-                assertEquals(e.getMessage(), "failed to find global token filter under [foobar]");
-            }
+        e = expectThrows(IllegalArgumentException.class,
+            () -> TransportAnalyzeAction.analyze(
+                new AnalyzeRequest()
+                    .tokenizer("foobar")
+                    .text("the qu1ck brown fox"),
+                AllFieldMapper.NAME, null, notGlobal ? analysisService : null, registry, environment));
+        if (notGlobal) {
+            assertEquals(e.getMessage(), "failed to find tokenizer under [foobar]");
+        } else {
+            assertEquals(e.getMessage(), "failed to find global tokenizer under [foobar]");
         }
 
-        try {
-            AnalyzeRequest request = new AnalyzeRequest();
-            request.tokenizer("whitespace");
-            request.addTokenFilter("lowercase");
-            request.addCharFilter("foobar");
-            request.text("the qu1ck brown fox");
-            TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, notGlobal ? analysisService : null, registry, environment);
-            fail("no such analyzer");
-        } catch (IllegalArgumentException e) {
-            if (notGlobal) {
-                assertEquals(e.getMessage(), "failed to find char filter under [foobar]");
-            } else {
-                assertEquals(e.getMessage(), "failed to find global char filter under [foobar]");
-            }
+        e = expectThrows(IllegalArgumentException.class,
+            () -> TransportAnalyzeAction.analyze(
+                new AnalyzeRequest()
+                    .tokenizer("whitespace")
+                    .addTokenFilter("foobar")
+                    .text("the qu1ck brown fox"),
+                AllFieldMapper.NAME, null, notGlobal ? analysisService : null, registry, environment));
+        if (notGlobal) {
+            assertEquals(e.getMessage(), "failed to find token filter under [foobar]");
+        } else {
+            assertEquals(e.getMessage(), "failed to find global token filter under [foobar]");
         }
+
+        e = expectThrows(IllegalArgumentException.class,
+            () -> TransportAnalyzeAction.analyze(
+                new AnalyzeRequest()
+                    .tokenizer("whitespace")
+                    .addTokenFilter("lowercase")
+                    .addCharFilter("foobar")
+                    .text("the qu1ck brown fox"),
+                AllFieldMapper.NAME, null, notGlobal ? analysisService : null, registry, environment));
+        if (notGlobal) {
+            assertEquals(e.getMessage(), "failed to find char filter under [foobar]");
+        } else {
+            assertEquals(e.getMessage(), "failed to find global char filter under [foobar]");
+        }
+    }
+
+    public void testNonPreBuildTokenFilter() throws IOException {
+        AnalyzeRequest request = new AnalyzeRequest();
+        request.tokenizer("whitespace");
+        request.addTokenFilter("min_hash");
+        request.text("the quick brown fox");
+        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, analysisService, registry, environment);
+        List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
+        int default_hash_count = 1;
+        int default_bucket_size = 512;
+        int default_hash_set_size = 1;
+        assertEquals(default_hash_count * default_bucket_size * default_hash_set_size, tokens.size());
+
     }
 }

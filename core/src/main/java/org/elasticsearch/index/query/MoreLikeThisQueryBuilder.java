@@ -780,7 +780,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         if (fields != null) {
-            builder.field(Field.FIELDS.getPreferredName(), fields);
+            builder.array(Field.FIELDS.getPreferredName(), fields);
         }
         buildLikeField(builder, Field.LIKE.getPreferredName(), likeTexts, likeItems);
         buildLikeField(builder, Field.UNLIKE.getPreferredName(), unlikeTexts, unlikeItems);
@@ -791,7 +791,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         builder.field(Field.MIN_WORD_LENGTH.getPreferredName(), minWordLength);
         builder.field(Field.MAX_WORD_LENGTH.getPreferredName(), maxWordLength);
         if (stopWords != null) {
-            builder.field(Field.STOP_WORDS.getPreferredName(), stopWords);
+            builder.array(Field.STOP_WORDS.getPreferredName(), stopWords);
         }
         if (analyzer != null) {
             builder.field(Field.ANALYZER.getPreferredName(), analyzer);

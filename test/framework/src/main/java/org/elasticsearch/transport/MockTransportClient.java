@@ -37,5 +37,4 @@ public class MockTransportClient extends TransportClient {
     public MockTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins) {
         super(settings, DEFAULT_SETTINGS, plugins);
     }
-
 }

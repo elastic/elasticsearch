@@ -41,6 +41,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
@@ -184,7 +185,11 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
         Node build = new MockNode(settings, getPlugins());
-        build.start();
+        try {
+            build.start();
+        } catch (NodeValidationException e) {
+            throw new RuntimeException(e);
+        }
         return build;
     }
 

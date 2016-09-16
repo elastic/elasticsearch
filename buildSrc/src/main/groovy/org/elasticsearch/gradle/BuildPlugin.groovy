@@ -157,7 +157,7 @@ class BuildPlugin implements Plugin<Project> {
     private static String findJavaHome() {
         String javaHome = System.getenv('JAVA_HOME')
         if (javaHome == null) {
-            if (System.getProperty("idea.active") != null) {
+            if (System.getProperty("idea.active") != null || System.getProperty("eclipse.launcher") != null) {
                 // intellij doesn't set JAVA_HOME, so we use the jdk gradle was run with
                 javaHome = Jvm.current().javaHome
             } else {
@@ -405,9 +405,9 @@ class BuildPlugin implements Plugin<Project> {
                 //options.incremental = true
 
                 if (project.javaVersion == JavaVersion.VERSION_1_9) {
-                    // hack until gradle supports java 9's new "-release" arg
+                    // hack until gradle supports java 9's new "--release" arg
                     assert minimumJava == JavaVersion.VERSION_1_8
-                    options.compilerArgs << '-release' << '8'
+                    options.compilerArgs << '--release' << '8'
                     project.sourceCompatibility = null
                     project.targetCompatibility = null
                 }

@@ -171,7 +171,13 @@ public final class NetworkModule {
     }
 
     public NetworkPlugin.TransportFactory<HttpServerTransport> getHttpServerTransportFactory() {
-        NetworkPlugin.TransportFactory<HttpServerTransport> factory = transportHttpFactories.get(HTTP_TYPE_SETTING.get(settings));
+        final String name;
+        if (HTTP_TYPE_SETTING.exists(settings)) {
+            name = HTTP_TYPE_SETTING.get(settings);
+        } else {
+            name = HTTP_DEFAULT_TYPE_SETTING.get(settings);
+        }
+        final NetworkPlugin.TransportFactory<HttpServerTransport> factory = transportHttpFactories.get(name);
         if (factory == null) {
             throw new IllegalStateException("No http.type: " + HTTP_TYPE_SETTING.get(settings) + " configured");
         }
@@ -183,13 +189,13 @@ public final class NetworkModule {
     }
 
     public NetworkPlugin.TransportFactory<Transport> getTransportFactory() {
-        String name;
+        final String name;
         if (TRANSPORT_TYPE_SETTING.exists(settings)) {
             name = TRANSPORT_TYPE_SETTING.get(settings);
         } else {
             name = TRANSPORT_DEFAULT_TYPE_SETTING.get(settings);
         }
-        NetworkPlugin.TransportFactory<Transport> factory = transportFactories.get(name);
+        final NetworkPlugin.TransportFactory<Transport> factory = transportFactories.get(name);
         if (factory == null) {
             throw new IllegalStateException("No transport.type: " + name + " configured");
         }

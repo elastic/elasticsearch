@@ -19,19 +19,27 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty3.Netty3HttpServerTransport;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty3.Netty3Transport;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
-public class Netty3Plugin extends Plugin {
+public class Netty3Plugin extends Plugin implements NetworkPlugin{
     public static final String NETTY_TRANSPORT_NAME = "netty3";
     public static final String NETTY_HTTP_TRANSPORT_NAME = "netty3";
 
@@ -57,11 +65,27 @@ public class Netty3Plugin extends Plugin {
         );
     }
 
-    public void onModule(NetworkModule networkModule) {
-        if (networkModule.canRegisterHttpExtensions()) {
-            networkModule.registerHttpTransport(NETTY_HTTP_TRANSPORT_NAME, Netty3HttpServerTransport.class);
-        }
-        networkModule.registerTransport(NETTY_TRANSPORT_NAME, Netty3Transport.class);
+    @Override
+    public List<TransportFactory<Transport>> getTransportFactory() {
+        return Collections.singletonList(new TransportFactory<Transport>(NETTY_TRANSPORT_NAME) {
+            @Override
+            public Transport createTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                             CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
+                                             NetworkService networkService) {
+                return new Netty3Transport(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
+            }
+        });
     }
 
+    @Override
+    public List<TransportFactory<HttpServerTransport>> getHttpTransportFactory() {
+        return Collections.singletonList(new TransportFactory<HttpServerTransport>(NETTY_HTTP_TRANSPORT_NAME) {
+            @Override
+            public HttpServerTransport createTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                       CircuitBreakerService circuitBreakerService,
+                                                       NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
+                return new Netty3HttpServerTransport(settings, networkService, bigArrays, threadPool);
+            }
+        });
+    }
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -188,6 +189,14 @@ public abstract class Plugin {
      */
     @Deprecated
     public final void onModule(SearchModule module) {}
+
+    /**
+     * Old-style action extension point.
+     *
+     * @deprecated implement {@link NetworkPlugin} instead
+     */
+    @Deprecated
+    public final void onModule(NetworkModule module) {}
 
     /**
      * Provides the list of this plugin's custom thread pools, empty if

@@ -445,7 +445,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         StreamInput in = bytes.bytes().streamInput();
 
         // Since the commands are named writeable we need to register them and wrap the input stream
-        NetworkModule networkModule = new NetworkModule(null, Settings.EMPTY, true);
+        NetworkModule networkModule = new NetworkModule(Settings.EMPTY, true);
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(networkModule.getNamedWriteables());
         in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
 
@@ -492,7 +492,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         // move two tokens, parser expected to be "on" `commands` field
         parser.nextToken();
         parser.nextToken();
-        AllocationCommandRegistry registry = new NetworkModule(null, Settings.EMPTY, true).getAllocationCommandRegistry();
+        AllocationCommandRegistry registry = new NetworkModule(Settings.EMPTY, true).getAllocationCommandRegistry();
         AllocationCommands sCommands = AllocationCommands.fromXContent(parser, ParseFieldMatcher.STRICT, registry);
 
         assertThat(sCommands.commands().size(), equalTo(5));

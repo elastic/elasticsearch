@@ -25,7 +25,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
@@ -33,14 +32,17 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -83,13 +85,21 @@ public class Netty4TransportIT extends ESNetty4IntegTestCase {
 
     public static final class ExceptionThrowingNetty4Transport extends Netty4Transport {
 
-        public static class TestPlugin extends Plugin {
-            public void onModule(NetworkModule module) {
-                module.registerTransport("exception-throwing", ExceptionThrowingNetty4Transport.class);
+        public static class TestPlugin extends Plugin implements NetworkPlugin {
+            @Override
+            public List<TransportFactory<Transport>> getTransportFactory() {
+                return Collections.singletonList(new TransportFactory<Transport>("exception-throwing") {
+                    @Override
+                    public Transport createTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                     CircuitBreakerService circuitBreakerService,
+                                                     NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
+                        return new ExceptionThrowingNetty4Transport(settings, threadPool, networkService, bigArrays,
+                            namedWriteableRegistry, circuitBreakerService);
+                    }
+                });
             }
         }
 
-        @Inject
         public ExceptionThrowingNetty4Transport(
                 Settings settings,
                 ThreadPool threadPool,

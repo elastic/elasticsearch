@@ -46,7 +46,7 @@ class ClusterFormationTasks {
     /**
      * Adds dependent tasks to the given task to start and stop a cluster with the given configuration.
      *
-     * Returns a NodeInfo object for the first node in the cluster.
+     * Returns a list of NodeInfo objects for each node in the cluster.
      */
     static List<NodeInfo> setup(Project project, Task task, ClusterConfiguration config) {
         if (task.getEnabled() == false) {
@@ -102,7 +102,6 @@ class ClusterFormationTasks {
         Task wait = configureWaitTask("${task.name}#wait", project, nodes, startTasks)
         task.dependsOn(wait)
 
-        // delay the resolution of the uri by wrapping in a closure, so it is not used until read for tests
         return nodes
     }
 

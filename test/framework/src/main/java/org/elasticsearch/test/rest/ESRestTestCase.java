@@ -114,6 +114,7 @@ public class ESRestTestCase extends ESTestCase {
         }
     }
 
+
     /**
      * Clean up after the test case.
      */
@@ -138,9 +139,19 @@ public class ESRestTestCase extends ESTestCase {
         return adminClient;
     }
 
+    /**
+     * Returns whether to preserve the indices created during this test on completion of this test.
+     * Defaults to {@code false}. Override this method if indices should be preserved after the test,
+     * with the assumption that some other process or test will clean up the indices afterward.
+     * This is useful if the data directory and indices need to be preserved between test runs
+     * (for example, when testing rolling upgrades).
+     */
+    protected boolean preserveIndicesUponCompletion() {
+        return false;
+    }
+
     private void wipeCluster() throws IOException {
-        final boolean preserveIndices = Boolean.parseBoolean(System.getProperty("tests.rest.preserve_indices"));
-        if (preserveIndices == false) {
+        if (preserveIndicesUponCompletion() == false) {
             // wipe indices
             try {
                 adminClient().performRequest("DELETE", "*");

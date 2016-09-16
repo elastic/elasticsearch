@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.LegacyNumericRangeQuery;
@@ -28,6 +29,7 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.LegacyDateFieldMapper;
@@ -39,6 +41,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
+import org.locationtech.spatial4j.shape.SpatialRelation;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -62,13 +65,13 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         switch (randomIntBetween(0, 2)) {
             case 0:
                 // use mapped integer field for numeric range queries
-                query = new RangeQueryBuilder(INT_FIELD_NAME);
+                query = new RangeQueryBuilder(randomBoolean() ? INT_FIELD_NAME : INT_RANGE_FIELD_NAME);
                 query.from(randomIntBetween(1, 100));
                 query.to(randomIntBetween(101, 200));
                 break;
             case 1:
                 // use mapped date field, using date string representation
-                query = new RangeQueryBuilder(DATE_FIELD_NAME);
+                query = new RangeQueryBuilder(randomBoolean() ? DATE_FIELD_NAME : DATE_RANGE_FIELD_NAME);
                 query.from(new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
                 query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
                 // Create timestamp option only then we have a date mapper,
@@ -80,6 +83,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     if (randomBoolean()) {
                         query.format("yyyy-MM-dd'T'HH:mm:ss.SSSZZ");
                     }
+                }
+                if (query.fieldName().equals(DATE_RANGE_FIELD_NAME)) {
+                    query.relation(RandomPicks.randomFrom(random(), ShapeRelation.values()).getRelationName());
                 }
                 break;
             case 2:
@@ -121,8 +127,11 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
     @Override
     protected void doAssertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        if (getCurrentTypes().length == 0 || (queryBuilder.fieldName().equals(DATE_FIELD_NAME) == false
-            && queryBuilder.fieldName().equals(INT_FIELD_NAME) == false)) {
+        if (getCurrentTypes().length == 0 ||
+            (queryBuilder.fieldName().equals(DATE_FIELD_NAME) == false
+                && queryBuilder.fieldName().equals(INT_FIELD_NAME) == false
+                && queryBuilder.fieldName().equals(DATE_RANGE_FIELD_NAME) == false
+                && queryBuilder.fieldName().equals(INT_RANGE_FIELD_NAME) == false)) {
             assertThat(query, instanceOf(TermRangeQuery.class));
             TermRangeQuery termRangeQuery = (TermRangeQuery) query;
             assertThat(termRangeQuery.getField(), equalTo(queryBuilder.fieldName()));
@@ -224,6 +233,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 }
                 assertEquals(IntPoint.newRangeQuery(INT_FIELD_NAME, minInt, maxInt), query);
             }
+        } else if (queryBuilder.fieldName().equals(DATE_RANGE_FIELD_NAME)
+            || queryBuilder.fieldName().equals(INT_RANGE_FIELD_NAME)) {
+            // todo can't check RangeFieldQuery because its currently package private (this will change)
         } else {
             throw new UnsupportedOperationException();
         }

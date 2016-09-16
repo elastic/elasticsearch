@@ -77,7 +77,8 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             String fieldName;
             do {
                 fieldName = getRandomFieldName();
-            } while (fieldName.equals(GEO_POINT_FIELD_NAME) || fieldName.equals(GEO_SHAPE_FIELD_NAME));
+            } while (fieldName.equals(GEO_POINT_FIELD_NAME) || fieldName.equals(GEO_SHAPE_FIELD_NAME)
+                || fieldName.equals(INT_RANGE_FIELD_NAME) || fieldName.equals(DATE_RANGE_FIELD_NAME));
             Object[] values = new Object[randomInt(5)];
             for (int i = 0; i < values.length; i++) {
                 values[i] = getRandomValueForFieldName(fieldName);

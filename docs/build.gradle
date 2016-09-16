@@ -344,3 +344,28 @@ buildRestTests.doFirst {
   buildRestTests.setups['bank'] =
     buildRestTests.setups['bank'].replace('#bank_data#', accounts)
 }
+
+buildRestTests.setups['range_index'] = '''
+  - do :
+    indices.create:
+      index: range_index
+      body:
+        settings:
+          number_of_shards: 2
+          number_of_replicas: 1
+        mappings:
+          my_type:
+            properties:
+              expected_attendees:
+                type: integer_range
+              time_frame:
+                type: date_range
+                format: yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis
+  - do:
+    bulk:
+      index: range_index
+      type: my_type
+      refresh: true
+      body: |
+        {"index":{"_id": 1}}
+        {"expected_attendees": {"gte": 10, "lte": 20}, "time_frame": {"gte": "2015-10-31 12:00:00", "lte": "2015-11-01"}}'''

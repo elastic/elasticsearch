@@ -24,7 +24,6 @@ import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.fieldstats.IndexConstraint;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -32,7 +31,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -565,11 +563,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         stats.writeTo(output);
         output.flush();
-        BytesRef serialized = output.bytes().toBytesRef();
-        ByteArrayInputStream is = new ByteArrayInputStream(serialized.bytes, serialized.offset, serialized.length);
-        InputStreamStreamInput input = new InputStreamStreamInput(is);
-        FieldStats clone = FieldStats.readFrom(input);
-        assertThat(stats, equalTo(clone));
-        assertThat(stats.hashCode(), equalTo(clone.hashCode()));
+        FieldStats deserializedStats = FieldStats.readFrom(output.bytes().streamInput());
+        assertThat(stats, equalTo(deserializedStats));
+        assertThat(stats.hashCode(), equalTo(deserializedStats.hashCode()));
     }
 }

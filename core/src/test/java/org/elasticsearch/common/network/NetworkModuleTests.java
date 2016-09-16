@@ -175,6 +175,38 @@ public class NetworkModuleTests extends ModuleTestCase {
         expectThrows(IllegalStateException.class, () -> newModule.getHttpServerTransportFactory());
     }
 
+    public void testOverrideDefault() {
+        Settings settings = Settings.builder()
+            .put(NetworkModule.HTTP_TYPE_SETTING.getKey(), "custom")
+            .put(NetworkModule.HTTP_DEFAULT_TYPE_SETTING.getKey(), "default_custom")
+            .put(NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.getKey(), "local")
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, "default_custom").build();
+        NetworkModule module = new NetworkModule(settings, false);
+        FakeHttpTransportFactory custom = new FakeHttpTransportFactory("custom");
+        FakeHttpTransportFactory def = new FakeHttpTransportFactory("default_custom");
+        FakeTransportFactory customTransport = new FakeTransportFactory("default_custom");
+        module.registerHttpTransport(custom);
+        module.registerHttpTransport(def);
+        module.registerTransport(customTransport);
+        assertSame(custom, module.getHttpServerTransportFactory());
+        assertSame(customTransport, module.getTransportFactory());
+    }
+
+    public void testDefaultKeys() {
+        Settings settings = Settings.builder()
+            .put(NetworkModule.HTTP_DEFAULT_TYPE_SETTING.getKey(), "default_custom")
+            .put(NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.getKey(), "default_custom").build();
+        NetworkModule module = new NetworkModule(settings, false);
+        FakeHttpTransportFactory custom = new FakeHttpTransportFactory("custom");
+        FakeHttpTransportFactory def = new FakeHttpTransportFactory("default_custom");
+        FakeTransportFactory customTransport = new FakeTransportFactory("default_custom");
+        module.registerHttpTransport(custom);
+        module.registerHttpTransport(def);
+        module.registerTransport(customTransport);
+        assertSame(def, module.getHttpServerTransportFactory());
+        assertSame(customTransport, module.getTransportFactory());
+    }
+
     public void testRegisterInterceptor() {
         Settings settings = Settings.builder()
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)

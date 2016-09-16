@@ -69,4 +69,7 @@ upgradedClusterTest.finalizedBy 'mixedClusterTest#stop'
 task integTest {
   dependsOn = [upgradedClusterTest]
 }
+
+test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+
 check.dependsOn(integTest)

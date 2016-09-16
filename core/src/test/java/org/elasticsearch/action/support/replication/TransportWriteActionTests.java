@@ -130,7 +130,8 @@ public class TransportWriteActionTests extends ESTestCase {
 
     private class TestAction extends TransportWriteAction<TestRequest, TestResponse> {
         protected TestAction() {
-            super(Settings.EMPTY, "test", mock(TransportService.class), null, null, null, null, new ActionFilters(new HashSet<>()),
+            super(Settings.EMPTY, "test", new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR),
+                null, null, null, null, new ActionFilters(new HashSet<>()),
                     new IndexNameExpressionResolver(Settings.EMPTY), TestRequest::new, ThreadPool.Names.SAME);
         }
 

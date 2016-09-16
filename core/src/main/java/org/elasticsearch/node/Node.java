@@ -327,7 +327,7 @@ public class Node implements Closeable {
             }
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             modules.add(new NodeModule(this, monitorService));
-            NetworkModule networkModule = new NetworkModule(networkService, settings, false);
+            NetworkModule networkModule = createNetworkModule(settings, networkService);
             modules.add(networkModule);
             modules.add(new DiscoveryModule(this.settings));
             ClusterModule clusterModule = new ClusterModule(settings, clusterService,
@@ -421,6 +421,10 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
+    }
+
+    protected NetworkModule createNetworkModule(Settings settings, NetworkService networkService) {
+        return new NetworkModule(networkService, settings, false);
     }
 
     /**

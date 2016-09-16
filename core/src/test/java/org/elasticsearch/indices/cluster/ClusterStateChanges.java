@@ -150,7 +150,8 @@ public class ClusterStateChanges extends AbstractComponent {
         }
 
         // services
-        TransportService transportService = new TransportService(settings, transport, threadPool);
+        TransportService transportService = new TransportService(settings, transport, threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR);
         MetaDataIndexUpgradeService metaDataIndexUpgradeService = new MetaDataIndexUpgradeService(settings, null, null) {
             // metaData upgrader should do nothing
             @Override

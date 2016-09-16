@@ -29,12 +29,12 @@ import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
@@ -76,28 +76,22 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     return  new TestResponse();
                 }
             };
-            transportService = new TransportService(settings, transport, threadPool) {
+            transportService = new TransportService(settings, transport, threadPool, new TransportInterceptor() {
                 @Override
-                public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action,
-                                                                      TransportRequest request, final TransportResponseHandler<T> handler) {
-                    if (TransportLivenessAction.NAME.equals(action)) {
-                        super.sendRequest(node, action, request, wrapLivenessResponseHandler(handler, node, clusterName));
-                    } else {
-                        super.sendRequest(node, action, request, handler);
-                    }
+                public AsyncSender interceptSender(AsyncSender sender) {
+                    return new AsyncSender() {
+                        @Override
+                        public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
+                                                                  TransportRequestOptions options, TransportResponseHandler<T> handler) {
+                            if (TransportLivenessAction.NAME.equals(action)) {
+                                sender.sendRequest(node, action, request, options, wrapLivenessResponseHandler(handler, node, clusterName));
+                            } else {
+                                sender.sendRequest(node, action, request, options, handler);
+                            }
+                        }
+                    };
                 }
-
-                @Override
-                public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
-                                                                      TransportRequestOptions options,
-                                                                      TransportResponseHandler<T> handler) {
-                    if (TransportLivenessAction.NAME.equals(action)) {
-                        super.sendRequest(node, action, request, options, wrapLivenessResponseHandler(handler, node, clusterName));
-                    } else {
-                        super.sendRequest(node, action, request, options, handler);
-                    }
-                }
-            };
+            });
             transportService.start();
             transportService.acceptIncomingRequests();
             transportClientNodesService =

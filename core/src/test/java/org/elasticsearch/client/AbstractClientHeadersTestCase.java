@@ -73,8 +73,9 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
     protected ThreadPool threadPool;
     private Client client;
 
-    @Before
-    public void initClient() {
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
         Settings settings = Settings.builder()
                 .put(HEADER_SETTINGS)
                 .put("path.home", createTempDir().toString())
@@ -85,8 +86,10 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client = buildClient(settings, ACTIONS);
     }
 
-    @After
-    public void cleanupClient() throws Exception {
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
         client.close();
         terminate(threadPool);
     }

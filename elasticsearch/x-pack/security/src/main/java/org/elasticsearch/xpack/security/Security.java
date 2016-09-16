@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
@@ -30,6 +31,9 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
@@ -99,7 +103,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
-import org.elasticsearch.xpack.security.transport.SecurityServerTransportService;
+import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
@@ -152,6 +156,10 @@ public class Security implements ActionPlugin, IngestPlugin {
     private final XPackLicenseState licenseState;
     private final CryptoService cryptoService;
     private final SSLService sslService;
+    /* what a PITA that we need an extra indirection to initialize this. Yet, once we got rid of guice we can thing about how
+     * to fix this or make it simpler. Today we need several service that are created in createComponents but we need to register
+     * an instance of TransportInterceptor way earlier before createComponents is called. */
+    private final SetOnce<TransportInterceptor> securityIntercepter = new SetOnce<>();
 
     public Security(Settings settings, Environment env, XPackLicenseState licenseState, SSLService sslService) throws IOException {
         this.settings = settings;
@@ -319,7 +327,8 @@ public class Security implements ActionPlugin, IngestPlugin {
         if (IPFilter.IP_FILTER_ENABLED_SETTING.get(settings)) {
             components.add(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), licenseState));
         }
-
+        securityIntercepter.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService, authzService, licenseState,
+                sslService));
         return components;
     }
 
@@ -362,9 +371,6 @@ public class Security implements ActionPlugin, IngestPlugin {
             SecurityNetty4HttpServerTransport.overrideSettings(settingsBuilder, settings);
         }
 
-        if (transportClientMode == false) {
-            settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, XPackPlugin.SECURITY);
-        }
         addUserSettings(settings, settingsBuilder);
         addTribeSettings(settings, settingsBuilder);
         return settingsBuilder.build();
@@ -514,7 +520,20 @@ public class Security implements ActionPlugin, IngestPlugin {
         if (enabled) {
             module.registerTransport(Security.NAME3, SecurityNetty3Transport.class);
             module.registerTransport(Security.NAME4, SecurityNetty4Transport.class);
-            module.registerTransportService(XPackPlugin.SECURITY, SecurityServerTransportService.class);
+            module.addTransportInterceptor(new TransportInterceptor() {
+                @Override
+                public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action,
+                                                                                                TransportRequestHandler<T> actualHandler) {
+                    assert securityIntercepter.get() != null;
+                    return securityIntercepter.get().interceptHandler(action, actualHandler);
+                }
+
+                @Override
+                public AsyncSender interceptSender(AsyncSender sender) {
+                    assert securityIntercepter.get() != null;
+                    return securityIntercepter.get().interceptSender(sender);
+                }
+            });
             module.registerHttpTransport(Security.NAME3, SecurityNetty3HttpServerTransport.class);
             module.registerHttpTransport(Security.NAME4, SecurityNetty4HttpServerTransport.class);
         }

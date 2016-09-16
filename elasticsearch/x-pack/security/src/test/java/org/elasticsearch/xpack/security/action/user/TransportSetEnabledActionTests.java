@@ -59,7 +59,8 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         when(authentication.getRunAsUser()).thenReturn(user);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportSetEnabledAction action = new TransportSetEnabledAction(settings, threadPool,
-                mock(TransportService.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR),
+                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
 
         SetEnabledRequest request = new SetEnabledRequest();
         request.username(new AnonymousUser(settings).principal());
@@ -95,7 +96,8 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         when(authentication.getRunAsUser()).thenReturn(user);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, threadPool,
-                mock(TransportService.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR),
+                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
 
         SetEnabledRequest request = new SetEnabledRequest();
         request.username(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal()));
@@ -147,7 +149,8 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         }).when(usersStore)
                 .setEnabled(eq(user.principal()), eq(request.enabled()), eq(request.getRefreshPolicy()), any(ActionListener.class));
         TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, threadPool,
-                mock(TransportService.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR),
+                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<SetEnabledResponse> responseRef = new AtomicReference<>();
@@ -197,7 +200,8 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         }).when(usersStore)
                 .setEnabled(eq(user.principal()), eq(request.enabled()), eq(request.getRefreshPolicy()), any(ActionListener.class));
         TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, threadPool,
-                mock(TransportService.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR),
+                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<SetEnabledResponse> responseRef = new AtomicReference<>();
@@ -235,7 +239,8 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         request.enabled(randomBoolean());
         request.setRefreshPolicy(randomFrom(RefreshPolicy.values()));
         TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, threadPool,
-                mock(TransportService.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR),
+                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<SetEnabledResponse> responseRef = new AtomicReference<>();

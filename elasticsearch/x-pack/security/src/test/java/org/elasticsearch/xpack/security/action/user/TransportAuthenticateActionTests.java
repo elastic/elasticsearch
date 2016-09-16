@@ -36,7 +36,8 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         SecurityContext securityContext = mock(SecurityContext.class);
         when(securityContext.getUser()).thenReturn(randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE));
         TransportAuthenticateAction action = new TransportAuthenticateAction(Settings.EMPTY, mock(ThreadPool.class),
-                mock(TransportService.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR),
+                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
                 securityContext);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
@@ -61,7 +62,8 @@ public class TransportAuthenticateActionTests extends ESTestCase {
     public void testNullUser() {
         SecurityContext securityContext = mock(SecurityContext.class);
         TransportAuthenticateAction action = new TransportAuthenticateAction(Settings.EMPTY, mock(ThreadPool.class),
-                mock(TransportService.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR),
+                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
                 securityContext);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
@@ -88,7 +90,8 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         SecurityContext securityContext = mock(SecurityContext.class);
         when(securityContext.getUser()).thenReturn(user);
         TransportAuthenticateAction action = new TransportAuthenticateAction(Settings.EMPTY, mock(ThreadPool.class),
-                mock(TransportService.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR),
+                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
                 securityContext);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();

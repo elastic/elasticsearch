@@ -50,7 +50,8 @@ public class TransportPutUserActionTests extends ESTestCase {
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportPutUserAction action = new TransportPutUserAction(settings, mock(ThreadPool.class),
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore, mock(TransportService.class));
+                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore, 
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR));
 
         PutUserRequest request = new PutUserRequest();
         request.username(anonymousUser.principal());
@@ -78,7 +79,8 @@ public class TransportPutUserActionTests extends ESTestCase {
     public void testSystemUser() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ThreadPool.class),
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore, mock(TransportService.class));
+                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore,
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR));
 
         PutUserRequest request = new PutUserRequest();
         request.username(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal()));
@@ -110,7 +112,8 @@ public class TransportPutUserActionTests extends ESTestCase {
         ReservedRealm reservedRealm = new ReservedRealm(new Environment(settings), settings, usersStore, new AnonymousUser(settings));
         final User reserved = randomFrom(reservedRealm.users().toArray(new User[0]));
         TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ThreadPool.class),
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore, mock(TransportService.class));
+                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore,
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR));
 
         PutUserRequest request = new PutUserRequest();
         request.username(reserved.principal());
@@ -139,7 +142,8 @@ public class TransportPutUserActionTests extends ESTestCase {
         final User user = new User("joe");
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ThreadPool.class),
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore, mock(TransportService.class));
+                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore,
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR));
 
         final boolean isCreate = randomBoolean();
         final PutUserRequest request = new PutUserRequest();
@@ -183,7 +187,8 @@ public class TransportPutUserActionTests extends ESTestCase {
         final User user = new User("joe");
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ThreadPool.class),
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore, mock(TransportService.class));
+                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore,
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR));
 
         final PutUserRequest request = new PutUserRequest();
         request.username(user.principal());

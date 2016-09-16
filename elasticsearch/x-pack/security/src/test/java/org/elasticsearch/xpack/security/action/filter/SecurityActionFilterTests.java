@@ -65,7 +65,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         filter = new SecurityActionFilter(Settings.EMPTY, authcService, authzService, cryptoService, auditTrail, licenseState,
-                new SecurityActionMapper(), new HashSet<>(), threadPool, mock(SecurityContext.class));
+                new HashSet<>(), threadPool, mock(SecurityContext.class));
     }
 
     public void testApply() throws Exception {

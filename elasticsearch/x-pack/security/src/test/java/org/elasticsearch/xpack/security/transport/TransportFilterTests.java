@@ -5,25 +5,29 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
-import org.elasticsearch.xpack.security.action.SecurityActionMapper;
+import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -52,9 +56,6 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 @ClusterScope(scope = SUITE, numDataNodes = 0)
 @ESIntegTestCase.SuppressLocalMode
 public class TransportFilterTests extends ESIntegTestCase {
@@ -66,12 +67,12 @@ public class TransportFilterTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalPlugin.class, InternalPluginServerTransportService.TestPlugin.class, MockTcpTransportPlugin.class);
+        return Arrays.asList(InternalPluginServerTransportServiceInterceptor.TestPlugin.class, MockTcpTransportPlugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
+        return Collections.singleton(MockTcpTransportPlugin.class);
     }
 
     public void test() throws Exception {
@@ -79,9 +80,15 @@ public class TransportFilterTests extends ESIntegTestCase {
         DiscoveryNode sourceNode = internalCluster().getInstance(ClusterService.class, source).localNode();
         TransportService sourceService = internalCluster().getInstance(TransportService.class, source);
 
+        InternalPluginServerTransportServiceInterceptor sourceInterceptor = internalCluster().getInstance(PluginsService.class, source)
+                .filterPlugins(InternalPluginServerTransportServiceInterceptor.TestPlugin.class).stream().findFirst().get().interceptor;
+
         String target = internalCluster().startNode();
         DiscoveryNode targetNode = internalCluster().getInstance(ClusterService.class, target).localNode();
         TransportService targetService = internalCluster().getInstance(TransportService.class, target);
+
+        InternalPluginServerTransportServiceInterceptor targetInterceptor = internalCluster().getInstance(PluginsService.class, target)
+                .filterPlugins(InternalPluginServerTransportServiceInterceptor.TestPlugin.class).stream().findFirst().get().interceptor;
 
         CountDownLatch latch = new CountDownLatch(2);
         targetService.registerRequestHandler("_action", Request::new, ThreadPool.Names.SAME,
@@ -97,10 +104,8 @@ public class TransportFilterTests extends ESIntegTestCase {
                 new ResponseHandler(new Response("src_to_trgt"), latch));
         await(latch);
 
-        ServerTransportFilter sourceServerFilter =
-                ((InternalPluginServerTransportService) sourceService).transportFilter(TransportSettings.DEFAULT_PROFILE);
-        ServerTransportFilter targetServerFilter =
-                ((InternalPluginServerTransportService) targetService).transportFilter(TransportSettings.DEFAULT_PROFILE);
+        ServerTransportFilter sourceServerFilter = sourceInterceptor.transportFilter(TransportSettings.DEFAULT_PROFILE);
+        ServerTransportFilter targetServerFilter = targetInterceptor.transportFilter(TransportSettings.DEFAULT_PROFILE);
 
         AuthenticationService sourceAuth = internalCluster().getInstance(AuthenticationService.class, source);
         AuthenticationService targetAuth = internalCluster().getInstance(AuthenticationService.class, target);
@@ -273,22 +278,51 @@ public class TransportFilterTests extends ESIntegTestCase {
     }
 
     // Sub class the security transport to always inject a mock for testing
-    public static class InternalPluginServerTransportService extends SecurityServerTransportService {
+    public static class InternalPluginServerTransportServiceInterceptor extends SecurityServerTransportInterceptor {
         public static class TestPlugin extends Plugin {
-            public void onModule(NetworkModule module) {
-                module.registerTransportService("filter-mock", InternalPluginServerTransportService.class);
-            }
+            AuthenticationService authenticationService = mock(AuthenticationService.class);
+            AuthorizationService authorizationService = mock(AuthorizationService.class);
+            InternalPluginServerTransportServiceInterceptor interceptor;
             @Override
-            public Settings additionalSettings() {
-                return Settings.builder().put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, "filter-mock").build();
+            public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+                                                       ResourceWatcherService resourceWatcherService, ScriptService scriptService,
+                                                       SearchRequestParsers searchRequestParsers) {
+                interceptor = new InternalPluginServerTransportServiceInterceptor(clusterService.getSettings(), threadPool,
+                        authenticationService, authorizationService);
+                return Collections.emptyList();
+            }
+
+            @Override
+            public Collection<Module> createGuiceModules() {
+                return Collections.singleton(new Module() {
+                    @Override
+                    public void configure(Binder binder) {
+                        binder.bind(AuthenticationService.class).toInstance(authenticationService);
+                        binder.bind(AuthorizationService.class).toInstance(authorizationService);
+                    }
+                });
+            }
+
+            public void onModule(NetworkModule module) {
+                module.addTransportInterceptor(new TransportInterceptor() {
+                    @Override
+                    public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action,
+                                                                                                TransportRequestHandler<T> actualHandler) {
+                        return interceptor.interceptHandler(action, actualHandler);
+                    }
+
+                    @Override
+                    public AsyncSender interceptSender(AsyncSender sender) {
+                        return interceptor.interceptSender(sender);
+                    }
+                });
             }
         }
 
-        @Inject
-        public InternalPluginServerTransportService(Settings settings, Transport transport, ThreadPool threadPool,
-                                                    AuthenticationService authcService, AuthorizationService authzService,
-                                                    SecurityActionMapper actionMapper) {
-            super(settings, transport, threadPool, authcService, authzService, actionMapper, mock(XPackLicenseState.class),
+        public InternalPluginServerTransportServiceInterceptor(Settings settings, ThreadPool threadPool,
+                                                               AuthenticationService authenticationService,
+                                                               AuthorizationService authorizationService) {
+            super(settings, threadPool,authenticationService, authorizationService, mock(XPackLicenseState.class),
                     mock(SSLService.class));
             when(licenseState.isAuthAllowed()).thenReturn(true);
         }

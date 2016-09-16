@@ -53,7 +53,8 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         }
 
         TransportXPackInfoAction action = new TransportXPackInfoAction(Settings.EMPTY, mock(ThreadPool.class),
-                mock(TransportService.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR),
+                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
             licenseService, featureSets);
 
         License license = mock(License.class);

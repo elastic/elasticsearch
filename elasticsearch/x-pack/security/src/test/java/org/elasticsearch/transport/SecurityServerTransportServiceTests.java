@@ -10,7 +10,7 @@ import java.util.Map;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.security.transport.SecurityServerTransportService;
+import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
@@ -27,13 +27,12 @@ public class SecurityServerTransportServiceTests extends SecurityIntegTestCase {
 
     public void testSecurityServerTransportServiceWrapsAllHandlers() {
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-            assertThat(transportService, instanceOf(SecurityServerTransportService.class));
             for (Map.Entry<String, RequestHandlerRegistry> entry : transportService.requestHandlers.entrySet()) {
                 assertThat(
-                        "handler not wrapped by " + SecurityServerTransportService.ProfileSecuredRequestHandler.class +
+                        "handler not wrapped by " + SecurityServerTransportInterceptor.ProfileSecuredRequestHandler.class +
                                 "; do all the handler registration methods have overrides?",
                         entry.getValue().toString(),
-                        startsWith(SecurityServerTransportService.ProfileSecuredRequestHandler.class.getName() + "@")
+                        startsWith(SecurityServerTransportInterceptor.ProfileSecuredRequestHandler.class.getName() + "@")
                 );
             }
         }

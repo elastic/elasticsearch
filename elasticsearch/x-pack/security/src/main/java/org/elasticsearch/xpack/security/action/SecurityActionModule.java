@@ -24,7 +24,6 @@ public class SecurityActionModule extends AbstractSecurityModule.Node {
 
     @Override
     protected void configureNode() {
-        bind(SecurityActionMapper.class).asEagerSingleton();
         // we need to ensure that there's only a single instance of the action filters
         bind(SecurityActionFilter.class).asEagerSingleton();
 

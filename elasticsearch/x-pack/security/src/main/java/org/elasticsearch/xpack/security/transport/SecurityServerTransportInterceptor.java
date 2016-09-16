@@ -6,10 +6,9 @@
 package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xpack.security.action.SecurityActionMapper;
+import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
@@ -19,7 +18,6 @@ import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -29,95 +27,85 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
-import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.security.user.SystemUser;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.XPackSettings.TRANSPORT_SSL_ENABLED;
 import static org.elasticsearch.xpack.security.Security.setting;
 
-public class SecurityServerTransportService extends TransportService {
+public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
     private static final String SETTING_NAME = "xpack.security.type";
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
-    private final SecurityActionMapper actionMapper;
     private final SSLService sslService;
     private final Map<String, ServerTransportFilter> profileFilters;
     final XPackLicenseState licenseState;
+    private final ThreadPool threadPool;
+    private final Settings settings;
 
-    @Inject
-    public SecurityServerTransportService(Settings settings, Transport transport, ThreadPool threadPool,
-                                          AuthenticationService authcService,
-                                          AuthorizationService authzService,
-                                          SecurityActionMapper actionMapper,
-                                          XPackLicenseState licenseState,
-                                          SSLService sslService) {
-        super(settings, transport, threadPool);
+    public SecurityServerTransportInterceptor(Settings settings,
+                                              ThreadPool threadPool,
+                                              AuthenticationService authcService,
+                                              AuthorizationService authzService,
+                                              XPackLicenseState licenseState,
+                                              SSLService sslService) {
+        this.settings = settings;
+        this.threadPool = threadPool;
         this.authcService = authcService;
         this.authzService = authzService;
-        this.actionMapper = actionMapper;
         this.licenseState = licenseState;
         this.sslService = sslService;
         this.profileFilters = initializeProfileFilters();
     }
 
     @Override
-    public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
-                                                          TransportRequestOptions options, TransportResponseHandler<T> handler) {
-        // Sometimes a system action gets executed like a internal create index request or update mappings request
-        // which means that the user is copied over to system actions so we need to change the user
-        if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
-            try (ThreadContext.StoredContext ctx = threadPool.getThreadContext().stashContext()) {
-                final ThreadContext.StoredContext original = threadPool.getThreadContext().newStoredContext();
-                sendWithUser(node, action, request, options, new ContextRestoreResponseHandler<>(original, handler));
+    public AsyncSender interceptSender(AsyncSender sender) {
+        return new AsyncSender() {
+            @Override
+            public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
+                                                                  TransportRequestOptions options, TransportResponseHandler<T> handler) {
+                // Sometimes a system action gets executed like a internal create index request or update mappings request
+                // which means that the user is copied over to system actions so we need to change the user
+                if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
+                    try (ThreadContext.StoredContext ctx = threadPool.getThreadContext().stashContext()) {
+                        final ThreadContext.StoredContext original = threadPool.getThreadContext().newStoredContext();
+                        sendWithUser(node, action, request, options, new ContextRestoreResponseHandler<>(original, handler), sender);
+                    }
+                } else {
+                    sendWithUser(node, action, request, options, handler, sender);
+                }
             }
-        } else {
-            sendWithUser(node, action, request, options, handler);
-        }
+        };
     }
 
     private <T extends TransportResponse> void sendWithUser(DiscoveryNode node, String action, TransportRequest request,
-                                                            TransportRequestOptions options, TransportResponseHandler<T> handler) {
+                                                            TransportRequestOptions options, TransportResponseHandler<T> handler,
+                                                            AsyncSender sender) {
         try {
             // this will check if there's a user associated with the request. If there isn't,
             // the system user will be attached. There cannot be a request outgoing from this
             // node that is not associated with a user.
             authcService.attachUserIfMissing(SystemUser.INSTANCE);
-            super.sendRequest(node, action, request, options, handler);
+            sender.sendRequest(node, action, request, options, handler);
         } catch (Exception e) {
             handler.handleException(new TransportException("failed sending request", e));
         }
     }
 
     @Override
-    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory, String
-            executor, TransportRequestHandler<Request> handler) {
-        TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters,
+    public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action,
+                                                                                    TransportRequestHandler<T> actualHandler) {
+        return new ProfileSecuredRequestHandler<>(action, actualHandler, profileFilters,
                 licenseState, threadPool.getThreadContext());
-        super.registerRequestHandler(action, requestFactory, executor, wrappedHandler);
     }
 
-    @Override
-    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor,
-                                                                          boolean forceExecution, boolean canTripCircuitBreaker,
-                                                                          TransportRequestHandler<Request> handler) {
-        TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters,
-                licenseState, threadPool.getThreadContext());
-        super.registerRequestHandler(action, request, executor, forceExecution, canTripCircuitBreaker, wrappedHandler);
-    }
 
     protected Map<String, ServerTransportFilter> initializeProfileFilters() {
-        if ((transport instanceof SecurityNetty3Transport) == false && (transport instanceof SecurityNetty4Transport) == false) {
-            return Collections.<String, ServerTransportFilter>singletonMap(TransportSettings.DEFAULT_PROFILE,
-                    new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, threadPool.getThreadContext(), false));
-        }
-
         Map<String, Settings> profileSettingsMap = settings.getGroups("transport.profiles.", true);
         Map<String, ServerTransportFilter> profileFilters = new HashMap<>(profileSettingsMap.size() + 1);
 
@@ -131,11 +119,11 @@ public class SecurityServerTransportService extends TransportService {
             String type = entry.getValue().get(SETTING_NAME, "node");
             switch (type) {
                 case "client":
-                    profileFilters.put(entry.getKey(), new ServerTransportFilter.ClientProfile(authcService, authzService, actionMapper,
+                    profileFilters.put(entry.getKey(), new ServerTransportFilter.ClientProfile(authcService, authzService,
                             threadPool.getThreadContext(), extractClientCert));
                     break;
                 default:
-                    profileFilters.put(entry.getKey(), new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper,
+                    profileFilters.put(entry.getKey(), new ServerTransportFilter.NodeProfile(authcService, authzService,
                             threadPool.getThreadContext(), extractClientCert));
             }
         }
@@ -144,8 +132,8 @@ public class SecurityServerTransportService extends TransportService {
             final boolean profileSsl = TRANSPORT_SSL_ENABLED.get(settings);
             final boolean clientAuth = sslService.isSSLClientAuthEnabled(transportSSLSettings);
             final boolean extractClientCert = profileSsl && clientAuth;
-            profileFilters.put(TransportSettings.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService,
-                    actionMapper, threadPool.getThreadContext(), extractClientCert));
+            profileFilters.put(TransportSettings.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService
+                    , threadPool.getThreadContext(), extractClientCert));
         }
 
         return Collections.unmodifiableMap(profileFilters);

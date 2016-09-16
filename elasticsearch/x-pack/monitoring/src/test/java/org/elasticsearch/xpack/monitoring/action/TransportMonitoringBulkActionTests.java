@@ -112,7 +112,8 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         clusterService.setClusterStatePublisher((event, ackListener) -> {});
         clusterService.start();
 
-        transportService = new TransportService(clusterService.getSettings(), transport, threadPool);
+        transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR);
         transportService.start();
         transportService.acceptIncomingRequests();
         exportService = new CapturingExporters();

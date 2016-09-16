@@ -41,7 +41,8 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
         final String roleName = randomFrom(new ArrayList<>(ReservedRolesStore.names()));
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportDeleteRoleAction action = new TransportDeleteRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore, mock(TransportService.class));
+                mock(IndexNameExpressionResolver.class), rolesStore,
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR));
 
         DeleteRoleRequest request = new DeleteRoleRequest();
         request.name(roleName);
@@ -70,7 +71,8 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
         final String roleName = randomFrom("admin", "dept_a", "restricted");
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportDeleteRoleAction action = new TransportDeleteRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore, mock(TransportService.class));
+                mock(IndexNameExpressionResolver.class), rolesStore,
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR));
 
         DeleteRoleRequest request = new DeleteRoleRequest();
         request.name(roleName);
@@ -112,7 +114,8 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
         final String roleName = randomFrom("admin", "dept_a", "restricted");
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportDeleteRoleAction action = new TransportDeleteRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore, mock(TransportService.class));
+                mock(IndexNameExpressionResolver.class), rolesStore,
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR));
 
         DeleteRoleRequest request = new DeleteRoleRequest();
         request.name(roleName);

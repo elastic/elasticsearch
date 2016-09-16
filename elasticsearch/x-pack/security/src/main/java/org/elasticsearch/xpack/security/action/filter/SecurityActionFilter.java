@@ -56,7 +56,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
     private final AuthorizationService authzService;
     private final CryptoService cryptoService;
     private final AuditTrail auditTrail;
-    private final SecurityActionMapper actionMapper;
+    private final SecurityActionMapper actionMapper = new SecurityActionMapper();
     private final Set<RequestInterceptor> requestInterceptors;
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
@@ -65,14 +65,13 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
     @Inject
     public SecurityActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService,
                                 CryptoService cryptoService, AuditTrailService auditTrail, XPackLicenseState licenseState,
-                                SecurityActionMapper actionMapper, Set<RequestInterceptor> requestInterceptors, ThreadPool threadPool,
+                                Set<RequestInterceptor> requestInterceptors, ThreadPool threadPool,
                                 SecurityContext securityContext) {
         super(settings);
         this.authcService = authcService;
         this.authzService = authzService;
         this.cryptoService = cryptoService;
         this.auditTrail = auditTrail;
-        this.actionMapper = actionMapper;
         this.licenseState = licenseState;
         this.requestInterceptors = requestInterceptors;
         this.threadContext = threadPool.getThreadContext();

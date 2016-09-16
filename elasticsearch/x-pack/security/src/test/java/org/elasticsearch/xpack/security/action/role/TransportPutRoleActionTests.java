@@ -42,7 +42,8 @@ public class TransportPutRoleActionTests extends ESTestCase {
         final String roleName = randomFrom(new ArrayList<>(ReservedRolesStore.names()));
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportPutRoleAction action = new TransportPutRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore, mock(TransportService.class));
+                mock(IndexNameExpressionResolver.class), rolesStore,
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR));
 
         PutRoleRequest request = new PutRoleRequest();
         request.name(roleName);
@@ -71,7 +72,8 @@ public class TransportPutRoleActionTests extends ESTestCase {
         final String roleName = randomFrom("admin", "dept_a", "restricted");
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportPutRoleAction action = new TransportPutRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore, mock(TransportService.class));
+                mock(IndexNameExpressionResolver.class), rolesStore,
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR));
 
         final boolean created = randomBoolean();
         PutRoleRequest request = new PutRoleRequest();
@@ -113,7 +115,8 @@ public class TransportPutRoleActionTests extends ESTestCase {
         final String roleName = randomFrom("admin", "dept_a", "restricted");
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportPutRoleAction action = new TransportPutRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore, mock(TransportService.class));
+                mock(IndexNameExpressionResolver.class), rolesStore,
+                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR));
 
         PutRoleRequest request = new PutRoleRequest();
         request.name(roleName);

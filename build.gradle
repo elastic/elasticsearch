@@ -1,0 +1,52 @@
+description = 'Builds the Prelert Engine native binaries and Java classes'
+
+project.ext.numCpus = Runtime.runtime.availableProcessors() -1
+
+
+task clean(type: Exec) {
+    commandLine 'make'
+    args 'clean', 'BUILD_ENGINE_API=1'
+}
+
+task objcompile(type: Exec) {
+    commandLine 'make'
+    args '-j' + numCpus, 'objcompile', 'BUILD_ENGINE_API=1'
+}
+
+task make(type: Exec) {
+    commandLine 'make'
+    args '-j' + numCpus, 'BUILD_ENGINE_API=1'
+}
+
+task test(type: Exec) {
+    commandLine 'make'
+    args '-j' + numCpus, 'BUILD_ENGINE_API=1', 'test'
+}
+
+subprojects {
+    apply plugin: 'maven'
+    apply plugin: 'java'
+
+    group = 'com.prelert'
+    version = '2.1.1'
+    sourceCompatibility = 1.8
+    targetCompatibility = 1.8
+
+
+    repositories {
+        mavenLocal()
+        maven { url "http://repo.maven.apache.org/maven2" }
+    }
+
+    configurations.all {
+    }
+
+    dependencies {
+        compile group: 'log4j', name: 'log4j', version:'1.2.17'
+        testCompile group: 'org.hamcrest', name: 'hamcrest-core', version: '1.3'
+        testCompile group: 'junit', name: 'junit', version:'4.11'
+        testCompile group: 'org.ini4j', name: 'ini4j', version:'0.5.2'
+        testCompile group: 'org.mockito', name: 'mockito-all', version:'1.10.19'
+    }
+}
+

@@ -9,6 +9,8 @@ package org.elasticsearch.license;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -90,27 +92,34 @@ public final class OperationModeFileWatcher implements FileChangesListener {
 
     private synchronized void onChange(Path file) {
         if (file.equals(licenseModePath)) {
-            currentOperationMode = defaultOperationMode;
-            if (Files.exists(licenseModePath)
-                    && Files.isReadable(licenseModePath)) {
-                final byte[] content;
-                try {
-                    content = Files.readAllBytes(licenseModePath);
-                } catch (IOException e) {
-                    logger.error(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                    "couldn't read operation mode from [{}]", licenseModePath.toAbsolutePath()), e);
-                    return;
+            OperationMode newOperationMode = defaultOperationMode;
+            try {
+                if (Files.exists(licenseModePath)
+                        && Files.isReadable(licenseModePath)) {
+                    final byte[] content;
+                    try {
+                        content = Files.readAllBytes(licenseModePath);
+                    } catch (IOException e) {
+                        logger.error(
+                                (Supplier<?>) () -> new ParameterizedMessage(
+                                        "couldn't read operation mode from [{}]", licenseModePath.toAbsolutePath()), e);
+                        return;
+                    }
+                    // this UTF-8 conversion is much pickier than java String
+                    final String operationMode = new BytesRef(content).utf8ToString();
+                    try {
+                        newOperationMode = OperationMode.resolve(operationMode);
+                    } catch (IllegalArgumentException e) {
+                        logger.error(
+                                (Supplier<?>) () -> new ParameterizedMessage(
+                                        "invalid operation mode in [{}]", licenseModePath.toAbsolutePath()), e);
+                        return;
+                    }
                 }
-                String operationMode = new String(content, StandardCharsets.UTF_8);
-                try {
-                    currentOperationMode = OperationMode.resolve(operationMode);
-                } catch (IllegalArgumentException e) {
-                    logger.error(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                    "invalid operation mode in [{}]", licenseModePath.toAbsolutePath()), e);
-                    return;
-                }
+            } finally {
+                // set this after the fact to prevent that we are jumping back and forth first setting to defautl and then reading the
+                // actual op mode resetting it.
+                this.currentOperationMode = newOperationMode;
             }
             onChange.run();
         }

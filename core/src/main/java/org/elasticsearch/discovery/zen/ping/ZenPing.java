@@ -20,17 +20,24 @@
 package org.elasticsearch.discovery.zen.ping;
 
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 public interface ZenPing extends LifecycleComponent {
 
@@ -38,12 +45,17 @@ public interface ZenPing extends LifecycleComponent {
 
     void ping(PingListener listener, TimeValue timeout);
 
-    public interface PingListener {
+    interface PingListener {
 
-        void onPing(PingResponse[] pings);
+        /**
+         * called when pinging is done.
+         *
+         * @param pings ping result *must
+         */
+        void onPing(Collection<PingResponse> pings);
     }
 
-    public static class PingResponse implements Streamable {
+    class PingResponse implements Streamable {
 
         public static final PingResponse[] EMPTY = new PingResponse[0];
 
@@ -59,29 +71,36 @@ public interface ZenPing extends LifecycleComponent {
 
         private DiscoveryNode master;
 
-        private boolean hasJoinedOnce;
+        private long clusterStateVersion;
 
         private PingResponse() {
         }
 
         /**
-         * @param node          the node which this ping describes
-         * @param master        the current master of the node
-         * @param clusterName   the cluster name of the node
-         * @param hasJoinedOnce true if the joined has successfully joined the cluster before
+         * @param node                the node which this ping describes
+         * @param master              the current master of the node
+         * @param clusterName         the cluster name of the node
+         * @param clusterStateVersion the current cluster state version of that node
+         *                            ({@link ElectMasterService.MasterCandidate#UNRECOVERED_CLUSTER_VERSION} for not recovered)
          */
-        public PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, boolean hasJoinedOnce) {
+        public PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, long clusterStateVersion) {
             this.id = idGenerator.incrementAndGet();
             this.node = node;
             this.master = master;
             this.clusterName = clusterName;
-            this.hasJoinedOnce = hasJoinedOnce;
+            this.clusterStateVersion = clusterStateVersion;
         }
 
-        /**
-         * an always increasing unique identifier for this ping response.
-         * lower values means older pings.
-         */
+        public PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterState state) {
+            this(node, master, state.getClusterName(),
+                state.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) ?
+                    ElectMasterService.MasterCandidate.UNRECOVERED_CLUSTER_VERSION : state.version());
+        }
+
+            /**
+             * an always increasing unique identifier for this ping response.
+             * lower values means older pings.
+             */
         public long id() {
             return this.id;
         }
@@ -100,9 +119,11 @@ public interface ZenPing extends LifecycleComponent {
             return master;
         }
 
-        /** true if the joined has successfully joined the cluster before */
-        public boolean hasJoinedOnce() {
-            return hasJoinedOnce;
+        /**
+         * the current cluster state version of that node ({@link ElectMasterService.MasterCandidate#UNRECOVERED_CLUSTER_VERSION}
+         * for not recovered) */
+        public long getClusterStateVersion() {
+            return clusterStateVersion;
         }
 
         public static PingResponse readPingResponse(StreamInput in) throws IOException {
@@ -118,7 +139,7 @@ public interface ZenPing extends LifecycleComponent {
             if (in.readBoolean()) {
                 master = new DiscoveryNode(in);
             }
-            this.hasJoinedOnce = in.readBoolean();
+            this.clusterStateVersion = in.readLong();
             this.id = in.readLong();
         }
 
@@ -132,13 +153,14 @@ public interface ZenPing extends LifecycleComponent {
                 out.writeBoolean(true);
                 master.writeTo(out);
             }
-            out.writeBoolean(hasJoinedOnce);
+            out.writeLong(clusterStateVersion);
             out.writeLong(id);
         }
 
         @Override
         public String toString() {
-            return "ping_response{node [" + node + "], id[" + id + "], master [" + master + "], hasJoinedOnce [" + hasJoinedOnce + "], cluster_name[" + clusterName.value() + "]}";
+            return "ping_response{node [" + node + "], id[" + id + "], master [" + master + "], cluster_state_version [" + clusterStateVersion
+                + "], cluster_name[" + clusterName.value() + "]}";
         }
     }
 
@@ -146,7 +168,7 @@ public interface ZenPing extends LifecycleComponent {
     /**
      * a utility collection of pings where only the most recent ping is stored per node
      */
-    public static class PingCollection {
+    class PingCollection {
 
         Map<DiscoveryNode, PingResponse> pings;
 
@@ -171,15 +193,15 @@ public interface ZenPing extends LifecycleComponent {
         }
 
         /** adds multiple pings if newer than previous pings from the same node */
-        public synchronized void addPings(PingResponse[] pings) {
+        public synchronized void addPings(Iterable<PingResponse> pings) {
             for (PingResponse ping : pings) {
                 addPing(ping);
             }
         }
 
-        /** serialize current pings to an array */
-        public synchronized PingResponse[] toArray() {
-            return pings.values().toArray(new PingResponse[pings.size()]);
+        /** serialize current pings to a list. It is guaranteed that the list contains one ping response per node */
+        public synchronized List<PingResponse> toList() {
+            return new ArrayList<>(pings.values());
         }
 
         /** the number of nodes for which there are known pings */

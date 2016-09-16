@@ -107,7 +107,7 @@ class Elasticsearch extends SettingCommand {
     }
 
     void init(final boolean daemonize, final Path pidFile, final boolean quiet, final Map<String, String> esSettings)
-            throws  NodeValidationException {
+        throws NodeValidationException, UserException {
         try {
             Bootstrap.init(!daemonize, pidFile, quiet, esSettings);
         } catch (BootstrapException | RuntimeException e) {
@@ -123,7 +123,8 @@ class Elasticsearch extends SettingCommand {
      *
      * http://commons.apache.org/proper/commons-daemon/procrun.html
      *
-     * NOTE: If this method is renamed and/or moved, make sure to update service.bat!
+     * NOTE: If this method is renamed and/or moved, make sure to
+     * update elasticsearch-service.bat!
      */
     static void close(String[] args) throws IOException {
         Bootstrap.stop();

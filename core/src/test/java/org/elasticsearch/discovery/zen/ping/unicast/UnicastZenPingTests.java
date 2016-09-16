@@ -20,6 +20,9 @@
 package org.elasticsearch.discovery.zen.ping.unicast;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -31,7 +34,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -45,16 +48,18 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.net.InetSocketAddress;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class UnicastZenPingIT extends ESTestCase {
+public class UnicastZenPingTests extends ESTestCase {
     public void testSimplePings() throws InterruptedException {
         int startPort = 11000 + randomIntBetween(0, 1000);
         int endPort = startPort + 10;
@@ -78,6 +83,8 @@ public class UnicastZenPingIT extends ESTestCase {
         Version versionD = VersionUtils.randomVersionBetween(random(), previousVersion.minimumCompatibilityVersion(), previousVersion);
         NetworkHandle handleD = startServices(settingsMismatch, threadPool, networkService, "UZP_D", versionD);
 
+        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomPositiveLong()).build();
+
         Settings hostsSettings = Settings.builder()
                 .putArray("discovery.zen.ping.unicast.hosts",
                 NetworkAddress.format(new InetSocketAddress(handleA.address.address().getAddress(), handleA.address.address().getPort())),
@@ -96,8 +103,8 @@ public class UnicastZenPingIT extends ESTestCase {
             }
 
             @Override
-            public boolean nodeHasJoinedClusterOnce() {
-                return false;
+            public ClusterState clusterState() {
+                return ClusterState.builder(state).blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)).build();
             }
         });
         zenPingA.start();
@@ -110,8 +117,8 @@ public class UnicastZenPingIT extends ESTestCase {
             }
 
             @Override
-            public boolean nodeHasJoinedClusterOnce() {
-                return true;
+            public ClusterState clusterState() {
+                return state;
             }
         });
         zenPingB.start();
@@ -130,8 +137,8 @@ public class UnicastZenPingIT extends ESTestCase {
             }
 
             @Override
-            public boolean nodeHasJoinedClusterOnce() {
-                return false;
+            public ClusterState clusterState() {
+                return state;
             }
         });
         zenPingC.start();
@@ -144,36 +151,38 @@ public class UnicastZenPingIT extends ESTestCase {
             }
 
             @Override
-            public boolean nodeHasJoinedClusterOnce() {
-                return false;
+            public ClusterState clusterState() {
+                return state;
             }
         });
         zenPingD.start();
 
         try {
             logger.info("ping from UZP_A");
-            ZenPing.PingResponse[] pingResponses = zenPingA.pingAndWait(TimeValue.timeValueSeconds(1));
-            assertThat(pingResponses.length, equalTo(1));
-            assertThat(pingResponses[0].node().getId(), equalTo("UZP_B"));
-            assertTrue(pingResponses[0].hasJoinedOnce());
+            Collection<ZenPing.PingResponse> pingResponses = zenPingA.pingAndWait(TimeValue.timeValueSeconds(1));
+            assertThat(pingResponses.size(), equalTo(1));
+            ZenPing.PingResponse ping = pingResponses.iterator().next();
+            assertThat(ping.node().getId(), equalTo("UZP_B"));
+            assertThat(ping.getClusterStateVersion(), equalTo(state.version()));
             assertCounters(handleA, handleA, handleB, handleC, handleD);
 
             // ping again, this time from B,
             logger.info("ping from UZP_B");
             pingResponses = zenPingB.pingAndWait(TimeValue.timeValueSeconds(1));
-            assertThat(pingResponses.length, equalTo(1));
-            assertThat(pingResponses[0].node().getId(), equalTo("UZP_A"));
-            assertFalse(pingResponses[0].hasJoinedOnce());
+            assertThat(pingResponses.size(), equalTo(1));
+            ping = pingResponses.iterator().next();
+            assertThat(ping.node().getId(), equalTo("UZP_A"));
+            assertThat(ping.getClusterStateVersion(), equalTo(ElectMasterService.MasterCandidate.UNRECOVERED_CLUSTER_VERSION));
             assertCounters(handleB, handleA, handleB, handleC, handleD);
 
             logger.info("ping from UZP_C");
             pingResponses = zenPingC.pingAndWait(TimeValue.timeValueSeconds(1));
-            assertThat(pingResponses.length, equalTo(0));
+            assertThat(pingResponses.size(), equalTo(0));
             assertCounters(handleC, handleA, handleB, handleC, handleD);
 
             logger.info("ping from UZP_D");
             pingResponses = zenPingD.pingAndWait(TimeValue.timeValueSeconds(1));
-            assertThat(pingResponses.length, equalTo(0));
+            assertThat(pingResponses.size(), equalTo(0));
             assertCounters(handleD, handleA, handleB, handleC, handleD);
         } finally {
             zenPingA.close();

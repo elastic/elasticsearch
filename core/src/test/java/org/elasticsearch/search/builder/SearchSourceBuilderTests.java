@@ -21,6 +21,7 @@ package org.elasticsearch.search.builder;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -419,6 +420,27 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 assertArrayEquals(new String[]{}, searchSourceBuilder.fetchSource().includes());
                 assertFalse(searchSourceBuilder.fetchSource().fetchSource());
             }
+        }
+    }
+
+    public void testInvalid() throws Exception {
+        String restContent = " { \"query\": {\n" +
+                "    \"multi_match\": {\n" +
+                "      \"query\": \"workd\",\n" +
+                "      \"fields\": [\"title^5\", \"plain_body\"]\n" +
+                "    },\n" +
+                "    \"filters\": {\n" +
+                "      \"terms\": {\n" +
+                "        \"status\": [ 3 ]\n" +
+                "      }\n" +
+                "    }\n" +
+                "  } }";
+        try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+            SearchSourceBuilder.fromXContent(createParseContext(parser),
+                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
+            fail("invalid query syntax multiple keys under query");
+        } catch (ParsingException e) {
+            assertThat(e.getMessage(), containsString("filters"));
         }
     }
 

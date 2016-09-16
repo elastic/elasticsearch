@@ -42,6 +42,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
@@ -77,7 +78,7 @@ public class NetworkModule extends AbstractModule {
     private final ExtensionPoint.SelectedType<Transport> transportTypes = new ExtensionPoint.SelectedType<>("transport", Transport.class);
     private final ExtensionPoint.SelectedType<HttpServerTransport> httpTransportTypes = new ExtensionPoint.SelectedType<>("http_transport", HttpServerTransport.class);
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
-    private final List<TransportService.TransportInterceptor> transportIntercetors = new ArrayList<>();
+    private final List<TransportInterceptor> transportIntercetors = new ArrayList<>();
 
     /**
      * Creates a network module that custom networking classes can be plugged into.
@@ -145,7 +146,7 @@ public class NetworkModule extends AbstractModule {
         bind(NetworkService.class).toInstance(networkService);
         bindTransportService();
         transportTypes.bindType(binder(), settings, TRANSPORT_TYPE_KEY, TRANSPORT_DEFAULT_TYPE_SETTING.get(settings));
-        bind(TransportService.TransportInterceptor.class).toInstance(new CompositeTransportInterceptor(this.transportIntercetors));
+        bind(TransportInterceptor.class).toInstance(new CompositeTransportInterceptor(this.transportIntercetors));
         if (transportClient == false) {
             if (HTTP_ENABLED.get(settings)) {
                 bind(HttpServer.class).asEagerSingleton();
@@ -177,30 +178,30 @@ public class NetworkModule extends AbstractModule {
     }
 
     /**
-     * Registers a new {@link org.elasticsearch.transport.TransportService.TransportInterceptor}
+     * Registers a new {@link TransportInterceptor}
      */
-    public void addTransportInterceptor(TransportService.TransportInterceptor interceptor) {
+    public void addTransportInterceptor(TransportInterceptor interceptor) {
         this.transportIntercetors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
     }
 
-    static final class CompositeTransportInterceptor implements TransportService.TransportInterceptor {
-        final List<TransportService.TransportInterceptor> transportInterceptors;
+    static final class CompositeTransportInterceptor implements TransportInterceptor {
+        final List<TransportInterceptor> transportInterceptors;
 
-        private CompositeTransportInterceptor(List<TransportService.TransportInterceptor> transportInterceptors) {
+        private CompositeTransportInterceptor(List<TransportInterceptor> transportInterceptors) {
             this.transportInterceptors = new ArrayList<>(transportInterceptors);
         }
 
         @Override
         public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, TransportRequestHandler<T> actualHandler) {
-            for (TransportService.TransportInterceptor interceptor : this.transportInterceptors) {
+            for (TransportInterceptor interceptor : this.transportInterceptors) {
                 actualHandler = interceptor.interceptHandler(action, actualHandler);
             }
             return actualHandler;
         }
 
         @Override
-        public TransportService.AsyncSender interceptSender(TransportService.AsyncSender sender) {
-            for (TransportService.TransportInterceptor interceptor : this.transportInterceptors) {
+        public AsyncSender interceptSender(AsyncSender sender) {
+            for (TransportInterceptor interceptor : this.transportInterceptors) {
                 sender = interceptor.interceptSender(sender);
             }
             return sender;

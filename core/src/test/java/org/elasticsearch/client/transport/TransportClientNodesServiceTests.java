@@ -29,6 +29,7 @@ import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -75,10 +76,10 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     return  new TestResponse();
                 }
             };
-            transportService = new TransportService(settings, transport, threadPool, new TransportService.TransportInterceptor() {
+            transportService = new TransportService(settings, transport, threadPool, new TransportInterceptor() {
                 @Override
-                public TransportService.AsyncSender interceptSender(TransportService.AsyncSender sender) {
-                    return new TransportService.AsyncSender() {
+                public AsyncSender interceptSender(AsyncSender sender) {
+                    return new AsyncSender() {
                         @Override
                         public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {

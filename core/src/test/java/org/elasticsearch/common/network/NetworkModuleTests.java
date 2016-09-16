@@ -35,9 +35,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportInterceptor;
 
 import java.util.Collections;
 
@@ -147,9 +145,9 @@ public class NetworkModuleTests extends ModuleTestCase {
             .put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
 
         NetworkModule module = new NetworkModule(new NetworkService(settings, Collections.emptyList()), settings, false);
-        TransportService.TransportInterceptor interceptor = new TransportService.TransportInterceptor() {};
+        TransportInterceptor interceptor = new TransportInterceptor() {};
         module.addTransportInterceptor(interceptor);
-        assertInstanceBinding(module, TransportService.TransportInterceptor.class, i -> {
+        assertInstanceBinding(module, TransportInterceptor.class, i -> {
             if (i instanceof NetworkModule.CompositeTransportInterceptor) {
                 assertEquals(((NetworkModule.CompositeTransportInterceptor)i).transportInterceptors.size(), 1);
                 return ((NetworkModule.CompositeTransportInterceptor)i).transportInterceptors.get(0) == interceptor;

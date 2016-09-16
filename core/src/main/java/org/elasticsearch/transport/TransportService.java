@@ -76,7 +76,7 @@ public class TransportService extends AbstractLifecycleComponent {
     protected final ThreadPool threadPool;
     protected final ClusterName clusterName;
     protected final TaskManager taskManager;
-    private final AsyncSender asyncSender;
+    private final TransportInterceptor.AsyncSender asyncSender;
 
     volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
     final Object requestHandlerMutex = new Object();
@@ -1069,41 +1069,5 @@ public class TransportService extends AbstractLifecycleComponent {
         public String getChannelType() {
             return "direct";
         }
-    }
-
-    /**
-     * This interface allows plugins to intercept requests on both the sender and the receiver side.
-     */
-    public interface TransportInterceptor {
-        /**
-         * This is called for each handler that is registered via
-         * {@link #registerRequestHandler(String, Supplier, String, boolean, boolean, TransportRequestHandler)} or
-         * {@link #registerRequestHandler(String, Supplier, String, TransportRequestHandler)}. The returned handler is
-         * used instead of the passed in handler. By default the provided handler is returned.
-         */
-        default <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action,
-                                                                                         TransportRequestHandler<T> actualHandler) {
-            return actualHandler;
-        }
-
-        /**
-         * This is called up-front providing the actual low level {@link AsyncSender} that performs the low level send request.
-         * The returned sender is used to send all requests that come in via
-         * {@link #sendRequest(DiscoveryNode, String, TransportRequest, TransportResponseHandler)} or
-         * {@link #sendRequest(DiscoveryNode, String, TransportRequest, TransportRequestOptions, TransportResponseHandler)}.
-         * This allows plugins to perform actions on each send request including modifying the request context etc.
-         */
-        default AsyncSender interceptSender(AsyncSender sender) {
-            return sender;
-        }
-    }
-
-    /**
-     * A simple interface to decorate
-     * {@link #sendRequest(DiscoveryNode, String, TransportRequest, TransportRequestOptions, TransportResponseHandler)}
-     */
-    public interface AsyncSender {
-        <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action, final TransportRequest request,
-                                                              final TransportRequestOptions options, TransportResponseHandler<T> handler);
     }
 }

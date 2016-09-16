@@ -39,14 +39,13 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.CustomTypeSafeMatcher;
-import org.mockito.stubbing.Answer;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -56,10 +55,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -71,7 +68,7 @@ public class IngestProxyActionFilterTests extends ESTestCase {
     private TransportService transportService;
 
     @SuppressWarnings("unchecked")
-    private IngestProxyActionFilter buildFilter(int ingestNodes, int totalNodes, TransportService.TransportInterceptor interceptor) {
+    private IngestProxyActionFilter buildFilter(int ingestNodes, int totalNodes, TransportInterceptor interceptor) {
         ClusterState.Builder clusterState = new ClusterState.Builder(new ClusterName("_name"));
         DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder();
         DiscoveryNode localNode = null;
@@ -168,10 +165,10 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         AtomicBoolean run = new AtomicBoolean(false);
 
         IngestProxyActionFilter filter = buildFilter(randomIntBetween(1, totalNodes - 1), totalNodes,
-            new TransportService.TransportInterceptor() {
+            new TransportInterceptor() {
                 @Override
-                public TransportService.AsyncSender interceptSender(TransportService.AsyncSender sender) {
-                    return new TransportService.AsyncSender() {
+                public AsyncSender interceptSender(AsyncSender sender) {
+                    return new AsyncSender() {
                         @Override
                         public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
                                                                               TransportRequestOptions options,
@@ -202,10 +199,10 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         int totalNodes = randomIntBetween(2, 5);
         AtomicBoolean run = new AtomicBoolean(false);
         IngestProxyActionFilter filter = buildFilter(randomIntBetween(1, totalNodes - 1), totalNodes,
-            new TransportService.TransportInterceptor() {
+            new TransportInterceptor() {
                 @Override
-                public TransportService.AsyncSender interceptSender(TransportService.AsyncSender sender) {
-                    return new TransportService.AsyncSender() {
+                public AsyncSender interceptSender(AsyncSender sender) {
+                    return new AsyncSender() {
                         @Override
                         public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
                                                                               TransportRequestOptions options,
@@ -249,10 +246,10 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         }
         AtomicBoolean run = new AtomicBoolean(false);
         IngestProxyActionFilter filter = buildFilter(randomIntBetween(1, totalNodes - 1), totalNodes,
-            new TransportService.TransportInterceptor() {
+            new TransportInterceptor() {
                 @Override
-                public TransportService.AsyncSender interceptSender(TransportService.AsyncSender sender) {
-                    return new TransportService.AsyncSender() {
+                public AsyncSender interceptSender(AsyncSender sender) {
+                    return new AsyncSender() {
                         @Override
                         public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
                                                                               TransportRequestOptions options,

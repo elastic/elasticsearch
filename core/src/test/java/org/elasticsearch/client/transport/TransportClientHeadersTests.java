@@ -41,12 +41,12 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
@@ -109,7 +109,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
         }
     }
 
-    public static class InternalTransportServiceInterceptor implements TransportService.TransportInterceptor {
+    public static class InternalTransportServiceInterceptor implements TransportInterceptor {
 
         ThreadPool threadPool;
         TransportAddress address;
@@ -119,7 +119,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
             private InternalTransportServiceInterceptor instance = new InternalTransportServiceInterceptor();
 
             public void onModule(NetworkModule transportModule) {
-                transportModule.addTransportInterceptor(new TransportService.TransportInterceptor() {
+                transportModule.addTransportInterceptor(new TransportInterceptor() {
                     @Override
                     public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action,
                                                                                 TransportRequestHandler<T> actualHandler) {
@@ -127,7 +127,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                     }
 
                     @Override
-                    public TransportService.AsyncSender interceptSender(TransportService.AsyncSender sender) {
+                    public AsyncSender interceptSender(AsyncSender sender) {
                         return instance.interceptSender(sender);
                     }
                 });
@@ -137,8 +137,8 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
         final CountDownLatch clusterStateLatch = new CountDownLatch(1);
 
         @Override
-        public TransportService.AsyncSender interceptSender(TransportService.AsyncSender sender) {
-            return new TransportService.AsyncSender() {
+        public AsyncSender interceptSender(AsyncSender sender) {
+            return new AsyncSender() {
                 @Override
                 public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {

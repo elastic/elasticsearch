@@ -21,6 +21,7 @@ package org.elasticsearch.test.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;

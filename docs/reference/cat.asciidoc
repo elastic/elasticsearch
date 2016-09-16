@@ -59,11 +59,11 @@ only those columns to appear.
 [source,sh]
 --------------------------------------------------
 % curl 'n1:9200/_cat/nodes?h=ip,port,heapPercent,name'
-192.168.56.40 9300 40.3 Captain Universe
-192.168.56.20 9300 15.3 Kaluu
-192.168.56.50 9300 17.0 Yellowjacket
-192.168.56.10 9300 12.3 Remy LeBeau
-192.168.56.30 9300 43.9 Ramsey, Doug
+192.168.56.40 9300 40.3 bGG90GE
+192.168.56.20 9300 15.3 H5dfFeA
+192.168.56.50 9300 17.0 I8hydUG
+192.168.56.10 9300 12.3 DKDM97B
+192.168.56.30 9300 43.9 6-bjhwl
 --------------------------------------------------
 
 You can also request multiple columns using simple wildcards like

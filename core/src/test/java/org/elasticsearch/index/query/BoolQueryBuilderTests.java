@@ -365,12 +365,22 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
      * test that two queries in object throws error
      */
     public void testTooManyQueriesInObject() throws IOException {
-        String clauseType = randomFrom(new String[] {"must", "should", "must_not", "filter"});
+        String clauseType = randomFrom("must", "should", "must_not", "filter");
         // should also throw error if invalid query is preceded by a valid one
-        String query = "{\"bool\" : {\"" + clauseType
-                + "\" : { \"match\" : { \"foo\" : \"bar\" } , \"match\" : { \"baz\" : \"buzz\" } } } }";
+        String query = "{\n" +
+                "  \"bool\": {\n" +
+                "    \"" + clauseType + "\": {\n" +
+                "      \"match\": {\n" +
+                "        \"foo\": \"bar\"\n" +
+                "      },\n" +
+                "      \"match\": {\n" +
+                "        \"baz\": \"buzz\"\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
         ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query, ParseFieldMatcher.EMPTY));
-        assertEquals("[match] malformed query, unexpected [FIELD_NAME] found [match]", ex.getMessage());
+        assertEquals("[match] malformed query, expected [END_OBJECT] but found [FIELD_NAME]", ex.getMessage());
     }
 
     public void testRewrite() throws IOException {

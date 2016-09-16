@@ -423,8 +423,9 @@ public class SearchSourceBuilderTests extends ESTestCase {
         }
     }
 
-    public void testInvalid() throws Exception {
-        String restContent = " { \"query\": {\n" +
+    public void testMultipleQueryObjectsAreRejected() throws Exception {
+        String restContent =
+                " { \"query\": {\n" +
                 "    \"multi_match\": {\n" +
                 "      \"query\": \"workd\",\n" +
                 "      \"fields\": [\"title^5\", \"plain_body\"]\n" +
@@ -436,11 +437,9 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 "    }\n" +
                 "  } }";
         try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-            SearchSourceBuilder.fromXContent(createParseContext(parser),
-                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
-            fail("invalid query syntax multiple keys under query");
-        } catch (ParsingException e) {
-            assertThat(e.getMessage(), containsString("filters"));
+            ParsingException e = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(createParseContext(parser),
+                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers));
+            assertEquals("[multi_match] malformed query, expected [END_OBJECT] but found [FIELD_NAME]", e.getMessage());
         }
     }
 

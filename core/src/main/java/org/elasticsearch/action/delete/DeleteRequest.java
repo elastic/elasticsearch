@@ -90,6 +90,9 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
         if (!versionType.validateVersionForWrites(version)) {
             validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
         }
+        if (versionType == VersionType.FORCE) {
+            validationException = addValidationError("version type [force] may no longer be used", validationException);
+        }
         return validationException;
     }
 

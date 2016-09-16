@@ -78,3 +78,8 @@ The `fields` field has been deprecated. You should use `_source` to load the fie
 ==== bulk API
 
 The `fields` field has been deprecated. You should use `_source` to load the field from _source.
+
+==== version type 'force' removed
+
+In 5.0.0 document modification operations may no longer specify the
+`version_type` of `force` to override any previous version checks.

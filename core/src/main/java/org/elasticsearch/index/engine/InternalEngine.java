@@ -352,6 +352,16 @@ public class InternalEngine extends Engine {
             final long currentVersion,
             final long expectedVersion,
             final boolean deleted) {
+        if (op.versionType() == VersionType.FORCE) {
+            if (engineConfig.getIndexSettings().getIndexVersionCreated().after(Version.V_5_0_0_alpha1)) {
+                // If index was created in 5.0 or later, 'force' is not allowed at all
+                throw new IllegalArgumentException("version type [FORCE] may not be used for indices created after 5.0");
+            } else if (op.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+                // For earlier indices, 'force' is only allowed for translog recovery
+                throw new IllegalArgumentException("version type [FORCE] may not be used for non-translog operations");
+            }
+        }
+
         if (op.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
             if (op.origin().isRecovery()) {
                 // version conflict, but okay

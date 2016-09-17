@@ -1059,7 +1059,7 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
       "aggs": {
         "group_by_gender": {
           "terms": {
-            "field": "gender"
+            "field": "gender.keyword"
           },
           "aggs": {
             "average_balance": {

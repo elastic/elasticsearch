@@ -12,10 +12,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.DAILY;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.HOURLY;
@@ -76,9 +78,13 @@ public class IndexAuditTrailUpdateMappingTests extends SecurityIntegTestCase {
         // no-op here because of the shard counter check
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    /**
+     * We need to use our own method instead of {@link ESIntegTestCase#tearDown()} since checks are run against the cluster before the
+     * teardown method is called by the {@link ESIntegTestCase#after()} method. If the {@link IndexAuditTrail} is still running and
+     * indexing tests will randomly fail with failing to obtain shard locks for the audit indices.
+     */
+    @After
+    public void cleanUp() throws Exception {
         if (auditor != null) {
             auditor.stop();
         }

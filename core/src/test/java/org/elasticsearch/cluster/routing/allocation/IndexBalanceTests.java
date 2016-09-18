@@ -377,6 +377,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
         newState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
         assertThat(newState, not(equalTo(clusterState)));
+        clusterState = newState;
         routingNodes = clusterState.getRoutingNodes();
         assertThat(clusterState.routingTable().index("test").shards().size(), equalTo(3));
         for (int i = 0; i < clusterState.routingTable().index("test").shards().size(); i++) {

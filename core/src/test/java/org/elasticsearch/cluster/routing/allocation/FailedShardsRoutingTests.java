@@ -346,6 +346,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
         ClusterState newState = strategy.reroute(clusterState, "reroute");
         assertThat(newState, not(clusterState));
+        clusterState = newState;
         final String nodeHoldingPrimary = clusterState.routingTable().index("test").shard(0).primaryShard().currentNodeId();
 
         assertThat(clusterState.routingTable().index("test").shards().size(), equalTo(1));

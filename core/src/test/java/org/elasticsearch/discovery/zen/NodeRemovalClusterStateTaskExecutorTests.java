@@ -132,7 +132,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
 
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.deassociateDeadNodes(any(ClusterState.class), eq(true), any(String.class)))
-            .thenReturn(mock(ClusterState.class));
+            .thenAnswer(im -> im.getArguments()[0]);
 
         final BiFunction<ClusterState, String, ClusterState> rejoin = (cs, r) -> {
             fail("rejoin should not be invoked");

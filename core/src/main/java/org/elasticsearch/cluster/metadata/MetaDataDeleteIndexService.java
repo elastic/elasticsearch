@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -108,9 +107,12 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
         MetaData newMetaData = metaDataBuilder.build();
         ClusterBlocks blocks = clusterBlocksBuilder.build();
-        RoutingAllocation.Result routingResult = allocationService.reroute(
-                ClusterState.builder(currentState).routingTable(routingTableBuilder.build()).metaData(newMetaData).build(),
+        return allocationService.reroute(
+                ClusterState.builder(currentState)
+                    .routingTable(routingTableBuilder.build())
+                    .metaData(newMetaData)
+                    .blocks(blocks)
+                    .build(),
                 "deleted indices [" + indices + "]");
-        return ClusterState.builder(currentState).routingResult(routingResult).metaData(newMetaData).blocks(blocks).build();
     }
 }

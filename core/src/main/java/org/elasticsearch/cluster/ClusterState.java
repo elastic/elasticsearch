@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -627,12 +626,6 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
         public DiscoveryNodes nodes() {
             return nodes;
-        }
-
-        public Builder routingResult(RoutingAllocation.Result routingResult) {
-            this.routingTable = routingResult.routingTable();
-            this.metaData = routingResult.metaData();
-            return this;
         }
 
         public Builder routingTable(RoutingTable routingTable) {

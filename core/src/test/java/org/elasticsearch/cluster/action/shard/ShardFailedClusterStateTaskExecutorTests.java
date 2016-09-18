@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -116,7 +115,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         List<ShardStateAction.ShardEntry> nonExistentTasks = createNonExistentShards(currentState, reason);
         ShardStateAction.ShardFailedClusterStateTaskExecutor failingExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger) {
             @Override
-            RoutingAllocation.Result applyFailedShards(ClusterState currentState, List<FailedRerouteAllocation.FailedShard> failedShards,
+            ClusterState applyFailedShards(ClusterState currentState, List<FailedRerouteAllocation.FailedShard> failedShards,
                                                        List<FailedRerouteAllocation.StaleShard> staleShards) {
                 throw new RuntimeException("simulated applyFailedShards failure");
             }
@@ -161,8 +160,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
             allocationService.reroute(stateAfterAddingNode, reason).routingTable();
         ClusterState stateAfterReroute = ClusterState.builder(stateAfterAddingNode).routingTable(afterReroute).build();
         RoutingNodes routingNodes = stateAfterReroute.getRoutingNodes();
-        RoutingAllocation.Result afterStart = allocationService.applyStartedShards(stateAfterReroute, routingNodes.shardsWithState(ShardRoutingState.INITIALIZING));
-        return ClusterState.builder(stateAfterReroute).routingResult(afterStart).build();
+        return allocationService.applyStartedShards(stateAfterReroute, routingNodes.shardsWithState(ShardRoutingState.INITIALIZING));
     }
 
     private List<ShardStateAction.ShardEntry> createExistingShards(ClusterState currentState, String reason) {

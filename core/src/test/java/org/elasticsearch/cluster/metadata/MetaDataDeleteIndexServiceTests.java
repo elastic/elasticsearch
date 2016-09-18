@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -76,8 +75,7 @@ public class MetaDataDeleteIndexServiceTests extends ESTestCase {
         ClusterState before = clusterState(index);
 
         // Mock the built reroute
-        when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(
-                i -> RoutingAllocation.Result.unchanged((ClusterState) i.getArguments()[0]));
+        when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
 
         // Remove it
         ClusterState after = service.deleteIndices(before, singleton(before.metaData().getIndices().get(index).getIndex()));

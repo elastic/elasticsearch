@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -51,6 +50,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class ClusterRerouteTests extends ESAllocationTestCase {
 
@@ -121,9 +122,9 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             List<FailedRerouteAllocation.FailedShard> failedShards = Collections.singletonList(
                 new FailedRerouteAllocation.FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom" + i,
                     new UnsupportedOperationException()));
-            RoutingAllocation.Result result = allocationService.applyFailedShards(clusterState, failedShards);
-            assertTrue(result.changed());
-            clusterState = ClusterState.builder(clusterState).routingTable(result.routingTable()).build();
+            newState = allocationService.applyFailedShards(clusterState, failedShards);
+            assertThat(newState, not(equalTo(clusterState)));
+            clusterState = newState;
             routingTable = clusterState.routingTable();
             assertEquals(routingTable.index("idx").shards().size(), 1);
             if (i == retries-1) {

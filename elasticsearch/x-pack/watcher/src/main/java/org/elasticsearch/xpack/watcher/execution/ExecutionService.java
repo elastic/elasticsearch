@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -244,9 +245,9 @@ public class ExecutionService extends AbstractComponent {
 
     public WatchRecord execute(WatchExecutionContext ctx) {
         WatchRecord record = null;
-        WatchLockService.Lock lock = watchLockService.acquire(ctx.watch().id());
+        Releasable releasable = watchLockService.acquire(ctx.watch().id());
         if (logger.isTraceEnabled()) {
-            logger.trace("acquired lock for [{}] -- [{}]", ctx.id(), System.identityHashCode(lock));
+            logger.trace("acquired lock for [{}] -- [{}]", ctx.id(), System.identityHashCode(releasable));
         }
         try {
             currentExecutions.put(ctx.watch().id(), new WatchExecution(ctx, Thread.currentThread()));
@@ -287,9 +288,9 @@ public class ExecutionService extends AbstractComponent {
             }
             currentExecutions.remove(ctx.watch().id());
             if (logger.isTraceEnabled()) {
-                logger.trace("releasing lock for [{}] -- [{}]", ctx.id(), System.identityHashCode(lock));
+                logger.trace("releasing lock for [{}] -- [{}]", ctx.id(), System.identityHashCode(releasable));
             }
-            lock.release();
+            releasable.close();
             logger.trace("finished [{}]/[{}]", ctx.watch().id(), ctx.id());
         }
         return record;

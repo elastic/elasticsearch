@@ -5,15 +5,13 @@
  */
 package org.elasticsearch.xpack.watcher.watch;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.watcher.support.concurrent.FairKeyedLock;
-import org.joda.time.PeriodType;
+import org.elasticsearch.common.util.concurrent.KeyedLock;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -25,7 +23,7 @@ import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
  */
 public class WatchLockService extends AbstractComponent {
 
-    private final FairKeyedLock<String> watchLocks = new FairKeyedLock<>();
+    private final KeyedLock<String> watchLocks = new KeyedLock<>(true);
     private final AtomicBoolean running = new AtomicBoolean(false);
     private static final TimeValue DEFAULT_MAX_STOP_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private static final String DEFAULT_MAX_STOP_TIMEOUT_SETTING = "xpack.watcher.stop.timeout";
@@ -43,32 +41,12 @@ public class WatchLockService extends AbstractComponent {
         this.maxStopTimeout = maxStopTimeout;
     }
 
-    public Lock acquire(String name) {
+    public Releasable acquire(String name) {
         if (!running.get()) {
             throw illegalState("cannot acquire lock for watch [{}]. lock service is not running", name);
         }
 
-        watchLocks.acquire(name);
-        return new Lock(name, watchLocks);
-    }
-
-    public Lock tryAcquire(String name, TimeValue timeout) {
-        if (!running.get()) {
-            throw illegalState("cannot acquire lock for watch [{}]. lock service is not running", name);
-        }
-        try {
-            if (!watchLocks.tryAcquire(name, timeout.millis(), TimeUnit.MILLISECONDS)) {
-                logger.warn("failed to acquire lock on watch [{}] (waited for [{}]). It is possible that for some reason this watch " +
-                        "execution is stuck", name, timeout.format(PeriodType.seconds()));
-                return null;
-            }
-        } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
-            //todo figure out a better std exception for this
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("could not acquire lock for watch [{}]", name), ie);
-            return null;
-        }
-        return new Lock(name, watchLocks);
+        return watchLocks.acquire(name);
     }
 
     public void start() {
@@ -105,24 +83,7 @@ public class WatchLockService extends AbstractComponent {
         }
     }
 
-    FairKeyedLock<String> getWatchLocks() {
+    KeyedLock<String> getWatchLocks() {
         return watchLocks;
     }
-
-    public static class Lock {
-
-        private final String name;
-        private final FairKeyedLock<String> watchLocks;
-
-        private Lock(String name, FairKeyedLock<String> watchLocks) {
-            this.name = name;
-            this.watchLocks = watchLocks;
-
-        }
-
-        public void release() {
-            watchLocks.release(name);
-        }
-    }
-
 }

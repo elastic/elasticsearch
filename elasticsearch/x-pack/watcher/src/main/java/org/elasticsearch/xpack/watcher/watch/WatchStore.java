@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -159,32 +160,36 @@ public class WatchStore extends AbstractComponent {
 
         // at the moment we store the status together with the watch,
         // so we just need to update the watch itself
-        // TODO: consider storing the status in a different documment (watch_status doc) (must smaller docs... faster for frequent updates)
         XContentBuilder source = JsonXContent.contentBuilder().
                 startObject()
                     .field(Watch.Field.STATUS.getPreferredName(), watch.status(), ToXContent.EMPTY_PARAMS)
                 .endObject();
+
         UpdateRequest updateRequest = new UpdateRequest(INDEX, DOC_TYPE, watch.id());
         updateRequest.doc(source);
         updateRequest.version(watch.version());
-
-        UpdateResponse response = client.update(updateRequest);
-        watch.status().version(response.getVersion());
-        watch.version(response.getVersion());
-        watch.status().resetDirty();
-        // Don't need to update the watches, since we are working on an instance from it.
+        try {
+            UpdateResponse response = client.update(updateRequest);
+            watch.status().version(response.getVersion());
+            watch.version(response.getVersion());
+            watch.status().resetDirty();
+        } catch (DocumentMissingException e) {
+            // do not rethrow an exception, otherwise the watch history will contain an exception
+            // even though the execution might has been fine
+            logger.warn("Watch [{}] was deleted during watch execution, not updating watch status", watch.id());
+        }
     }
 
     /**
      * Deletes the watch with the specified id if exists
      */
-    public WatchDelete delete(String id, boolean force) {
+    public WatchDelete delete(String id) {
         ensureStarted();
         Watch watch = watches.remove(id);
         // even if the watch was not found in the watch map, we should still try to delete it
         // from the index, just to make sure we don't leave traces of it
         DeleteRequest request = new DeleteRequest(INDEX, DOC_TYPE, id);
-        if (watch != null && !force) {
+        if (watch != null) {
             request.version(watch.version());
         }
         DeleteResponse response = client.delete(request);

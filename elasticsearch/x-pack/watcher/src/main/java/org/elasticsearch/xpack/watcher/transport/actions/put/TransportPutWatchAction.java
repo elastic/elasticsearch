@@ -61,8 +61,7 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
         }
 
         try {
-            IndexResponse indexResponse = watcherService.putWatch(request.getId(), request.getSource(), request.masterNodeTimeout(),
-                    request.isActive());
+            IndexResponse indexResponse = watcherService.putWatch(request.getId(), request.getSource(), request.isActive());
             boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
             listener.onResponse(new PutWatchResponse(indexResponse.getId(), indexResponse.getVersion(), created));
         } catch (Exception e) {

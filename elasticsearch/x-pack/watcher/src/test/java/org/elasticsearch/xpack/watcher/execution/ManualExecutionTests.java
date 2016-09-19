@@ -390,7 +390,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
         for (Thread thread : threads) {
             thread.start();
         }
-        DeleteWatchResponse deleteWatchResponse = watcherClient().prepareDeleteWatch("_id").setForce(true).get();
+        DeleteWatchResponse deleteWatchResponse = watcherClient().prepareDeleteWatch("_id").get();
         assertThat(deleteWatchResponse.isFound(), is(true));
 
         deleteWatchResponse = watcherClient().prepareDeleteWatch("_id").get();

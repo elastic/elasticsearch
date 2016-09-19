@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.PeriodType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -108,71 +107,46 @@ public class WatcherService extends AbstractComponent {
         }
     }
 
-    public WatchStore.WatchDelete deleteWatch(String id, TimeValue timeout, final boolean force) {
+    public WatchStore.WatchDelete deleteWatch(String id) {
         ensureStarted();
-        WatchLockService.Lock lock = null;
-        if (!force) {
-            lock = watchLockService.tryAcquire(id, timeout);
-            if (lock == null) {
-                throw new ElasticsearchTimeoutException("could not delete watch [{}] within [{}]... wait and try again. If this error " +
-                        "continues to occur there is a high chance that the watch execution is stuck (either due to unresponsive external" +
-                        " system such as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
-            }
+        WatchStore.WatchDelete delete = watchStore.delete(id);
+        if (delete.deleteResponse().getResult() == DocWriteResponse.Result.DELETED) {
+            triggerService.remove(id);
         }
-        try {
-            WatchStore.WatchDelete delete = watchStore.delete(id, force);
-            if (delete.deleteResponse().getResult() == DocWriteResponse.Result.DELETED) {
-                triggerService.remove(id);
-            }
-            return delete;
-        } finally {
-            if (lock != null) {
-                lock.release();
-            }
-        }
+        return delete;
     }
 
-    public IndexResponse putWatch(String id, BytesReference watchSource, TimeValue timeout, boolean active) throws IOException {
+    public IndexResponse putWatch(String id, BytesReference watchSource, boolean active) throws IOException {
         ensureStarted();
-        WatchLockService.Lock lock = watchLockService.tryAcquire(id, timeout);
-        if (lock == null) {
-            throw new ElasticsearchTimeoutException("could not put watch [{}] within [{}]... wait and try again. If this error continues " +
-                    "to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such " +
-                    "as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
-        }
-        try {
-            DateTime now = clock.nowUTC();
-            Watch watch = watchParser.parseWithSecrets(id, false, watchSource, now);
-            watch.setState(active, now);
-            WatchStore.WatchPut result = watchStore.put(watch);
+        DateTime now = clock.nowUTC();
+        Watch watch = watchParser.parseWithSecrets(id, false, watchSource, now);
+        watch.setState(active, now);
+        WatchStore.WatchPut result = watchStore.put(watch);
 
-            if (result.previous() == null) {
-                // this is a newly created watch, so we only need to schedule it if it's active
-                if (result.current().status().state().isActive()) {
-                    triggerService.add(result.current());
-                }
-
-            } else if (result.current().status().state().isActive()) {
-
-                if (!result.previous().status().state().isActive()) {
-                    // the replaced watch was inactive, which means it wasn't scheduled. The new watch is active
-                    // so we need to schedule it
-                    triggerService.add(result.current());
-
-                } else if (!result.previous().trigger().equals(result.current().trigger())) {
-                    // the previous watch was active and its schedule is different than the schedule of the
-                    // new watch, so we need to
-                    triggerService.add(result.current());
-                }
-            } else {
-                // if the current is inactive, we'll just remove it from the trigger service
-                // just to be safe
-                triggerService.remove(result.current().id());
+        if (result.previous() == null) {
+            // this is a newly created watch, so we only need to schedule it if it's active
+            if (result.current().status().state().isActive()) {
+                triggerService.add(result.current());
             }
-            return result.indexResponse();
-        } finally {
-            lock.release();
+
+        } else if (result.current().status().state().isActive()) {
+
+            if (!result.previous().status().state().isActive()) {
+                // the replaced watch was inactive, which means it wasn't scheduled. The new watch is active
+                // so we need to schedule it
+                triggerService.add(result.current());
+
+            } else if (!result.previous().trigger().equals(result.current().trigger())) {
+                // the previous watch was active and its schedule is different than the schedule of the
+                // new watch, so we need to
+                triggerService.add(result.current());
+            }
+        } else {
+            // if the current is inactive, we'll just remove it from the trigger service
+            // just to be safe
+            triggerService.remove(result.current().id());
         }
+        return result.indexResponse();
     }
 
     /**
@@ -189,55 +163,38 @@ public class WatcherService extends AbstractComponent {
     /**
      * Acks the watch if needed
      */
-    public WatchStatus ackWatch(String id, String[] actionIds, TimeValue timeout) throws IOException {
+    public WatchStatus ackWatch(String id, String[] actionIds) throws IOException {
         ensureStarted();
-        WatchLockService.Lock lock = watchLockService.tryAcquire(id, timeout);
-        if (lock == null) {
-            throw new ElasticsearchTimeoutException("could not ack watch [{}] within [{}]... wait and try again. If this error continues " +
-                    "to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such " +
-                    "as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
-        }
         if (actionIds == null || actionIds.length == 0) {
             actionIds = new String[] { Watch.ALL_ACTIONS_ID };
         }
-        try {
-            Watch watch = watchStore.get(id);
-            if (watch == null) {
-                throw illegalArgument("watch [{}] does not exist", id);
-            }
-            // we need to create a safe copy of the status
-            if (watch.ack(clock.now(DateTimeZone.UTC), actionIds)) {
-                try {
-                    watchStore.updateStatus(watch);
-                } catch (IOException ioe) {
-                    throw ioException("failed to update the watch [{}] on ack", ioe, watch.id());
-                } catch (VersionConflictEngineException vcee) {
-                    throw illegalState("failed to update the watch [{}] on ack, perhaps it was force deleted", vcee, watch.id());
-                }
-            }
-            return new WatchStatus(watch.status());
-        } finally {
-            lock.release();
+        Watch watch = watchStore.get(id);
+        if (watch == null) {
+            throw illegalArgument("watch [{}] does not exist", id);
         }
+        // we need to create a safe copy of the status
+        if (watch.ack(clock.now(DateTimeZone.UTC), actionIds)) {
+            try {
+                watchStore.updateStatus(watch);
+            } catch (IOException ioe) {
+                throw ioException("failed to update the watch [{}] on ack", ioe, watch.id());
+            } catch (VersionConflictEngineException vcee) {
+                throw illegalState("failed to update the watch [{}] on ack, perhaps it was force deleted", vcee, watch.id());
+            }
+        }
+        return new WatchStatus(watch.status());
     }
 
-    public WatchStatus activateWatch(String id, TimeValue timeout) throws IOException {
-        return setWatchState(id, true, timeout);
+    public WatchStatus activateWatch(String id) throws IOException {
+        return setWatchState(id, true);
     }
 
-    public WatchStatus deactivateWatch(String id, TimeValue timeout) throws IOException {
-        return setWatchState(id, false, timeout);
+    public WatchStatus deactivateWatch(String id) throws IOException {
+        return setWatchState(id, false);
     }
 
-    WatchStatus setWatchState(String id, boolean active, TimeValue timeout) throws IOException {
+    WatchStatus setWatchState(String id, boolean active) throws IOException {
         ensureStarted();
-        WatchLockService.Lock lock = watchLockService.tryAcquire(id, timeout);
-        if (lock == null) {
-            throw new ElasticsearchTimeoutException("could not ack watch [{}] within [{}]... wait and try again. If this error continues " +
-                    "to occur there is a high chance that the watch execution is stuck (either due to unresponsive external system such " +
-                    "as an email service, or due to a bad script", id, timeout.format(PeriodType.seconds()));
-        }
-
         // for now, when a watch is deactivated we don't remove its runtime representation
         // that is, the store will still keep the watch in memory. We only mark the watch
         // as inactive (both in runtime and also update the watch in the watches index)
@@ -251,30 +208,26 @@ public class WatcherService extends AbstractComponent {
         // to run this exercise anyway... and make sure that nothing in watcher relies on the
         // fact that the watch store holds all watches in memory.
 
-        try {
-            Watch watch = watchStore.get(id);
-            if (watch == null) {
-                throw illegalArgument("watch [{}] does not exist", id);
-            }
-            if (watch.setState(active, clock.nowUTC())) {
-                try {
-                    watchStore.updateStatus(watch);
-                    if (active) {
-                        triggerService.add(watch);
-                    } else {
-                        triggerService.remove(watch.id());
-                    }
-                } catch (IOException ioe) {
-                    throw ioException("failed to update the watch [{}] on ack", ioe, watch.id());
-                } catch (VersionConflictEngineException vcee) {
-                    throw illegalState("failed to update the watch [{}] on ack, perhaps it was force deleted", vcee, watch.id());
-                }
-            }
-            // we need to create a safe copy of the status
-            return new WatchStatus(watch.status());
-        } finally {
-            lock.release();
+        Watch watch = watchStore.get(id);
+        if (watch == null) {
+            throw illegalArgument("watch [{}] does not exist", id);
         }
+        if (watch.setState(active, clock.nowUTC())) {
+            try {
+                watchStore.updateStatus(watch);
+                if (active) {
+                    triggerService.add(watch);
+                } else {
+                    triggerService.remove(watch.id());
+                }
+            } catch (IOException ioe) {
+                throw ioException("failed to update the watch [{}] on ack", ioe, watch.id());
+            } catch (VersionConflictEngineException vcee) {
+                throw illegalState("failed to update the watch [{}] on ack, perhaps it was force deleted", vcee, watch.id());
+            }
+        }
+        // we need to create a safe copy of the status
+        return new WatchStatus(watch.status());
     }
 
     public long watchesCount() {

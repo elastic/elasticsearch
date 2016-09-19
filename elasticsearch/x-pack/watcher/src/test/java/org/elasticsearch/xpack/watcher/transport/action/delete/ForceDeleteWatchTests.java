@@ -55,7 +55,7 @@ public class ForceDeleteWatchTests extends AbstractWatcherIntegrationTestCase {
                 .get();
         assertThat(putResponse.getId(), equalTo("_name"));
         Thread.sleep(5000);
-        DeleteWatchResponse deleteWatchResponse = watcherClient().prepareDeleteWatch("_name").setForce(true).get();
+        DeleteWatchResponse deleteWatchResponse = watcherClient().prepareDeleteWatch("_name").get();
         assertThat(deleteWatchResponse.isFound(), is(true));
         deleteWatchResponse = watcherClient().prepareDeleteWatch("_name").get();
         assertThat(deleteWatchResponse.isFound(), is(false));

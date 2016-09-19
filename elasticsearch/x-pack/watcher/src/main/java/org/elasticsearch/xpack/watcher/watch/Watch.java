@@ -257,7 +257,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
          * This method is only called once - when the user adds a new watch. From that moment on, all representations
          * of the watch in the system will be use secrets for sensitive data.
          *
-         * @see org.elasticsearch.xpack.watcher.WatcherService#putWatch(String, BytesReference, TimeValue, boolean)
+         * @see org.elasticsearch.xpack.watcher.WatcherService#putWatch(String, BytesReference, boolean)
          */
         public Watch parseWithSecrets(String id, boolean includeStatus, BytesReference source, DateTime now) throws IOException {
             return parse(id, includeStatus, true, source, now, false);

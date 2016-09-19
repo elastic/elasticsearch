@@ -25,7 +25,6 @@ public class DeleteWatchRequest extends MasterNodeRequest<DeleteWatchRequest> {
 
     private String id;
     private long version = Versions.MATCH_ANY;
-    private boolean force = false;
 
     public DeleteWatchRequest() {
         this(null);
@@ -49,21 +48,6 @@ public class DeleteWatchRequest extends MasterNodeRequest<DeleteWatchRequest> {
     public void setId(String id) {
         this.id = id;
     }
-
-    /**
-     * @return true if this request should ignore locking false if not
-     */
-    public boolean isForce() {
-        return force;
-    }
-
-    /**
-     * @param force Sets weither this request should ignore locking and force the delete even if lock is unavailable.
-     */
-    public void setForce(boolean force) {
-        this.force = force;
-    }
-
 
     /**
      * Sets the version, which will cause the delete operation to only be performed if a matching
@@ -95,7 +79,6 @@ public class DeleteWatchRequest extends MasterNodeRequest<DeleteWatchRequest> {
         super.readFrom(in);
         id = in.readString();
         version = in.readLong();
-        force = in.readBoolean();
     }
 
     @Override
@@ -103,7 +86,6 @@ public class DeleteWatchRequest extends MasterNodeRequest<DeleteWatchRequest> {
         super.writeTo(out);
         out.writeString(id);
         out.writeLong(version);
-        out.writeBoolean(force);
     }
 
     @Override

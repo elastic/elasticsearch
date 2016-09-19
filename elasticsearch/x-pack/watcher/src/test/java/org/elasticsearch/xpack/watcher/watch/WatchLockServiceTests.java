@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.watcher.watch;
 
+import junit.framework.AssertionFailedError;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -36,24 +38,10 @@ public class WatchLockServiceTests extends ESTestCase {
     public void testLocking() {
         WatchLockService lockService = new WatchLockService(new TimeValue(1, TimeUnit.SECONDS));
         lockService.start();
-        WatchLockService.Lock lock = lockService.acquire("_name");
+        Releasable releasable = lockService.acquire("_name");
         assertThat(lockService.getWatchLocks().hasLockedKeys(), is(true));
-        lock.release();
+        releasable.close();
         assertThat(lockService.getWatchLocks().hasLockedKeys(), is(false));
-        lockService.stop();
-    }
-
-    public void testLockingAlreadyHeld() {
-        WatchLockService lockService = new WatchLockService(new TimeValue(1, TimeUnit.SECONDS));
-        lockService.start();
-        WatchLockService.Lock lock1 = lockService.acquire("_name");
-        try {
-            lockService.acquire("_name");
-            fail("exception expected");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("Lock already acquired"));
-        }
-        lock1.release();
         lockService.stop();
     }
 
@@ -87,14 +75,11 @@ public class WatchLockServiceTests extends ESTestCase {
             @Override
             public void run() {
                 startLatch.countDown();
-                WatchLockService.Lock lock = lockService.acquire("_name");
-                try {
+                try (Releasable ignored = lockService.acquire("_name")) {
                     int actualValue = value.getAndIncrement();
                     assertThat(actualValue, equalTo(expectedValue));
                     Thread.sleep(50);
                 } catch(InterruptedException ie) {
-                } finally {
-                    lock.release();
                 }
             }
         }

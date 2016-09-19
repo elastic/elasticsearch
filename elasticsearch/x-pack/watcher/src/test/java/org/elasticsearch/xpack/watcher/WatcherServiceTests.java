@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -13,12 +12,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.execution.ExecutionService;
-import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.support.clock.ClockMock;
 import org.elasticsearch.xpack.support.clock.SystemClock;
+import org.elasticsearch.xpack.watcher.execution.ExecutionService;
+import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
@@ -33,7 +31,6 @@ import org.junit.Before;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
@@ -55,17 +52,15 @@ public class WatcherServiceTests extends ESTestCase {
     private WatchStore watchStore;
     private Watch.Parser watchParser;
     private WatcherService watcherService;
-    private WatchLockService watchLockService;
     private ClockMock clock;
-    private ExecutionService executionService;
 
     @Before
     public void init() throws Exception {
         triggerService = mock(TriggerService.class);
         watchStore = mock(WatchStore.class);
         watchParser = mock(Watch.Parser.class);
-        executionService =  mock(ExecutionService.class);
-        watchLockService = mock(WatchLockService.class);
+        ExecutionService executionService = mock(ExecutionService.class);
+        WatchLockService watchLockService = mock(WatchLockService.class);
         clock = new ClockMock();
         WatcherIndexTemplateRegistry watcherIndexTemplateRegistry = mock(WatcherIndexTemplateRegistry.class);
         watcherService = new WatcherService(Settings.EMPTY, clock, triggerService, watchStore, watchParser, executionService,
@@ -87,13 +82,10 @@ public class WatcherServiceTests extends ESTestCase {
         when(watchPut.indexResponse()).thenReturn(indexResponse);
         when(watchPut.current()).thenReturn(newWatch);
 
-        TimeValue timeout = TimeValue.timeValueSeconds(5);
-        WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
-        when(watchLockService.tryAcquire(any(String.class), eq(timeout))).thenReturn(lock);
         when(watchParser.parseWithSecrets(any(String.class), eq(false), any(BytesReference.class), any(DateTime.class)))
                 .thenReturn(newWatch);
         when(watchStore.put(newWatch)).thenReturn(watchPut);
-        IndexResponse response = watcherService.putWatch("_id", new BytesArray("{}"), timeout, activeByDefault);
+        IndexResponse response = watcherService.putWatch("_id", new BytesArray("{}"), activeByDefault);
         assertThat(response, sameInstance(indexResponse));
 
         verify(newWatch, times(1)).setState(activeByDefault, clock.nowUTC());
@@ -101,19 +93,6 @@ public class WatcherServiceTests extends ESTestCase {
             verify(triggerService, times(1)).add(any(TriggerEngine.Job.class));
         } else {
             verifyZeroInteractions(triggerService);
-        }
-    }
-
-    public void testPutWatchTimeout() throws Exception {
-        TimeValue timeout = TimeValue.timeValueSeconds(5);
-        when(watchLockService.tryAcquire("_id", timeout)).thenReturn(null);
-        try {
-            watcherService.putWatch("_id", new BytesArray("{}"), timeout, randomBoolean());
-            fail("Expected ElasticsearchTimeoutException");
-        } catch (ElasticsearchTimeoutException e) {
-            assertThat(e.getMessage(), containsString("could not put watch"));
-            assertThat(e.getMessage(), containsString("wait and try again"));
-            assertThat(e.getMessage(), containsString("there is a high chance that the watch execution is stuck"));
         }
     }
 
@@ -141,13 +120,10 @@ public class WatcherServiceTests extends ESTestCase {
         when(previousWatch.trigger()).thenReturn(trigger);
         when(watchPut.previous()).thenReturn(previousWatch);
 
-        TimeValue timeout = TimeValue.timeValueSeconds(5);
-        WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
-        when(watchLockService.tryAcquire(any(String.class), eq(timeout))).thenReturn(lock);
         when(watchParser.parseWithSecrets(any(String.class), eq(false), any(BytesReference.class), eq(clock.nowUTC()))).thenReturn(watch);
         when(watchStore.put(watch)).thenReturn(watchPut);
 
-        IndexResponse response = watcherService.putWatch("_id", new BytesArray("{}"), timeout, active);
+        IndexResponse response = watcherService.putWatch("_id", new BytesArray("{}"), active);
         assertThat(response, sameInstance(indexResponse));
 
         if (!active) {
@@ -163,63 +139,24 @@ public class WatcherServiceTests extends ESTestCase {
     }
 
     public void testDeleteWatch() throws Exception {
-        TimeValue timeout = TimeValue.timeValueSeconds(5);
-        WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
-        boolean force = randomBoolean();
-        when(watchLockService.tryAcquire("_id", timeout)).thenReturn(lock);
-
         WatchStore.WatchDelete expectedWatchDelete = mock(WatchStore.WatchDelete.class);
         DeleteResponse deleteResponse = mock(DeleteResponse.class);
         when(deleteResponse.getResult()).thenReturn(DocWriteResponse.Result.DELETED);
         when(expectedWatchDelete.deleteResponse()).thenReturn(deleteResponse);
-        when(watchStore.delete("_id", force)).thenReturn(expectedWatchDelete);
-        WatchStore.WatchDelete watchDelete = watcherService.deleteWatch("_id", timeout, force);
-
-        assertThat(watchDelete, sameInstance(expectedWatchDelete));
-        verify(triggerService, times(1)).remove("_id");
-    }
-
-    public void testDeleteWatchTimeout() throws Exception {
-        TimeValue timeout = TimeValue.timeValueSeconds(5);
-        when(watchLockService.tryAcquire("_id", timeout)).thenReturn(null);
-        try {
-            watcherService.deleteWatch("_id", timeout, false);
-            fail("Expected ElasticsearchTimeoutException");
-        } catch (ElasticsearchTimeoutException e) {
-            assertThat(e.getMessage(), containsString("could not delete watch"));
-            assertThat(e.getMessage(), containsString("wait and try again"));
-            assertThat(e.getMessage(), containsString("there is a high chance that the watch execution is stuck"));
-        }
-    }
-
-    public void testDeleteWatchForce() throws Exception {
-        TimeValue timeout = TimeValue.timeValueSeconds(5);
-        WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
-        when(watchLockService.tryAcquire("_id", timeout)).thenReturn(null);
-
-        WatchStore.WatchDelete expectedWatchDelete = mock(WatchStore.WatchDelete.class);
-        DeleteResponse deleteResponse = mock(DeleteResponse.class);
-        when(deleteResponse.getResult()).thenReturn(DocWriteResponse.Result.DELETED);
-        when(expectedWatchDelete.deleteResponse()).thenReturn(deleteResponse);
-        when(watchStore.delete("_id", true)).thenReturn(expectedWatchDelete);
-        WatchStore.WatchDelete watchDelete = watcherService.deleteWatch("_id", timeout, true);
+        when(watchStore.delete("_id")).thenReturn(expectedWatchDelete);
+        WatchStore.WatchDelete watchDelete = watcherService.deleteWatch("_id");
 
         assertThat(watchDelete, sameInstance(expectedWatchDelete));
         verify(triggerService, times(1)).remove("_id");
     }
 
     public void testDeleteWatchNotFound() throws Exception {
-        TimeValue timeout = TimeValue.timeValueSeconds(5);
-        boolean force = randomBoolean();
-        WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
-        when(watchLockService.tryAcquire("_id", timeout)).thenReturn(lock);
-
         WatchStore.WatchDelete expectedWatchDelete = mock(WatchStore.WatchDelete.class);
         DeleteResponse deleteResponse = mock(DeleteResponse.class);
         when(deleteResponse.getResult()).thenReturn(DocWriteResponse.Result.NOOP);
         when(expectedWatchDelete.deleteResponse()).thenReturn(deleteResponse);
-        when(watchStore.delete("_id", force)).thenReturn(expectedWatchDelete);
-        WatchStore.WatchDelete watchDelete = watcherService.deleteWatch("_id", timeout, force);
+        when(watchStore.delete("_id")).thenReturn(expectedWatchDelete);
+        WatchStore.WatchDelete watchDelete = watcherService.deleteWatch("_id");
 
         assertThat(watchDelete, sameInstance(expectedWatchDelete));
         verifyZeroInteractions(triggerService);
@@ -228,39 +165,34 @@ public class WatcherServiceTests extends ESTestCase {
     public void testAckWatch() throws Exception {
         DateTime now = new DateTime(DateTimeZone.UTC);
         clock.setTime(now);
-        TimeValue timeout = TimeValue.timeValueSeconds(5);
-        WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
-        when(watchLockService.tryAcquire("_id", timeout)).thenReturn(lock);
         Watch watch = mock(Watch.class);
         when(watch.ack(now, "_all")).thenReturn(true);
         WatchStatus status = new WatchStatus(now, emptyMap());
         when(watch.status()).thenReturn(status);
         when(watchStore.get("_id")).thenReturn(watch);
 
-        WatchStatus result = watcherService.ackWatch("_id", Strings.EMPTY_ARRAY, timeout);
+        WatchStatus result = watcherService.ackWatch("_id", Strings.EMPTY_ARRAY);
         assertThat(result, not(sameInstance(status)));
 
         verify(watchStore, times(1)).updateStatus(watch);
     }
 
     public void testActivate() throws Exception {
-        TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 30));
         WatcherService service = spy(watcherService);
         WatchStatus expectedStatus = mock(WatchStatus.class);
-        doReturn(expectedStatus).when(service).setWatchState("_id", true, timeout);
-        WatchStatus actualStatus = service.activateWatch("_id", timeout);
+        doReturn(expectedStatus).when(service).setWatchState("_id", true);
+        WatchStatus actualStatus = service.activateWatch("_id");
         assertThat(actualStatus, sameInstance(expectedStatus));
-        verify(service, times(1)).setWatchState("_id", true, timeout);
+        verify(service, times(1)).setWatchState("_id", true);
     }
 
     public void testDeactivate() throws Exception {
-        TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 30));
         WatcherService service = spy(watcherService);
         WatchStatus expectedStatus = mock(WatchStatus.class);
-        doReturn(expectedStatus).when(service).setWatchState("_id", false, timeout);
-        WatchStatus actualStatus = service.deactivateWatch("_id", timeout);
+        doReturn(expectedStatus).when(service).setWatchState("_id", false);
+        WatchStatus actualStatus = service.deactivateWatch("_id");
         assertThat(actualStatus, sameInstance(expectedStatus));
-        verify(service, times(1)).setWatchState("_id", false, timeout);
+        verify(service, times(1)).setWatchState("_id", false);
     }
 
     public void testSetWatchStateSetActiveOnCurrentlyActive() throws Exception {
@@ -268,12 +200,8 @@ public class WatcherServiceTests extends ESTestCase {
         //  - the watch status should not change
         //  - the watch doesn't need to be updated in the store
         //  - the watch should not be removed or re-added to the trigger service
-
         DateTime now = new DateTime(DateTimeZone.UTC);
         clock.setTime(now);
-        TimeValue timeout = TimeValue.timeValueSeconds(5);
-        WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
-        when(watchLockService.tryAcquire("_id", timeout)).thenReturn(lock);
 
         Watch watch = mock(Watch.class);
         WatchStatus status = new WatchStatus(now, emptyMap());
@@ -283,7 +211,7 @@ public class WatcherServiceTests extends ESTestCase {
         when(watchStore.get("_id")).thenReturn(watch);
 
 
-        WatchStatus result = watcherService.setWatchState("_id", true, timeout);
+        WatchStatus result = watcherService.setWatchState("_id", true);
         assertThat(result, not(sameInstance(status)));
 
         verifyZeroInteractions(triggerService);
@@ -299,10 +227,6 @@ public class WatcherServiceTests extends ESTestCase {
         DateTime now = new DateTime(DateTimeZone.UTC);
         clock.setTime(now);
 
-        TimeValue timeout = TimeValue.timeValueSeconds(5);
-        WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
-        when(watchLockService.tryAcquire("_id", timeout)).thenReturn(lock);
-
         Watch watch = mock(Watch.class);
         WatchStatus status = new WatchStatus(now, emptyMap());
         when(watch.status()).thenReturn(status);
@@ -310,7 +234,7 @@ public class WatcherServiceTests extends ESTestCase {
 
         when(watchStore.get("_id")).thenReturn(watch);
 
-        WatchStatus result = watcherService.setWatchState("_id", true, timeout);
+        WatchStatus result = watcherService.setWatchState("_id", true);
         assertThat(result, not(sameInstance(status)));
 
         verify(triggerService, times(1)).add(watch);
@@ -322,12 +246,8 @@ public class WatcherServiceTests extends ESTestCase {
         //  - the watch status should change
         //  - the watch needs to be updated in the store
         //  - the watch should be removed from the trigger service
-
         DateTime now = new DateTime(DateTimeZone.UTC);
         clock.setTime(now);
-        TimeValue timeout = TimeValue.timeValueSeconds(5);
-        WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
-        when(watchLockService.tryAcquire("_id", timeout)).thenReturn(lock);
 
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("_id");
@@ -337,7 +257,7 @@ public class WatcherServiceTests extends ESTestCase {
 
         when(watchStore.get("_id")).thenReturn(watch);
 
-        WatchStatus result = watcherService.setWatchState("_id", false, timeout);
+        WatchStatus result = watcherService.setWatchState("_id", false);
         assertThat(result, not(sameInstance(status)));
 
         verify(triggerService, times(1)).remove("_id");
@@ -349,13 +269,8 @@ public class WatcherServiceTests extends ESTestCase {
         //  - the watch status should not be updated
         //  - the watch should not be updated in the store
         //  - the watch should be re-added or removed to/from the trigger service
-
         DateTime now = new DateTime(DateTimeZone.UTC);
         clock.setTime(now);
-
-        TimeValue timeout = TimeValue.timeValueSeconds(5);
-        WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
-        when(watchLockService.tryAcquire("_id", timeout)).thenReturn(lock);
 
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("_id");
@@ -365,51 +280,32 @@ public class WatcherServiceTests extends ESTestCase {
 
         when(watchStore.get("_id")).thenReturn(watch);
 
-        WatchStatus result = watcherService.setWatchState("_id", false, timeout);
+        WatchStatus result = watcherService.setWatchState("_id", false);
         assertThat(result, not(sameInstance(status)));
 
         verifyZeroInteractions(triggerService);
         verify(watchStore, never()).updateStatus(watch);
     }
 
-    public void testAckWatchTimeout() throws Exception {
-        TimeValue timeout = TimeValue.timeValueSeconds(5);
-        when(watchLockService.tryAcquire("_id", timeout)).thenReturn(null);
-        try {
-            watcherService.ackWatch("_id", Strings.EMPTY_ARRAY, timeout);
-            fail("Expected ElasticsearchTimeoutException");
-        } catch (ElasticsearchTimeoutException e) {
-            assertThat(e.getMessage(), containsString("could not ack watch"));
-            assertThat(e.getMessage(), containsString("wait and try again"));
-            assertThat(e.getMessage(), containsString("there is a high chance that the watch execution is stuck"));
-        }
-    }
-
     public void testAckWatchNotAck() throws Exception {
         DateTime now = SystemClock.INSTANCE.nowUTC();
-        TimeValue timeout = TimeValue.timeValueSeconds(5);
-        WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
-        when(watchLockService.tryAcquire("_id", timeout)).thenReturn(lock);
         Watch watch = mock(Watch.class);
         when(watch.ack(now)).thenReturn(false);
         WatchStatus status = new WatchStatus(now, emptyMap());
         when(watch.status()).thenReturn(status);
         when(watchStore.get("_id")).thenReturn(watch);
 
-        WatchStatus result = watcherService.ackWatch("_id", Strings.EMPTY_ARRAY, timeout);
+        WatchStatus result = watcherService.ackWatch("_id", Strings.EMPTY_ARRAY);
         assertThat(result, not(sameInstance(status)));
 
         verify(watchStore, never()).updateStatus(watch);
     }
 
     public void testAckWatchNoWatch() throws Exception {
-        TimeValue timeout = TimeValue.timeValueSeconds(5);
-        WatchLockService.Lock lock = mock(WatchLockService.Lock.class);
-        when(watchLockService.tryAcquire("_id", timeout)).thenReturn(lock);
         when(watchStore.get("_id")).thenReturn(null);
 
         try {
-            watcherService.ackWatch("_id", Strings.EMPTY_ARRAY, timeout);
+            watcherService.ackWatch("_id", Strings.EMPTY_ARRAY);
             fail();
         } catch (IllegalArgumentException iae) {
             // expected

@@ -5,20 +5,38 @@
  */
 package org.elasticsearch.xpack.watcher.transport.action.delete;
 
+import com.squareup.okhttp.mockwebserver.MockResponse;
+import com.squareup.okhttp.mockwebserver.MockWebServer;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.watcher.history.HistoryStore;
+import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.delete.DeleteWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.delete.DeleteWatchResponse;
+import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
+import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import static com.carrotsearch.randomizedtesting.RandomizedTest.sleep;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
+import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -31,7 +49,7 @@ public class DeleteWatchTests extends AbstractWatcherIntegrationTestCase {
                 .trigger(schedule(interval("5m")))
                 .input(simpleInput())
                 .condition(alwaysCondition())
-                .addAction("_action1", loggingAction("{{ctx.watch_id}}")))
+                .addAction("_action1", loggingAction("anything")))
                 .get();
 
         assertThat(putResponse, notNullValue());
@@ -58,6 +76,65 @@ public class DeleteWatchTests extends AbstractWatcherIntegrationTestCase {
             fail("Expected ActionRequestValidationException");
         } catch (ActionRequestValidationException e) {
             assertThat(e.getMessage(), containsString("Watch id cannot have white spaces"));
+        }
+    }
+
+    // This is a special case, since locking is removed
+    // Deleting a watch while it is being executed is possible now
+    // This test ensures that there are no leftovers, like a watch status without a watch in the watch store
+    // Also the watch history is checked, that the error has been marked as deleted
+    // The mock webserver does not support count down latches, so we have to use sleep - sorry!
+    public void testWatchDeletionDuringExecutionWorks() throws Exception {
+        ensureWatcherStarted();
+
+        MockResponse response = new MockResponse();
+        response.setBody("foo");
+        response.setResponseCode(200);
+        response.setBodyDelay(5, TimeUnit.SECONDS);
+
+        MockWebServer server = new MockWebServer();
+        server.enqueue(response);
+
+        try {
+            server.start();
+            HttpRequestTemplate template = HttpRequestTemplate.builder(server.getHostName(), server.getPort()).path("/").build();
+
+            PutWatchResponse responseFuture = watcherClient().preparePutWatch("_name").setSource(watchBuilder()
+                    .trigger(schedule(interval("6h")))
+                    .input(httpInput(template))
+                    .addAction("_action1", loggingAction("anything")))
+                    .get();
+            assertThat(responseFuture.isCreated(), is(true));
+
+            ListenableActionFuture<ExecuteWatchResponse> executeWatchFuture =
+                    watcherClient().prepareExecuteWatch("_name").setRecordExecution(true).execute();
+
+            // without this sleep the delete operation might overtake the watch execution
+            sleep(1000);
+            DeleteWatchResponse deleteWatchResponse = watcherClient().prepareDeleteWatch("_name").get();
+            assertThat(deleteWatchResponse.isFound(), is(true));
+
+            executeWatchFuture.get();
+
+            // the watch is gone, no leftovers
+            GetWatchResponse getWatchResponse = watcherClient().prepareGetWatch("_name").get();
+            assertThat(getWatchResponse.isFound(), is(false));
+
+            // the watch history shows a successful execution, even though the watch was deleted
+            // during execution
+            refresh(HistoryStore.INDEX_PREFIX + "*");
+
+            SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").setQuery(matchAllQuery()).get();
+            assertHitCount(searchResponse, 1);
+
+            Map<String, Object> source = searchResponse.getHits().getAt(0).sourceAsMap();
+            // watch has been executed successfully
+            String state = ObjectPath.eval("state", source);
+            assertThat(state, is("executed"));
+            // no exception occured
+            assertThat(source, not(hasKey("exception")));
+        } finally {
+            server.shutdown();
         }
     }
 }

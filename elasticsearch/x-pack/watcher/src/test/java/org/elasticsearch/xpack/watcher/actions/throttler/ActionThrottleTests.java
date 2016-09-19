@@ -7,6 +7,10 @@ package org.elasticsearch.xpack.watcher.actions.throttler;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.common.text.TextTemplate;
+import org.elasticsearch.xpack.notification.email.EmailTemplate;
+import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.actions.email.EmailAction;
@@ -18,9 +22,6 @@ import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.execution.ManualExecutionContext;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
-import org.elasticsearch.xpack.support.clock.SystemClock;
-import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
@@ -31,7 +32,6 @@ import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.elasticsearch.xpack.notification.email.EmailTemplate;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -77,7 +77,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
             if (useClientForAcking) {
                 watcherClient().prepareAckWatch("_id").setActionIds("test_id").get();
             } else {
-                watchService().ackWatch("_id", new String[] { "test_id" }, new TimeValue(5, TimeUnit.SECONDS));
+                watchService().ackWatch("_id", new String[] { "test_id" });
             }
         }
         ctx = getManualExecutionContext(new TimeValue(0, TimeUnit.SECONDS));
@@ -117,7 +117,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
             if (useClientForAcking) {
                 watcherClient().prepareAckWatch("_id").setActionIds(actionId).get();
             } else {
-                watchService().ackWatch("_id", new String[]{actionId}, new TimeValue(5, TimeUnit.SECONDS));
+                watchService().ackWatch("_id", new String[]{actionId});
             }
         }
 
@@ -192,7 +192,6 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
                 .trigger(schedule(interval("60m")));
 
         AvailableAction availableAction = randomFrom(AvailableAction.values());
-        final String actionType = availableAction.type();
         watchSourceBuilder.addAction("default_global_throttle", availableAction.action());
 
         PutWatchResponse putWatchResponse = watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder)).actionGet();

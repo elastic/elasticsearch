@@ -29,13 +29,4 @@ public class DeleteWatchRequestBuilder extends MasterNodeOperationRequestBuilder
         this.request().setId(id);
         return this;
     }
-
-    /**
-     * Sets wiether this request is forced (ie ignores locks)
-     */
-    public DeleteWatchRequestBuilder setForce(boolean force) {
-        this.request().setForce(force);
-        return this;
-    }
-
 }

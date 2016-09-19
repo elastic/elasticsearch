@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.zen.ping;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 
 /**
@@ -26,7 +27,7 @@ import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
  */
 public interface PingContextProvider extends DiscoveryNodesProvider {
 
-    /** return true if this node has previously joined the cluster at least once. False if this is first join */
-    boolean nodeHasJoinedClusterOnce();
+    /** return the current cluster state of the node */
+    ClusterState clusterState();
 
 }

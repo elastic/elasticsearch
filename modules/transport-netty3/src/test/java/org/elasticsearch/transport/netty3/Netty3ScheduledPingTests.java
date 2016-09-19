@@ -40,6 +40,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseOptions;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
@@ -65,13 +66,13 @@ public class Netty3ScheduledPingTests extends ESTestCase {
         NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
         final Netty3Transport nettyA = new Netty3Transport(settings, threadPool, new NetworkService(settings, Collections.emptyList()),
             BigArrays.NON_RECYCLING_INSTANCE, registry, circuitBreakerService);
-        MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool);
+        MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR);
         serviceA.start();
         serviceA.acceptIncomingRequests();
 
         final Netty3Transport nettyB = new Netty3Transport(settings, threadPool, new NetworkService(settings, Collections.emptyList()),
             BigArrays.NON_RECYCLING_INSTANCE, registry, circuitBreakerService);
-        MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool);
+        MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR);
 
         serviceB.start();
         serviceB.acceptIncomingRequests();

@@ -18,13 +18,10 @@
  */
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.local.LocalDiscovery;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.NoopDiscovery;
 
 /**

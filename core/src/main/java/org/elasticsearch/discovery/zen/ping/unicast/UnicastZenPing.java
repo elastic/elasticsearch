@@ -44,7 +44,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,6 +63,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -236,8 +237,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
         temporalResponses.clear();
     }
 
-    public PingResponse[] pingAndWait(TimeValue duration) {
-        final AtomicReference<PingResponse[]> response = new AtomicReference<>();
+    // test only
+    Collection<PingResponse> pingAndWait(TimeValue duration) {
+        final AtomicReference<Collection<PingResponse>> response = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
         ping(pings -> {
             response.set(pings);
@@ -273,7 +275,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
                         protected void doRun() throws Exception {
                             sendPings(duration, TimeValue.timeValueMillis(duration.millis() / 2), sendPingsHandler);
                             sendPingsHandler.close();
-                            listener.onPing(sendPingsHandler.pingCollection().toArray());
+                            listener.onPing(sendPingsHandler.pingCollection().toList());
                             for (DiscoveryNode node : sendPingsHandler.nodeToDisconnect) {
                                 logger.trace("[{}] disconnecting from {}", sendPingsHandler.id(), node);
                                 transportService.disconnectFromNode(node);
@@ -576,8 +578,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
     }
 
     private PingResponse createPingResponse(DiscoveryNodes discoNodes) {
-        return new PingResponse(discoNodes.getLocalNode(), discoNodes.getMasterNode(), clusterName,
-                contextProvider.nodeHasJoinedClusterOnce());
+        return new PingResponse(discoNodes.getLocalNode(), discoNodes.getMasterNode(), contextProvider.clusterState());
     }
 
     static class UnicastPingResponse extends TransportResponse {

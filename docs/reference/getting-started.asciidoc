@@ -302,6 +302,12 @@ curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
   "_type" : "external",
   "_id" : "1",
   "_version" : 1,
+  "result" : "created",
+  "_shards" : {
+    "total" : 2,
+    "successful" : 1,
+    "failed" : 0
+  },
   "created" : true
 }
 --------------------------------------------------
@@ -1053,7 +1059,7 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
       "aggs": {
         "group_by_gender": {
           "terms": {
-            "field": "gender"
+            "field": "gender.keyword"
           },
           "aggs": {
             "average_balance": {

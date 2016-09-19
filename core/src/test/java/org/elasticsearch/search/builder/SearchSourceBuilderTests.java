@@ -21,301 +21,33 @@ package org.elasticsearch.search.builder;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.SearchRequestParsers;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.fetch.FetchSubPhasePluginIT;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
-import org.elasticsearch.search.rescore.QueryRescoreBuilderTests;
+import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
-import org.elasticsearch.search.searchafter.SearchAfterBuilder;
-import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
-import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
-import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.search.suggest.SuggestBuilderTests;
-import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
-public class SearchSourceBuilderTests extends ESTestCase {
-
-    private NamedWriteableRegistry namedWriteableRegistry;
-
-    private SearchRequestParsers searchRequestParsers;
-
-    private ParseFieldMatcher parseFieldMatcher;
-
-    public void setUp() throws Exception {
-        super.setUp();
-        // we have to prefer CURRENT since with the range of versions we support
-        // it's rather unlikely to get the current actually.
-        Settings settings = Settings.builder()
-                .put("node.name", AbstractQueryTestCase.class.toString())
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
-        SearchModule searchModule = new SearchModule(settings, false,
-                Collections.singletonList(new FetchSubPhasePluginIT.FetchTermVectorsPlugin()));
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(indicesModule.getNamedWriteables());
-        entries.addAll(searchModule.getNamedWriteables());
-        namedWriteableRegistry = new NamedWriteableRegistry(entries);
-        searchRequestParsers = searchModule.getSearchRequestParsers();
-        parseFieldMatcher = ParseFieldMatcher.STRICT;
-    }
-
-    public static SearchSourceBuilder createSearchSourceBuilder() throws IOException {
-        SearchSourceBuilder builder = new SearchSourceBuilder();
-        if (randomBoolean()) {
-            builder.from(randomIntBetween(0, 10000));
-        }
-        if (randomBoolean()) {
-            builder.size(randomIntBetween(0, 10000));
-        }
-        if (randomBoolean()) {
-            builder.explain(randomBoolean());
-        }
-        if (randomBoolean()) {
-            builder.version(randomBoolean());
-        }
-        if (randomBoolean()) {
-            builder.trackScores(randomBoolean());
-        }
-        if (randomBoolean()) {
-            builder.minScore(randomFloat() * 1000);
-        }
-        if (randomBoolean()) {
-            builder.timeout(TimeValue.parseTimeValue(randomTimeValue(), null, "timeout"));
-        }
-        if (randomBoolean()) {
-            builder.terminateAfter(randomIntBetween(1, 100000));
-        }
-        // if (randomBoolean()) {
-        // builder.defaultRescoreWindowSize(randomIntBetween(1, 100));
-        // }
-
-        switch(randomInt(2)) {
-            case 0:
-                builder.storedFields();
-                break;
-            case 1:
-                builder.storedField("_none_");
-                break;
-            case 2:
-                int fieldsSize = randomInt(25);
-                List<String> fields = new ArrayList<>(fieldsSize);
-                for (int i = 0; i < fieldsSize; i++) {
-                    fields.add(randomAsciiOfLengthBetween(5, 50));
-                }
-                builder.storedFields(fields);
-                break;
-            default:
-                throw new IllegalStateException();
-        }
-
-        if (randomBoolean()) {
-            int scriptFieldsSize = randomInt(25);
-            for (int i = 0; i < scriptFieldsSize; i++) {
-                if (randomBoolean()) {
-                    builder.scriptField(randomAsciiOfLengthBetween(5, 50), new Script("foo"), randomBoolean());
-                } else {
-                    builder.scriptField(randomAsciiOfLengthBetween(5, 50), new Script("foo"));
-                }
-            }
-        }
-        if (randomBoolean()) {
-            FetchSourceContext fetchSourceContext;
-            int branch = randomInt(5);
-            String[] includes = new String[randomIntBetween(0, 20)];
-            for (int i = 0; i < includes.length; i++) {
-                includes[i] = randomAsciiOfLengthBetween(5, 20);
-            }
-            String[] excludes = new String[randomIntBetween(0, 20)];
-            for (int i = 0; i < excludes.length; i++) {
-                excludes[i] = randomAsciiOfLengthBetween(5, 20);
-            }
-            switch (branch) {
-                case 0:
-                    fetchSourceContext = new FetchSourceContext(randomBoolean());
-                    break;
-                case 1:
-                    fetchSourceContext = new FetchSourceContext(includes, excludes);
-                    break;
-                case 2:
-                    fetchSourceContext = new FetchSourceContext(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20));
-                    break;
-                case 3:
-                    fetchSourceContext = new FetchSourceContext(true, includes, excludes);
-                    break;
-                case 4:
-                    fetchSourceContext = new FetchSourceContext(includes);
-                    break;
-                case 5:
-                    fetchSourceContext = new FetchSourceContext(randomAsciiOfLengthBetween(5, 20));
-                    break;
-                default:
-                    throw new IllegalStateException();
-            }
-            builder.fetchSource(fetchSourceContext);
-        }
-        if (randomBoolean()) {
-            int size = randomIntBetween(0, 20);
-            List<String> statsGroups = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                statsGroups.add(randomAsciiOfLengthBetween(5, 20));
-            }
-            builder.stats(statsGroups);
-        }
-        if (randomBoolean()) {
-            int indexBoostSize = randomIntBetween(1, 10);
-            for (int i = 0; i < indexBoostSize; i++) {
-                builder.indexBoost(randomAsciiOfLengthBetween(5, 20), randomFloat() * 10);
-            }
-        }
-        if (randomBoolean()) {
-            builder.query(QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20)));
-        }
-        if (randomBoolean()) {
-            builder.postFilter(QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20)));
-        }
-        if (randomBoolean()) {
-            int numSorts = randomIntBetween(1, 5);
-            for (int i = 0; i < numSorts; i++) {
-                int branch = randomInt(5);
-                switch (branch) {
-                    case 0:
-                        builder.sort(SortBuilders.fieldSort(randomAsciiOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())));
-                        break;
-                    case 1:
-                        builder.sort(SortBuilders.geoDistanceSort(randomAsciiOfLengthBetween(5, 20),
-                                AbstractQueryTestCase.randomGeohash(1, 12)).order(randomFrom(SortOrder.values())));
-                        break;
-                    case 2:
-                        builder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
-                        break;
-                    case 3:
-                        builder.sort(SortBuilders.scriptSort(new Script("foo"),
-                                ScriptSortType.NUMBER).order(randomFrom(SortOrder.values())));
-                        break;
-                    case 4:
-                        builder.sort(randomAsciiOfLengthBetween(5, 20));
-                        break;
-                    case 5:
-                        builder.sort(randomAsciiOfLengthBetween(5, 20), randomFrom(SortOrder.values()));
-                        break;
-                }
-            }
-        }
-
-        if (randomBoolean()) {
-            int numSearchFrom = randomIntBetween(1, 5);
-            // We build a json version of the search_from first in order to
-            // ensure that every number type remain the same before/after xcontent (de)serialization.
-            // This is not a problem because the final type of each field value is extracted from associated sort field.
-            // This little trick ensure that equals and hashcode are the same when using the xcontent serialization.
-            XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
-            jsonBuilder.startObject();
-            jsonBuilder.startArray("search_from");
-            for (int i = 0; i < numSearchFrom; i++) {
-                int branch = randomInt(8);
-                switch (branch) {
-                    case 0:
-                        jsonBuilder.value(randomInt());
-                        break;
-                    case 1:
-                        jsonBuilder.value(randomFloat());
-                        break;
-                    case 2:
-                        jsonBuilder.value(randomLong());
-                        break;
-                    case 3:
-                        jsonBuilder.value(randomDouble());
-                        break;
-                    case 4:
-                        jsonBuilder.value(randomAsciiOfLengthBetween(5, 20));
-                        break;
-                    case 5:
-                        jsonBuilder.value(randomBoolean());
-                        break;
-                    case 6:
-                        jsonBuilder.value(randomByte());
-                        break;
-                    case 7:
-                        jsonBuilder.value(randomShort());
-                        break;
-                    case 8:
-                        jsonBuilder.value(new Text(randomAsciiOfLengthBetween(5, 20)));
-                        break;
-                }
-            }
-            jsonBuilder.endArray();
-            jsonBuilder.endObject();
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(jsonBuilder.bytes());
-            parser.nextToken();
-            parser.nextToken();
-            parser.nextToken();
-            builder.searchAfter(SearchAfterBuilder.fromXContent(parser, null).getSortValues());
-        }
-        if (randomBoolean()) {
-            builder.highlighter(HighlightBuilderTests.randomHighlighterBuilder());
-        }
-        if (randomBoolean()) {
-            builder.suggest(SuggestBuilderTests.randomSuggestBuilder());
-        }
-        if (randomBoolean()) {
-            int numRescores = randomIntBetween(1, 5);
-            for (int i = 0; i < numRescores; i++) {
-                builder.addRescorer(QueryRescoreBuilderTests.randomRescoreBuilder());
-            }
-        }
-        if (randomBoolean()) {
-            builder.aggregation(AggregationBuilders.avg(randomAsciiOfLengthBetween(5, 20)));
-        }
-        if (randomBoolean()) {
-            builder.ext(Collections.singletonList(new FetchSubPhasePluginIT.TermVectorsFetchBuilder("test")));
-        }
-        if (randomBoolean()) {
-            String field = randomBoolean() ? null : randomAsciiOfLengthBetween(5, 20);
-            int max = between(2, 1000);
-            int id = randomInt(max-1);
-            if (field == null) {
-                builder.slice(new SliceBuilder(id, max));
-            } else {
-                builder.slice(new SliceBuilder(field, id, max));
-            }
-        }
-        return builder;
-    }
+public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testFromXContent() throws IOException {
         SearchSourceBuilder testSearchSourceBuilder = createSearchSourceBuilder();
@@ -347,7 +79,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
     }
 
     private QueryParseContext createParseContext(XContentParser parser) {
-        return new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
+        return new QueryParseContext(searchRequestParsers.queryParsers, parser, ParseFieldMatcher.STRICT);
     }
 
     public void testSerialization() throws IOException {
@@ -391,7 +123,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
     }
 
     //we use the streaming infra to create a copy of the builder provided as argument
-    protected SearchSourceBuilder copyBuilder(SearchSourceBuilder builder) throws IOException {
+    private SearchSourceBuilder copyBuilder(SearchSourceBuilder builder) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             builder.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
@@ -419,6 +151,26 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 assertArrayEquals(new String[]{}, searchSourceBuilder.fetchSource().includes());
                 assertFalse(searchSourceBuilder.fetchSource().fetchSource());
             }
+        }
+    }
+
+    public void testMultipleQueryObjectsAreRejected() throws Exception {
+        String restContent =
+                " { \"query\": {\n" +
+                "    \"multi_match\": {\n" +
+                "      \"query\": \"workd\",\n" +
+                "      \"fields\": [\"title^5\", \"plain_body\"]\n" +
+                "    },\n" +
+                "    \"filters\": {\n" +
+                "      \"terms\": {\n" +
+                "        \"status\": [ 3 ]\n" +
+                "      }\n" +
+                "    }\n" +
+                "  } }";
+        try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+            ParsingException e = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(createParseContext(parser),
+                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers));
+            assertEquals("[multi_match] malformed query, expected [END_OBJECT] but found [FIELD_NAME]", e.getMessage());
         }
     }
 
@@ -573,26 +325,5 @@ public class SearchSourceBuilderTests extends ESTestCase {
         SearchSourceBuilder builder = new SearchSourceBuilder();
         String query = "{ \"query\": {} }";
         assertParseSearchSource(builder, new BytesArray(query), ParseFieldMatcher.EMPTY);
-    }
-
-    public void testSearchRequestBuilderSerializationWithIndexBoost() throws Exception {
-        SearchSourceBuilder searchSourceBuilder = createSearchSourceBuilder();
-        createIndexBoost(searchSourceBuilder);
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            searchSourceBuilder.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                SearchSourceBuilder deserializedSearchSourceBuilder = new SearchSourceBuilder(in);
-                BytesStreamOutput deserializedOutput = new BytesStreamOutput();
-                deserializedSearchSourceBuilder.writeTo(deserializedOutput);
-                assertEquals(output.bytes(), deserializedOutput.bytes());
-            }
-        }
-    }
-
-    private void createIndexBoost(SearchSourceBuilder searchSourceBuilder) {
-        int indexBoostSize = randomIntBetween(1, 10);
-        for (int i = 0; i < indexBoostSize; i++) {
-            searchSourceBuilder.indexBoost(randomAsciiOfLengthBetween(5, 20), randomFloat() * 10);
-        }
     }
 }

@@ -42,11 +42,15 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A module to handle registering and binding all network related classes.
@@ -54,7 +58,6 @@ import java.util.List;
 public class NetworkModule extends AbstractModule {
 
     public static final String TRANSPORT_TYPE_KEY = "transport.type";
-    public static final String TRANSPORT_SERVICE_TYPE_KEY = "transport.service.type";
     public static final String HTTP_TYPE_KEY = "http.type";
     public static final String LOCAL_TRANSPORT = "local";
     public static final String HTTP_TYPE_DEFAULT_KEY = "http.type.default";
@@ -65,8 +68,6 @@ public class NetworkModule extends AbstractModule {
     public static final Setting<String> HTTP_DEFAULT_TYPE_SETTING = Setting.simpleString(HTTP_TYPE_DEFAULT_KEY, Property.NodeScope);
     public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString(HTTP_TYPE_KEY, Property.NodeScope);
     public static final Setting<Boolean> HTTP_ENABLED = Setting.boolSetting("http.enabled", true, Property.NodeScope);
-    public static final Setting<String> TRANSPORT_SERVICE_TYPE_SETTING =
-        Setting.simpleString(TRANSPORT_SERVICE_TYPE_KEY, Property.NodeScope);
     public static final Setting<String> TRANSPORT_TYPE_SETTING = Setting.simpleString(TRANSPORT_TYPE_KEY, Property.NodeScope);
 
     private final NetworkService networkService;
@@ -74,10 +75,10 @@ public class NetworkModule extends AbstractModule {
     private final boolean transportClient;
 
     private final AllocationCommandRegistry allocationCommandRegistry = new AllocationCommandRegistry();
-    private final ExtensionPoint.SelectedType<TransportService> transportServiceTypes = new ExtensionPoint.SelectedType<>("transport_service", TransportService.class);
     private final ExtensionPoint.SelectedType<Transport> transportTypes = new ExtensionPoint.SelectedType<>("transport", Transport.class);
     private final ExtensionPoint.SelectedType<HttpServerTransport> httpTransportTypes = new ExtensionPoint.SelectedType<>("http_transport", HttpServerTransport.class);
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+    private final List<TransportInterceptor> transportIntercetors = new ArrayList<>();
 
     /**
      * Creates a network module that custom networking classes can be plugged into.
@@ -89,7 +90,6 @@ public class NetworkModule extends AbstractModule {
         this.networkService = networkService;
         this.settings = settings;
         this.transportClient = transportClient;
-        registerTransportService("default", TransportService.class);
         registerTransport(LOCAL_TRANSPORT, LocalTransport.class);
         namedWriteables.add(new NamedWriteableRegistry.Entry(Task.Status.class, ReplicationTask.Status.NAME, ReplicationTask.Status::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new));
@@ -98,11 +98,6 @@ public class NetworkModule extends AbstractModule {
 
     public boolean isTransportClient() {
         return transportClient;
-    }
-
-    /** Adds a transport service implementation that can be selected by setting {@link #TRANSPORT_SERVICE_TYPE_KEY}. */
-    public void registerTransportService(String name, Class<? extends TransportService> clazz) {
-        transportServiceTypes.registerExtension(name, clazz);
     }
 
     /** Adds a transport implementation that can be selected by setting {@link #TRANSPORT_TYPE_KEY}. */
@@ -149,9 +144,9 @@ public class NetworkModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(NetworkService.class).toInstance(networkService);
-        transportServiceTypes.bindType(binder(), settings, TRANSPORT_SERVICE_TYPE_KEY, "default");
+        bindTransportService();
         transportTypes.bindType(binder(), settings, TRANSPORT_TYPE_KEY, TRANSPORT_DEFAULT_TYPE_SETTING.get(settings));
-
+        bind(TransportInterceptor.class).toInstance(new CompositeTransportInterceptor(this.transportIntercetors));
         if (transportClient == false) {
             if (HTTP_ENABLED.get(settings)) {
                 bind(HttpServer.class).asEagerSingleton();
@@ -180,5 +175,40 @@ public class NetworkModule extends AbstractModule {
 
     public boolean canRegisterHttpExtensions() {
         return transportClient == false;
+    }
+
+    /**
+     * Registers a new {@link TransportInterceptor}
+     */
+    public void addTransportInterceptor(TransportInterceptor interceptor) {
+        this.transportIntercetors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
+    }
+
+    static final class CompositeTransportInterceptor implements TransportInterceptor {
+        final List<TransportInterceptor> transportInterceptors;
+
+        private CompositeTransportInterceptor(List<TransportInterceptor> transportInterceptors) {
+            this.transportInterceptors = new ArrayList<>(transportInterceptors);
+        }
+
+        @Override
+        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, TransportRequestHandler<T> actualHandler) {
+            for (TransportInterceptor interceptor : this.transportInterceptors) {
+                actualHandler = interceptor.interceptHandler(action, actualHandler);
+            }
+            return actualHandler;
+        }
+
+        @Override
+        public AsyncSender interceptSender(AsyncSender sender) {
+            for (TransportInterceptor interceptor : this.transportInterceptors) {
+                sender = interceptor.interceptSender(sender);
+            }
+            return sender;
+        }
+    }
+
+    protected void bindTransportService() {
+        bind(TransportService.class).asEagerSingleton();
     }
 }

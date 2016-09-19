@@ -27,6 +27,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.config.LoggerConfig;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -34,7 +35,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.nio.file.Path;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class EvilLoggerConfigurationTests extends ESTestCase {
@@ -85,7 +88,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         }
     }
 
-    public void testDefaults() throws IOException {
+    public void testDefaults() throws IOException, UserException {
         final Path configDir = getDataPath("config");
         final String level = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR).toString();
         final Settings settings = Settings.builder()
@@ -135,6 +138,17 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
 
         assertThat(ESLoggerFactory.getLogger("x").getLevel(), equalTo(level));
         assertThat(ESLoggerFactory.getLogger("x.y").getLevel(), equalTo(level));
+    }
+
+    public void testMissingConfigFile() {
+        final Path configDir = getDataPath("does_not_exist");
+        final Settings settings = Settings.builder()
+            .put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+        final Environment environment = new Environment(settings);
+        UserException e = expectThrows(UserException.class, () -> LogConfigurator.configure(environment, true));
+        assertThat(e, hasToString(containsString("no log4j2.properties found; tried")));
     }
 
 }

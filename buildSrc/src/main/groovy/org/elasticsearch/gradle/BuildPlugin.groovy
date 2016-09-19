@@ -284,10 +284,6 @@ class BuildPlugin implements Plugin<Project> {
             repos.mavenLocal()
         }
         repos.mavenCentral()
-        repos.maven {
-            name 'sonatype-snapshots'
-            url 'http://oss.sonatype.org/content/repositories/snapshots/'
-        }
         String luceneVersion = VersionProperties.lucene
         if (luceneVersion.contains('-snapshot')) {
             // extract the revision number from the version with a regex matcher

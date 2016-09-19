@@ -992,7 +992,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // but we need to make sure we don't loose deletes until we are done recovering
         config.setEnableGcDeletes(false);
         Engine newEngine = createNewEngine(config);
-        onNewEngine(newEngine);
         verifyNotClosed();
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,
@@ -1552,8 +1551,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 throw new EngineClosedException(shardId);
             }
             assert this.currentEngineReference.get() == null;
-            this.currentEngineReference.set(newEngine(config));
-
+            Engine engine = newEngine(config);
+            onNewEngine(engine); // call this before we pass the memory barrier otherwise actions that happen
+            // inside the callback are not visible. This one enforces happens-before
+            this.currentEngineReference.set(engine);
         }
 
         // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during which

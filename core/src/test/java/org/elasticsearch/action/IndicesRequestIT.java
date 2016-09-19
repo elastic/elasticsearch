@@ -78,9 +78,9 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -739,10 +739,11 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     public static class InterceptingTransportService implements TransportInterceptor {
 
-        public static class TestPlugin extends Plugin {
+        public static class TestPlugin extends Plugin implements NetworkPlugin {
             public final InterceptingTransportService instance = new InterceptingTransportService();
-            public void onModule(NetworkModule module) {
-                module.addTransportInterceptor(instance);
+            @Override
+            public List<TransportInterceptor> getTransportInterceptors() {
+                return Collections.singletonList(instance);
             }
         }
 

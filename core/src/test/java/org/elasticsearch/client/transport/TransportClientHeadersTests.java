@@ -31,10 +31,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -49,6 +49,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -115,11 +116,12 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
         TransportAddress address;
 
 
-        public static class TestPlugin extends Plugin {
+        public static class TestPlugin extends Plugin implements NetworkPlugin {
             private InternalTransportServiceInterceptor instance = new InternalTransportServiceInterceptor();
 
-            public void onModule(NetworkModule transportModule) {
-                transportModule.addTransportInterceptor(new TransportInterceptor() {
+            @Override
+            public List<TransportInterceptor> getTransportInterceptors() {
+                return Collections.singletonList(new TransportInterceptor() {
                     @Override
                     public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action,
                                                                                 TransportRequestHandler<T> actualHandler) {

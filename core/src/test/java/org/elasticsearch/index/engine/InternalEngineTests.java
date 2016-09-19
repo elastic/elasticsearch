@@ -2483,7 +2483,11 @@ public class InternalEngineTests extends ESTestCase {
                 try {
                     internalEngine.refresh("test");
                     fail();
-                } catch (RefreshFailedEngineException | AlreadyClosedException ex) {
+                } catch (EngineClosedException ex) {
+                    // we can't guarantee that we are entering the refresh call before it's fully
+                    // closed so we also expecting ECE here
+                    assertTrue(ex.toString(), ex.getCause() instanceof MockDirectoryWrapper.FakeIOException);
+                } catch (RefreshFailedEngineException | AlreadyClosedException  ex) {
                     // fine
                 } finally {
                     start.countDown();

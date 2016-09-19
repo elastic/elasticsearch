@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -30,7 +31,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.cluster.ESAllocationTestCase;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -38,6 +38,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -82,10 +83,10 @@ public class TenShardsOneReplicaRoutingTests extends ESAllocationTestCase {
         logger.info("Adding one node and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
 
-        RoutingAllocation.Result routingResult = strategy.reroute(clusterState, "reroute");
-        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
+        ClusterState newState = strategy.reroute(clusterState, "reroute");
+        assertThat(newState, not(equalTo(clusterState)));
+        clusterState = newState;
 
-        assertTrue(routingResult.changed());
         assertThat(clusterState.routingTable().index("test").shards().size(), equalTo(10));
         for (int i = 0; i < clusterState.routingTable().index("test").shards().size(); i++) {
             assertThat(clusterState.routingTable().index("test").shard(i).size(), equalTo(2));
@@ -99,17 +100,15 @@ public class TenShardsOneReplicaRoutingTests extends ESAllocationTestCase {
 
         logger.info("Add another node and perform rerouting, nothing will happen since primary not started");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
-        routingResult = strategy.reroute(clusterState, "reroute");
-        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
-
-        assertFalse(routingResult.changed());
+        newState = strategy.reroute(clusterState, "reroute");
+        assertThat(newState, equalTo(clusterState));
 
         logger.info("Start the primary shard (on node1)");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        routingResult = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING));
-        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
+        newState = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING));
+        assertThat(newState, not(equalTo(clusterState)));
+        clusterState = newState;
 
-        assertTrue(routingResult.changed());
         assertThat(clusterState.routingTable().index("test").shards().size(), equalTo(10));
         for (int i = 0; i < clusterState.routingTable().index("test").shards().size(); i++) {
             assertThat(clusterState.routingTable().index("test").shard(i).size(), equalTo(2));
@@ -123,16 +122,16 @@ public class TenShardsOneReplicaRoutingTests extends ESAllocationTestCase {
         }
 
         logger.info("Reroute, nothing should change");
-        routingResult = strategy.reroute(clusterState, "reroute");
-        assertFalse(routingResult.changed());
+        newState = strategy.reroute(clusterState, "reroute");
+        assertThat(newState, equalTo(clusterState));
 
         logger.info("Start the backup shard");
         routingNodes = clusterState.getRoutingNodes();
-        routingResult = strategy.applyStartedShards(clusterState, routingNodes.node("node2").shardsWithState(INITIALIZING));
-        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
+        newState = strategy.applyStartedShards(clusterState, routingNodes.node("node2").shardsWithState(INITIALIZING));
+        assertThat(newState, not(equalTo(clusterState)));
+        clusterState = newState;
         routingNodes = clusterState.getRoutingNodes();
 
-        assertTrue(routingResult.changed());
         assertThat(clusterState.routingTable().index("test").shards().size(), equalTo(10));
         for (int i = 0; i < clusterState.routingTable().index("test").shards().size(); i++) {
             assertThat(clusterState.routingTable().index("test").shard(i).size(), equalTo(2));
@@ -148,11 +147,11 @@ public class TenShardsOneReplicaRoutingTests extends ESAllocationTestCase {
 
         logger.info("Add another node and perform rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
-        routingResult = strategy.reroute(clusterState, "reroute");
-        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
+        newState = strategy.reroute(clusterState, "reroute");
+        assertThat(newState, not(equalTo(clusterState)));
+        clusterState = newState;
         routingNodes = clusterState.getRoutingNodes();
 
-        assertTrue(routingResult.changed());
         assertThat(clusterState.routingTable().index("test").shards().size(), equalTo(10));
         assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED, RELOCATING), equalTo(10));
         assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED), lessThan(10));
@@ -162,11 +161,11 @@ public class TenShardsOneReplicaRoutingTests extends ESAllocationTestCase {
 
         logger.info("Start the shards on node 3");
         routingNodes = clusterState.getRoutingNodes();
-        routingResult = strategy.applyStartedShards(clusterState, routingNodes.node("node3").shardsWithState(INITIALIZING));
-        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
+        newState = strategy.applyStartedShards(clusterState, routingNodes.node("node3").shardsWithState(INITIALIZING));
+        assertThat(newState, not(equalTo(clusterState)));
+        clusterState = newState;
         routingNodes = clusterState.getRoutingNodes();
 
-        assertTrue(routingResult.changed());
         assertThat(clusterState.routingTable().index("test").shards().size(), equalTo(10));
         assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED), equalTo(7));
         assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), equalTo(7));

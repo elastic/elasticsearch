@@ -46,7 +46,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -430,10 +429,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             if (request.state() == State.OPEN) {
                                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
                                         .addAsNew(updatedState.metaData().index(request.index()));
-                                RoutingAllocation.Result routingResult = allocationService.reroute(
+                                updatedState = allocationService.reroute(
                                         ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
                                         "index [" + request.index() + "] created");
-                                updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
                             }
                             removalReason = "cleaning up after validating index on master";
                             return updatedState;

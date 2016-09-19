@@ -15,22 +15,29 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -126,15 +133,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
-/**
- *
- */
-public class Security implements ActionPlugin, IngestPlugin {
+public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
 
     private static final Logger logger = Loggers.getLogger(XPackPlugin.class);
 
@@ -160,6 +165,7 @@ public class Security implements ActionPlugin, IngestPlugin {
      * to fix this or make it simpler. Today we need several service that are created in createComponents but we need to register
      * an instance of TransportInterceptor way earlier before createComponents is called. */
     private final SetOnce<TransportInterceptor> securityIntercepter = new SetOnce<>();
+    private final SetOnce<IPFilter> ipFilter = new SetOnce<>();
 
     public Security(Settings settings, Environment env, XPackLicenseState licenseState, SSLService sslService) throws IOException {
         this.settings = settings;
@@ -325,7 +331,8 @@ public class Security implements ActionPlugin, IngestPlugin {
             nativeUsersStore, nativeRolesStore, client));
 
         if (IPFilter.IP_FILTER_ENABLED_SETTING.get(settings)) {
-            components.add(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), licenseState));
+            ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), licenseState));
+            components.add(ipFilter.get());
         }
         securityIntercepter.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService, authzService, licenseState,
                 sslService));
@@ -507,38 +514,6 @@ public class Security implements ActionPlugin, IngestPlugin {
         return Collections.singletonMap(SetSecurityUserProcessor.TYPE, new SetSecurityUserProcessor.Factory(parameters.threadContext));
     }
 
-    public void onModule(NetworkModule module) {
-
-        if (transportClientMode) {
-            if (enabled) {
-                module.registerTransport(Security.NAME3, SecurityNetty3Transport.class);
-                module.registerTransport(Security.NAME4, SecurityNetty4Transport.class);
-            }
-            return;
-        }
-
-        if (enabled) {
-            module.registerTransport(Security.NAME3, SecurityNetty3Transport.class);
-            module.registerTransport(Security.NAME4, SecurityNetty4Transport.class);
-            module.addTransportInterceptor(new TransportInterceptor() {
-                @Override
-                public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action,
-                                                                                                TransportRequestHandler<T> actualHandler) {
-                    assert securityIntercepter.get() != null;
-                    return securityIntercepter.get().interceptHandler(action, actualHandler);
-                }
-
-                @Override
-                public AsyncSender interceptSender(AsyncSender sender) {
-                    assert securityIntercepter.get() != null;
-                    return securityIntercepter.get().interceptSender(sender);
-                }
-            });
-            module.registerHttpTransport(Security.NAME3, SecurityNetty3HttpServerTransport.class);
-            module.registerHttpTransport(Security.NAME4, SecurityNetty4HttpServerTransport.class);
-        }
-    }
-
     private static void addUserSettings(Settings settings, Settings.Builder settingsBuilder) {
         String authHeaderSettingName = ThreadContext.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER;
         if (settings.get(authHeaderSettingName) != null) {
@@ -701,4 +676,60 @@ public class Security implements ActionPlugin, IngestPlugin {
                     "[.security_audit_log*] are allowed to be created", value);
         }
     }
+
+    @Override
+    public List<TransportInterceptor> getTransportInterceptors() {
+        if (transportClientMode || enabled == false) { // don't register anything if we are not enabled
+            // interceptors are not installed if we are running on the transport client
+            return Collections.emptyList();
+        }
+       return Collections.singletonList(new TransportInterceptor() {
+            @Override
+            public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action,
+                                                                                            TransportRequestHandler<T> actualHandler) {
+                assert securityIntercepter.get() != null;
+                return securityIntercepter.get().interceptHandler(action, actualHandler);
+            }
+
+            @Override
+            public AsyncSender interceptSender(AsyncSender sender) {
+                assert securityIntercepter.get() != null;
+                return securityIntercepter.get().interceptSender(sender);
+            }
+        });
+    }
+
+    @Override
+    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                          CircuitBreakerService circuitBreakerService,
+                                                          NamedWriteableRegistry namedWriteableRegistry,
+                                                          NetworkService networkService) {
+        if (enabled == false) { // don't register anything if we are not enabled
+            return Collections.emptyMap();
+        }
+        Map<String, Supplier<Transport>> map = new HashMap<>();
+        map.put(Security.NAME3, () -> new SecurityNetty3Transport(settings, threadPool, networkService, bigArrays, ipFilter.get(),
+                sslService, namedWriteableRegistry, circuitBreakerService));
+        map.put(Security.NAME4, () -> new SecurityNetty4Transport(settings, threadPool, networkService, bigArrays,
+                namedWriteableRegistry, circuitBreakerService, ipFilter.get(), sslService));
+        return Collections.unmodifiableMap(map);
+
+    }
+
+    @Override
+    public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                        CircuitBreakerService circuitBreakerService,
+                                                                        NamedWriteableRegistry namedWriteableRegistry,
+                                                                        NetworkService networkService) {
+        if (enabled == false) { // don't register anything if we are not enabled
+            return Collections.emptyMap();
+        }
+        Map<String, Supplier<HttpServerTransport>> map = new HashMap<>();
+        map.put(Security.NAME3, () -> new SecurityNetty3HttpServerTransport(settings, networkService, bigArrays, ipFilter.get(), sslService,
+                threadPool));
+        map.put(Security.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, networkService, bigArrays, ipFilter.get(), sslService,
+                threadPool));
+        return Collections.unmodifiableMap(map);
+    }
+
 }

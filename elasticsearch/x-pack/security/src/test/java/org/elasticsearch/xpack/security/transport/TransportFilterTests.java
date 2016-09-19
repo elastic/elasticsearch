@@ -13,8 +13,8 @@ import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.ScriptService;
@@ -44,6 +44,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -279,7 +280,7 @@ public class TransportFilterTests extends ESIntegTestCase {
 
     // Sub class the security transport to always inject a mock for testing
     public static class InternalPluginServerTransportServiceInterceptor extends SecurityServerTransportInterceptor {
-        public static class TestPlugin extends Plugin {
+        public static class TestPlugin extends Plugin implements NetworkPlugin {
             AuthenticationService authenticationService = mock(AuthenticationService.class);
             AuthorizationService authorizationService = mock(AuthorizationService.class);
             InternalPluginServerTransportServiceInterceptor interceptor;
@@ -303,8 +304,9 @@ public class TransportFilterTests extends ESIntegTestCase {
                 });
             }
 
-            public void onModule(NetworkModule module) {
-                module.addTransportInterceptor(new TransportInterceptor() {
+            @Override
+            public List<TransportInterceptor> getTransportInterceptors() {
+                return Collections.singletonList(new TransportInterceptor() {
                     @Override
                     public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action,
                                                                                                 TransportRequestHandler<T> actualHandler) {

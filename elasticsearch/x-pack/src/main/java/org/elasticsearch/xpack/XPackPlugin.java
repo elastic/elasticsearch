@@ -18,6 +18,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.elasticsearch.SpecialPermission;
@@ -33,17 +34,22 @@ import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestHandler;
@@ -52,6 +58,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.action.TransportXPackUsageAction;
@@ -96,7 +104,7 @@ import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.WatcherFeatureSet;
 
-public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, IngestPlugin {
+public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin {
 
     public static final String NAME = "x-pack";
 
@@ -339,10 +347,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         return watcher.getExecutorBuilders(settings);
     }
 
-    public void onModule(NetworkModule module) {
-        security.onModule(module);
-    }
-
     @Override
     public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
         List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> actions = new ArrayList<>();
@@ -428,4 +432,26 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     public static Path resolveXPackExtensionsFile(Environment env) {
         return env.pluginsFile().resolve(XPackPlugin.NAME).resolve("extensions");
     }
+
+    @Override
+    public List<TransportInterceptor> getTransportInterceptors() {
+        return security.getTransportInterceptors();
+    }
+
+    @Override
+    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                          CircuitBreakerService circuitBreakerService,
+                                                          NamedWriteableRegistry namedWriteableRegistry,
+                                                          NetworkService networkService) {
+        return security.getTransports(settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+    }
+
+    @Override
+    public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                        CircuitBreakerService circuitBreakerService,
+                                                                        NamedWriteableRegistry namedWriteableRegistry,
+                                                                        NetworkService networkService) {
+        return security.getHttpTransports(settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+    }
+
 }

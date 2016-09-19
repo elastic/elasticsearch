@@ -11,7 +11,6 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.ssl.SslHandler;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -33,7 +32,6 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
     private final SSLService sslService;
     private final boolean ssl;
 
-    @Inject
     public SecurityNetty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, IPFilter ipFilter,
                                              SSLService sslService, ThreadPool threadPool) {
         super(settings, networkService, bigArrays, threadPool);

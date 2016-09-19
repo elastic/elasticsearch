@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.transport.netty3;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -28,16 +27,12 @@ import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isCl
 import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isNotSslRecordException;
 import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
 
-/**
- *
- */
 public class SecurityNetty3HttpServerTransport extends Netty3HttpServerTransport {
 
     private final IPFilter ipFilter;
     private final SSLService sslService;
     private final boolean ssl;
 
-    @Inject
     public SecurityNetty3HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, IPFilter ipFilter,
                                              SSLService sslService, ThreadPool threadPool) {
         super(settings, networkService, bigArrays, threadPool);

@@ -1,7 +1,7 @@
 [[cat-templates]]
 == cat templates
 
-`templates` shows information about currently configured templates.
+The `templates` command provides information about existing templates.
 
 [source, sh]
 --------------------------------------------------
@@ -12,8 +12,8 @@ template1 tea*     1
 template2 teak*    2     7
 --------------------------------------------------
 
-The output shows that we have three templates active on the cluster,
-with template_2 configuring a specific version value.
+The output shows that there are three existing templates,
+with template_2 having a version value.
 
 The endpoint also supports giving a template name or pattern in the url
 to filter the results, for example `/_cat/templates/template*` or

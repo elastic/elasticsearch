@@ -16,7 +16,6 @@ For example:
 PUT _template/template_1
 {
   "template": "te*",
-  "version": 1,                               <1>
   "settings": {
     "number_of_shards": 1
   },
@@ -40,10 +39,6 @@ PUT _template/template_1
 --------------------------------------------------
 // CONSOLE
 // TESTSETUP
-
-<1> the optional `version` field is unused by elasticsearch
-internally, but can be useful to keep track of which
-version of the template is currently active on the cluster.
 
 Defines a template named template_1, with a template pattern of `te*`.
 The settings and mappings will be applied to any index name that matches

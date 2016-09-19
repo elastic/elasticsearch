@@ -37,17 +37,38 @@
             settings:
               number_of_shards: 1
               number_of_replicas: 0
+
+    - do:
+        indices.put_template:
+          name: test_2
+          body:
+            order: 1
+            version: 2
+            template: test-2*
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+
     - do:
         cat.templates: {}
 
     - match:
-        $body: |
-                /^
-                    test        \s+
-                    test-\*     \s+
-                    0           \s+
-                    1           \s+
-                $/
+        $body: /
+                 (^|\n)test     \s+
+                 test-\*        \s+
+                 0              \s+
+                 1
+                 (\n|$)
+               /
+
+    - match:
+        $body: /
+                (^|\n)test_2    \s+
+                test-2\*        \s+
+                1               \s+
+                2
+                (\n|$)
+               /
 
 ---
 "Filtered templates":

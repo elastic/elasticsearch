@@ -52,12 +52,11 @@ public class RestTemplatesAction extends AbstractCatAction {
 
     @Override
     protected void doRequest(final RestRequest request, RestChannel channel, NodeClient client) {
-        final String matchPattern = request.hasParam("name") ? request.param("name") : "*";
+        final String matchPattern = request.hasParam("name") ? request.param("name") : null;
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().metaData(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(
-            request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
 
         client.admin().cluster().state(clusterStateRequest, new RestResponseListener<ClusterStateResponse>(channel) {
             @Override
@@ -84,7 +83,7 @@ public class RestTemplatesAction extends AbstractCatAction {
         MetaData metadata = clusterStateResponse.getState().metaData();
         for (ObjectObjectCursor<String, IndexTemplateMetaData> entry : metadata.templates()) {
             IndexTemplateMetaData indexData = entry.value;
-            if (Regex.simpleMatch(patternString, indexData.name())) {
+            if (patternString == null || Regex.simpleMatch(patternString, indexData.name())) {
                 table.startRow();
                 table.addCell(indexData.name());
                 table.addCell(indexData.getTemplate());

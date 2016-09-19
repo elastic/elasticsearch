@@ -126,6 +126,7 @@ public class RefreshListenersTests extends ESTestCase {
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
                 TimeValue.timeValueMinutes(5), listeners, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
         engine = new InternalEngine(config);
+        listeners.setTranslog(engine.getTranslog());
     }
 
     @After

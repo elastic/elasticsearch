@@ -24,7 +24,7 @@
 #
 # Add custom attributes to the node:
 #
-#node.rack: r1
+#node.attr.rack: r1
 #
 # ----------------------------------- Paths ------------------------------------
 #

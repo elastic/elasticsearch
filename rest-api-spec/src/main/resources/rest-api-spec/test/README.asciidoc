@@ -10,7 +10,7 @@ Elasticsearch as follows:
 
 [source,sh]
 ---------------------
-bin/elasticsearch --script.inline true --node.testattr test --path.repo /tmp --repositories.url.allowed_urls 'http://snapshot.*'
+bin/elasticsearch --script.inline true --node.attr.testattr test --path.repo /tmp --repositories.url.allowed_urls 'http://snapshot.*'
 ---------------------
 
 =======================================

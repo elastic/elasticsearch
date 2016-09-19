@@ -106,12 +106,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
             removeIfSameTask(this);
-            RoutingAllocation.Result routingResult = allocationService.reroute(currentState, "assign delayed unassigned shards");
-            if (routingResult.changed()) {
-                return ClusterState.builder(currentState).routingResult(routingResult).build();
-            } else {
-                return currentState;
-            }
+            return allocationService.reroute(currentState, "assign delayed unassigned shards");
         }
 
         @Override

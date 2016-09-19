@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -34,12 +35,12 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.cluster.ESAllocationTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class StartedShardsRoutingTests extends ESAllocationTestCase {
@@ -68,16 +69,17 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
 
         logger.info("--> test starting of shard");
 
-        RoutingAllocation.Result result = allocation.applyStartedShards(state, Arrays.asList(initShard), false);
-        assertTrue("failed to start " + initShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
-        assertTrue(initShard + "isn't started \ncurrent routing table:" + result.routingTable().prettyPrint(),
-                result.routingTable().index("test").shard(initShard.id()).allShardsStarted());
-
+        ClusterState newState = allocation.applyStartedShards(state, Arrays.asList(initShard), false);
+        assertThat("failed to start " + initShard + "\ncurrent routing table:" + newState.routingTable().prettyPrint(),
+            newState, not(equalTo(state)));
+        assertTrue(initShard + "isn't started \ncurrent routing table:" + newState.routingTable().prettyPrint(),
+                newState.routingTable().index("test").shard(initShard.id()).allShardsStarted());
 
         logger.info("--> testing starting of relocating shards");
-        result = allocation.applyStartedShards(state, Arrays.asList(relocatingShard.getTargetRelocatingShard()), false);
-        assertTrue("failed to start " + relocatingShard + "\ncurrent routing table:" + result.routingTable().prettyPrint(), result.changed());
-        ShardRouting shardRouting = result.routingTable().index("test").shard(relocatingShard.id()).getShards().get(0);
+        newState = allocation.applyStartedShards(state, Arrays.asList(relocatingShard.getTargetRelocatingShard()), false);
+        assertThat("failed to start " + relocatingShard + "\ncurrent routing table:" + newState.routingTable().prettyPrint(),
+            newState, not(equalTo(state)));
+        ShardRouting shardRouting = newState.routingTable().index("test").shard(relocatingShard.id()).getShards().get(0);
         assertThat(shardRouting.state(), equalTo(ShardRoutingState.STARTED));
         assertThat(shardRouting.currentNodeId(), equalTo("node2"));
         assertThat(shardRouting.relocatingNodeId(), nullValue());

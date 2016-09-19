@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -157,11 +156,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                     @Override
                     public ClusterState execute(final ClusterState currentState) {
                         // now, reroute in case things that require it changed (e.g. number of replicas)
-                        RoutingAllocation.Result routingResult = allocationService.reroute(currentState, "reroute after cluster update settings");
-                        if (!routingResult.changed()) {
-                            return currentState;
-                        }
-                        return ClusterState.builder(currentState).routingResult(routingResult).build();
+                        return allocationService.reroute(currentState, "reroute after cluster update settings");
                     }
                 });
             }

@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -167,11 +166,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                         }
                         nodesBuilder.localNodeId(master.localNode().getId()).masterNodeId(master.localNode().getId());
                         currentState = ClusterState.builder(currentState).nodes(nodesBuilder).build();
-                        RoutingAllocation.Result result =  master.allocationService.reroute(currentState, "node_add");
-                        if (result.changed()) {
-                            currentState = ClusterState.builder(currentState).routingResult(result).build();
-                        }
-                        return currentState;
+                        return master.allocationService.reroute(currentState, "node_add");
                     }
 
                     @Override
@@ -234,9 +229,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                         }
                         // reroute here, so we eagerly remove dead nodes from the routing
                         ClusterState updatedState = ClusterState.builder(currentState).nodes(newNodes).build();
-                        RoutingAllocation.Result routingResult = master.allocationService.deassociateDeadNodes(
-                                ClusterState.builder(updatedState).build(), true, "node stopped");
-                        return ClusterState.builder(updatedState).routingResult(routingResult).build();
+                        return master.allocationService.deassociateDeadNodes(updatedState, true, "node stopped");
                     }
 
                     @Override

@@ -30,12 +30,12 @@ subprojects {
     apply plugin: 'java'
 
     compileJava.options.encoding = 'UTF-8'
+    compileTestJava.options.encoding = 'UTF-8'
 
     group = 'com.prelert'
     version = '2.1.1'
     sourceCompatibility = 1.8
     targetCompatibility = 1.8
-
 
     repositories {
         mavenLocal()

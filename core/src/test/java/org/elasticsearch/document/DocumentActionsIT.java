@@ -103,7 +103,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
 
         logger.info("Get [type1/1] with script");
         for (int i = 0; i < 5; i++) {
-            getResult = client().prepareGet("test", "type1", "1").setFields("name").execute().actionGet();
+            getResult = client().prepareGet("test", "type1", "1").setStoredFields("name").execute().actionGet();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat(getResult.isExists(), equalTo(true));
             assertThat(getResult.getSourceAsBytes(), nullValue());

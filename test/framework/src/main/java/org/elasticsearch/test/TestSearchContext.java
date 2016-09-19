@@ -117,7 +117,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void preProcess() {
+    public void preProcess(boolean rewrite) {
     }
 
     @Override

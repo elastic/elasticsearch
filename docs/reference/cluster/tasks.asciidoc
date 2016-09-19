@@ -28,7 +28,7 @@ The result will look similar to the following:
 {
   "nodes" : {
     "oTUltX4IQMOUUVeiohTt8A" : {
-      "name" : "Tamara Rahn",
+      "name" : "H5dfFeA",
       "transport_address" : "127.0.0.1:9300",
       "host" : "127.0.0.1",
       "ip" : "127.0.0.1:9300",

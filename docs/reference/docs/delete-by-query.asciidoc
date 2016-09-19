@@ -244,7 +244,7 @@ The responses looks like:
 {
   "nodes" : {
     "r1A2WoRbTwKZ516z6NEs5A" : {
-      "name" : "Tyrannus",
+      "name" : "r1A2WoR",
       "transport_address" : "127.0.0.1:9300",
       "host" : "127.0.0.1",
       "ip" : "127.0.0.1:9300",
@@ -314,7 +314,7 @@ POST _tasks/taskid:1/_cancel
 
 The `task_id` can be found using the tasks API above.
 
-Cancelation should happen quickly but might take a few seconds. The task status
+Cancellation should happen quickly but might take a few seconds. The task status
 API above will continue to list the task until it is wakes to cancel itself.
 
 

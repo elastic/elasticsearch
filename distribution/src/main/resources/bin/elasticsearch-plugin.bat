@@ -17,9 +17,14 @@ for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 
 TITLE Elasticsearch Plugin Manager ${project.version}
 
+SET path_props=-Des.path.home="%ES_HOME%"
+IF DEFINED CONF_DIR (
+  SET path_props=!path_props! -Des.path.conf="%CONF_DIR%"
+)
+
 SET args=%*
 SET HOSTNAME=%COMPUTERNAME%
 
-"%JAVA%" %ES_JAVA_OPTS% -Des.path.home="%ES_HOME%" -cp "%ES_HOME%/lib/*;" "org.elasticsearch.plugins.PluginCli" !args!
+"%JAVA%" %ES_JAVA_OPTS% !path_props! -cp "%ES_HOME%/lib/*;" "org.elasticsearch.plugins.PluginCli" !args!
 
 ENDLOCAL

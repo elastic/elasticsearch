@@ -81,14 +81,11 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         this.nowInMillis = nowInMillis;
     }
 
-    public ShardSearchLocalRequest(String[] types, long nowInMillis) {
+    public ShardSearchLocalRequest(ShardId shardId, String[] types, long nowInMillis, String[] filteringAliases) {
         this.types = types;
         this.nowInMillis = nowInMillis;
-    }
-
-    public ShardSearchLocalRequest(String[] types, long nowInMillis, String[] filteringAliases) {
-        this(types, nowInMillis);
         this.filteringAliases = filteringAliases;
+        this.shardId = shardId;
     }
 
     public ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType, SearchSourceBuilder source, String[] types,

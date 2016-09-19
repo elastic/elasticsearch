@@ -169,7 +169,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             clusterService = createClusterService(threadPool);
             transportService = new TransportService(settings,
                     new LocalTransport(settings, threadPool, new NamedWriteableRegistry(Collections.emptyList()),
-                        new NoneCircuitBreakerService()), threadPool) {
+                        new NoneCircuitBreakerService()), threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR) {
                 @Override
                 protected TaskManager createTaskManager() {
                     if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {

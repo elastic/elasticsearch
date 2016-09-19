@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.MockInternalClusterInfoService.DevNullClusterInfo;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -45,7 +46,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.cluster.ESAllocationTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -279,12 +279,10 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         AllocationService allocationService = createAllocationService();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
-        RoutingAllocation.Result result = allocationService.reroute(clusterState, "foo");
-        clusterState = ClusterState.builder(clusterState).routingTable(result.routingTable()).build();
+        clusterState = allocationService.reroute(clusterState, "foo");
 
-        result = allocationService.applyStartedShards(clusterState,
+        clusterState = allocationService.applyStartedShards(clusterState,
             clusterState.getRoutingTable().index("test").shardsWithState(ShardRoutingState.UNASSIGNED));
-        clusterState = ClusterState.builder(clusterState).routingTable(result.routingTable()).build();
 
         RoutingAllocation allocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, info, 0, false);
 

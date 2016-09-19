@@ -54,11 +54,6 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
     public static final String NAME = "painless";
 
     /**
-     * Default compiler settings to be used.
-     */
-    private static final CompilerSettings DEFAULT_COMPILER_SETTINGS = new CompilerSettings();
-
-    /**
      * Permissions context used during compilation.
      */
     private static final AccessControlContext COMPILATION_CONTEXT;
@@ -75,11 +70,18 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
     }
 
     /**
+     * Default compiler settings to be used. Note that {@link CompilerSettings} is mutable but this instance shouldn't be mutated outside
+     * of {@link PainlessScriptEngineService#PainlessScriptEngineService(Settings)}.
+     */
+    private final CompilerSettings defaultCompilerSettings = new CompilerSettings();
+
+    /**
      * Constructor.
      * @param settings The settings to initialize the engine with.
      */
     public PainlessScriptEngineService(final Settings settings) {
         super(settings);
+        defaultCompilerSettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(settings));
     }
 
     /**
@@ -111,27 +113,34 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
 
         if (params.isEmpty()) {
             // Use the default settings.
-            compilerSettings = DEFAULT_COMPILER_SETTINGS;
+            compilerSettings = defaultCompilerSettings;
         } else {
             // Use custom settings specified by params.
             compilerSettings = new CompilerSettings();
-            Map<String, String> copy = new HashMap<>(params);
-            String value = copy.remove(CompilerSettings.MAX_LOOP_COUNTER);
 
+            // Except regexes enabled - this is a node level setting and can't be changed in the request.
+            compilerSettings.setRegexesEnabled(defaultCompilerSettings.areRegexesEnabled());
+
+            Map<String, String> copy = new HashMap<>(params);
+
+            String value = copy.remove(CompilerSettings.MAX_LOOP_COUNTER);
             if (value != null) {
                 compilerSettings.setMaxLoopCounter(Integer.parseInt(value));
             }
 
             value = copy.remove(CompilerSettings.PICKY);
-
             if (value != null) {
                 compilerSettings.setPicky(Boolean.parseBoolean(value));
             }
 
             value = copy.remove(CompilerSettings.INITIAL_CALL_SITE_DEPTH);
-
             if (value != null) {
                 compilerSettings.setInitialCallSiteDepth(Integer.parseInt(value));
+            }
+
+            value = copy.remove(CompilerSettings.REGEX_ENABLED.getKey());
+            if (value != null) {
+                throw new IllegalArgumentException("[painless.regex.enabled] can only be set on node startup.");
             }
 
             if (!copy.isEmpty()) {

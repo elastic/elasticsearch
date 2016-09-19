@@ -700,7 +700,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         expectParsingException(json, "field [not_supported] is not supported");
     }
 
-    public void testMalformedQuery() throws IOException {
+    public void testMalformedQueryMultipleQueryObjects() throws IOException {
         //verify that an error is thrown rather than setting the query twice (https://github.com/elastic/elasticsearch/issues/16583)
         String json = "{\n" +
                 "    \"function_score\":{\n" +
@@ -715,15 +715,34 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 "        }\n" +
                 "    }\n" +
                 "}";
+        expectParsingException(json, equalTo("[bool] malformed query, expected [END_OBJECT] but found [FIELD_NAME]"));
+    }
+
+    public void testMalformedQueryMultipleQueryElements() throws IOException {
+        String json = "{\n" +
+                "    \"function_score\":{\n" +
+                "        \"query\":{\n" +
+                "            \"bool\":{\n" +
+                "                \"must\":{\"match\":{\"field\":\"value\"}}" +
+                "             }\n" +
+                "            },\n" +
+                "        \"query\":{\n" +
+                "            \"bool\":{\n" +
+                "                \"must\":{\"match\":{\"field\":\"value\"}}" +
+                "             }\n" +
+                "            }\n" +
+                "        }\n" +
+                "    }\n" +
+                "}";
         expectParsingException(json, "[query] is already defined.");
     }
 
-    private void expectParsingException(String json, Matcher<String> messageMatcher) {
+    private static void expectParsingException(String json, Matcher<String> messageMatcher) {
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(e.getMessage(), messageMatcher);
     }
 
-    private void expectParsingException(String json, String message) {
+    private static void expectParsingException(String json, String message) {
         expectParsingException(json, equalTo("failed to parse [function_score] query. " + message));
     }
 

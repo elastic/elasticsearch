@@ -38,10 +38,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
-import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.GatewayAllocator;
-import org.elasticsearch.gateway.ReplicaShardAllocator;
-import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 
@@ -129,9 +126,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         if (initializingShards.isEmpty()) {
             return clusterState;
         }
-        RoutingAllocation.Result routingResult = strategy.applyStartedShards(clusterState,
+        return strategy.applyStartedShards(clusterState,
             arrayAsArrayList(initializingShards.get(randomInt(initializingShards.size() - 1))));
-        return ClusterState.builder(clusterState).routingResult(routingResult).build();
     }
 
     protected static AllocationDeciders yesAllocationDeciders() {
@@ -151,12 +147,12 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected ClusterState applyStartedShardsUntilNoChange(ClusterState clusterState, AllocationService service) {
-        RoutingAllocation.Result routingResult;
+        ClusterState lastClusterState;
         do {
+            lastClusterState = clusterState;
             logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
-            routingResult = service.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
-            clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
-        } while (routingResult.changed());
+            clusterState = service.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        } while (lastClusterState.equals(clusterState) == false);
         return clusterState;
     }
 
@@ -209,14 +205,6 @@ public abstract class ESAllocationTestCase extends ESTestCase {
      * Mocks behavior in ReplicaShardAllocator to remove delayed shards from list of unassigned shards so they don't get reassigned yet.
      */
     protected static class DelayedShardsMockGatewayAllocator extends GatewayAllocator {
-        private final ReplicaShardAllocator replicaShardAllocator = new ReplicaShardAllocator(Settings.EMPTY) {
-            @Override
-            protected AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData>
-            fetchData(ShardRouting shard, RoutingAllocation allocation) {
-                return new AsyncShardFetch.FetchResult<>(shard.shardId(), null, Collections.emptySet(), Collections.emptySet());
-            }
-        };
-
 
         public DelayedShardsMockGatewayAllocator() {
             super(Settings.EMPTY, null, null);
@@ -236,7 +224,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 if (shard.primary() || shard.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
                     continue;
                 }
-                replicaShardAllocator.ignoreUnassignedIfDelayed(unassignedIterator, shard, allocation.changes());
+                if (shard.unassignedInfo().isDelayed()) {
+                    unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION, allocation.changes());
+                }
             }
         }
     }

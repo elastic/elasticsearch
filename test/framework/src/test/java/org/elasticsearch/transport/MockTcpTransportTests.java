@@ -34,7 +34,8 @@ public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(settings, Collections.emptyList()), version);
-        MockTransportService mockTransportService = new MockTransportService(Settings.EMPTY, transport, threadPool);
+        MockTransportService mockTransportService = new MockTransportService(Settings.EMPTY, transport, threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR);
         mockTransportService.start();
         return mockTransportService;
     }

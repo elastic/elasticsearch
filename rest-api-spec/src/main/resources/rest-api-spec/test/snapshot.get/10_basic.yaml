@@ -10,13 +10,6 @@ setup:
             location: "test_repo_get_1_loc"
 
 ---
-teardown:
-
-  - do:
-      snapshot.delete_repository:
-        repository: test_repo_get_1
-
----
 "Get snapshot info":
 
   - do:
@@ -39,7 +32,7 @@ teardown:
         snapshot: test_snapshot
 
   - is_true: snapshots
-  
+
 ---
 "Get missing snapshot info throws an exception":
 
@@ -48,7 +41,7 @@ teardown:
       snapshot.get:
         repository: test_repo_get_1
         snapshot: test_nonexistent_snapshot
-   
+
 ---
 "Get missing snapshot info succeeds when ignoreUnavailable is true":
 

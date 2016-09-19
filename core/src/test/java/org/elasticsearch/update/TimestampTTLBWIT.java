@@ -123,12 +123,12 @@ public class TimestampTTLBWIT extends ESIntegTestCase {
 
         // check TTL is kept after an update without TTL
         client().prepareIndex("test", "type1", "2").setSource("field", 1).setTTL(86400000L).setRefreshPolicy(IMMEDIATE).get();
-        GetResponse getResponse = client().prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test", "type1", "2").setStoredFields("_ttl").execute().actionGet();
         long ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl, greaterThan(0L));
         client().prepareUpdate(indexOrAlias(), "type1", "2")
                 .setScript(new Script("field", ScriptService.ScriptType.INLINE, "field_inc", null)).execute().actionGet();
-        getResponse = client().prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "2").setStoredFields("_ttl").execute().actionGet();
         ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl, greaterThan(0L));
 
@@ -136,7 +136,7 @@ public class TimestampTTLBWIT extends ESIntegTestCase {
         client().prepareUpdate(indexOrAlias(), "type1", "2")
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values",
                         Collections.singletonMap("_ctx", Collections.singletonMap("_ttl", 3600000)))).execute().actionGet();
-        getResponse = client().prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "2").setStoredFields("_ttl").execute().actionGet();
         ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl, greaterThan(0L));
         assertThat(ttl, lessThanOrEqualTo(3600000L));
@@ -147,7 +147,7 @@ public class TimestampTTLBWIT extends ESIntegTestCase {
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values",
                         Collections.singletonMap("_ctx", Collections.singletonMap("_timestamp", "2009-11-15T14:12:12")))).execute()
                 .actionGet();
-        getResponse = client().prepareGet("test", "type1", "3").setFields("_timestamp").execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "3").setStoredFields("_timestamp").execute().actionGet();
         long timestamp = ((Number) getResponse.getField("_timestamp").getValue()).longValue();
         assertThat(timestamp, equalTo(1258294332000L));
     }

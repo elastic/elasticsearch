@@ -52,10 +52,13 @@ Elasticsearch can be started from the command line as follows:
 ./bin/elasticsearch
 --------------------------------------------
 
-By default, Elasticsearch runs in the foreground, prints its logs to `STDOUT`,
-and can be stopped by pressing `Ctrl-C`.
+By default, Elasticsearch runs in the foreground, prints its logs to the
+standard output (`stdout`), and can be stopped by pressing `Ctrl-C`.
 
 include::check-running.asciidoc[]
+
+Log printing to `stdout` can be disabled using the `-q` or `--quiet`
+option on the command line.
 
 [[setup-installation-daemon]]
 ==== Running as a daemon

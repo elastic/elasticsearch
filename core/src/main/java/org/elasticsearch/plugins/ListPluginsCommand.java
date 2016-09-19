@@ -60,8 +60,8 @@ class ListPluginsCommand extends SettingCommand {
         }
         Collections.sort(plugins);
         for (final Path plugin : plugins) {
-            terminal.println(plugin.getFileName().toString());
             PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin.toAbsolutePath()));
+            terminal.println(plugin.getFileName().toString() + "@" + info.getVersion());
             terminal.println(Terminal.Verbosity.VERBOSE, info.toString());
         }
     }

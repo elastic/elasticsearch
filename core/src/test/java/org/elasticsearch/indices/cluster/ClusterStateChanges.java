@@ -55,7 +55,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RandomAllocationDeciderTests;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
@@ -150,7 +149,8 @@ public class ClusterStateChanges extends AbstractComponent {
         }
 
         // services
-        TransportService transportService = new TransportService(settings, transport, threadPool);
+        TransportService transportService = new TransportService(settings, transport, threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR);
         MetaDataIndexUpgradeService metaDataIndexUpgradeService = new MetaDataIndexUpgradeService(settings, null, null) {
             // metaData upgrader should do nothing
             @Override
@@ -207,8 +207,7 @@ public class ClusterStateChanges extends AbstractComponent {
     }
 
     public ClusterState deassociateDeadNodes(ClusterState clusterState, boolean reroute, String reason) {
-        RoutingAllocation.Result rerouteResult = allocationService.deassociateDeadNodes(clusterState, reroute, reason);
-        return ClusterState.builder(clusterState).routingResult(rerouteResult).build();
+        return allocationService.deassociateDeadNodes(clusterState, reroute, reason);
     }
 
     public ClusterState applyFailedShards(ClusterState clusterState, List<FailedRerouteAllocation.FailedShard> failedShards) {

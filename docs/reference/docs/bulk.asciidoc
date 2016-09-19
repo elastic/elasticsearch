@@ -154,7 +154,7 @@ times an update should be retried in the case of a version conflict.
 
 The `update` action payload, supports the following options: `doc`
 (partial document), `upsert`, `doc_as_upsert`, `script`, `params` (for
-script), `lang` (for script) and `fields`. See update documentation for details on
+script), `lang` (for script) and `_source`. See update documentation for details on
 the options. Curl example with update actions:
 
 [source,js]
@@ -165,10 +165,10 @@ the options. Curl example with update actions:
 { "script" : { "inline": "ctx._source.counter += params.param1", "lang" : "painless", "params" : {"param1" : 1}}, "upsert" : {"counter" : 1}}
 { "update" : {"_id" : "2", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"}, "doc_as_upsert" : true }
-{ "update" : {"_id" : "3", "_type" : "type1", "_index" : "index1", "fields" : ["_source"]} }
+{ "update" : {"_id" : "3", "_type" : "type1", "_index" : "index1", "_source" : true} }
 { "doc" : {"field" : "value"} }
 { "update" : {"_id" : "4", "_type" : "type1", "_index" : "index1"} }
-{ "doc" : {"field" : "value"}, "fields": ["_source"]}
+{ "doc" : {"field" : "value"}, "_source": true}
 --------------------------------------------------
 
 [float]

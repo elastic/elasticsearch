@@ -17,6 +17,10 @@ Plugins contain JAR files, but may also contain scripts and config files, and
 must be installed on every node in the cluster. After installation, each
 node must be restarted before the plugin becomes visible.
 
+NOTE: A full cluster restart is required for installing plugins that have
+custom cluster state metadata, such as X-Pack. It is still possible to upgrade
+such plugins with a rolling restart.
+
 This documentation distinguishes two categories of plugins:
 
 Core Plugins::    This category identifies plugins that are part of Elasticsearch

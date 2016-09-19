@@ -19,7 +19,6 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -27,6 +26,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,6 +38,7 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -50,8 +51,8 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -96,7 +97,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class);
+        return Collections.singletonList(InternalSettingsPlugin.class);
     }
 
     public void testHighlightingWithWildcardName() throws IOException {
@@ -2727,7 +2728,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .startObject("properties")
             .startObject("geo_point")
             .field("type", "geo_point")
-            .field("geohash", true)
             .endObject()
             .startObject("text")
             .field("type", "text")
@@ -2755,6 +2755,45 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertThat(search.getHits().totalHits(), equalTo(1L));
         assertThat(search.getHits().getAt(0).highlightFields().get("text").fragments().length, equalTo(1));
     }
+
+    public void testGeoFieldHighlightingWhenQueryGetsRewritten() throws IOException {
+        // same as above but in this example the query gets rewritten during highlighting
+        // see https://github.com/elastic/elasticsearch/issues/17537#issuecomment-244939633
+        XContentBuilder mappings = jsonBuilder();
+        mappings.startObject();
+        mappings.startObject("jobs")
+            .startObject("_all")
+            .field("enabled", false)
+            .endObject()
+            .startObject("properties")
+            .startObject("loc")
+            .field("type", "geo_point")
+            .endObject()
+            .startObject("jd")
+            .field("type", "string")
+            .endObject()
+            .endObject()
+            .endObject();
+        mappings.endObject();
+        assertAcked(prepareCreate("test")
+            .addMapping("jobs", mappings));
+        ensureYellow();
+
+        client().prepareIndex("test", "jobs", "1")
+            .setSource(jsonBuilder().startObject().field("jd", "some आवश्यकता है- आर्य समाज अनाथालय, 68 सिविल लाइन्स, बरेली को एक पुरूष" +
+                " रस text")
+                .field("loc", "12.934059,77.610741").endObject())
+            .get();
+        refresh();
+
+        QueryBuilder query = QueryBuilders.functionScoreQuery(QueryBuilders.boolQuery().filter(QueryBuilders.geoBoundingBoxQuery("loc")
+            .setCorners(new GeoPoint(48.934059, 41.610741), new GeoPoint(-23.065941, 113.610741))));
+        SearchResponse search = client().prepareSearch().setSource(
+            new SearchSourceBuilder().query(query).highlighter(new HighlightBuilder().highlighterType("plain").field("jd"))).get();
+        assertNoFailures(search);
+        assertThat(search.getHits().totalHits(), equalTo(1L));
+    }
+
 
     public void testKeywordFieldHighlighting() throws IOException {
         // check that keyword highlighting works
@@ -2850,5 +2889,22 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertThat(field.getFragments().length, equalTo(2));
         assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
         assertThat(field.getFragments()[1].string(), equalTo("<em>cow</em>"));
+    }
+
+    public void testFunctionScoreQueryHighlight() throws Exception {
+        client().prepareIndex("test", "type", "1")
+            .setSource(jsonBuilder().startObject().field("text", "brown").endObject())
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(new FunctionScoreQueryBuilder(QueryBuilders.prefixQuery("text", "bro")))
+            .highlighter(new HighlightBuilder()
+                .field(new Field("text")))
+            .get();
+        assertHitCount(searchResponse, 1);
+        HighlightField field = searchResponse.getHits().getAt(0).highlightFields().get("text");
+        assertThat(field.getFragments().length, equalTo(1));
+        assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
     }
 }

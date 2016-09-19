@@ -46,7 +46,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -430,10 +429,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             if (request.state() == State.OPEN) {
                                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
                                         .addAsNew(updatedState.metaData().index(request.index()));
-                                RoutingAllocation.Result routingResult = allocationService.reroute(
+                                updatedState = allocationService.reroute(
                                         ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
                                         "index [" + request.index() + "] created");
-                                updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
                             }
                             removalReason = "cleaning up after validating index on master";
                             return updatedState;
@@ -499,15 +497,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             if (resolvedPath == null) {
                 validationErrors.add("custom path [" + customPath + "] is not a sub-path of path.shared_data [" + env.sharedDataFile() + "]");
             }
-        }
-        //norelease - this can be removed?
-        Integer number_of_primaries = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
-        Integer number_of_replicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);
-        if (number_of_primaries != null && number_of_primaries <= 0) {
-            validationErrors.add("index must have 1 or more primary shards");
-        }
-        if (number_of_replicas != null && number_of_replicas < 0) {
-            validationErrors.add("index must have 0 or more replica shards");
         }
         return validationErrors;
     }

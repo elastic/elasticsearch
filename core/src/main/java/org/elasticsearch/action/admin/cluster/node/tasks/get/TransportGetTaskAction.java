@@ -216,7 +216,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             public void onFailure(Exception e) {
                 if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) != null) {
                     // We haven't yet created the index for the task results so it can't be found.
-                    listener.onFailure(new ResourceNotFoundException("task [{}] isn't running or stored its results", e,
+                    listener.onFailure(new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", e,
                         request.getTaskId()));
                 } else {
                     listener.onFailure(e);

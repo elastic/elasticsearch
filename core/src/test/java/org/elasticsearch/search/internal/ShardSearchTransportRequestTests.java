@@ -27,54 +27,13 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.SearchRequestTests;
-import org.elasticsearch.search.fetch.FetchSubPhasePluginIT;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.elasticsearch.search.AbstractSearchTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
-import static java.util.Collections.emptyList;
-
-public class ShardSearchTransportRequestTests extends ESTestCase {
-
-    private static NamedWriteableRegistry namedWriteableRegistry;
-
-    @BeforeClass
-    public static void beforeClass() {
-        IndicesModule indicesModule = new IndicesModule(emptyList()) {
-            @Override
-            protected void configure() {
-                bindMapperExtension();
-            }
-        };
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false,
-                Collections.singletonList(new FetchSubPhasePluginIT.FetchTermVectorsPlugin())) {
-            @Override
-            protected void configureSearch() {
-                // Skip me
-            }
-        };
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(indicesModule.getNamedWriteables());
-        entries.addAll(searchModule.getNamedWriteables());
-        namedWriteableRegistry = new NamedWriteableRegistry(entries);
-    }
-
-    @AfterClass
-    public static void afterClass() {
-        namedWriteableRegistry = null;
-    }
+public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
 
     public void testSerialization() throws Exception {
         ShardSearchTransportRequest shardSearchTransportRequest = createShardSearchTransportRequest();
@@ -100,8 +59,8 @@ public class ShardSearchTransportRequestTests extends ESTestCase {
         }
     }
 
-    private static ShardSearchTransportRequest createShardSearchTransportRequest() throws IOException {
-        SearchRequest searchRequest = SearchRequestTests.createSearchRequest();
+    private ShardSearchTransportRequest createShardSearchTransportRequest() throws IOException {
+        SearchRequest searchRequest = createSearchRequest();
         ShardId shardId = new ShardId(randomAsciiOfLengthBetween(2, 10), randomAsciiOfLengthBetween(2, 10), randomInt());
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, null, null, randomBoolean(), ShardRoutingState.UNASSIGNED,
             new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "reason"));

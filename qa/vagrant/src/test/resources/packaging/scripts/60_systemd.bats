@@ -68,9 +68,24 @@ setup() {
     # starting Elasticsearch so we don't have to wait for elasticsearch to scan for
     # them.
     install_elasticsearch_test_scripts
+
+    # Capture the current epoch in millis
+    run date +%s
+    epoch="$output"
+
     systemctl start elasticsearch.service
     wait_for_elasticsearch_status
     assert_file_exist "/var/run/elasticsearch/elasticsearch.pid"
+    assert_file_exist "/var/log/elasticsearch/elasticsearch.log"
+
+    # Converts the epoch back in a human readable format
+    run date --date=@$epoch "+%Y-%m-%d %H:%M:%S"
+    since="$output"
+
+    # Verifies that no new entries in journald have been added
+    # since the last start
+    result="$(journalctl _SYSTEMD_UNIT=elasticsearch.service --since "$since" --output cat | wc -l)"
+    [ "$result" -eq "0" ]
 }
 
 @test "[SYSTEMD] start (running)" {

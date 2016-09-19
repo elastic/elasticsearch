@@ -209,13 +209,6 @@ public final class NodeEnvironment  implements Closeable {
                 for (int dirIndex = 0; dirIndex < environment.dataFiles().length; dirIndex++) {
                     Path dataDirWithClusterName = environment.dataWithClusterFiles()[dirIndex];
                     Path dataDir = environment.dataFiles()[dirIndex];
-                    // TODO: Remove this in 6.0, we are no longer going to read from the cluster name directory
-                    if (readFromDataPathWithClusterName(dataDirWithClusterName)) {
-                        DeprecationLogger deprecationLogger = new DeprecationLogger(startupTraceLogger);
-                        deprecationLogger.deprecated("ES has detected the [path.data] folder using the cluster name as a folder [{}], " +
-                                        "Elasticsearch 6.0 will not allow the cluster name as a folder within the data path", dataDir);
-                        dataDir = dataDirWithClusterName;
-                    }
                     Path dir = dataDir.resolve(NODES_FOLDER).resolve(Integer.toString(possibleLockId));
                     Files.createDirectories(dir);
 
@@ -287,25 +280,6 @@ public final class NodeEnvironment  implements Closeable {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
             return stream.iterator().hasNext() == false;
         }
-    }
-
-    // Visible for testing
-    /** Returns true if data should be read from the data path that includes the cluster name (ie, it has data in it) */
-    static boolean readFromDataPathWithClusterName(Path dataPathWithClusterName) throws IOException {
-        if (Files.exists(dataPathWithClusterName) == false ||          // If it doesn't exist
-                Files.isDirectory(dataPathWithClusterName) == false || // Or isn't a directory
-                dirEmpty(dataPathWithClusterName)) {                   // Or if it's empty
-            // No need to read from cluster-name folder!
-            return false;
-        }
-        // The "nodes" directory inside of the cluster name
-        Path nodesPath = dataPathWithClusterName.resolve(NODES_FOLDER);
-        if (Files.isDirectory(nodesPath)) {
-            // The cluster has data in the "nodes" so we should read from the cluster-named folder for now
-            return true;
-        }
-        // Hey the nodes directory didn't exist, so we can safely use whatever directory we feel appropriate
-        return false;
     }
 
     private static void releaseAndNullLocks(Lock[] locks) {

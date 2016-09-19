@@ -28,7 +28,7 @@ import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
 
 import java.io.IOException;
 
-@TimeoutSuite(millis = 40 * TimeUnits.MINUTE) // some of the windows test VMs are slow as hell
+@TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @Override

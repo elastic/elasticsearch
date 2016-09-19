@@ -99,12 +99,12 @@ processResources {
     inputs.properties(expansions)
     MavenFilteringHack.filter(it, expansions)
   }
-  String licenseKeyName = System.getProperty('license.key', 'dev')
-  String licenseKeyPath = "license-plugin/keys/${licenseKeyName}/public.key"
-  if (file(licenseKeyPath).exists() == false) {
-    throw new GradleException("no public key found for '${licenseKeyName}'")
+  boolean snapshot = "true".equals(System.getProperty("build.snapshot", "true"))
+  if (snapshot) {
+    from 'license-plugin/keys/dev/public.key'
+  } else {
+    from 'license-plugin/keys/prod/public.key'
   }
-  from licenseKeyPath
 }
 
 forbiddenPatterns {

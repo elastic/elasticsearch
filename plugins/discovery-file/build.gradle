@@ -27,3 +27,28 @@ bundlePlugin {
         into 'config'
     }
 }
+
+integTest {
+    cluster {
+        distribution = 'zip'
+        numNodes = 2
+        clusterName = "discovery-file-test-cluster"
+        // unicast hosts in elasticsearch.yaml shouldn't exist,
+        // we are using the file-based hosts found in unicast_hosts.txt
+        unicastTransportUri = { seedNode, node, ant -> null }
+        // final setup task to write the unicast_hosts.txt file using just
+        // the seed node's transport URI
+        finalSetup = { node, seedNode, ant ->
+            // for non seed nodes, set the seed node as the unicast host
+            if (node != seedNode) {
+                ant.waitfor(maxwait: '20', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond') {
+                    ant.resourceexists {
+                        ant.file(file: seedNode.transportPortsFile)
+                    }
+                }
+                File unicastHostsFile = new File(node.confDir, 'discovery-file/unicast_hosts.txt')
+                unicastHostsFile.setText(seedNode.transportUri(), 'UTF-8')
+            }
+        }
+    }
+}

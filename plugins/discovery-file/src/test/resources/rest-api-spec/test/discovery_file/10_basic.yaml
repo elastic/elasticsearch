@@ -2,7 +2,13 @@
 #
 "Discovery File loaded":
     - do:
+        cluster.health:
+            wait_for_nodes: 2  # make sure both nodes joined the cluster
+
+    - do:
         cluster.state: {}
+
+    - match: { cluster_name: 'discovery-file-test-cluster' } # correct cluster name, we formed the cluster we expected to
 
     # Get master node id
     - set: { master_node: master }

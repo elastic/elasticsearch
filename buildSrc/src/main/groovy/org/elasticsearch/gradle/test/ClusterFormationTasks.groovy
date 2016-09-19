@@ -170,6 +170,8 @@ class ClusterFormationTasks {
             setup = configureExecTask(taskName(task, node, command.getKey()), project, setup, node, args)
         }
 
+        setup = configureFinalSetupTask(taskName(task, node, 'finalSetup'), project, setup, node, seedNode)
+
         Task start = configureStartTask(taskName(task, node, 'start'), project, setup, node)
 
         if (node.config.daemonize) {
@@ -367,6 +369,14 @@ class ClusterFormationTasks {
         Object file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
         Object[] args = [new File(node.homeDir, 'bin/elasticsearch-plugin'), 'install', file]
         return configureExecTask(name, project, setup, node, args)
+    }
+
+    static Task configureFinalSetupTask(String name, Project project, Task setup, NodeInfo node, NodeInfo seedNode) {
+        Task finalSetup = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
+        finalSetup.doLast {
+            node.config.finalSetup(node, seedNode, project.ant)
+        }
+        return finalSetup
     }
 
     /** Wrapper for command line argument: surrounds comma with double quotes **/

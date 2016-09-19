@@ -91,7 +91,7 @@ public class AzureRepository extends BlobStoreRepository {
         blobStore = new AzureBlobStore(metadata, environment.settings(), storageService);
         String container = getValue(metadata.settings(), settings, Repository.CONTAINER_SETTING, Storage.CONTAINER_SETTING);
         ByteSizeValue configuredChunkSize = getValue(metadata.settings(), settings, Repository.CHUNK_SIZE_SETTING, Storage.CHUNK_SIZE_SETTING);
-        if (configuredChunkSize.getMb() > MAX_CHUNK_SIZE.getMb()) {
+        if (configuredChunkSize.toMB() > MAX_CHUNK_SIZE.toMB()) {
             Setting<ByteSizeValue> setting = getEffectiveSetting(metadata.settings(), Repository.CHUNK_SIZE_SETTING, Storage.CHUNK_SIZE_SETTING);
             throw new SettingsException("["  + setting.getKey() + "] must not exceed [" + MAX_CHUNK_SIZE + "] but is set to [" + configuredChunkSize + "].");
         } else {

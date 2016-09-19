@@ -170,7 +170,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(msg, response.getTimestamp(), Matchers.greaterThan(946681200000L)); // 1 Jan 2000
         assertThat(msg, response.indicesStats.getStore().getSizeInBytes(), Matchers.greaterThan(0L));
 
-        assertThat(msg, response.nodesStats.getFs().getTotal().bytes(), Matchers.greaterThan(0L));
+        assertThat(msg, response.nodesStats.getFs().getTotal().toBytes(), Matchers.greaterThan(0L));
         assertThat(msg, response.nodesStats.getJvm().getVersions().size(), Matchers.greaterThan(0));
 
         assertThat(msg, response.nodesStats.getVersions().size(), Matchers.greaterThan(0));
@@ -189,13 +189,13 @@ public class ClusterStatsIT extends ESIntegTestCase {
         long free = 0;
         long used = 0;
         for (NodeStats nodeStats : nodesStatsResponse.getNodes()) {
-            total += nodeStats.getOs().getMem().getTotal().bytes();
-            free += nodeStats.getOs().getMem().getFree().bytes();
-            used += nodeStats.getOs().getMem().getUsed().bytes();
+            total += nodeStats.getOs().getMem().getTotal().toBytes();
+            free += nodeStats.getOs().getMem().getFree().toBytes();
+            used += nodeStats.getOs().getMem().getUsed().toBytes();
         }
-        assertEquals(msg, free, response.nodesStats.getOs().getMem().getFree().bytes());
-        assertEquals(msg, total, response.nodesStats.getOs().getMem().getTotal().bytes());
-        assertEquals(msg, used, response.nodesStats.getOs().getMem().getUsed().bytes());
+        assertEquals(msg, free, response.nodesStats.getOs().getMem().getFree().toBytes());
+        assertEquals(msg, total, response.nodesStats.getOs().getMem().getTotal().toBytes());
+        assertEquals(msg, used, response.nodesStats.getOs().getMem().getUsed().toBytes());
         assertEquals(msg, OsStats.calculatePercentage(used, total), response.nodesStats.getOs().getMem().getUsedPercent());
         assertEquals(msg, OsStats.calculatePercentage(free, total), response.nodesStats.getOs().getMem().getFreePercent());
     }

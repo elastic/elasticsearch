@@ -70,7 +70,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
 
             long partBytes = Long.MAX_VALUE;
             if (partSize != null) {
-                partBytes = partSize.bytes();
+                partBytes = partSize.toBytes();
             }
 
             long totalLength = metaData.length();
@@ -261,7 +261,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
                 builder.field(CHECKSUM, file.metadata.checksum());
             }
             if (file.partSize != null) {
-                builder.field(PART_SIZE, file.partSize.bytes());
+                builder.field(PART_SIZE, file.partSize.toBytes());
             }
 
             if (file.metadata.writtenBy() != null) {

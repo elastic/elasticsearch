@@ -415,9 +415,9 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                     if (leastAvailablePath == null) {
                         assert mostAvailablePath == null;
                         mostAvailablePath = leastAvailablePath = info;
-                    } else if (leastAvailablePath.getAvailable().bytes() > info.getAvailable().bytes()){
+                    } else if (leastAvailablePath.getAvailable().toBytes() > info.getAvailable().toBytes()){
                         leastAvailablePath = info;
-                    } else if (mostAvailablePath.getAvailable().bytes() < info.getAvailable().bytes()) {
+                    } else if (mostAvailablePath.getAvailable().toBytes() < info.getAvailable().toBytes()) {
                         mostAvailablePath = info;
                     }
                 }
@@ -428,21 +428,21 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                             nodeId, mostAvailablePath.getTotal(), leastAvailablePath.getAvailable(),
                             leastAvailablePath.getTotal(), leastAvailablePath.getAvailable());
                 }
-                if (leastAvailablePath.getTotal().bytes() < 0) {
+                if (leastAvailablePath.getTotal().toBytes() < 0) {
                     if (logger.isTraceEnabled()) {
                         logger.trace("node: [{}] least available path has less than 0 total bytes of disk [{}], skipping",
-                                nodeId, leastAvailablePath.getTotal().bytes());
+                                nodeId, leastAvailablePath.getTotal().toBytes());
                     }
                 } else {
-                    newLeastAvaiableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, leastAvailablePath.getPath(), leastAvailablePath.getTotal().bytes(), leastAvailablePath.getAvailable().bytes()));
+                    newLeastAvaiableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, leastAvailablePath.getPath(), leastAvailablePath.getTotal().toBytes(), leastAvailablePath.getAvailable().toBytes()));
                 }
-                if (mostAvailablePath.getTotal().bytes() < 0) {
+                if (mostAvailablePath.getTotal().toBytes() < 0) {
                     if (logger.isTraceEnabled()) {
                         logger.trace("node: [{}] most available path has less than 0 total bytes of disk [{}], skipping",
-                                nodeId, mostAvailablePath.getTotal().bytes());
+                                nodeId, mostAvailablePath.getTotal().toBytes());
                     }
                 } else {
-                    newMostAvaiableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, mostAvailablePath.getPath(), mostAvailablePath.getTotal().bytes(), mostAvailablePath.getAvailable().bytes()));
+                    newMostAvaiableUsages.put(nodeId, new DiskUsage(nodeId, nodeName, mostAvailablePath.getPath(), mostAvailablePath.getTotal().toBytes(), mostAvailablePath.getAvailable().toBytes()));
                 }
 
             }

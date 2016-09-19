@@ -64,7 +64,7 @@ public class JvmGcMonitorServiceTests extends ESTestCase {
         when(gc.getCollectionCount()).thenReturn(totalCollectionCount);
         when(gc.getCollectionTime()).thenReturn(totalCollectionTime);
 
-        final ByteSizeValue maxHeapUsed = new ByteSizeValue(Math.max(lastHeapUsed.bytes(), currentHeapUsed.bytes()) + 1 << 10);
+        final ByteSizeValue maxHeapUsed = new ByteSizeValue(Math.max(lastHeapUsed.toBytes(), currentHeapUsed.toBytes()) + 1 << 10);
 
         JvmGcMonitorService.JvmMonitor.SlowGcEvent slowGcEvent = new JvmGcMonitorService.JvmMonitor.SlowGcEvent(
             gc,

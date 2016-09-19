@@ -149,9 +149,9 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         Setting.byteSizeSetting("transport.netty.receive_predictor_size",
             settings -> {
                 long defaultReceiverPredictor = 512 * 1024;
-                if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes() > 0) {
+                if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().toBytes() > 0) {
                     // we can guess a better default...
-                    long l = (long) ((0.3 * JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes()) / SETTING_HTTP_WORKER_COUNT.get
+                    long l = (long) ((0.3 * JvmInfo.jvmInfo().getMem().getDirectMemoryMax().toBytes()) / SETTING_HTTP_WORKER_COUNT.get
                             (settings));
                     defaultReceiverPredictor = Math.min(defaultReceiverPredictor, Math.max(l, 64 * 1024));
                 }
@@ -248,11 +248,11 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
         ByteSizeValue receivePredictorMin = SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MIN.get(settings);
         ByteSizeValue receivePredictorMax = SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MAX.get(settings);
-        if (receivePredictorMax.bytes() == receivePredictorMin.bytes()) {
-            receiveBufferSizePredictorFactory = new FixedReceiveBufferSizePredictorFactory((int) receivePredictorMax.bytes());
+        if (receivePredictorMax.toBytes() == receivePredictorMin.toBytes()) {
+            receiveBufferSizePredictorFactory = new FixedReceiveBufferSizePredictorFactory((int) receivePredictorMax.toBytes());
         } else {
             receiveBufferSizePredictorFactory = new AdaptiveReceiveBufferSizePredictorFactory(
-                (int) receivePredictorMin.bytes(), (int) receivePredictorMin.bytes(), (int) receivePredictorMax.bytes());
+                (int) receivePredictorMin.toBytes(), (int) receivePredictorMin.toBytes(), (int) receivePredictorMax.toBytes());
         }
 
         this.compression = SETTING_HTTP_COMPRESSION.get(settings);
@@ -262,7 +262,7 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         this.corsConfig = buildCorsConfig(settings);
 
         // validate max content length
-        if (maxContentLength.bytes() > Integer.MAX_VALUE) {
+        if (maxContentLength.toBytes() > Integer.MAX_VALUE) {
             logger.warn("maxContentLength[{}] set to high value, resetting it to [100mb]", maxContentLength);
             maxContentLength = new ByteSizeValue(100, ByteSizeUnit.MB);
         }
@@ -300,12 +300,12 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
 
         serverBootstrap.setOption("child.tcpNoDelay", tcpNoDelay);
         serverBootstrap.setOption("child.keepAlive", tcpKeepAlive);
-        if (tcpSendBufferSize.bytes() > 0) {
+        if (tcpSendBufferSize.toBytes() > 0) {
 
-            serverBootstrap.setOption("child.sendBufferSize", tcpSendBufferSize.bytes());
+            serverBootstrap.setOption("child.sendBufferSize", tcpSendBufferSize.toBytes());
         }
-        if (tcpReceiveBufferSize.bytes() > 0) {
-            serverBootstrap.setOption("child.receiveBufferSize", tcpReceiveBufferSize.bytes());
+        if (tcpReceiveBufferSize.toBytes() > 0) {
+            serverBootstrap.setOption("child.receiveBufferSize", tcpReceiveBufferSize.toBytes());
         }
         serverBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
         serverBootstrap.setOption("child.receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
@@ -468,7 +468,7 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         if (boundTransportAddress == null) {
             return null;
         }
-        return new HttpInfo(boundTransportAddress, maxContentLength.bytes());
+        return new HttpInfo(boundTransportAddress, maxContentLength.toBytes());
     }
 
     @Override
@@ -533,15 +533,15 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
             ChannelPipeline pipeline = Channels.pipeline();
             pipeline.addLast("openChannels", transport.serverOpenChannels);
             HttpRequestDecoder requestDecoder = new HttpRequestDecoder(
-                    (int) transport.maxInitialLineLength.bytes(),
-                    (int) transport.maxHeaderSize.bytes(),
-                    (int) transport.maxChunkSize.bytes()
+                    (int) transport.maxInitialLineLength.toBytes(),
+                    (int) transport.maxHeaderSize.toBytes(),
+                    (int) transport.maxChunkSize.toBytes()
             );
-            if (transport.maxCumulationBufferCapacity.bytes() >= 0) {
-                if (transport.maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
+            if (transport.maxCumulationBufferCapacity.toBytes() >= 0) {
+                if (transport.maxCumulationBufferCapacity.toBytes() > Integer.MAX_VALUE) {
                     requestDecoder.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
                 } else {
-                    requestDecoder.setMaxCumulationBufferCapacity((int) transport.maxCumulationBufferCapacity.bytes());
+                    requestDecoder.setMaxCumulationBufferCapacity((int) transport.maxCumulationBufferCapacity.toBytes());
                 }
             }
             if (transport.maxCompositeBufferComponents != -1) {
@@ -549,7 +549,7 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
             }
             pipeline.addLast("decoder", requestDecoder);
             pipeline.addLast("decoder_compress", new HttpContentDecompressor());
-            HttpChunkAggregator httpChunkAggregator = new HttpChunkAggregator((int) transport.maxContentLength.bytes());
+            HttpChunkAggregator httpChunkAggregator = new HttpChunkAggregator((int) transport.maxContentLength.toBytes());
             if (transport.maxCompositeBufferComponents != -1) {
                 httpChunkAggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             }

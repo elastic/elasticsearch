@@ -220,7 +220,7 @@ public class NodeInfo extends BaseNodeResponse {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeLong(totalIndexingBuffer.bytes());
+            out.writeLong(totalIndexingBuffer.toBytes());
         }
         if (settings == null) {
             out.writeBoolean(false);

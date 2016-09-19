@@ -167,7 +167,7 @@ class JNANatives {
             // By default, Windows limits the number of pages that can be locked.
             // Thus, we need to first increase the working set size of the JVM by
             // the amount of memory we wish to lock, plus a small overhead (1MB).
-            SizeT size = new SizeT(JvmInfo.jvmInfo().getMem().getHeapInit().getBytes() + (1024 * 1024));
+            SizeT size = new SizeT(JvmInfo.jvmInfo().getMem().getHeapInit().toBytes() + (1024 * 1024));
             if (!kernel.SetProcessWorkingSetSize(process, size, size)) {
                 logger.warn("Unable to lock JVM memory. Failed to set working set size. Error code {}", Native.getLastError());
             } else {

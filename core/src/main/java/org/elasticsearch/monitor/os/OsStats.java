@@ -241,7 +241,7 @@ public class OsStats implements Writeable, ToXContent {
         }
 
         public short getUsedPercent() {
-            return calculatePercentage(getUsed().bytes(), total);
+            return calculatePercentage(getUsed().toBytes(), total);
         }
 
         public ByteSizeValue getFree() {

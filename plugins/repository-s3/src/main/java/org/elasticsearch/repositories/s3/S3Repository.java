@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import org.elasticsearch.cloud.aws.AwsS3Service;
@@ -279,7 +278,7 @@ public class S3Repository extends BlobStoreRepository {
         this.compress = getValue(metadata.settings(), settings, Repository.COMPRESS_SETTING, Repositories.COMPRESS_SETTING);
 
         // We make sure that chunkSize is bigger or equal than/to bufferSize
-        if (this.chunkSize.getBytes() < bufferSize.getBytes()) {
+        if (this.chunkSize.toBytes() < bufferSize.toBytes()) {
             throw new RepositoryException(metadata.name(), Repository.CHUNK_SIZE_SETTING.getKey() + " (" + this.chunkSize +
                 ") can't be lower than " + Repository.BUFFER_SIZE_SETTING.getKey() + " (" + bufferSize + ").");
         }

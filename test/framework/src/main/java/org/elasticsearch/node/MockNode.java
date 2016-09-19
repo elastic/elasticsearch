@@ -35,6 +35,8 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
@@ -81,20 +83,17 @@ public class MockNode extends Node {
     }
 
     @Override
-    protected NetworkModule createNetworkModule(Settings settings, NetworkService networkService) {
+    protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,
+                                                   TransportInterceptor interceptor) {
         // we use the MockTransportService.TestPlugin class as a marker to create a newtwork
         // module with this MockNetworkService. NetworkService is such an integral part of the systme
         // we don't allow to plug it in from plugins or anything. this is a test-only override and
         // can't be done in a production env.
         if (getPluginsService().filterPlugins(MockTransportService.TestPlugin.class).size() == 1) {
-            return new NetworkModule(networkService, settings, false) {
-                @Override
-                protected void bindTransportService() {
-                    bind(TransportService.class).to(MockTransportService.class).asEagerSingleton();
-                }
-            };
+            return new MockTransportService(settings, transport, threadPool, interceptor);
+        } else {
+            return super.newTransportService(settings, transport, threadPool, interceptor);
         }
-        return super.createNetworkModule(settings, networkService);
     }
 }
 

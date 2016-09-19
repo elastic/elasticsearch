@@ -23,21 +23,31 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.ModuleTestCase;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerAdapter;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
 public class NetworkModuleTests extends ModuleTestCase {
 
@@ -73,6 +83,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         public void httpServerAdapter(HttpServerAdapter httpServerAdapter) {}
     }
 
+
     static class FakeRestHandler extends BaseRestHandler {
         public FakeRestHandler() {
             super(null);
@@ -99,44 +110,121 @@ public class NetworkModuleTests extends ModuleTestCase {
         Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "custom")
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
             .build();
-        NetworkModule module = new NetworkModule(new NetworkService(settings, Collections.emptyList()), settings, false);
-        module.registerTransport("custom", FakeTransport.class);
-        assertBinding(module, Transport.class, FakeTransport.class);
+        Supplier<Transport> custom = FakeTransport::new;
+        NetworkPlugin plugin = new NetworkPlugin() {
+            @Override
+            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                  CircuitBreakerService circuitBreakerService,
+                                                                  NamedWriteableRegistry namedWriteableRegistry,
+                                                                  NetworkService networkService) {
+                return Collections.singletonMap("custom", custom);
+            }
+        };
+        NetworkModule module = newNetworkModule(settings, false, plugin);
         assertFalse(module.isTransportClient());
+        assertFalse(module.isHttpEnabled());
+        assertSame(custom, module.getTransportSupplier());
 
         // check it works with transport only as well
-        module = new NetworkModule(new NetworkService(settings, Collections.emptyList()), settings, true);
-        module.registerTransport("custom", FakeTransport.class);
-        assertBinding(module, Transport.class, FakeTransport.class);
+        module = newNetworkModule(settings, true, plugin);
+        assertSame(custom, module.getTransportSupplier());
         assertTrue(module.isTransportClient());
+        assertFalse(module.isHttpEnabled());
     }
 
     public void testRegisterHttpTransport() {
         Settings settings = Settings.builder()
             .put(NetworkModule.HTTP_TYPE_SETTING.getKey(), "custom")
             .put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
-        NetworkModule module = new NetworkModule(new NetworkService(settings, Collections.emptyList()), settings, false);
-        module.registerHttpTransport("custom", FakeHttpTransport.class);
-        assertBinding(module, HttpServerTransport.class, FakeHttpTransport.class);
+        Supplier<HttpServerTransport> custom = FakeHttpTransport::new;
+
+        NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
+            @Override
+            public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool,
+                                                                                BigArrays bigArrays,
+                                                                                CircuitBreakerService circuitBreakerService,
+                                                                                NamedWriteableRegistry namedWriteableRegistry,
+                                                                                NetworkService networkService) {
+                return Collections.singletonMap("custom", custom);
+            }
+        });
+        assertSame(custom, module.getHttpServerTransportSupplier());
         assertFalse(module.isTransportClient());
+        assertTrue(module.isHttpEnabled());
 
-        // check registration not allowed for transport only
-        module = new NetworkModule(new NetworkService(settings, Collections.emptyList()), settings, true);
-        assertTrue(module.isTransportClient());
-        try {
-            module.registerHttpTransport("custom", FakeHttpTransport.class);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("Cannot register http transport"));
-            assertTrue(e.getMessage().contains("for transport client"));
-        }
-
-        // not added if http is disabled
         settings = Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false)
             .put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
-        module = new NetworkModule(new NetworkService(settings, Collections.emptyList()), settings, false);
-        assertNotBound(module, HttpServerTransport.class);
-        assertFalse(module.isTransportClient());
+        NetworkModule newModule = newNetworkModule(settings, false);
+        assertFalse(newModule.isTransportClient());
+        assertFalse(newModule.isHttpEnabled());
+        expectThrows(IllegalStateException.class, () -> newModule.getHttpServerTransportSupplier());
+    }
+
+    public void testOverrideDefault() {
+        Settings settings = Settings.builder()
+            .put(NetworkModule.HTTP_TYPE_SETTING.getKey(), "custom")
+            .put(NetworkModule.HTTP_DEFAULT_TYPE_SETTING.getKey(), "default_custom")
+            .put(NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.getKey(), "local")
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, "default_custom").build();
+        Supplier<Transport> customTransport = FakeTransport::new;
+        Supplier<HttpServerTransport> custom = FakeHttpTransport::new;
+        Supplier<HttpServerTransport> def = FakeHttpTransport::new;
+        NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
+            @Override
+            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                  CircuitBreakerService circuitBreakerService,
+                                                                  NamedWriteableRegistry namedWriteableRegistry,
+                                                                  NetworkService networkService) {
+                return Collections.singletonMap("default_custom", customTransport);
+            }
+
+            @Override
+            public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool,
+                                                                                BigArrays bigArrays,
+                                                                                CircuitBreakerService circuitBreakerService,
+                                                                                NamedWriteableRegistry namedWriteableRegistry,
+                                                                                NetworkService networkService) {
+                Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
+                supplierMap.put("custom", custom);
+                supplierMap.put("default_custom", def);
+                return supplierMap;
+            }
+        });
+        assertSame(custom, module.getHttpServerTransportSupplier());
+        assertSame(customTransport, module.getTransportSupplier());
+    }
+
+    public void testDefaultKeys() {
+        Settings settings = Settings.builder()
+            .put(NetworkModule.HTTP_DEFAULT_TYPE_SETTING.getKey(), "default_custom")
+            .put(NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.getKey(), "default_custom").build();
+        Supplier<HttpServerTransport> custom = FakeHttpTransport::new;
+        Supplier<HttpServerTransport> def = FakeHttpTransport::new;
+        Supplier<Transport> customTransport = FakeTransport::new;
+        NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
+            @Override
+            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                  CircuitBreakerService circuitBreakerService,
+                                                                  NamedWriteableRegistry namedWriteableRegistry,
+                                                                  NetworkService networkService) {
+                return Collections.singletonMap("default_custom", customTransport);
+            }
+
+            @Override
+            public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool,
+                                                                                BigArrays bigArrays,
+                                                                                CircuitBreakerService circuitBreakerService,
+                                                                                NamedWriteableRegistry namedWriteableRegistry,
+                                                                                NetworkService networkService) {
+                Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
+                supplierMap.put("custom", custom);
+                supplierMap.put("default_custom", def);
+                return supplierMap;
+            }
+        });
+
+        assertSame(def, module.getHttpServerTransportSupplier());
+        assertSame(customTransport, module.getTransportSupplier());
     }
 
     public void testRegisterInterceptor() {
@@ -144,21 +232,33 @@ public class NetworkModuleTests extends ModuleTestCase {
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
             .put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
 
-        NetworkModule module = new NetworkModule(new NetworkService(settings, Collections.emptyList()), settings, false);
-        TransportInterceptor interceptor = new TransportInterceptor() {};
-        module.addTransportInterceptor(interceptor);
-        assertInstanceBinding(module, TransportInterceptor.class, i -> {
-            if (i instanceof NetworkModule.CompositeTransportInterceptor) {
-                assertEquals(((NetworkModule.CompositeTransportInterceptor)i).transportInterceptors.size(), 1);
-                return ((NetworkModule.CompositeTransportInterceptor)i).transportInterceptors.get(0) == interceptor;
-            }
-            return false;
-        });
+        TransportInterceptor interceptor = new TransportInterceptor() {
+        };
+        NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
+                @Override
+                public List<TransportInterceptor> getTransportInterceptors() {
+                    return Collections.singletonList(interceptor);
+                }
+            });
+
+        TransportInterceptor transportInterceptor = module.getTransportInterceptor();
+        assertTrue(transportInterceptor instanceof  NetworkModule.CompositeTransportInterceptor);
+        assertEquals(((NetworkModule.CompositeTransportInterceptor)transportInterceptor).transportInterceptors.size(), 1);
+        assertSame(((NetworkModule.CompositeTransportInterceptor)transportInterceptor).transportInterceptors.get(0), interceptor);
 
         NullPointerException nullPointerException = expectThrows(NullPointerException.class, () -> {
-            module.addTransportInterceptor(null);
+            newNetworkModule(settings, false, new NetworkPlugin() {
+                @Override
+                public List<TransportInterceptor> getTransportInterceptors() {
+                    return Collections.singletonList(null);
+                }
+            });
         });
         assertEquals("interceptor must not be null", nullPointerException.getMessage());
 
+    }
+
+    private NetworkModule newNetworkModule(Settings settings, boolean transportClient, NetworkPlugin... plugins) {
+        return new NetworkModule(settings, transportClient, Arrays.asList(plugins), null, null, null, null, null);
     }
 }

@@ -56,12 +56,8 @@ public class PluginBuildPlugin extends BuildPlugin {
                 // for plugins which work with the transport client, we copy the jar
                 // file to a new name, copy the nebula generated pom to the same name,
                 // and generate a different pom for the zip
-                project.signArchives.enabled = false
                 addClientJarPomGeneration(project)
                 addClientJarTask(project)
-                if (isModule == false) {
-                    addZipPomGeneration(project)
-                }
             } else {
                 // no client plugin, so use the pom file from nebula, without jar, for the zip
                 project.ext.set("nebulaPublish.maven.jar", false)
@@ -152,16 +148,11 @@ public class PluginBuildPlugin extends BuildPlugin {
     /** Adds a task to move jar and associated files to a "-client" name. */
     protected static void addClientJarTask(Project project) {
         Task clientJar = project.tasks.create('clientJar')
-        clientJar.dependsOn('generatePomFileForJarPublication', project.jar, project.javadocJar, project.sourcesJar)
+        clientJar.dependsOn(project.jar, project.javadocJar, project.sourcesJar)
         clientJar.doFirst {
             Path jarFile = project.jar.outputs.files.singleFile.toPath()
             String clientFileName = jarFile.fileName.toString().replace(project.version, "client-${project.version}")
             Files.copy(jarFile, jarFile.resolveSibling(clientFileName), StandardCopyOption.REPLACE_EXISTING)
-
-            String pomFileName = jarFile.fileName.toString().replace('.jar', '.pom')
-            String clientPomFileName = clientFileName.replace('.jar', '.pom')
-            Files.copy(jarFile.resolveSibling(pomFileName), jarFile.resolveSibling(clientPomFileName),
-                    StandardCopyOption.REPLACE_EXISTING)
 
             String sourcesFileName = jarFile.fileName.toString().replace('.jar', '-sources.jar')
             String clientSourcesFileName = clientFileName.replace('.jar', '-sources.jar')
@@ -197,7 +188,7 @@ public class PluginBuildPlugin extends BuildPlugin {
 
         project.publishing {
             publications {
-                jar(MavenPublication) {
+                clientJar(MavenPublication) {
                     from project.components.java
                     artifactId = artifactId + '-client'
                     pom.withXml { XmlProvider xml ->
@@ -221,7 +212,15 @@ public class PluginBuildPlugin extends BuildPlugin {
             publications {
                 zip(MavenPublication) {
                     artifact project.bundlePlugin
-                    pom.packaging = 'pom'
+                }
+                // HUGE HACK: the underlying maven publication library refuses to deploy any attached artifacts
+                // when the packaging type is set to 'pom'. So here we create another publication using the same
+                // name that has the "real" pom, and rely on the fact that gradle will execute the publish tasks
+                // in alphabetical order. We cannot setup a dependency between the tasks because the publishing
+                // tasks are created *extremely* late in the configuration phase, so that we cannot get ahold
+                // of the actual task. Furthermore, this entire hack only exists so we can make publishing to
+                // maven local work, since we publish to maven central externally.
+                zipReal(MavenPublication) {
                     pom.withXml { XmlProvider xml ->
                         Node root = xml.asNode()
                         root.appendNode('name', project.pluginProperties.extension.name)

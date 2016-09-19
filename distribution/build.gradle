@@ -132,13 +132,6 @@ subprojects {
   // note: the group must be correct before applying the nexus plugin, or it will capture the wrong value...
   project.group = "org.elasticsearch.distribution.${project.name}"
   project.archivesBaseName = 'elasticsearch'
-  apply plugin: 'com.bmuschko.nexus'
-  // we must create our own install task, because it is only added when the java plugin is added
-  task install(type: Upload, description: "Installs the 'archives' artifacts into the local Maven repository.", group: 'Upload') {
-    configuration = configurations.archives
-    MavenRepositoryHandlerConvention repositoriesHandler = (MavenRepositoryHandlerConvention)getRepositories().getConvention().getPlugin(MavenRepositoryHandlerConvention)
-    repositoriesHandler.mavenInstaller()
-  }
 
   // TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
   /*****************************************************************************
@@ -191,16 +184,11 @@ subprojects {
    /*****************************************************************************
    *                           Publishing setup                                *
    *****************************************************************************/
-  BuildPlugin.configurePomGeneration(project)
-  apply plugin: 'nebula.info-scm'
-  apply plugin: 'nebula.maven-base-publish'
-  apply plugin: 'nebula.maven-scm'
-  publishing {
-    publications {
-      nebula {
-        artifactId 'elasticsearch'
-      }
-    }
+  if (['zip', 'integ-test-zip'].contains(it.name)) {
+    BuildPlugin.configurePomGeneration(project)
+    apply plugin: 'nebula.info-scm'
+    apply plugin: 'nebula.maven-base-publish'
+    apply plugin: 'nebula.maven-scm'
   }
 }
 

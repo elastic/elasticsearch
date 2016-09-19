@@ -30,7 +30,12 @@ artifacts {
 publishing {
   publications {
     nebula {
+      artifactId 'elasticsearch'
       artifact buildZip
+    }
+    nebulaRealPom(MavenPublication) {
+      artifactId 'elasticsearch'
+      pom.packaging = 'pom'
     }
   }
 }

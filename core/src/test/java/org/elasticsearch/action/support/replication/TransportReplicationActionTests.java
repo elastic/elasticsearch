@@ -1048,7 +1048,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     class NoopReplicationOperation extends ReplicationOperation<Request, Request, Action.PrimaryResult> {
         public NoopReplicationOperation(Request request, ActionListener<Action.PrimaryResult> listener) {
-            super(request, null, listener, true, null, null, TransportReplicationActionTests.this.logger, "noop");
+            super(request, null, listener, true, null, null, TransportReplicationActionTests.this.logger, "noop", true);
         }
 
         @Override

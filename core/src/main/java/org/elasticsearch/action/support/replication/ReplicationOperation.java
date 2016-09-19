@@ -79,6 +79,7 @@ public class ReplicationOperation<
     private final Replicas<ReplicaRequest> replicasProxy;
     private final AtomicBoolean finished = new AtomicBoolean();
     protected final ActionListener<PrimaryResultT> resultListener;
+    private final boolean failShardOnException;
 
     private volatile PrimaryResultT primaryResult = null;
 
@@ -87,7 +88,7 @@ public class ReplicationOperation<
     public ReplicationOperation(Request request, Primary<Request, ReplicaRequest, PrimaryResultT> primary,
                                 ActionListener<PrimaryResultT> listener,
                                 boolean executeOnReplicas, Replicas<ReplicaRequest> replicas,
-                                Supplier<ClusterState> clusterStateSupplier, Logger logger, String opType) {
+                                Supplier<ClusterState> clusterStateSupplier, Logger logger, String opType, boolean failShardOnException) {
         this.executeOnReplicas = executeOnReplicas;
         this.replicasProxy = replicas;
         this.primary = primary;
@@ -96,6 +97,7 @@ public class ReplicationOperation<
         this.request = request;
         this.clusterStateSupplier = clusterStateSupplier;
         this.opType = opType;
+        this.failShardOnException = failShardOnException;
     }
 
     public void execute() throws Exception {
@@ -198,7 +200,7 @@ public class ReplicationOperation<
                         shard,
                         replicaRequest),
                     replicaException);
-                if (ignoreReplicaException(replicaException)) {
+                if (failShardOnException == false || ignoreReplicaException(replicaException)) {
                     decPendingAndFinishIfNeeded();
                 } else {
                     RestStatus restStatus = ExceptionsHelper.status(replicaException);
@@ -222,8 +224,10 @@ public class ReplicationOperation<
         String primaryFail = String.format(Locale.ROOT,
             "primary shard [%s] was demoted while failing replica shard",
             primary.routingEntry());
-        // we are no longer the primary, fail ourselves and start over
-        primary.failShard(primaryFail, demotionFailure);
+        if (failShardOnException) {
+            // we are no longer the primary, fail ourselves and start over
+            primary.failShard(primaryFail, demotionFailure);
+        }
         finishAsFailed(new RetryOnPrimaryException(primary.routingEntry().shardId(), primaryFail, demotionFailure));
     }
 

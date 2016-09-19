@@ -314,4 +314,9 @@ public abstract class TransportWriteAction<
             }
         }
     }
+
+    @Override
+    protected final boolean failShardsOnFailure() {
+        return true; // write ops always fail the replica shard on failure
+    }
 }

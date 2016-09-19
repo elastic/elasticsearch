@@ -236,7 +236,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         public IndexingOp(IndexRequest request, ActionListener<IndexingResult> listener, ReplicationGroup replicationGroup) {
             super(request, new PrimaryRef(replicationGroup), listener, true, new ReplicasRef(replicationGroup),
-                () -> null, logger, "indexing");
+                () -> null, logger, "indexing", true);
             this.replicationGroup = replicationGroup;
             request.process(null, true, request.index());
         }

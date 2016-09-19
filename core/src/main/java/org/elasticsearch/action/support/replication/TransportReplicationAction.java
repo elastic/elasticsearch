@@ -365,8 +365,7 @@ public abstract class TransportReplicationAction<
             Request request, ActionListener<PrimaryResult> listener,
             PrimaryShardReference primaryShardReference, boolean executeOnReplicas) {
             return new ReplicationOperation<>(request, primaryShardReference, listener,
-                executeOnReplicas, replicasProxy, clusterService::state, logger, actionName
-            );
+                executeOnReplicas, replicasProxy, clusterService::state, logger, actionName, failShardsOnFailure());
         }
     }
 
@@ -1037,5 +1036,17 @@ public abstract class TransportReplicationAction<
         if (task != null) {
             task.setPhase(phase);
         }
+    }
+
+    /**
+     * Returns <code>true</code> iff a primary or replica shard should be failed in the case of a potentially fatal exception.
+     * This method returns <code>true</code> by default and must return true for all operations that modify the shard by adding or deleting
+     * documents. Operations that use this class to fan out to all shard copies might opt out of this behavior.
+     * The default is <code>true</code>.
+     */
+    protected boolean failShardsOnFailure() {
+        // we added this mainly for refresh and flush since they should never fail a shards since the engine will take care of this
+        // already.
+        return true;
     }
 }

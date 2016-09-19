@@ -36,7 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 
-public class TransportShardRefreshAction
+public final class TransportShardRefreshAction
         extends TransportReplicationAction<BasicReplicationRequest, BasicReplicationRequest, ReplicationResponse> {
 
     public static final String NAME = RefreshAction.NAME + "[s]";
@@ -84,5 +84,10 @@ public class TransportShardRefreshAction
     @Override
     protected boolean shouldExecuteReplication(Settings settings) {
         return true;
+    }
+
+    @Override
+    protected boolean failShardsOnFailure() {
+        return false; // we never fail the shard on failure since the engine will take care of this.
     }
 }

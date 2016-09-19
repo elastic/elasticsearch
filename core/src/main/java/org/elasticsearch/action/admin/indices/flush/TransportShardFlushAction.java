@@ -33,10 +33,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-/**
- *
- */
-public class TransportShardFlushAction extends TransportReplicationAction<ShardFlushRequest, ShardFlushRequest, ReplicationResponse> {
+public final class TransportShardFlushAction extends TransportReplicationAction<ShardFlushRequest, ShardFlushRequest, ReplicationResponse> {
 
     public static final String NAME = FlushAction.NAME + "[s]";
 
@@ -82,5 +79,10 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     @Override
     protected boolean shouldExecuteReplication(Settings settings) {
         return true;
+    }
+
+    @Override
+    protected boolean failShardsOnFailure() {
+        return false; // we never fail the shard on failure since the engine will take care of this.
     }
 }

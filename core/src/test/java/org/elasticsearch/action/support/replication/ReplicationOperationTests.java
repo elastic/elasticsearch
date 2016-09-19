@@ -492,7 +492,7 @@ public class ReplicationOperationTests extends ESTestCase {
         public TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
                 ActionListener<TestPrimary.Result> listener, boolean executeOnReplicas,
                 Replicas<Request> replicas, Supplier<ClusterState> clusterStateSupplier, Logger logger, String opType) {
-            super(request, primary, listener, executeOnReplicas, replicas, clusterStateSupplier, logger, opType);
+            super(request, primary, listener, executeOnReplicas, replicas, clusterStateSupplier, logger, opType, true);
         }
     }
 

@@ -672,9 +672,11 @@ public abstract class Engine implements Closeable {
             store.incRef();
             try {
                 if (failedEngine.get() != null) {
-                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]", reason), failure);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]", reason), failure);
                     return;
                 }
+                // this must happen before we close IW or Translog such that we can check this state to opt out of failing the engine
+                // again on any caught AlreadyClosedException
                 failedEngine.set((failure != null) ? failure : new IllegalStateException(reason));
                 try {
                     // we just go and close this engine - no way to recover

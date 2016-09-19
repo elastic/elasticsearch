@@ -117,6 +117,6 @@ public final class ShadowIndexShard extends IndexShard {
 
     @Override
     protected void onNewEngine(Engine newEngine) {
-        // nothing todo here
+        // nothing to do here - the superclass sets the translog on some listeners but we don't have such a thing
     }
 }

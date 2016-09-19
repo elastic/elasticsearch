@@ -59,8 +59,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- */
 public final class InnerHitsContext {
 
     private final Map<String, BaseInnerHits> innerHits;
@@ -110,6 +108,10 @@ public final class InnerHitsContext {
         public void setChildInnerHits(Map<String, InnerHitsContext.BaseInnerHits> childInnerHits) {
             this.childInnerHits = new InnerHitsContext(childInnerHits);
         }
+
+        boolean doCountOnly() {
+            return from() < 0 || from() >= size() || size() <= 0;
+        }
     }
 
     public static final class NestedInnerHits extends BaseInnerHits {
@@ -135,7 +137,7 @@ public final class InnerHitsContext {
             Query childFilter = childObjectMapper.nestedTypeFilter();
             Query q = Queries.filtered(query(), new NestedChildrenQuery(parentFilter, childFilter, hitContext));
 
-            if (size() == 0) {
+            if (doCountOnly()) {
                 return new TopDocs(context.searcher().count(q), Lucene.EMPTY_SCORE_DOCS, 0);
             } else {
                 int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
@@ -310,7 +312,7 @@ public final class InnerHitsContext {
                 // Only include docs that have this inner hits type
                 .add(documentMapper.typeFilter(), Occur.FILTER)
                 .build();
-            if (size() == 0) {
+            if (doCountOnly()) {
                 final int count = context.searcher().count(q);
                 return new TopDocs(count, Lucene.EMPTY_SCORE_DOCS, 0);
             } else {

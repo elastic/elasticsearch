@@ -179,6 +179,35 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(innerHits.getAt(0).explanation().toString(), containsString("weight(comments.message:fox in"));
         assertThat(innerHits.getAt(0).getFields().get("comments.message").getValue().toString(), equalTo("eat"));
         assertThat(innerHits.getAt(0).getFields().get("script").getValue().toString(), equalTo("5"));
+
+        response = client().prepareSearch("articles")
+                .setQuery(nestedQuery("comments", matchQuery("comments.message", "elephant"), ScoreMode.Avg)
+                        .innerHit(new InnerHitBuilder().setName("comment").setFrom(2).setSize(3))
+                ).get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertSearchHit(response, 1, hasId("2"));
+        assertThat(response.getHits().getAt(0).getShard(), notNullValue());
+        assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
+        innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
+        assertThat(innerHits.totalHits(), equalTo(3L));
+        assertThat(innerHits.getHits().length, equalTo(1));
+        assertThat(innerHits.getAt(0).getId(), equalTo("2"));
+        assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
+        assertThat(innerHits.getAt(0).getNestedIdentity().getOffset(), equalTo(2));
+
+        response = client().prepareSearch("articles")
+                .setQuery(nestedQuery("comments", matchQuery("comments.message", "elephant"), ScoreMode.Avg)
+                        .innerHit(new InnerHitBuilder().setName("comment").setFrom(3).setSize(3))
+                ).get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertSearchHit(response, 1, hasId("2"));
+        assertThat(response.getHits().getAt(0).getShard(), notNullValue());
+        assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
+        innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
+        assertThat(innerHits.totalHits(), equalTo(3L));
+        assertThat(innerHits.getHits().length, equalTo(0));
     }
 
     public void testRandomNested() throws Exception {

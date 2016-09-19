@@ -43,7 +43,7 @@ public interface Input extends ToXContent {
             this.status = Status.FAILURE;
             this.type = type;
             this.reason = ExceptionsHelper.detailedMessage(e);
-            this.payload = null;
+            this.payload = Payload.EMPTY;
         }
 
         public String type() {
@@ -55,7 +55,6 @@ public interface Input extends ToXContent {
         }
 
         public Payload payload() {
-            assert status == Status.SUCCESS;
             return payload;
         }
 

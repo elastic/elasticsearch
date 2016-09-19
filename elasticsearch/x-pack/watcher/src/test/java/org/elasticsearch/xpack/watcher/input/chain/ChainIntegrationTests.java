@@ -12,9 +12,9 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.Netty3Plugin;
 import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.xpack.watcher.input.http.HttpInput;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
+import org.elasticsearch.xpack.watcher.input.http.HttpInput;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
 import java.net.InetSocketAddress;
@@ -79,12 +79,7 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
             timeWarp().scheduler().trigger("_name");
             refresh();
         } else {
-            assertBusy(new Runnable() {
-                @Override
-                public void run() {
-                    assertWatchExecuted();
-                }
-            }, 9, TimeUnit.SECONDS);
+            assertBusy(() -> assertWatchExecuted(), 9, TimeUnit.SECONDS);
         }
 
         assertWatchWithMinimumPerformedActionsCount("_name", 1, false);

@@ -32,11 +32,11 @@ import java.util.Objects;
 public class ByteSizeValue implements Writeable {
 
     private final long size;
-    private final ByteSizeUnit sizeUnit;
+    private final ByteSizeUnit unit;
 
     public ByteSizeValue(StreamInput in) throws IOException {
         size = in.readVLong();
-        sizeUnit = ByteSizeUnit.BYTES;
+        unit = ByteSizeUnit.BYTES;
     }
 
     @Override
@@ -48,9 +48,9 @@ public class ByteSizeValue implements Writeable {
         this(bytes, ByteSizeUnit.BYTES);
     }
 
-    public ByteSizeValue(long size, ByteSizeUnit sizeUnit) {
+    public ByteSizeValue(long size, ByteSizeUnit unit) {
         this.size = size;
-        this.sizeUnit = sizeUnit;
+        this.unit = unit;
     }
 
     public int bytesAsInt() {
@@ -62,27 +62,27 @@ public class ByteSizeValue implements Writeable {
     }
 
     public long getBytes() {
-        return sizeUnit.toBytes(size);
+        return unit.toBytes(size);
     }
 
     public long getKb() {
-        return sizeUnit.toKB(size);
+        return unit.toKB(size);
     }
 
     public long getMb() {
-        return sizeUnit.toMB(size);
+        return unit.toMB(size);
     }
 
     public long getGb() {
-        return sizeUnit.toGB(size);
+        return unit.toGB(size);
     }
 
     public long getTb() {
-        return sizeUnit.toTB(size);
+        return unit.toTB(size);
     }
 
     public long getPb() {
-        return sizeUnit.toPB(size);
+        return unit.toPB(size);
     }
 
     public double getKbFrac() {
@@ -199,7 +199,7 @@ public class ByteSizeValue implements Writeable {
     @Override
     public int hashCode() {
         int result = Long.hashCode(size);
-        result = 31 * result + (sizeUnit != null ? sizeUnit.hashCode() : 0);
+        result = 31 * result + (unit != null ? unit.hashCode() : 0);
         return result;
     }
 }

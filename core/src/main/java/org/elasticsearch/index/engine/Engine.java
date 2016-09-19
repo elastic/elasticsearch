@@ -671,7 +671,7 @@ public abstract class Engine implements Closeable {
         if (failEngineLock.tryLock()) {
             store.incRef();
             try {
-                if (failedEngine.get() == null) {
+                if (failedEngine.get() != null) {
                     logger.debug((Supplier<?>) () -> new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]", reason), failure);
                     return;
                 }

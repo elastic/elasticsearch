@@ -1,26 +1,28 @@
 description = 'Builds the Prelert Engine native binaries and Java classes'
 
-project.ext.numCpus = Runtime.runtime.availableProcessors() -1
+import org.gradle.internal.os.OperatingSystem
 
+project.ext.make = OperatingSystem.current().isLinux() ? "make" : "gnumake"
+project.ext.numCpus = Runtime.runtime.availableProcessors()
 
 task clean(type: Exec) {
-    commandLine 'make'
-    args 'clean', 'BUILD_ENGINE_API=1'
+    commandLine make
+    args 'clean'
 }
 
 task objcompile(type: Exec) {
-    commandLine 'make'
-    args '-j' + numCpus, 'objcompile', 'BUILD_ENGINE_API=1'
+    commandLine make
+    args '-j' + numCpus, 'objcompile'
 }
 
 task make(type: Exec) {
-    commandLine 'make'
-    args '-j' + numCpus, 'BUILD_ENGINE_API=1'
+    commandLine make
+    args '-j' + numCpus
 }
 
-task test(type: Exec) {
-    commandLine 'make'
-    args '-j' + numCpus, 'BUILD_ENGINE_API=1', 'test'
+task cpptest(type: Exec) {
+    commandLine make
+    args '-j' + numCpus, 'test'
 }
 
 subprojects {

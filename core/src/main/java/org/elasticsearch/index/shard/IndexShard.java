@@ -992,6 +992,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // but we need to make sure we don't loose deletes until we are done recovering
         config.setEnableGcDeletes(false);
         Engine newEngine = createNewEngine(config);
+        refreshListeners.setTranslog(newEngine.getTranslog());
         verifyNotClosed();
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,

@@ -59,7 +59,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -112,7 +111,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     // the list of translog readers is guaranteed to be in order of translog generation
     private final List<TranslogReader> readers = new ArrayList<>();
-    private volatile ScheduledFuture<?> syncScheduler;
     // this is a concurrent set and is not protected by any of the locks. The main reason
     // is that is being accessed by two separate classes (additions & reading are done by Translog, remove by View when closed)
     private final Set<View> outstandingViews = ConcurrentCollections.newConcurrentSet();
@@ -312,7 +310,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     closeFilesIfNoPendingViews();
                 }
             } finally {
-                FutureUtils.cancel(syncScheduler);
                 logger.debug("translog closed");
             }
         }

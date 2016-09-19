@@ -42,6 +42,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -101,7 +102,7 @@ public abstract class Engine implements Closeable {
     protected final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     protected final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
     protected final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
-    protected volatile Exception failedEngine = null;
+    protected final SetOnce<Exception> failedEngine = new SetOnce<>();
     /*
      * on <tt>lastWriteNanos</tt> we use System.nanoTime() to initialize this since:
      *  - we use the value for figuring out if the shard / engine is active so if we startup and no write has happened yet we still consider it active
@@ -377,7 +378,7 @@ public abstract class Engine implements Closeable {
 
     protected void ensureOpen() {
         if (isClosed.get()) {
-            throw new EngineClosedException(shardId, failedEngine);
+            throw new EngineClosedException(shardId, failedEngine.get());
         }
     }
 
@@ -670,17 +671,19 @@ public abstract class Engine implements Closeable {
         if (failEngineLock.tryLock()) {
             store.incRef();
             try {
+                if (failedEngine.get() != null) {
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]", reason), failure);
+                    return;
+                }
+                // this must happen before we close IW or Translog such that we can check this state to opt out of failing the engine
+                // again on any caught AlreadyClosedException
+                failedEngine.set((failure != null) ? failure : new IllegalStateException(reason));
                 try {
                     // we just go and close this engine - no way to recover
                     closeNoLock("engine failed on: [" + reason + "]");
                 } finally {
-                    if (failedEngine != null) {
-                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]", reason), failure);
-                        return;
-                    }
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed engine [{}]", reason), failure);
                     // we must set a failure exception, generate one if not supplied
-                    failedEngine = (failure != null) ? failure : new IllegalStateException(reason);
                     // we first mark the store as corrupted before we notify any listeners
                     // this must happen first otherwise we might try to reallocate so quickly
                     // on the same node that we don't see the corrupted marker file when

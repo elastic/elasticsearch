@@ -24,6 +24,7 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
@@ -34,7 +35,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.shard.RefreshListeners;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
@@ -68,7 +68,7 @@ public final class EngineConfig {
     private final QueryCachingPolicy queryCachingPolicy;
     private final long maxUnsafeAutoIdTimestamp;
     @Nullable
-    private final RefreshListeners refreshListeners;
+    private final ReferenceManager.RefreshListener refreshListeners;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -112,7 +112,7 @@ public final class EngineConfig {
                         MergePolicy mergePolicy, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                        TranslogConfig translogConfig, TimeValue flushMergesAfter, RefreshListeners refreshListeners,
+                        TranslogConfig translogConfig, TimeValue flushMergesAfter, ReferenceManager.RefreshListener refreshListeners,
                         long maxUnsafeAutoIdTimestamp) {
         if (openMode == null) {
             throw new IllegalArgumentException("openMode must not be null");
@@ -322,9 +322,9 @@ public final class EngineConfig {
     }
 
     /**
-     * {@linkplain RefreshListeners} instance to configure.
+     * {@linkplain ReferenceManager.RefreshListener} instance to configure.
      */
-    public RefreshListeners getRefreshListeners() {
+    public ReferenceManager.RefreshListener getRefreshListeners() {
         return refreshListeners;
     }
 

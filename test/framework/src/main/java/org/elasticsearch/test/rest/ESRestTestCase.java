@@ -91,7 +91,7 @@ public class ESRestTestCase extends ESTestCase {
         String cluster = System.getProperty("tests.rest.cluster");
         if (cluster == null) {
             throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
-                    + "to which to send REST requests");
+                                           + "to which to send REST requests");
         }
         String[] stringUrls = cluster.split(",");
         List<HttpHost> clusterHosts = new ArrayList<>(stringUrls.length);
@@ -113,6 +113,7 @@ public class ESRestTestCase extends ESTestCase {
             throw new RuntimeException("Error building clients", e);
         }
     }
+
 
     /**
      * Clean up after the test case.
@@ -138,14 +139,27 @@ public class ESRestTestCase extends ESTestCase {
         return adminClient;
     }
 
+    /**
+     * Returns whether to preserve the indices created during this test on completion of this test.
+     * Defaults to {@code false}. Override this method if indices should be preserved after the test,
+     * with the assumption that some other process or test will clean up the indices afterward.
+     * This is useful if the data directory and indices need to be preserved between test runs
+     * (for example, when testing rolling upgrades).
+     */
+    protected boolean preserveIndicesUponCompletion() {
+        return false;
+    }
+
     private void wipeCluster() throws IOException {
-        // wipe indices
-        try {
-            adminClient().performRequest("DELETE", "*");
-        } catch (ResponseException e) {
-            // 404 here just means we had no indexes
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw e;
+        if (preserveIndicesUponCompletion() == false) {
+            // wipe indices
+            try {
+                adminClient().performRequest("DELETE", "*");
+            } catch (ResponseException e) {
+                // 404 here just means we had no indexes
+                if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                    throw e;
+                }
             }
         }
 
@@ -238,7 +252,7 @@ public class ESRestTestCase extends ESTestCase {
 
     private RestClient buildClient(Settings settings) throws IOException {
         RestClientBuilder builder = RestClient.builder(clusterHosts.toArray(new HttpHost[0])).setMaxRetryTimeoutMillis(30000)
-                .setRequestConfigCallback(requestConfigBuilder -> requestConfigBuilder.setSocketTimeout(30000));
+                                        .setRequestConfigCallback(requestConfigBuilder -> requestConfigBuilder.setSocketTimeout(30000));
         String keystorePath = settings.get(TRUSTSTORE_PATH);
         if (keystorePath != null) {
             final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);

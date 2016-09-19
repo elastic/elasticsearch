@@ -20,8 +20,8 @@ sudo bin/elasticsearch-plugin install ingest-user-agent
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
-This plugin can be downloaded for offline install from
-{plugin_url}/ingest-user-agent/{version}/ingest-user-agent-{version}.zip[elastic download service].
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/ingest-user-agent/{version}/ingest-user-agent-{version}.zip.
 
 [[ingest-user-agent-remove]]
 [float]

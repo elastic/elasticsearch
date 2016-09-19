@@ -109,10 +109,6 @@ if (project == rootProject) {
 
   repositories {
     mavenCentral()
-    maven {
-      name 'sonatype-snapshots'
-      url "https://oss.sonatype.org/content/repositories/snapshots/"
-    }
   }
   test.exclude 'org/elasticsearch/test/NamingConventionsCheckBadClasses*'
 }

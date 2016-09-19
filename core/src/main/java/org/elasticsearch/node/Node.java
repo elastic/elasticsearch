@@ -327,8 +327,6 @@ public class Node implements Closeable {
             }
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             modules.add(new NodeModule(this, monitorService));
-            NetworkModule networkModule = new NetworkModule(settings, false);
-            networkModule.processPlugins(pluginsService.filterPlugins(NetworkPlugin.class));
             modules.add(new DiscoveryModule(this.settings));
             ClusterModule clusterModule = new ClusterModule(settings, clusterService,
                 pluginsService.filterPlugins(ClusterPlugin.class));
@@ -350,7 +348,7 @@ public class Node implements Closeable {
             resourcesToClose.add(bigArrays);
             modules.add(settingsModule);
             List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
-                networkModule.getNamedWriteables().stream(),
+                NetworkModule.getNamedWriteables().stream(),
                 indicesModule.getNamedWriteables().stream(),
                 searchModule.getNamedWriteables().stream(),
                 pluginsService.filterPlugins(Plugin.class).stream()
@@ -362,6 +360,7 @@ public class Node implements Closeable {
                 settingsModule.getClusterSettings(), analysisModule.getAnalysisRegistry(), searchModule.getQueryParserRegistry(),
                 clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
                 threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, metaStateService);
+
             client = new NodeClient(settings, threadPool);
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
@@ -371,16 +370,15 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(Plugin.class).stream()
                 .map(Plugin::getCustomMetaDataUpgrader)
                 .collect(Collectors.toList());
+            final NetworkModule networkModule = new NetworkModule(settings, false, pluginsService.filterPlugins(NetworkPlugin.class), threadPool,
+                bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
             final MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(customMetaDataUpgraders);
-            final Transport transport = networkModule.getTransportFactory().createTransport(settings, threadPool, bigArrays,
-                circuitBreakerService, namedWriteableRegistry, networkService);
+            final Transport transport = networkModule.getTransportSupplier().get();
             final TransportService transportService = newTransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor());
             final Consumer<Binder> httpBind;
             if (networkModule.isHttpEnabled()) {
-                NetworkPlugin.TransportFactory<HttpServerTransport> httpTransportFactory = networkModule.getHttpServerTransportFactory();
-                HttpServerTransport httpServerTransport = httpTransportFactory.createTransport(settings, threadPool, bigArrays,
-                    circuitBreakerService, namedWriteableRegistry, networkService);
+                HttpServerTransport httpServerTransport = networkModule.getHttpServerTransportSupplier().get();
                 HttpServer httpServer = new HttpServer(settings, httpServerTransport, actionModule.getRestController(), client,
                     circuitBreakerService);
                 httpBind = b -> {
@@ -418,7 +416,7 @@ public class Node implements Closeable {
                     b.bind(Transport.class).toInstance(transport);
                     b.bind(TransportService.class).toInstance(transportService);
                     b.bind(NetworkService.class).toInstance(networkService);
-                    b.bind(AllocationCommandRegistry.class).toInstance(networkModule.getAllocationCommandRegistry());
+                    b.bind(AllocationCommandRegistry.class).toInstance(NetworkModule.getAllocationCommandRegistry());
                     httpBind.accept(b);
                     pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));
                 }

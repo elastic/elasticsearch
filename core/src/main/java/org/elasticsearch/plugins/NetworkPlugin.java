@@ -30,6 +30,8 @@ import org.elasticsearch.transport.TransportInterceptor;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Plugin for extending network and transport related classes
@@ -45,43 +47,23 @@ public interface NetworkPlugin {
     }
 
     /**
-     * Returns a list of {@link TransportFactory} instances that are used to create the nodes {@link Transport} implementation.
+     * Returns a map of {@link Transport} suppliers.
      * See {@link org.elasticsearch.common.network.NetworkModule#TRANSPORT_TYPE_KEY} to configure a specific implementation.
      */
-    default List<TransportFactory<Transport>> getTransportFactory() {
-        return Collections.emptyList();
+    default Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                           CircuitBreakerService circuitBreakerService,
+                                                           NamedWriteableRegistry namedWriteableRegistry,
+                                                           NetworkService networkService) {
+        return Collections.emptyMap();
     }
-
     /**
-     * Returns a list of {@link TransportFactory} instances that are used to create the nodes {@link HttpServerTransport} implementation.
+     * Returns a map of {@link HttpServerTransport} suppliers.
      * See {@link org.elasticsearch.common.network.NetworkModule#HTTP_TYPE_SETTING} to configure a specific implementation.
      */
-    default List<TransportFactory<HttpServerTransport>> getHttpTransportFactory() {
-        return Collections.emptyList();
-    }
-
-    abstract class TransportFactory<Transport> {
-        private final String type;
-
-        protected TransportFactory(String type) {
-            this.type = type;
-        }
-
-        /**
-         * The transport type name that use used to configure the transport implementation.
-         * @see org.elasticsearch.common.network.NetworkModule#HTTP_TYPE_SETTING
-         * @see org.elasticsearch.common.network.NetworkModule#TRANSPORT_TYPE_SETTING
-         */
-        public final String getType() {
-            return this.type;
-        }
-
-        /**
-         * Creates a new transport implementation. This method is only invoked for the configure transport type.
-         */
-        public abstract Transport createTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                  CircuitBreakerService circuitBreakerService,
-                                                  NamedWriteableRegistry namedWriteableRegistry,
-                                                  NetworkService networkService);
+    default Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                               CircuitBreakerService circuitBreakerService,
+                                                               NamedWriteableRegistry namedWriteableRegistry,
+                                                               NetworkService networkService) {
+        return Collections.emptyMap();
     }
 }

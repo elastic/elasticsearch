@@ -42,11 +42,12 @@ import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -86,17 +87,15 @@ public class Netty4TransportIT extends ESNetty4IntegTestCase {
     public static final class ExceptionThrowingNetty4Transport extends Netty4Transport {
 
         public static class TestPlugin extends Plugin implements NetworkPlugin {
+
             @Override
-            public List<TransportFactory<Transport>> getTransportFactory() {
-                return Collections.singletonList(new TransportFactory<Transport>("exception-throwing") {
-                    @Override
-                    public Transport createTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                     CircuitBreakerService circuitBreakerService,
-                                                     NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
-                        return new ExceptionThrowingNetty4Transport(settings, threadPool, networkService, bigArrays,
-                            namedWriteableRegistry, circuitBreakerService);
-                    }
-                });
+            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                  CircuitBreakerService circuitBreakerService,
+                                                                  NamedWriteableRegistry namedWriteableRegistry,
+                                                                  NetworkService networkService) {
+                return Collections.singletonMap("exception-throwing",
+                    () -> new ExceptionThrowingNetty4Transport(settings, threadPool, networkService, bigArrays,
+                    namedWriteableRegistry, circuitBreakerService));
             }
         }
 

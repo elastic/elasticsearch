@@ -121,12 +121,9 @@ public abstract class TransportClient extends AbstractClient {
             }
             SettingsModule settingsModule = new SettingsModule(settings, additionalSettings, additionalSettingsFilter);
 
-            NetworkModule networkModule = new NetworkModule(settings, true);
-            networkModule.processPlugins(pluginsService.filterPlugins(NetworkPlugin.class));
-
             SearchModule searchModule = new SearchModule(settings, true, pluginsService.filterPlugins(SearchPlugin.class));
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-            entries.addAll(networkModule.getNamedWriteables());
+            entries.addAll(NetworkModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
             entries.addAll(pluginsService.filterPlugins(Plugin.class).stream()
                                          .flatMap(p -> p.getNamedWriteables().stream())
@@ -150,8 +147,9 @@ public abstract class TransportClient extends AbstractClient {
             BigArrays bigArrays = new BigArrays(settings, circuitBreakerService);
             resourcesToClose.add(bigArrays);
             modules.add(settingsModule);
-            final Transport transport = networkModule.getTransportFactory().createTransport(settings, threadPool, bigArrays,
-                circuitBreakerService, namedWriteableRegistry, networkService);
+            NetworkModule networkModule = new NetworkModule(settings, true, pluginsService.filterPlugins(NetworkPlugin.class), threadPool,
+                bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+            final Transport transport = networkModule.getTransportSupplier().get();
             final TransportService transportService = new TransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor());
             modules.add((b -> {

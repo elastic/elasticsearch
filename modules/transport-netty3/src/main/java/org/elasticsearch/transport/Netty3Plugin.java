@@ -20,7 +20,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -33,13 +32,13 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty3.Netty3Transport;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
-public class Netty3Plugin extends Plugin implements NetworkPlugin{
+public class Netty3Plugin extends Plugin implements NetworkPlugin {
     public static final String NETTY_TRANSPORT_NAME = "netty3";
     public static final String NETTY_HTTP_TRANSPORT_NAME = "netty3";
 
@@ -66,26 +65,19 @@ public class Netty3Plugin extends Plugin implements NetworkPlugin{
     }
 
     @Override
-    public List<TransportFactory<Transport>> getTransportFactory() {
-        return Collections.singletonList(new TransportFactory<Transport>(NETTY_TRANSPORT_NAME) {
-            @Override
-            public Transport createTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                             CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
-                                             NetworkService networkService) {
-                return new Netty3Transport(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
-            }
-        });
+    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                          CircuitBreakerService circuitBreakerService,
+                                                          NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
+        return Collections.singletonMap(NETTY_TRANSPORT_NAME, () -> new Netty3Transport(settings, threadPool, networkService, bigArrays,
+            namedWriteableRegistry, circuitBreakerService));
     }
 
     @Override
-    public List<TransportFactory<HttpServerTransport>> getHttpTransportFactory() {
-        return Collections.singletonList(new TransportFactory<HttpServerTransport>(NETTY_HTTP_TRANSPORT_NAME) {
-            @Override
-            public HttpServerTransport createTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                       CircuitBreakerService circuitBreakerService,
-                                                       NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
-                return new Netty3HttpServerTransport(settings, networkService, bigArrays, threadPool);
-            }
-        });
+    public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                        CircuitBreakerService circuitBreakerService,
+                                                                        NamedWriteableRegistry namedWriteableRegistry,
+                                                                        NetworkService networkService) {
+        return Collections.singletonMap(NETTY_HTTP_TRANSPORT_NAME, () -> new Netty3HttpServerTransport(settings, networkService,
+            bigArrays, threadPool));
     }
 }

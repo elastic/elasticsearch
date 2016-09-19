@@ -36,6 +36,8 @@ import org.elasticsearch.transport.netty4.Netty4Transport;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
 public class Netty4Plugin extends Plugin implements NetworkPlugin {
 
@@ -75,27 +77,20 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
     }
 
     @Override
-    public List<TransportFactory<Transport>> getTransportFactory() {
-        return Collections.singletonList(new TransportFactory<Transport>(NETTY_TRANSPORT_NAME) {
-            @Override
-            public Transport createTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                             CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
-                                             NetworkService networkService) {
-                return new Netty4Transport(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
-            }
-        });
+    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                          CircuitBreakerService circuitBreakerService,
+                                                          NamedWriteableRegistry namedWriteableRegistry,
+                                                          NetworkService networkService) {
+        return Collections.singletonMap(NETTY_TRANSPORT_NAME, () -> new Netty4Transport(settings, threadPool, networkService, bigArrays,
+            namedWriteableRegistry, circuitBreakerService));
     }
 
     @Override
-    public List<TransportFactory<HttpServerTransport>> getHttpTransportFactory() {
-        return Collections.singletonList(new TransportFactory<HttpServerTransport>(NETTY_HTTP_TRANSPORT_NAME) {
-            @Override
-            public HttpServerTransport createTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                       CircuitBreakerService circuitBreakerService,
-                                                       NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
-                return new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool);
-            }
-        });
+    public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                        CircuitBreakerService circuitBreakerService,
+                                                                        NamedWriteableRegistry namedWriteableRegistry,
+                                                                        NetworkService networkService) {
+        return Collections.singletonMap(NETTY_HTTP_TRANSPORT_NAME,
+            () -> new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool));
     }
-
 }

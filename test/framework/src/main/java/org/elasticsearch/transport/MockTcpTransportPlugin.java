@@ -30,19 +30,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
 public class MockTcpTransportPlugin extends Plugin implements NetworkPlugin {
     public static final String MOCK_TCP_TRANSPORT_NAME = "mock-socket-network";
 
     @Override
-    public List<TransportFactory<Transport>> getTransportFactory() {
-        return Collections.singletonList(new TransportFactory<Transport>(MOCK_TCP_TRANSPORT_NAME) {
-            @Override
-            public Transport createTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                             CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
-                                             NetworkService networkService) {
-                return new MockTcpTransport(settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
-            }
-        });
+    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                          CircuitBreakerService circuitBreakerService,
+                                                          NamedWriteableRegistry namedWriteableRegistry,
+                                                          NetworkService networkService) {
+        return Collections.singletonMap(MOCK_TCP_TRANSPORT_NAME,
+            () -> new MockTcpTransport(settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService));
     }
 }

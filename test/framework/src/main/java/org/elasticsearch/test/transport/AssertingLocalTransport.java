@@ -48,7 +48,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.function.Supplier;
 
 public class AssertingLocalTransport extends LocalTransport {
 
@@ -62,15 +64,12 @@ public class AssertingLocalTransport extends LocalTransport {
         }
 
         @Override
-        public List<TransportFactory<Transport>> getTransportFactory() {
-            return Collections.singletonList(new TransportFactory<Transport>(ASSERTING_TRANSPORT_NAME) {
-                @Override
-                public Transport createTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                 CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
-                                                 NetworkService networkService) {
-                    return new AssertingLocalTransport(settings, circuitBreakerService, threadPool, namedWriteableRegistry);
-                }
-            });
+        public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                              CircuitBreakerService circuitBreakerService,
+                                                              NamedWriteableRegistry namedWriteableRegistry,
+                                                              NetworkService networkService) {
+            return Collections.singletonMap(ASSERTING_TRANSPORT_NAME,
+                () -> new AssertingLocalTransport(settings, circuitBreakerService, threadPool, namedWriteableRegistry));
         }
     }
 

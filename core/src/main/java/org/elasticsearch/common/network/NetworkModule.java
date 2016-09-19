@@ -48,10 +48,13 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.local.LocalTransport;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * A module to handle registering and binding all network related classes.
@@ -74,45 +77,54 @@ public final class NetworkModule {
     private final Settings settings;
     private final boolean transportClient;
 
-    private final AllocationCommandRegistry allocationCommandRegistry = new AllocationCommandRegistry();
-    private final Map<String, NetworkPlugin.TransportFactory<Transport>> transportFactories = new HashMap<>();
-    private final Map<String, NetworkPlugin.TransportFactory<HttpServerTransport>> transportHttpFactories = new HashMap<>();
-    private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+    private static final AllocationCommandRegistry allocationCommandRegistry = new AllocationCommandRegistry();
+    private static final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+
+    private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
+    private final Map<String, Supplier<HttpServerTransport>> transportHttpFactories = new HashMap<>();
     private final List<TransportInterceptor> transportIntercetors = new ArrayList<>();
 
+    static {
+        registerAllocationCommand(CancelAllocationCommand::new, CancelAllocationCommand::fromXContent,
+            CancelAllocationCommand.COMMAND_NAME_FIELD);
+        registerAllocationCommand(MoveAllocationCommand::new, MoveAllocationCommand::fromXContent,
+            MoveAllocationCommand.COMMAND_NAME_FIELD);
+        registerAllocationCommand(AllocateReplicaAllocationCommand::new, AllocateReplicaAllocationCommand::fromXContent,
+            AllocateReplicaAllocationCommand.COMMAND_NAME_FIELD);
+        registerAllocationCommand(AllocateEmptyPrimaryAllocationCommand::new, AllocateEmptyPrimaryAllocationCommand::fromXContent,
+            AllocateEmptyPrimaryAllocationCommand.COMMAND_NAME_FIELD);
+        registerAllocationCommand(AllocateStalePrimaryAllocationCommand::new, AllocateStalePrimaryAllocationCommand::fromXContent,
+            AllocateStalePrimaryAllocationCommand.COMMAND_NAME_FIELD);
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(Task.Status.class, ReplicationTask.Status.NAME, ReplicationTask.Status::new));
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new));
+    }
     /**
      * Creates a network module that custom networking classes can be plugged into.
      * @param settings The settings for the node
      * @param transportClient True if only transport classes should be allowed to be registered, false otherwise.
      */
-    public NetworkModule(Settings settings, boolean transportClient) {
+    public NetworkModule(Settings settings, boolean transportClient, List<NetworkPlugin> plugins, ThreadPool threadPool,
+                         BigArrays bigArrays,
+                         CircuitBreakerService circuitBreakerService,
+                         NamedWriteableRegistry namedWriteableRegistry,
+                         NetworkService networkService) {
         this.settings = settings;
         this.transportClient = transportClient;
-        registerTransport(new NetworkPlugin.TransportFactory<Transport>(LOCAL_TRANSPORT) {
-
-            @Override
-            public Transport createTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                             CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
-                                             NetworkService networkService) {
-                return new LocalTransport(settings, threadPool, namedWriteableRegistry, circuitBreakerService);
-            }
-        });
-        namedWriteables.add(new NamedWriteableRegistry.Entry(Task.Status.class, ReplicationTask.Status.NAME, ReplicationTask.Status::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new));
-        registerBuiltinAllocationCommands();
-    }
-
-    public void processPlugins(List<NetworkPlugin> plugins) {
+        registerTransport(LOCAL_TRANSPORT, () -> new LocalTransport(settings, threadPool, namedWriteableRegistry, circuitBreakerService));
         for (NetworkPlugin plugin : plugins) {
             if (transportClient == false && HTTP_ENABLED.get(settings)) {
-                List<NetworkPlugin.TransportFactory<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransportFactory();
-                for (NetworkPlugin.TransportFactory<HttpServerTransport> factory : httpTransportFactory) {
-                    registerHttpTransport(factory);
+                Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(settings, threadPool, bigArrays,
+                    circuitBreakerService, namedWriteableRegistry, networkService);
+                for (Map.Entry<String, Supplier<HttpServerTransport>> entry : httpTransportFactory.entrySet()) {
+                    registerHttpTransport(entry.getKey(), entry.getValue());
                 }
             }
-            List<NetworkPlugin.TransportFactory<Transport>> transportFactory = plugin.getTransportFactory();
-            for (NetworkPlugin.TransportFactory<Transport> factory : transportFactory) {
-                registerTransport(factory);
+            Map<String, Supplier<Transport>> httpTransportFactory = plugin.getTransports(settings, threadPool, bigArrays,
+                circuitBreakerService, namedWriteableRegistry, networkService);
+            for (Map.Entry<String, Supplier<Transport>> entry : httpTransportFactory.entrySet()) {
+                registerTransport(entry.getKey(), entry.getValue());
             }
             List<TransportInterceptor> transportInterceptors = plugin.getTransportInterceptors();
             for (TransportInterceptor interceptor : transportInterceptors) {
@@ -126,20 +138,20 @@ public final class NetworkModule {
     }
 
     /** Adds a transport implementation that can be selected by setting {@link #TRANSPORT_TYPE_KEY}. */
-    public void registerTransport(NetworkPlugin.TransportFactory<Transport> factory) {
-        if (transportFactories.putIfAbsent(factory.getType(), factory) != null) {
-            throw new IllegalArgumentException("transport for name: " + factory.getType() + " is already registered");
+    private void registerTransport(String key, Supplier<Transport> factory) {
+        if (transportFactories.putIfAbsent(key, factory) != null) {
+            throw new IllegalArgumentException("transport for name: " + key + " is already registered");
         }
     }
 
     /** Adds an http transport implementation that can be selected by setting {@link #HTTP_TYPE_KEY}. */
     // TODO: we need another name than "http transport"....so confusing with transportClient...
-    public void registerHttpTransport(NetworkPlugin.TransportFactory<HttpServerTransport> factory) {
+    private void registerHttpTransport(String key, Supplier<HttpServerTransport> factory) {
         if (transportClient) {
-            throw new IllegalArgumentException("Cannot register http transport " + factory.getType() + " for transport client");
+            throw new IllegalArgumentException("Cannot register http transport " + key + " for transport client");
         }
-        if (transportHttpFactories.putIfAbsent(factory.getType(), factory) != null) {
-            throw new IllegalArgumentException("transport for name: " + factory.getType() + " is already registered");
+        if (transportHttpFactories.putIfAbsent(key, factory) != null) {
+            throw new IllegalArgumentException("transport for name: " + key + " is already registered");
         }
     }
 
@@ -153,7 +165,7 @@ public final class NetworkModule {
      * @param commandName the names under which the command should be parsed. The {@link ParseField#getPreferredName()} is special because
      *        it is the name under which the command's reader is registered.
      */
-    private <T extends AllocationCommand> void registerAllocationCommand(Writeable.Reader<T> reader, AllocationCommand.Parser<T> parser,
+    private static <T extends AllocationCommand> void registerAllocationCommand(Writeable.Reader<T> reader, AllocationCommand.Parser<T> parser,
             ParseField commandName) {
         allocationCommandRegistry.register(parser, commandName);
         namedWriteables.add(new Entry(AllocationCommand.class, commandName.getPreferredName(), reader));
@@ -162,24 +174,24 @@ public final class NetworkModule {
     /**
      * The registry of allocation command parsers.
      */
-    public AllocationCommandRegistry getAllocationCommandRegistry() {
+    public static AllocationCommandRegistry getAllocationCommandRegistry() {
         return allocationCommandRegistry;
     }
 
-    public List<Entry> getNamedWriteables() {
-        return namedWriteables;
+    public static List<Entry> getNamedWriteables() {
+        return Collections.unmodifiableList(namedWriteables);
     }
 
-    public NetworkPlugin.TransportFactory<HttpServerTransport> getHttpServerTransportFactory() {
+    public Supplier<HttpServerTransport> getHttpServerTransportSupplier() {
         final String name;
         if (HTTP_TYPE_SETTING.exists(settings)) {
             name = HTTP_TYPE_SETTING.get(settings);
         } else {
             name = HTTP_DEFAULT_TYPE_SETTING.get(settings);
         }
-        final NetworkPlugin.TransportFactory<HttpServerTransport> factory = transportHttpFactories.get(name);
+        final Supplier<HttpServerTransport> factory = transportHttpFactories.get(name);
         if (factory == null) {
-            throw new IllegalStateException("No http.type: " + HTTP_TYPE_SETTING.get(settings) + " configured");
+            throw new IllegalStateException("Unsupported http.type [" + name + "]");
         }
         return factory;
     }
@@ -188,38 +200,24 @@ public final class NetworkModule {
         return transportClient == false && HTTP_ENABLED.get(settings);
     }
 
-    public NetworkPlugin.TransportFactory<Transport> getTransportFactory() {
+    public Supplier<Transport> getTransportSupplier() {
         final String name;
         if (TRANSPORT_TYPE_SETTING.exists(settings)) {
             name = TRANSPORT_TYPE_SETTING.get(settings);
         } else {
             name = TRANSPORT_DEFAULT_TYPE_SETTING.get(settings);
         }
-        final NetworkPlugin.TransportFactory<Transport> factory = transportFactories.get(name);
+        final Supplier<Transport> factory = transportFactories.get(name);
         if (factory == null) {
-            throw new IllegalStateException("No transport.type: " + name + " configured");
+            throw new IllegalStateException("Unsupported transport.type [" + name + "]");
         }
         return factory;
-    }
-
-    private void registerBuiltinAllocationCommands() {
-        registerAllocationCommand(CancelAllocationCommand::new, CancelAllocationCommand::fromXContent,
-                CancelAllocationCommand.COMMAND_NAME_FIELD);
-        registerAllocationCommand(MoveAllocationCommand::new, MoveAllocationCommand::fromXContent,
-                MoveAllocationCommand.COMMAND_NAME_FIELD);
-        registerAllocationCommand(AllocateReplicaAllocationCommand::new, AllocateReplicaAllocationCommand::fromXContent,
-                AllocateReplicaAllocationCommand.COMMAND_NAME_FIELD);
-        registerAllocationCommand(AllocateEmptyPrimaryAllocationCommand::new, AllocateEmptyPrimaryAllocationCommand::fromXContent,
-                AllocateEmptyPrimaryAllocationCommand.COMMAND_NAME_FIELD);
-        registerAllocationCommand(AllocateStalePrimaryAllocationCommand::new, AllocateStalePrimaryAllocationCommand::fromXContent,
-                AllocateStalePrimaryAllocationCommand.COMMAND_NAME_FIELD);
-
     }
 
     /**
      * Registers a new {@link TransportInterceptor}
      */
-    public void registerTransportInterceptor(TransportInterceptor interceptor) {
+    private void registerTransportInterceptor(TransportInterceptor interceptor) {
         this.transportIntercetors.add(Objects.requireNonNull(interceptor, "interceptor must not be null"));
     }
 

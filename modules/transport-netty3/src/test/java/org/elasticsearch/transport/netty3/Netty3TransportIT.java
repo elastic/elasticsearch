@@ -46,6 +46,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -85,17 +87,15 @@ public class Netty3TransportIT extends ESNetty3IntegTestCase {
     public static final class ExceptionThrowingNetty3Transport extends Netty3Transport {
 
         public static class TestPlugin extends Plugin implements NetworkPlugin {
+
             @Override
-            public List<TransportFactory<Transport>> getTransportFactory() {
-                return Collections.singletonList(new TransportFactory<Transport>("exception-throwing") {
-                    @Override
-                    public Transport createTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                     CircuitBreakerService circuitBreakerService,
-                                                     NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
-                        return new ExceptionThrowingNetty3Transport(settings, threadPool, networkService, bigArrays,
-                            namedWriteableRegistry, circuitBreakerService);
-                    }
-                });
+            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                  CircuitBreakerService circuitBreakerService,
+                                                                  NamedWriteableRegistry namedWriteableRegistry,
+                                                                  NetworkService networkService) {
+                return Collections.singletonMap("exception-throwing", () ->
+                    new ExceptionThrowingNetty3Transport(settings, threadPool, networkService, bigArrays,
+                        namedWriteableRegistry, circuitBreakerService));
             }
         }
 

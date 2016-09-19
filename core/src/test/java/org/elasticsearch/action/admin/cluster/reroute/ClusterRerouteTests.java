@@ -64,8 +64,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         req.writeTo(out);
         BytesReference bytes = out.bytes();
-        NetworkModule networkModule = new NetworkModule(Settings.EMPTY, true);
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(networkModule.getNamedWriteables());
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(NetworkModule.getNamedWriteables());
         StreamInput wrap = new NamedWriteableAwareStreamInput(bytes.streamInput(),
             namedWriteableRegistry);
         ClusterRerouteRequest deserializedReq = new ClusterRerouteRequest();

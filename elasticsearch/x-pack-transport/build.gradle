@@ -7,7 +7,9 @@ apply plugin: 'nebula.maven-scm'
 group = 'org.elasticsearch.client'
 
 dependencies {
-    compile "org.elasticsearch.plugin:x-pack-client:${version}"
+    // this "api" dependency looks weird, but it is correct, as it contains
+    // all of x-pack for now, and transport client will be going away in the future. 
+    compile "org.elasticsearch.plugin:x-pack-api:${version}"
     compile "org.elasticsearch.client:transport:${version}"
     testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
     testCompile "junit:junit:${versions.junit}"

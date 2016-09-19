@@ -6,6 +6,7 @@ include ':engine-api'
 include ':prelert-engine-api-client'
 include ':engine-api-server'
 include ':elasticsearch-persistence'
+include ':engine-node'
 
 project(':engine-api-java').projectDir = "$rootDir/java/apps/engineApi" as File
 project(':prelert-engine-api-common').projectDir = "$rootDir/java/apps/engineApi/api-common" as File
@@ -14,4 +15,4 @@ project(':engine-api').projectDir = "$rootDir/java/apps/engineApi/engine-api" as
 project(':prelert-engine-api-client').projectDir = "$rootDir/java/apps/engineApi/apiClient" as File
 project(':engine-api-server').projectDir = "$rootDir/java/apps/engineApi/apiServer" as File
 project(':elasticsearch-persistence').projectDir = "$rootDir/java/apps/engineApi/elasticsearch-persistence" as File
-
+project(':engine-node').projectDir = "$rootDir/java/apps/engine-node" as File

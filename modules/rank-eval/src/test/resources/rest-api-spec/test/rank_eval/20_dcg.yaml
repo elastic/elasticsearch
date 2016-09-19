@@ -47,7 +47,6 @@
   - do:
       rank_eval:
         body: {
-          "spec_id" : "dcg_qa_queries",
           "requests" : [
             {
                 "id": "dcg_query",
@@ -64,7 +63,6 @@
           "metric" : { "dcg_at_n": { "size": 6}}
         }
 
-  - match: {rank_eval.spec_id: "dcg_qa_queries"}
   - match: {rank_eval.quality_level: 13.84826362927298}
 
 # reverse the order in which the results are returned (less relevant docs first)
@@ -72,7 +70,6 @@
   - do:
       rank_eval:
         body: {
-          "spec_id" : "dcg_qa_queries",
           "requests" : [
             {
                 "id": "dcg_query_reverse",
@@ -89,7 +86,6 @@
           "metric" : { "dcg_at_n": { "size": 6}}
         }
 
-  - match: {rank_eval.spec_id: "dcg_qa_queries"}
   - match: {rank_eval.quality_level: 10.29967439154499}
 
 # if we mix both, we should get the average
@@ -97,7 +93,6 @@
   - do:
     rank_eval:
       body: {
-        "spec_id" : "dcg_qa_queries",
         "requests" : [
           {
               "id": "dcg_query",
@@ -125,5 +120,4 @@
         "metric" : { "dcg_at_n": { "size": 6}}
       }
 
-  - match: {rank_eval.spec_id: "dcg_qa_queries"}
   - match: {rank_eval.quality_level: 12.073969010408984}

@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -311,10 +310,7 @@ public class ShardStateAction extends AbstractComponent {
 
             ClusterState maybeUpdatedState = currentState;
             try {
-                RoutingAllocation.Result result = applyFailedShards(currentState, shardRoutingsToBeApplied, staleShardsToBeApplied);
-                if (result.changed()) {
-                    maybeUpdatedState = ClusterState.builder(currentState).routingResult(result).build();
-                }
+                maybeUpdatedState = applyFailedShards(currentState, shardRoutingsToBeApplied, staleShardsToBeApplied);
                 batchResultBuilder.successes(tasksToBeApplied);
             } catch (Exception e) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to apply failed shards {}", shardRoutingsToBeApplied), e);
@@ -327,7 +323,7 @@ public class ShardStateAction extends AbstractComponent {
         }
 
         // visible for testing
-        RoutingAllocation.Result applyFailedShards(ClusterState currentState, List<FailedRerouteAllocation.FailedShard> failedShards,
+        ClusterState applyFailedShards(ClusterState currentState, List<FailedRerouteAllocation.FailedShard> failedShards,
                                                    List<FailedRerouteAllocation.StaleShard> staleShards) {
             return allocationService.applyFailedShards(currentState, failedShards, staleShards);
         }
@@ -426,11 +422,7 @@ public class ShardStateAction extends AbstractComponent {
 
             ClusterState maybeUpdatedState = currentState;
             try {
-                RoutingAllocation.Result result =
-                    allocationService.applyStartedShards(currentState, shardRoutingsToBeApplied, true);
-                if (result.changed()) {
-                    maybeUpdatedState = ClusterState.builder(currentState).routingResult(result).build();
-                }
+                maybeUpdatedState = allocationService.applyStartedShards(currentState, shardRoutingsToBeApplied, true);
                 builder.successes(tasksToBeApplied);
             } catch (Exception e) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to apply started shards {}", shardRoutingsToBeApplied), e);

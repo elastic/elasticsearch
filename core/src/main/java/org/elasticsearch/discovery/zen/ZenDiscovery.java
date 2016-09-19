@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -571,9 +570,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             if (!electMasterService.hasEnoughMasterNodes(remainingNodesClusterState.nodes())) {
                 return resultBuilder.build(rejoin.apply(remainingNodesClusterState, "not enough master nodes"));
             } else {
-                final RoutingAllocation.Result routingResult =
-                    allocationService.deassociateDeadNodes(remainingNodesClusterState, true, describeTasks(tasks));
-                return resultBuilder.build(ClusterState.builder(remainingNodesClusterState).routingResult(routingResult).build());
+                return resultBuilder.build(allocationService.deassociateDeadNodes(remainingNodesClusterState, true, describeTasks(tasks)));
             }
         }
 

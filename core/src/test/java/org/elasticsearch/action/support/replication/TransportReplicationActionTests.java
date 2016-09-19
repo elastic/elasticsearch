@@ -42,7 +42,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -296,8 +295,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         ShardRouting relocationTarget = clusterService.state().getRoutingTable().shardRoutingTable(shardId)
             .shardsWithState(ShardRoutingState.INITIALIZING).get(0);
         AllocationService allocationService = ESAllocationTestCase.createAllocationService();
-        RoutingAllocation.Result result = allocationService.applyStartedShards(state, Arrays.asList(relocationTarget));
-        ClusterState updatedState = ClusterState.builder(clusterService.state()).routingResult(result).build();
+        ClusterState updatedState = allocationService.applyStartedShards(state, Arrays.asList(relocationTarget));
 
         setState(clusterService, updatedState);
         logger.debug("--> relocation complete state:\n{}", clusterService.state().prettyPrint());

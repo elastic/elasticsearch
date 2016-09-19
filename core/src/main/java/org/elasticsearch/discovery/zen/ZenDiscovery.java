@@ -926,13 +926,16 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         if (activeMasters.isEmpty()) {
             if (electMaster.hasEnoughCandidates(masterCandidates)) {
                 final ElectMasterService.MasterCandidate winner = electMaster.electMaster(masterCandidates);
-                logger.trace("candidate {} won election", winner);
-                return winner.getNode();
-            } else {
-                // if we don't have enough master nodes, we bail, because there are not enough master to elect from
-                logger.trace("not enough master nodes [{}]", masterCandidates);
-                return null;
+                if (winner != null) {
+                    logger.trace("candidate {} won election", winner);
+                    return winner.getNode();
+                }
             }
+            // if we don't have enough master nodes, we bail, because there are
+            // not enough master to elect from
+            logger.trace("not enough master nodes [{}]", masterCandidates);
+            return null;
+
         } else {
             assert !activeMasters.contains(localNode) : "local node should never be elected as master when other nodes indicate an active master";
             // lets tie break between discovered nodes

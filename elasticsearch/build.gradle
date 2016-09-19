@@ -14,5 +14,5 @@ subprojects {
     approvedLicenses = ['Elasticsearch Confidential']
     additionalLicense 'ESCON', 'Elasticsearch Confidential', 'ELASTICSEARCH CONFIDENTIAL'
   }
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-client:${version}": ':x-plugins:elasticsearch:x-pack' ]
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-api:${version}": ':x-plugins:elasticsearch:x-pack' ]
 }

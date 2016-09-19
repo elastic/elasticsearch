@@ -947,7 +947,7 @@ public class InternalEngine extends Engine {
             failEngine("already closed by tragic event on the index writer", tragedy);
         } else if (translog.isOpen() == false && translog.getTragicException() != null) {
             failEngine("already closed by tragic event on the translog", translog.getTragicException());
-        } else if (failedEngine == null) { // we are closed but the engine is not failed yet?
+        } else if (failedEngine.get() == null) { // we are closed but the engine is not failed yet?
             // this smells like a bug - we only expect ACE if we are in a fatal case ie. either translog or IW is closed by
             // a tragic event or has closed itself. if that is not the case we are in a buggy state and raise an assertion error
             throw new AssertionError("Unexpected AlreadyClosedException", ex);

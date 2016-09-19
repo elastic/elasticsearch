@@ -2497,7 +2497,7 @@ public class InternalEngineTests extends ESTestCase {
             t.join();
             t1.join();
             assertTrue(internalEngine.isClosed.get());
-            assertTrue(internalEngine.failedEngine instanceof MockDirectoryWrapper.FakeIOException);
+            assertTrue(internalEngine.failedEngine.get() instanceof MockDirectoryWrapper.FakeIOException);
         }
     }
 }

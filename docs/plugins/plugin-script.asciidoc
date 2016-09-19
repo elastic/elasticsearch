@@ -85,7 +85,7 @@ sudo bin/plugin install org.elasticsearch.plugin/mapper-attachments/3.0.0 <1>
 <1> When installing from `download.elastic.co` or from Maven Central/Sonatype, the
     version is required.
 
-[float]
+[[plugin-management-custom-url]]
 === Custom URL or file system
 
 A plugin can also be downloaded directly from a custom location by specifying the URL:

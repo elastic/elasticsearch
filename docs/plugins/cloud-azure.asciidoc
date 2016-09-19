@@ -19,6 +19,9 @@ sudo bin/plugin install cloud-azure
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/cloud-azure/{version}/cloud-azure-{version}.zip.
+
 [[cloud-azure-remove]]
 [float]
 ==== Removal

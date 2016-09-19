@@ -5,17 +5,17 @@ import org.gradle.internal.os.OperatingSystem
 project.ext.make = OperatingSystem.current().isLinux() ? "make" : "gnumake"
 project.ext.numCpus = Runtime.runtime.availableProcessors()
 
-task clean(type: Exec) {
+task cppclean(type: Exec) {
     commandLine make
     args 'clean'
 }
 
-task objcompile(type: Exec) {
+task cppobjcompile(type: Exec) {
     commandLine make
     args '-j' + numCpus, 'objcompile'
 }
 
-task make(type: Exec) {
+task cppmake(type: Exec) {
     commandLine make
     args '-j' + numCpus
 }
@@ -28,6 +28,8 @@ task cpptest(type: Exec) {
 subprojects {
     apply plugin: 'maven'
     apply plugin: 'java'
+
+    compileJava.options.encoding = 'UTF-8'
 
     group = 'com.prelert'
     version = '2.1.1'

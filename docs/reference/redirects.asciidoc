@@ -370,6 +370,7 @@ GET _search
   }
 }
 -------------------------
+// NOTCONSOLE
 
 move the query and filter to the `must` and `filter` parameters in the `bool`
 query:
@@ -394,6 +395,7 @@ GET _search
   }
 }
 -------------------------
+// CONSOLE
 
 [role="exclude",id="query-dsl-or-query"]
 === Or query

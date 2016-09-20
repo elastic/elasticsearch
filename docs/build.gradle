@@ -128,7 +128,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/docs/bulk.asciidoc',
   'reference/docs/delete-by-query.asciidoc',
   'reference/docs/delete.asciidoc',
-  'reference/docs/get.asciidoc',
   'reference/docs/index_.asciidoc',
   'reference/docs/multi-get.asciidoc',
   'reference/docs/multi-termvectors.asciidoc',

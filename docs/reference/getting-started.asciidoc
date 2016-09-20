@@ -116,7 +116,7 @@ Let's download the Elasticsearch {version} tar as follows (Windows users should 
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-curl -L -O https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/tar/elasticsearch/{version}/elasticsearch-{version}.tar.gz
+curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.tar.gz
 --------------------------------------------------
 
 Then extract it as follows (Windows users should unzip the zip package):

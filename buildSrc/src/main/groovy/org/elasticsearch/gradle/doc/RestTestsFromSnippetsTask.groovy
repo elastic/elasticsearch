@@ -191,6 +191,11 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             def (String path, String query) = pathAndQuery.tokenize('?')
             if (path == null) {
                 path = '' // Catch requests to the root...
+            } else {
+                // Escape some characters that are also escaped by sense
+                path = path.replace('<', '%3C').replace('>', '%3E')
+                path = path.replace('{', '%7B').replace('}', '%7D')
+                path = path.replace('|', '%7C')
             }
             current.println("  - do:")
             if (catchPart != null) {

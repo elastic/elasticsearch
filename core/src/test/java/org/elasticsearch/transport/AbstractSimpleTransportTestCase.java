@@ -32,11 +32,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.collection.IsEmptyCollection;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -577,6 +580,76 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         serviceA.removeHandler("sayHelloTimeoutDelayedResponse");
         doneLatch.countDown();
+    }
+
+    @Test
+    public void testNoUnresolvedResponses() throws InterruptedException {
+        TransportRequestHandler<StringMessageRequest> handler = new TransportRequestHandler<StringMessageRequest>() {
+            @Override
+            public void messageReceived(StringMessageRequest request, TransportChannel channel) throws Exception {
+                channel.sendResponse(new StringMessageResponse(""));
+            }
+        };
+
+        TransportRequestHandler<StringMessageRequest> handlerWithError = new TransportRequestHandler<StringMessageRequest>() {
+            @Override
+            public void messageReceived(StringMessageRequest request, TransportChannel channel) throws Exception {
+                channel.sendResponse(new RuntimeException(""));
+            }
+        };
+
+        final Semaphore requestCompleted = new Semaphore(0);
+        TransportResponseHandler<StringMessageResponse> noopResponseHandler = new BaseTransportResponseHandler<StringMessageResponse>() {
+
+            @Override
+            public StringMessageResponse newInstance() {
+                return new StringMessageResponse();
+            }
+
+            @Override
+            public void handleResponse(StringMessageResponse response) {
+                requestCompleted.release();
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                requestCompleted.release();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        };
+
+        final AtomicReference<Set<Long>> unresolvedResponses = new AtomicReference<>();
+        unresolvedResponses.set(new HashSet<Long>());
+        MockTransportService.Tracer tracer = new MockTransportService.Tracer() {
+            final Set<Long> requests = new HashSet<>();
+
+            @Override
+            public void receivedResponse(long requestId, DiscoveryNode sourceNode, String action) {
+                assertTrue(requests.add(requestId));
+                super.receivedResponse(requestId, sourceNode, action);
+            }
+
+            @Override
+            public void unresolvedResponse(long requestId) {
+                if (requests.contains(requestId)) {
+                    unresolvedResponses.get().add(requestId);
+                }
+            }
+        };
+        serviceA.addTracer(tracer);
+
+        serviceB.registerRequestHandler("test", StringMessageRequest.class, ThreadPool.Names.SAME, handler);
+        serviceB.registerRequestHandler("testError", StringMessageRequest.class, ThreadPool.Names.SAME, handlerWithError);
+        serviceA.sendRequest(nodeB, "test", new StringMessageRequest("", 10), TransportRequestOptions.EMPTY, noopResponseHandler);
+        serviceA.sendRequest(nodeB, "testError", new StringMessageRequest("", 10), TransportRequestOptions.EMPTY, noopResponseHandler);
+
+        requestCompleted.acquire();
+
+        assertThat(unresolvedResponses.get(), IsEmptyCollection.emptyCollectionOf(Long.class));
     }
 
 

@@ -579,6 +579,9 @@ public class MockTransportService extends TransportService {
 
         public void requestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
         }
+
+        public void unresolvedResponse(long requestId) {
+        }
     }
 
     public void addTracer(Tracer tracer) {
@@ -642,6 +645,14 @@ public class MockTransportService extends TransportService {
             super.traceRequestSent(node, requestId, action, options);
             for (Tracer tracer : activeTracers) {
                 tracer.requestSent(node, requestId, action, options);
+            }
+        }
+
+        @Override
+        protected void traceUnresolvedResponse(long requestId) {
+            super.traceUnresolvedResponse(requestId);
+            for (Tracer tracer : activeTracers) {
+                tracer.unresolvedResponse(requestId);
             }
         }
     }

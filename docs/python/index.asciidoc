@@ -50,7 +50,7 @@ The recommended way to set your requirements in your `setup.py` or
 
 ------------------------------------
     # Elasticsearch 2.x
-    elasticsearch>=2.0.0,<3.0.0
+    elasticsearch>=2.0.0,<5.0.0
 
     # Elasticsearch 1.x
     elasticsearch>=1.0.0,<2.0.0

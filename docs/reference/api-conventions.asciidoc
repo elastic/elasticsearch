@@ -235,6 +235,7 @@ Responds:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"took" : 3/"took" : $body.took/]
+// TESTRESPONSE[s/1.6375021/$body.hits.hits.0._score/]
 
 It also supports the `*` wildcard character to match any field or part
 of a field's name:
@@ -398,13 +399,14 @@ Returns:
       "index.number_of_shards": "1",
       "index.creation_date": "1474389951325",
       "index.uuid": "n6gzFZTgS664GUfx0Xrpjw",
-      "index.version.created": "6000001"
+      "index.version.created": ...
     }
   }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/1474389951325/$body.twitter.settings.index\\\\.creation_date/]
 // TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.twitter.settings.index\\\\.uuid/]
+// TESTRESPONSE[s/"index.version.created": \.\.\./"index.version.created": $body.twitter.settings.index\\\\.version\\\\.created/]
 
 When the `flat_settings` flag is `false` settings are returned in a more
 human readable structured format:
@@ -429,7 +431,7 @@ Returns:
         "creation_date": "1474389951325",
         "uuid": "n6gzFZTgS664GUfx0Xrpjw",
         "version": {
-          "created": "6000001"
+          "created": ...
         }
       }
     }
@@ -438,6 +440,7 @@ Returns:
 --------------------------------------------------
 // TESTRESPONSE[s/1474389951325/$body.twitter.settings.index.creation_date/]
 // TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.twitter.settings.index.uuid/]
+// TESTRESPONSE[s/"created": \.\.\./"created": $body.twitter.settings.index.version.created/]
 
 By default the `flat_settings` is set to `false`.
 

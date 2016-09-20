@@ -60,6 +60,8 @@ public class LogConfigurator {
      * @param settings for configuring logger.level and individual loggers
      */
     public static void configureWithoutConfig(final Settings settings) {
+        Objects.requireNonNull(settings);
+        // we initialize the status logger immediately otherwise Log4j will complain when we try to get the context
         configureStatusLogger();
         configureLoggerLevels(settings);
     }
@@ -79,14 +81,13 @@ public class LogConfigurator {
         configure(environment.settings(), environment.configFile(), environment.logsFile());
     }
 
-    private static void configure(
-            final Settings settings,
-            final Path configsPath,
-            final Path logsPath) throws IOException, UserException {
+    private static void configure(final Settings settings, final Path configsPath, final Path logsPath) throws IOException, UserException {
+        Objects.requireNonNull(settings);
         Objects.requireNonNull(configsPath);
         Objects.requireNonNull(logsPath);
 
         setLogConfigurationSystemProperty(logsPath, settings);
+        // we initialize the status logger immediately otherwise Log4j will complain when we try to get the context
         configureStatusLogger();
 
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
@@ -116,7 +117,6 @@ public class LogConfigurator {
     }
 
     private static void configureStatusLogger() {
-        // we initialize the status logger immediately otherwise Log4j will complain when we try to get the context
         final ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
         builder.setStatusLevel(Level.ERROR);
         Configurator.initialize(builder.build());

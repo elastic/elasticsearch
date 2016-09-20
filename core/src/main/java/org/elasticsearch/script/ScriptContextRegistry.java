@@ -64,6 +64,13 @@ public final class ScriptContextRegistry {
     }
 
     /**
+     * @return the {@link ScriptContext} from the passed in key
+     */
+    ScriptContext getContextFromKey(String key) {
+        return scriptContexts.get(key);
+    }
+
+    /**
      * @return <tt>true</tt> if the provided {@link ScriptContext} is supported, <tt>false</tt> otherwise
      */
     boolean isSupportedContext(ScriptContext scriptContext) {

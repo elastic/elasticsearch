@@ -23,6 +23,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -36,7 +37,7 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.containsString;
 
 //TODO: please convert to unit tests!
-public class IndexedExpressionTests extends ESIntegTestCase {
+public class StoredExpressionTests extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
@@ -52,9 +53,8 @@ public class IndexedExpressionTests extends ESIntegTestCase {
 
     public void testAllOpsDisabledIndexedScripts() throws IOException {
         client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(ExpressionScriptEngineService.NAME)
                 .setId("script1")
-                .setSource(new BytesArray("{\"script\":\"2\"}"))
+                .setSource(new StoredScriptSource(null, ExpressionScriptEngineService.NAME, "2"))
                 .get();
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         try {

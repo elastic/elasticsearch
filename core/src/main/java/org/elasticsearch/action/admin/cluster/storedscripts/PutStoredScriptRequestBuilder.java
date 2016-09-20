@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
 
 public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<PutStoredScriptRequest,
         PutStoredScriptResponse, PutStoredScriptRequestBuilder> {
@@ -30,18 +30,15 @@ public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<Pu
         super(client, action, new PutStoredScriptRequest());
     }
 
-    public PutStoredScriptRequestBuilder setScriptLang(String scriptLang) {
-        request.scriptLang(scriptLang);
-        return this;
-    }
-
     public PutStoredScriptRequestBuilder setId(String id) {
         request.id(id);
+
         return this;
     }
 
-    public PutStoredScriptRequestBuilder setSource(BytesReference source) {
-        request.script(source);
+    public PutStoredScriptRequestBuilder setSource(StoredScriptSource source) {
+        request.source(source);
+
         return this;
     }
 

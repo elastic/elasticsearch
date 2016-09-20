@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
@@ -50,34 +50,24 @@ public class StoredScriptsIT extends ESIntegTestCase {
 
     public void testBasics() {
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(LANG)
                 .setId("foobar")
-                .setSource(new BytesArray("{\"script\":\"1\"}")));
-        String script = client().admin().cluster().prepareGetStoredScript(LANG, "foobar")
-                .get().getStoredScript();
-        assertNotNull(script);
-        assertEquals("1", script);
+                .setSource(new StoredScriptSource(null, LANG, "1")));
+        StoredScriptSource source = client().admin().cluster().prepareGetStoredScript("foobar")
+                .get().getSource();
+        assertNotNull(source);
+        assertEquals("1", source.code);
 
         assertAcked(client().admin().cluster().prepareDeleteStoredScript()
-                .setId("foobar")
-                .setScriptLang(LANG));
-        script = client().admin().cluster().prepareGetStoredScript(LANG, "foobar")
-                .get().getStoredScript();
-        assertNull(script);
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
-                .setScriptLang("lang#")
-                .setId("id#")
-                .setSource(new BytesArray("{}"))
-                .get());
-        assertEquals("Validation Failed: 1: id can't contain: '#';2: lang can't contain: '#';", e.getMessage());
+                .setId("foobar"));
+        source = client().admin().cluster().prepareGetStoredScript("foobar")
+                .get().getSource();
+        assertNull(source);
     }
 
     public void testMaxScriptSize() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(LANG)
                 .setId("foobar")
-                .setSource(new BytesArray(randomAsciiOfLength(SCRIPT_MAX_SIZE_IN_BYTES + 1)))
+                .setSource(new StoredScriptSource(null, LANG, randomAsciiOfLength(SCRIPT_MAX_SIZE_IN_BYTES + 1)))
                 .get()
         );
         assertEquals("Limit of script size in bytes [64] has been exceeded for script [foobar] with size [65]", e.getMessage());

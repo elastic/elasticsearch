@@ -21,18 +21,17 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -477,9 +476,8 @@ public class BucketScriptIT extends ESIntegTestCase {
     public void testStoredScript() {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("my_script")
-                .setScriptLang(CustomScriptPlugin.NAME)
                 // Script source is not interpreted but it references a pre-defined script from CustomScriptPlugin
-                .setSource(new BytesArray("{ \"script\": \"my_script\" }")));
+                .setSource(new StoredScriptSource(null, CustomScriptPlugin.NAME, "my_script")));
 
         SearchResponse response = client()
                 .prepareSearch("idx")

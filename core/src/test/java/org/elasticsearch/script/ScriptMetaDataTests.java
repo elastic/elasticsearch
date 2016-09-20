@@ -18,61 +18,52 @@
  */
 package org.elasticsearch.script;
 
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiffableUtils;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 
 public class ScriptMetaDataTests extends ESTestCase {
 
     public void testGetScript() throws Exception {
-        ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
+        Map<String, StoredScriptSource> scripts = new HashMap<>();
 
-        XContentBuilder sourceBuilder = XContentFactory.jsonBuilder();
-        sourceBuilder.startObject().startObject("template").field("field", "value").endObject().endObject();
-        builder.storeScript("lang", "template", sourceBuilder.bytes());
+        scripts.put("template", new StoredScriptSource(null, "lang", "value"));
+        scripts.put("template_field", new StoredScriptSource(null, "lang", "value"));
+        scripts.put("script", new StoredScriptSource(null, "lang", "value"));
+        scripts.put("script_field", new StoredScriptSource(null, "lang", "value"));
+        scripts.put("any", new StoredScriptSource(null, "lang", "value"));
 
-        sourceBuilder = XContentFactory.jsonBuilder();
-        sourceBuilder.startObject().field("template", "value").endObject();
-        builder.storeScript("lang", "template_field", sourceBuilder.bytes());
+        ScriptMetaData scriptMetaData = new ScriptMetaData(scripts);
 
-        sourceBuilder = XContentFactory.jsonBuilder();
-        sourceBuilder.startObject().startObject("script").field("field", "value").endObject().endObject();
-        builder.storeScript("lang", "script", sourceBuilder.bytes());
-
-        sourceBuilder = XContentFactory.jsonBuilder();
-        sourceBuilder.startObject().field("script", "value").endObject();
-        builder.storeScript("lang", "script_field", sourceBuilder.bytes());
-
-        sourceBuilder = XContentFactory.jsonBuilder();
-        sourceBuilder.startObject().field("field", "value").endObject();
-        builder.storeScript("lang", "any", sourceBuilder.bytes());
-
-        ScriptMetaData scriptMetaData = builder.build();
-        assertEquals("{\"field\":\"value\"}", scriptMetaData.getScript("lang", "template"));
-        assertEquals("value", scriptMetaData.getScript("lang", "template_field"));
-        assertEquals("{\"field\":\"value\"}", scriptMetaData.getScript("lang", "script"));
-        assertEquals("value", scriptMetaData.getScript("lang", "script_field"));
-        assertEquals("{\"field\":\"value\"}", scriptMetaData.getScript("lang", "any"));
+        assertEquals(new StoredScriptSource(null, "lang", "value"), scriptMetaData.getScript("template"));
+        assertEquals("value", scriptMetaData.getScript("template_field").code);
+        assertEquals(new StoredScriptSource(null, "lang", "value"), scriptMetaData.getScript("script"));
+        assertEquals("value", scriptMetaData.getScript("script_field").code);
+        assertEquals(new StoredScriptSource(null, "lang", "value"), scriptMetaData.getScript("any"));
     }
 
     public void testToAndFromXContent() throws IOException {
         XContentType contentType = randomFrom(XContentType.values());
         XContentBuilder xContentBuilder = XContentBuilder.builder(contentType.xContent());
-        ScriptMetaData expected = randomScriptMetaData(contentType);
+        ScriptMetaData expected = randomScriptMetaData();
 
         xContentBuilder.startObject();
         expected.toXContent(xContentBuilder, new ToXContent.MapParams(Collections.emptyMap()));
@@ -87,7 +78,7 @@ public class ScriptMetaDataTests extends ESTestCase {
     }
 
     public void testReadFromWriteTo() throws IOException {
-        ScriptMetaData expected = randomScriptMetaData(randomFrom(XContentType.values()));
+        ScriptMetaData expected = randomScriptMetaData();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         expected.writeTo(new OutputStreamStreamOutput(out));
 
@@ -97,60 +88,81 @@ public class ScriptMetaDataTests extends ESTestCase {
     }
 
     public void testDiff() throws Exception {
-        ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
-        builder.storeScript("lang", "1", new BytesArray("{\"foo\":\"abc\"}"));
-        builder.storeScript("lang", "2", new BytesArray("{\"foo\":\"def\"}"));
-        builder.storeScript("lang", "3", new BytesArray("{\"foo\":\"ghi\"}"));
-        ScriptMetaData scriptMetaData1 = builder.build();
+        Map<String, StoredScriptSource> scripts = new HashMap<>();
 
-        builder = new ScriptMetaData.Builder(scriptMetaData1);
-        builder.storeScript("lang", "2", new BytesArray("{\"foo\":\"changed\"}"));
-        builder.deleteScript("lang", "3");
-        builder.storeScript("lang", "4", new BytesArray("{\"foo\":\"jkl\"}"));
-        ScriptMetaData scriptMetaData2 = builder.build();
+        scripts.put("1", new StoredScriptSource(null, "lang", "abc"));
+        scripts.put("2", new StoredScriptSource(null, "lang", "def"));
+        scripts.put("3", new StoredScriptSource(null, "lang", "ghi"));
+
+        ScriptMetaData scriptMetaData1 = new ScriptMetaData(scripts);
+
+        scripts.put("2", new StoredScriptSource(null, "lang", "changed"));
+        scripts.remove("3");
+        scripts.put("4", new StoredScriptSource(null, "lang", "jkl"));
+
+        ScriptMetaData scriptMetaData2 = new ScriptMetaData(scripts);
 
         ScriptMetaData.ScriptMetadataDiff diff = (ScriptMetaData.ScriptMetadataDiff) scriptMetaData2.diff(scriptMetaData1);
         assertEquals(1, ((DiffableUtils.MapDiff) diff.pipelines).getDeletes().size());
-        assertEquals("lang#3", ((DiffableUtils.MapDiff) diff.pipelines).getDeletes().get(0));
+        assertEquals("3", ((DiffableUtils.MapDiff) diff.pipelines).getDeletes().get(0));
         assertEquals(1, ((DiffableUtils.MapDiff) diff.pipelines).getDiffs().size());
-        assertNotNull(((DiffableUtils.MapDiff) diff.pipelines).getDiffs().get("lang#2"));
+        assertNotNull(((DiffableUtils.MapDiff) diff.pipelines).getDiffs().get("2"));
         assertEquals(1, ((DiffableUtils.MapDiff) diff.pipelines).getUpserts().size());
-        assertNotNull(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().get("lang#4"));
+        assertNotNull(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().get("4"));
 
         ScriptMetaData result = (ScriptMetaData) diff.apply(scriptMetaData1);
-        assertEquals(new BytesArray("{\"foo\":\"abc\"}"), result.getScriptAsBytes("lang", "1"));
-        assertEquals(new BytesArray("{\"foo\":\"changed\"}"), result.getScriptAsBytes("lang", "2"));
-        assertEquals(new BytesArray("{\"foo\":\"jkl\"}"), result.getScriptAsBytes("lang", "4"));
+        assertEquals(new StoredScriptSource(null, "lang", "abc"), result.getScript("1"));
+        assertEquals(new StoredScriptSource(null, "lang", "changed"), result.getScript("2"));
+        assertEquals(new StoredScriptSource(null, "lang", "jkl"), result.getScript("4"));
     }
 
-    public void testBuilder() {
-        ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
-        builder.storeScript("_lang", "_id", new BytesArray("{\"script\":\"1 + 1\"}"));
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> builder.storeScript("_lang#", "_id", new BytesArray("{\"foo\": \"bar\"}")));
-        assertEquals("stored script language can't contain: '#'", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class, () -> builder.storeScript("_lang", "_id#", new BytesArray("{\"foo\": \"bar\"}")));
-        assertEquals("stored script id can't contain: '#'", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class, () -> builder.deleteScript("_lang#", "_id"));
-        assertEquals("stored script language can't contain: '#'", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class, () -> builder.deleteScript("_lang", "_id#"));
-        assertEquals("stored script id can't contain: '#'", e.getMessage());
-
-        ScriptMetaData result = builder.build();
-        assertEquals("1 + 1", result.getScript("_lang", "_id"));
+    public void testStoreScript() throws Exception {
+        ClusterState empty = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState result = ScriptMetaData.storeScript(empty, "_id", new StoredScriptSource(null, "_lang", "abc"));
+        ScriptMetaData scriptMetaData = result.getMetaData().custom(ScriptMetaData.TYPE);
+        assertNotNull(scriptMetaData);
+        assertEquals("abc", scriptMetaData.getScript("_id").code);
     }
 
-    private ScriptMetaData randomScriptMetaData(XContentType sourceContentType) throws IOException {
-        ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
+    public void testDeleteScript() throws Exception {
+        ClusterState empty = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState store = ScriptMetaData.storeScript(empty, "_id", new StoredScriptSource(null, "_lang", "abc"));
+
+        ClusterState delete = ScriptMetaData.deleteScript(store, "_id");
+        ScriptMetaData scriptMetaData = delete.getMetaData().custom(ScriptMetaData.TYPE);
+        assertNotNull(scriptMetaData);
+        assertNull(scriptMetaData.getScript("_id"));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            ScriptMetaData.deleteScript(delete, "_non_existing_id");
+        });
+        assertEquals("stored script with id [_non_existing_id] does not exist", e.getMessage());
+    }
+
+    public void testGetStoredScript() throws Exception {
+        ClusterState empty = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState store = ScriptMetaData.storeScript(empty, "_id", new StoredScriptSource(null, "_lang", "abc"));
+
+        assertEquals(new StoredScriptSource(null, "_lang", "abc"), ScriptMetaData.getScript(store, "_id"));
+        assertNull(ScriptMetaData.getScript(store, "_id2"));
+
+        store = ClusterState.builder(new ClusterName("_name")).build();
+        assertNull(ScriptMetaData.getScript(store, "_id"));
+    }
+
+    private ScriptMetaData randomScriptMetaData() throws IOException {
+        Map<String, StoredScriptSource> scripts = new HashMap<>();
         int numScripts = scaledRandomIntBetween(0, 32);
+
         for (int i = 0; i < numScripts; i++) {
+            String id = randomAsciiOfLength(i + 1);
             String lang = randomAsciiOfLength(4);
-            XContentBuilder sourceBuilder = XContentBuilder.builder(sourceContentType.xContent());
-            sourceBuilder.startObject().field(randomAsciiOfLength(4), randomAsciiOfLength(4)).endObject();
-            builder.storeScript(lang, randomAsciiOfLength(i + 1), sourceBuilder.bytes());
+            String code = randomAsciiOfLength(between(50, 4000));
+
+            scripts.put(id, new StoredScriptSource(null, lang, code));
         }
-        return builder.build();
+
+        return new ScriptMetaData(scripts);
     }
 
 }

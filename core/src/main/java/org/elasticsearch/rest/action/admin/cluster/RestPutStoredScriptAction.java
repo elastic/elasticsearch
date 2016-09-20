@@ -20,40 +20,103 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
 
+import java.io.IOException;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutStoredScriptAction extends BaseRestHandler {
+    private static class StoredScriptSourceParserContext implements ParseFieldMatcherSupplier {
 
-    @Inject
-    public RestPutStoredScriptAction(Settings settings, RestController controller) {
-        this(settings, controller, true);
-    }
+        private final ParseFieldMatcher parseFieldMatcher;
 
-    protected RestPutStoredScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers) {
-        super(settings);
-        if (registerDefaultHandlers) {
-            controller.registerHandler(POST, "/_scripts/{lang}/{id}", this);
-            controller.registerHandler(PUT, "/_scripts/{lang}/{id}", this);
+        StoredScriptSourceParserContext() {
+            this.parseFieldMatcher = new ParseFieldMatcher(true);
+        }
+
+        @Override
+        public ParseFieldMatcher getParseFieldMatcher() {
+            return parseFieldMatcher;
         }
     }
 
-    protected String getScriptLang(RestRequest request) {
-        return request.param("lang");
+    static final ParseField parseScript   = new ParseField("script");
+    static final ParseField parseContext  = new ParseField("context");
+    static final ParseField parseCode     = new ParseField("code");
+    static final ParseField parseLang     = new ParseField("lang");
+
+    static final ConstructingObjectParser<StoredScriptSource, StoredScriptSourceParserContext> CONSTRUCTOR =
+        new ConstructingObjectParser<>("StoredScriptSource", source ->
+            new StoredScriptSource((String)source[0], (String)source[1], (String)source[2]));
+
+    static {
+        CONSTRUCTOR.declareString(optionalConstructorArg(), parseContext);
+        CONSTRUCTOR.declareString(optionalConstructorArg(), parseLang);
+        CONSTRUCTOR.declareString(constructorArg(), parseCode);
+    }
+
+    @Inject
+    public RestPutStoredScriptAction(Settings settings, RestController controller) {
+        super(settings);
+
+        controller.registerHandler(POST, "/_scripts/{id}", this);
+        controller.registerHandler(PUT, "/_scripts/{id}", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, NodeClient client) {
-        PutStoredScriptRequest putRequest = new PutStoredScriptRequest(getScriptLang(request), request.param("id"));
-        putRequest.script(request.content());
+        StoredScriptSource source = parseStoredScript(request.content());
+        PutStoredScriptRequest putRequest = new PutStoredScriptRequest(request.param("id"), source);
         client.admin().cluster().putStoredScript(putRequest, new AcknowledgedRestListener<>(channel));
+    }
+
+    private static StoredScriptSource parseStoredScript(BytesReference content) {
+        try (XContentParser parser = XContentHelper.createParser(content)) {
+            if (parser.nextToken() != Token.START_OBJECT) {
+                throw new ParsingException(parser.getTokenLocation(),
+                    "unexpected token [" + parser.currentToken() + "], expected start object [{]");
+            }
+
+            if (parser.nextToken() == Token.END_OBJECT) {
+                throw new ParsingException(parser.getTokenLocation(),
+                    "unexpected token [" + parser.currentToken() + "], expected [<code>]");
+            }
+
+            if (parser.currentToken() != Token.FIELD_NAME || !parseScript.getPreferredName().equals(parser.currentName())) {
+                throw new ParsingException(parser.getTokenLocation(),
+                    "unexpected token [" + parser.currentToken() + "], expected [script]");
+            }
+
+            if (parser.nextToken() == Token.VALUE_STRING) {
+                return new StoredScriptSource(null, null, parser.text());
+            } else if (parser.currentToken() == Token.START_OBJECT) {
+                return CONSTRUCTOR.apply(parser, new StoredScriptSourceParserContext());
+            } else {
+                throw new ParsingException(parser.getTokenLocation(),
+                    "unexpected token [" + parser.currentToken() + "], expected [<code>]");
+            }
+        } catch (IOException ioe) {
+            throw new RuntimeException(ioe);
+        }
     }
 }

@@ -56,6 +56,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -207,35 +208,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     }
 
     /**
-     * Checks if a script can be executed and compiles it if needed, or returns the previously compiled and cached script.
-     */
-    public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params) {
-        if (script == null) {
-            throw new IllegalArgumentException("The parameter script (Script) must not be null.");
-        }
-        if (scriptContext == null) {
-            throw new IllegalArgumentException("The parameter scriptContext (ScriptContext) must not be null.");
-        }
-
-        String lang = script.getLang();
-        ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
-        if (canExecuteScript(lang, script.getType(), scriptContext) == false) {
-            throw new IllegalStateException("scripts of type [" + script.getType() + "], operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
-        }
-
-        // TODO: fix this through some API or something, that's wrong
-        // special exception to prevent expressions from compiling as update or mapping scripts
-        boolean expression = "expression".equals(script.getLang());
-        boolean notSupported = scriptContext.getKey().equals(ScriptContext.Standard.UPDATE.getKey());
-        if (expression && notSupported) {
-            throw new UnsupportedOperationException("scripts of type [" + script.getType() + "]," +
-                    " operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are not supported");
-        }
-
-        return compileInternal(script, params);
-    }
-
-    /**
      * Check whether there have been too many compilations within the last minute, throwing a circuit breaking exception if so.
      * This is a variant of the token bucket algorithm: https://en.wikipedia.org/wiki/Token_bucket
      *
@@ -269,49 +241,74 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     /**
      * Compiles a script straight-away, or returns the previously compiled and cached script,
-     * without checking if it can be executed based on settings.
+     * while also checking if it can be executed based on settings.
      */
-    CompiledScript compileInternal(Script script, Map<String, String> params) {
+    public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params) {
         if (script == null) {
             throw new IllegalArgumentException("The parameter script (Script) must not be null.");
         }
 
+        if (scriptContext == null) {
+            throw new IllegalArgumentException("The parameter scriptContext (ScriptContext) must not be null.");
+        }
+
         String lang = script.getLang();
         ScriptType type = script.getType();
-        //script.getScript() could return either a name or code for a script,
-        //but we check for a file script name first and an indexed script name second
-        String name = script.getScript();
-
-        if (logger.isTraceEnabled()) {
-            logger.trace("Compiling lang: [{}] type: [{}] script: {}", lang, type, name);
-        }
-
-        ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
-
-        if (type == ScriptType.FILE) {
-            CacheKey cacheKey = new CacheKey(scriptEngineService, name, null, params);
-            //On disk scripts will be loaded into the staticCache by the listener
-            CompiledScript compiledScript = staticCache.get(cacheKey);
-
-            if (compiledScript == null) {
-                throw new IllegalArgumentException("Unable to find on disk file script [" + name + "] using lang [" + lang + "]");
-            }
-
-            return compiledScript;
-        }
-
-        //script.getScript() will be code if the script type is inline
+        //script.getScript() will be id if the script type is file or stored
+        String id = script.getScript();
+        //script.getScript() will be code if the scrip type is inline
         String code = script.getScript();
 
         if (type == ScriptType.STORED) {
             //The look up for an indexed script must be done every time in case
             //the script has been updated in the index since the last look up.
-            final IndexedScript indexedScript = new IndexedScript(lang, name);
-            name = indexedScript.id;
-            code = getScriptFromClusterState(indexedScript.lang, indexedScript.id);
+            if (id.contains("/")) {
+                throw new IllegalArgumentException("illegal stored script id [" + id + "] contains [/]");
+            }
+
+            StoredScriptSource source = getScriptFromClusterState(id);
+            //update the lang and code based on the script retrieved from the cluster state
+            lang = source.lang;
+            code = source.code;
         }
 
-        CacheKey cacheKey = new CacheKey(scriptEngineService, type == ScriptType.INLINE ? null : name, code, params);
+        // validation cannot occur until after a stored script is retrieved
+        if (canExecuteScript(lang, script.getType(), scriptContext) == false) {
+            throw new IllegalStateException("scripts of type [" + script.getType() + "], operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
+        }
+
+        // TODO: fix this through some API or something, that's wrong
+        // special exception to prevent expressions from compiling as update or mapping scripts
+        boolean expression = "expression".equals(script.getLang());
+        boolean notSupported = scriptContext.getKey().equals(ScriptContext.Standard.UPDATE.getKey());
+        if (expression && notSupported) {
+            throw new UnsupportedOperationException("scripts of type [" + script.getType() + "]," +
+                " operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are not supported");
+        }
+
+        if (script == null) {
+            throw new IllegalArgumentException("The parameter script (Script) must not be null.");
+        }
+
+        if (logger.isTraceEnabled()) {
+            logger.trace("Compiling lang: [{}] type: [{}] script: {}", lang, type, id);
+        }
+
+        ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
+
+        if (type == ScriptType.FILE) {
+            CacheKey cacheKey = new CacheKey(scriptEngineService, id, null, params);
+            //On disk scripts will be loaded into the staticCache by the listener
+            CompiledScript compiledScript = staticCache.get(cacheKey);
+
+            if (compiledScript == null) {
+                throw new IllegalArgumentException("Unable to find on disk file script [" + id + "] using lang [" + lang + "]");
+            }
+
+            return compiledScript;
+        }
+
+        CacheKey cacheKey = new CacheKey(scriptEngineService, type == ScriptType.INLINE ? null : id, code, params);
         CompiledScript compiledScript = cache.get(cacheKey);
 
         if (compiledScript != null) {
@@ -330,18 +327,18 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
                     // but give the script engine the chance to be better, give it separate name + source code
                     // for the inline case, then its anonymous: null.
-                    String actualName = (type == ScriptType.INLINE) ? null : name;
+                    String actualName = (type == ScriptType.INLINE) ? null : id;
                     if (logger.isTraceEnabled()) {
                         logger.trace("compiling script, type: [{}], lang: [{}], params: [{}]", type, lang, params);
                     }
                     // Check whether too many compilations have happened
                     checkCompilationLimit();
-                    compiledScript = new CompiledScript(type, name, lang, scriptEngineService.compile(actualName, code, params));
+                    compiledScript = new CompiledScript(type, id, lang, scriptEngineService.compile(actualName, code, params));
                 } catch (ScriptException good) {
                     // TODO: remove this try-catch completely, when all script engines have good exceptions!
                     throw good; // its already good
                 } catch (Exception exception) {
-                    throw new GeneralScriptException("Failed to compile " + type + " script [" + name + "] using lang [" + lang + "]", exception);
+                    throw new GeneralScriptException("Failed to compile " + type + " script [" + id + "] using lang [" + lang + "]", exception);
                 }
 
                 // Since the cache key is the script content itself we don't need to
@@ -362,56 +359,57 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return scriptLang;
     }
 
-    String getScriptFromClusterState(String scriptLang, String id) {
-        scriptLang = validateScriptLanguage(scriptLang);
+    StoredScriptSource getScriptFromClusterState(String id) {
         ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
+
         if (scriptMetadata == null) {
-            throw new ResourceNotFoundException("Unable to find script [" + scriptLang + "/" + id + "] in cluster state");
+            throw new ResourceNotFoundException("unable to find script [" + id + "] in cluster state");
         }
 
-        String script = scriptMetadata.getScript(scriptLang, id);
-        if (script == null) {
-            throw new ResourceNotFoundException("Unable to find script [" + scriptLang + "/" + id + "] in cluster state");
+        StoredScriptSource source = scriptMetadata.getScript(id);
+
+        if (source == null) {
+            throw new ResourceNotFoundException("unable to find script [" + id + "] in cluster state");
         }
-        return script;
+
+        return source;
     }
 
-    void validateStoredScript(String id, String scriptLang, BytesReference scriptBytes) {
-        validateScriptSize(id, scriptBytes.length());
-        String script = ScriptMetaData.parseStoredScript(scriptBytes);
-        if (Strings.hasLength(scriptBytes)) {
+    void validateStoredScript(String id, String lang, String code) {
+        validateScriptSize(id, code.getBytes().length);
+        if (Strings.hasLength(code)) {
             //Just try and compile it
             try {
-                ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(scriptLang);
+                ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
                 //we don't know yet what the script will be used for, but if all of the operations for this lang with
                 //indexed scripts are disabled, it makes no sense to even compile it.
-                if (isAnyScriptContextEnabled(scriptLang, ScriptType.STORED)) {
-                    Object compiled = scriptEngineService.compile(id, script, Collections.emptyMap());
+                if (isAnyScriptContextEnabled(lang, ScriptType.STORED)) {
+                    Object compiled = scriptEngineService.compile(id, code, Collections.emptyMap());
                     if (compiled == null) {
-                        throw new IllegalArgumentException("Unable to parse [" + script + "] lang [" + scriptLang +
+                        throw new IllegalArgumentException("Unable to parse [" + code + "] lang [" + lang +
                                 "] (ScriptService.compile returned null)");
                     }
                 } else {
                     logger.warn(
                             "skipping compile of script [{}], lang [{}] as all scripted operations are disabled for indexed scripts",
-                            script, scriptLang);
+                            code, lang);
                 }
             } catch (ScriptException good) {
                 // TODO: remove this when all script engines have good exceptions!
                 throw good; // its already good!
             } catch (Exception e) {
-                throw new IllegalArgumentException("Unable to parse [" + script +
-                        "] lang [" + scriptLang + "]", e);
+                throw new IllegalArgumentException("Unable to parse [" + code +
+                        "] lang [" + lang + "]", e);
             }
         } else {
-            throw new IllegalArgumentException("Unable to find script in : " + scriptBytes.utf8ToString());
+            throw new IllegalArgumentException("Unable to find script in : " + code);
         }
     }
 
     public void storeScript(ClusterService clusterService, PutStoredScriptRequest request, ActionListener<PutStoredScriptResponse> listener) {
-        String scriptLang = validateScriptLanguage(request.scriptLang());
+        String scriptLang = validateScriptLanguage(request.source().lang);
         //verify that the script compiles
-        validateStoredScript(request.id(), scriptLang, request.script());
+        validateStoredScript(request.id(), scriptLang, request.source().code);
         clusterService.submitStateUpdateTask("put-script-" + request.id(), new AckedClusterStateUpdateTask<PutStoredScriptResponse>(request, listener) {
 
             @Override
@@ -421,22 +419,12 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                return innerStoreScript(currentState, scriptLang, request);
+                return ScriptMetaData.storeScript(currentState, request.id(), request.source());
             }
         });
     }
 
-    static ClusterState innerStoreScript(ClusterState currentState, String validatedScriptLang, PutStoredScriptRequest request) {
-        ScriptMetaData scriptMetadata = currentState.metaData().custom(ScriptMetaData.TYPE);
-        ScriptMetaData.Builder scriptMetadataBuilder = new ScriptMetaData.Builder(scriptMetadata);
-        scriptMetadataBuilder.storeScript(validatedScriptLang, request.id(), request.script());
-        MetaData.Builder metaDataBuilder = MetaData.builder(currentState.getMetaData())
-                .putCustom(ScriptMetaData.TYPE, scriptMetadataBuilder.build());
-        return ClusterState.builder(currentState).metaData(metaDataBuilder).build();
-    }
-
     public void deleteStoredScript(ClusterService clusterService, DeleteStoredScriptRequest request, ActionListener<DeleteStoredScriptResponse> listener) {
-        String scriptLang = validateScriptLanguage(request.scriptLang());
         clusterService.submitStateUpdateTask("delete-script-" + request.id(), new AckedClusterStateUpdateTask<DeleteStoredScriptResponse>(request, listener) {
 
             @Override
@@ -446,27 +434,13 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                return innerDeleteScript(currentState, scriptLang, request);
+                return ScriptMetaData.deleteScript(currentState, request.id());
             }
         });
     }
 
-    static ClusterState innerDeleteScript(ClusterState currentState, String validatedLang, DeleteStoredScriptRequest request) {
-        ScriptMetaData scriptMetadata = currentState.metaData().custom(ScriptMetaData.TYPE);
-        ScriptMetaData.Builder scriptMetadataBuilder = new ScriptMetaData.Builder(scriptMetadata);
-        scriptMetadataBuilder.deleteScript(validatedLang, request.id());
-        MetaData.Builder metaDataBuilder = MetaData.builder(currentState.getMetaData())
-                .putCustom(ScriptMetaData.TYPE, scriptMetadataBuilder.build());
-        return ClusterState.builder(currentState).metaData(metaDataBuilder).build();
-    }
-
-    public String getStoredScript(ClusterState state, GetStoredScriptRequest request) {
-        ScriptMetaData scriptMetadata = state.metaData().custom(ScriptMetaData.TYPE);
-        if (scriptMetadata != null) {
-            return scriptMetadata.getScript(request.lang(), request.id());
-        } else {
-            return null;
-        }
+    public StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
+        return ScriptMetaData.getScript(state, request.id());
     }
 
     /**
@@ -720,30 +694,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             result = 31 * result + (code != null ? code.hashCode() : 0);
             result = 31 * result + params.hashCode();
             return result;
-        }
-    }
-
-
-    private static class IndexedScript {
-        private final String lang;
-        private final String id;
-
-        IndexedScript(String lang, String script) {
-            this.lang = lang;
-            final String[] parts = script.split("/");
-            if (parts.length == 1) {
-                this.id = script;
-            } else {
-                if (parts.length != 3) {
-                    throw new IllegalArgumentException("Illegal index script format [" + script + "]" +
-                            " should be /lang/id");
-                } else {
-                    if (!parts[1].equals(this.lang)) {
-                        throw new IllegalStateException("Conflicting script language, found [" + parts[1] + "] expected + ["+ this.lang + "]");
-                    }
-                    this.id = parts[2];
-                }
-            }
         }
     }
 }

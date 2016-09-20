@@ -18,115 +18,219 @@
  */
 package org.elasticsearch.script;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public final class ScriptMetaData implements MetaData.Custom {
 
+    public static final class StoredScriptSource extends AbstractDiffable<StoredScriptSource> implements ToXContent {
+        public final String context;
+        public final String lang;
+        public final String code;
+
+        public StoredScriptSource(String context, String lang, String code) {
+            this.context = context == null ? ScriptContext.Standard.ANY.getKey() : context.toLowerCase(Locale.getDefault());
+            this.lang = lang == null ? Script.DEFAULT_SCRIPT_LANG : lang;
+            this.code = code;
+        }
+
+        public static StoredScriptSource staticReadFrom(StreamInput in) throws IOException {
+            return new StoredScriptSource(in.readString(), in.readString(), in.readString());
+        }
+
+        @Override
+        public StoredScriptSource readFrom(StreamInput in) throws IOException {
+            return new StoredScriptSource(in.readString(), in.readString(), in.readString());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(context);
+            out.writeString(lang);
+            out.writeString(code);
+        }
+
+        public static StoredScriptSource fromXContent(XContentParser parser) throws IOException {
+            String context = null;
+            String lang = null;
+            String code = null;
+
+            for (int token = 0; token < 3; ++token) {
+                parser.nextToken();
+
+                if (parser.currentToken() == Token.FIELD_NAME) {
+                    String name = parser.currentName();
+
+                    parser.nextToken();
+
+                    if (parser.currentToken() == Token.VALUE_STRING) {
+                        if ("context".equals(name)) {
+                            context = parser.text();
+                        } else if ("lang".equals(name)) {
+                            lang = parser.text();
+                        } else if ("code".equals(name)) {
+                            code = parser.text();
+                        } else {
+                            throw new ParsingException(parser.getTokenLocation(),
+                                "unexpected token [" + parser.currentToken() + "], expected one of [context, lang, code]");
+                        }
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "unexpected token [" + parser.currentToken() + "], expected the value for one of [context, lang, code]");
+                    }
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                        "unexpected token [" + parser.currentToken() + "], expected one of [context, lang, code]");
+                }
+            }
+
+            parser.nextToken();
+
+            return new StoredScriptSource(context, lang, code);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field("context", context);
+            builder.field("lang", lang);
+            builder.field("code", code);
+
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            StoredScriptSource that = (StoredScriptSource)o;
+
+            if (!context.equals(that.context)) return false;
+            if (!lang.equals(that.lang)) return false;
+            return code.equals(that.code);
+
+        }
+
+        @Override
+        public int hashCode() {
+            int result = context.hashCode();
+            result = 31 * result + lang.hashCode();
+            result = 31 * result + code.hashCode();
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "StoredScriptSource{" +
+                "context='" + context + '\'' +
+                ", lang='" + lang + '\'' +
+                ", code='" + code + '\'' +
+                '}';
+        }
+    }
+
+    static final class ScriptMetadataDiff implements Diff<MetaData.Custom> {
+
+        final Diff<Map<String, StoredScriptSource>> pipelines;
+
+        ScriptMetadataDiff(ScriptMetaData before, ScriptMetaData after) {
+            this.pipelines = DiffableUtils.diff(before.scripts, after.scripts, DiffableUtils.getStringKeySerializer());
+        }
+
+        public ScriptMetadataDiff(StreamInput in) throws IOException {
+            pipelines = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), new StoredScriptSource(null, null, null));
+        }
+
+        @Override
+        public MetaData.Custom apply(MetaData.Custom part) {
+            return new ScriptMetaData(pipelines.apply(((ScriptMetaData) part).scripts));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            pipelines.writeTo(out);
+        }
+    }
+
     public static final String TYPE = "stored_scripts";
     public static final ScriptMetaData PROTO = new ScriptMetaData(Collections.emptyMap());
 
-    private final Map<String, ScriptAsBytes> scripts;
+    static ClusterState storeScript(ClusterState state, String id, StoredScriptSource source) {
+        ScriptMetaData scriptMetadata = state.metaData().custom(ScriptMetaData.TYPE);
+        Map<String, StoredScriptSource> scripts;
 
-    ScriptMetaData(Map<String, ScriptAsBytes> scripts) {
-        this.scripts = scripts;
+        if (scriptMetadata == null) {
+            scripts = new HashMap<>();
+        } else {
+            scripts = new HashMap<>(scriptMetadata.scripts);
+        }
+
+        scripts.put(id, source);
+
+        MetaData.Builder metaDataBuilder = MetaData.builder(state.getMetaData())
+            .putCustom(ScriptMetaData.TYPE, new ScriptMetaData(scripts));
+
+        return ClusterState.builder(state).metaData(metaDataBuilder).build();
     }
 
-    public BytesReference getScriptAsBytes(String language, String id) {
-        ScriptAsBytes scriptAsBytes = scripts.get(toKey(language, id));
-        if (scriptAsBytes != null) {
-            return scriptAsBytes.script;
+    static ClusterState deleteScript(ClusterState state, String id) {
+        ScriptMetaData scriptMetadata = state.metaData().custom(ScriptMetaData.TYPE);
+
+        if (scriptMetadata == null) {
+            throw new IllegalArgumentException("stored script with id [" + id + "] does not exist");
+        }
+
+        Map<String, StoredScriptSource> scripts = new HashMap<>(scriptMetadata.scripts);
+
+        if (scripts.remove(id) == null) {
+            throw new IllegalArgumentException("stored script with id [" + id + "] does not exist");
+        }
+
+        MetaData.Builder metaDataBuilder = MetaData.builder(state.getMetaData())
+            .putCustom(ScriptMetaData.TYPE, new ScriptMetaData(scripts));
+        return ClusterState.builder(state).metaData(metaDataBuilder).build();
+    }
+
+    static StoredScriptSource getScript(ClusterState state, String id) {
+        ScriptMetaData scriptMetadata = state.metaData().custom(ScriptMetaData.TYPE);
+
+        if (scriptMetadata != null) {
+            return scriptMetadata.getScript(id);
         } else {
             return null;
         }
     }
 
-    public String getScript(String language, String id) {
-        BytesReference scriptAsBytes = getScriptAsBytes(language, id);
-        if (scriptAsBytes == null) {
-            return null;
-        }
-        return scriptAsBytes.utf8ToString();
+    private final Map<String, StoredScriptSource> scripts;
+
+    ScriptMetaData(Map<String, StoredScriptSource> scripts) {
+        this.scripts = Collections.unmodifiableMap(new HashMap<>(scripts));
     }
 
-    public static String parseStoredScript(BytesReference scriptAsBytes) {
-        // Scripts can be stored via API in several ways:
-        // 1) wrapped into a 'script' json object or field
-        // 2) wrapped into a 'template' json object or field
-        // 3) just as is
-        // In order to fetch the actual script in consistent manner this parsing logic is needed:
-        try (XContentParser parser = XContentHelper.createParser(scriptAsBytes);
-             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            parser.nextToken();
-            parser.nextToken();
-            if (parser.currentToken() == Token.END_OBJECT) {
-                throw new IllegalArgumentException("Empty script");
-            }
-            switch (parser.currentName()) {
-                case "script":
-                case "template":
-                    if (parser.nextToken() == Token.VALUE_STRING) {
-                        return parser.text();
-                    } else {
-                        builder.copyCurrentStructure(parser);
-                    }
-                    break;
-                default:
-                    // There is no enclosing 'script' or 'template' object so we just need to return the script as is...
-                    // because the parsers current location is already beyond the beginning we need to add a START_OBJECT:
-                    builder.startObject();
-                    builder.copyCurrentStructure(parser);
-                    builder.endObject();
-                    break;
-            }
-            return builder.string();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+    public StoredScriptSource getScript(String id) {
+        return scripts.get(id);
     }
 
     @Override
     public String type() {
         return TYPE;
-    }
-
-    @Override
-    public ScriptMetaData fromXContent(XContentParser parser) throws IOException {
-        Map<String, ScriptAsBytes> scripts = new HashMap<>();
-        String key = null;
-        for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
-            switch (token) {
-                case FIELD_NAME:
-                    key = parser.currentName();
-                    break;
-                case VALUE_STRING:
-                    scripts.put(key, new ScriptAsBytes(new BytesArray(parser.text())));
-                    break;
-                default:
-                    throw new ParsingException(parser.getTokenLocation(), "Unexpected token [" + token + "]");
-            }
-        }
-        return new ScriptMetaData(scripts);
     }
 
     @Override
@@ -136,31 +240,70 @@ public final class ScriptMetaData implements MetaData.Custom {
 
     @Override
     public ScriptMetaData readFrom(StreamInput in) throws IOException {
+        Map<String, StoredScriptSource> scripts = new HashMap<>();
         int size = in.readVInt();
-        Map<String, ScriptAsBytes> scripts = new HashMap<>();
-        for (int i = 0; i < size; i++) {
-            String languageAndId = in.readString();
-            BytesReference script = in.readBytesReference();
-            scripts.put(languageAndId, new ScriptAsBytes(script));
-        }
-        return new ScriptMetaData(scripts);
-    }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (Map.Entry<String, ScriptAsBytes> entry : scripts.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue().script.utf8ToString());
+        for (int script = 0; script < size; ++script) {
+            String id = in.readString();
+            StoredScriptSource source = StoredScriptSource.staticReadFrom(in);
+
+            scripts.put(id, source);
         }
-        return builder;
+
+        return new ScriptMetaData(scripts);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(scripts.size());
-        for (Map.Entry<String, ScriptAsBytes> entry : scripts.entrySet()) {
+
+        for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {
             out.writeString(entry.getKey());
             entry.getValue().writeTo(out);
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {
+            builder.startObject(entry.getKey());
+            entry.getValue().toXContent(builder, params);
+            builder.endObject();
+        }
+        return builder;
+    }
+
+    @Override
+    public ScriptMetaData fromXContent(XContentParser parser) throws IOException {
+        Map<String, StoredScriptSource> scripts = new HashMap<>();
+        String id = null;
+
+        for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
+            switch (token) {
+                case FIELD_NAME:
+                    id = parser.currentName();
+
+                    break;
+                case START_OBJECT:
+                    if (id == null) {
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "unexpected token [" + token + "], no stored script id specified");
+                    }
+
+                    scripts.put(id, StoredScriptSource.fromXContent(parser));
+
+                    id = null;
+
+                    if (parser.currentToken() != Token.END_OBJECT) {
+                        throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "], expected end object [}]");
+                    }
+
+                    break;
+                default:
+                    throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "], expected one of [id, }]");
+            }
+        }
+        return new ScriptMetaData(scripts);
     }
 
     @Override
@@ -192,104 +335,5 @@ public final class ScriptMetaData implements MetaData.Custom {
         return "ScriptMetaData{" +
             "scripts=" + scripts +
             '}';
-    }
-
-    static String toKey(String language, String id) {
-        if (id.contains("#")) {
-            throw new IllegalArgumentException("stored script id can't contain: '#'");
-        }
-        if (language.contains("#")) {
-            throw new IllegalArgumentException("stored script language can't contain: '#'");
-        }
-
-        return language + "#" + id;
-    }
-
-    public static final class Builder {
-
-        private Map<String, ScriptAsBytes> scripts;
-
-        public Builder(ScriptMetaData previous) {
-            if (previous != null) {
-                this.scripts = new HashMap<>(previous.scripts);
-            } else {
-                this.scripts = new HashMap<>();
-            }
-        }
-
-        public Builder storeScript(String lang, String id, BytesReference script) {
-            BytesReference scriptBytest = new BytesArray(parseStoredScript(script));
-            scripts.put(toKey(lang, id), new ScriptAsBytes(scriptBytest));
-            return this;
-        }
-
-        public Builder deleteScript(String lang, String id) {
-            if (scripts.remove(toKey(lang, id)) == null) {
-                throw new ResourceNotFoundException("Stored script with id [{}] for language [{}] does not exist", id, lang);
-            }
-            return this;
-        }
-
-        public ScriptMetaData build() {
-            return new ScriptMetaData(Collections.unmodifiableMap(scripts));
-        }
-    }
-
-    static final class ScriptMetadataDiff implements Diff<MetaData.Custom> {
-
-        final Diff<Map<String, ScriptAsBytes>> pipelines;
-
-        ScriptMetadataDiff(ScriptMetaData before, ScriptMetaData after) {
-            this.pipelines = DiffableUtils.diff(before.scripts, after.scripts, DiffableUtils.getStringKeySerializer());
-        }
-
-        public ScriptMetadataDiff(StreamInput in) throws IOException {
-            pipelines = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), new ScriptAsBytes(null));
-        }
-
-        @Override
-        public MetaData.Custom apply(MetaData.Custom part) {
-            return new ScriptMetaData(pipelines.apply(((ScriptMetaData) part).scripts));
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            pipelines.writeTo(out);
-        }
-    }
-
-    static final class ScriptAsBytes extends AbstractDiffable<ScriptAsBytes> {
-
-        public ScriptAsBytes(BytesReference script) {
-            this.script = script;
-        }
-
-        private final BytesReference script;
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeBytesReference(script);
-        }
-
-        @Override
-        public ScriptAsBytes readFrom(StreamInput in) throws IOException {
-            return new ScriptAsBytes(in.readBytesReference());
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            ScriptAsBytes that = (ScriptAsBytes) o;
-
-            return script.equals(that.script);
-
-        }
-
-        @Override
-        public int hashCode() {
-            return script.hashCode();
-        }
     }
 }

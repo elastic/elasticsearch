@@ -21,13 +21,13 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -228,24 +228,20 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         // the id of the stored script is used in test method while the source of the stored script
         // must match a predefined script from CustomScriptPlugin.pluginScripts() method
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(CustomScriptPlugin.NAME)
                 .setId("initScript_stored")
-                .setSource(new BytesArray("{\"script\":\"vars.multiplier = 3\"}")));
+                .setSource(new StoredScriptSource(null, CustomScriptPlugin.NAME, "vars.multiplier = 3")));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(CustomScriptPlugin.NAME)
                 .setId("mapScript_stored")
-                .setSource(new BytesArray("{\"script\":\"_agg.add(vars.multiplier)\"}")));
+                .setSource(new StoredScriptSource(null, CustomScriptPlugin.NAME, "_agg.add(vars.multiplier)")));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(CustomScriptPlugin.NAME)
                 .setId("combineScript_stored")
-                .setSource(new BytesArray("{\"script\":\"sum agg values as a new aggregation\"}")));
+                .setSource(new StoredScriptSource(null, CustomScriptPlugin.NAME, "sum agg values as a new aggregation")));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(CustomScriptPlugin.NAME)
                 .setId("reduceScript_stored")
-                .setSource(new BytesArray("{\"script\":\"sum aggs of agg values as a new aggregation\"}")));
+                .setSource(new StoredScriptSource(null, CustomScriptPlugin.NAME, "sum aggs of agg values as a new aggregation")));
 
         indexRandom(true, builders);
         ensureSearchable();

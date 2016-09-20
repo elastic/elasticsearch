@@ -36,34 +36,21 @@ public class DeleteStoredScriptRequest extends AcknowledgedRequest<DeleteStoredS
     DeleteStoredScriptRequest() {
     }
 
-    public DeleteStoredScriptRequest(String scriptLang, String id) {
-        this.scriptLang = scriptLang;
+    public DeleteStoredScriptRequest(String id) {
         this.id = id;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
+
         if (id == null) {
             validationException = addValidationError("id is missing", validationException);
-        } else if (id.contains("#")) {
-            validationException = addValidationError("id can't contain: '#'", validationException);
+        } else if (id.contains("/")) {
+            validationException = addValidationError("illegal id [" + id + "] contains [/]", validationException);
         }
-        if (scriptLang == null) {
-            validationException = addValidationError("lang is missing", validationException);
-        } else if (scriptLang.contains("#")) {
-            validationException = addValidationError("lang can't contain: '#'", validationException);
-        }
+
         return validationException;
-    }
-
-    public String scriptLang() {
-        return scriptLang;
-    }
-
-    public DeleteStoredScriptRequest scriptLang(String type) {
-        this.scriptLang = type;
-        return this;
     }
 
     public String id() {
@@ -78,19 +65,19 @@ public class DeleteStoredScriptRequest extends AcknowledgedRequest<DeleteStoredS
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        scriptLang = in.readString();
+
         id = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(scriptLang);
+
         out.writeString(id);
     }
 
     @Override
     public String toString() {
-        return "delete script {[" + scriptLang + "][" + id + "]}";
+        return "delete script {[" + id + "]}";
     }
 }

@@ -21,13 +21,12 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
@@ -429,9 +428,9 @@ public class BucketSelectorIT extends ESIntegTestCase {
     public void testStoredScript() {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("my_script")
-                .setScriptLang(CustomScriptPlugin.NAME)
                 // Source is not interpreted but my_script is defined in CustomScriptPlugin
-                .setSource(new BytesArray("{ \"script\": \"Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)\" }")));
+                .setSource(new StoredScriptSource(null, CustomScriptPlugin.NAME,
+                    "Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)")));
 
         Script script = new Script("my_script", ScriptType.STORED, CustomScriptPlugin.NAME, null);
 

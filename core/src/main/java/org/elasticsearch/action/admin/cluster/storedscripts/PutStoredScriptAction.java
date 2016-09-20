@@ -31,11 +31,9 @@ public class PutStoredScriptAction extends Action<PutStoredScriptRequest, PutSto
     public static final PutStoredScriptAction INSTANCE = new PutStoredScriptAction();
     public static final String NAME = "cluster:admin/script/put";
 
-
     private PutStoredScriptAction() {
         super(NAME);
     }
-
 
     @Override
     public PutStoredScriptResponse newResponse() {

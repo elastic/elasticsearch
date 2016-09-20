@@ -631,7 +631,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Delete a script from the cluster state
      */
-    DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(String scriptLang, String id);
+    DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(String id);
 
     /**
      * Store a script in the cluster state
@@ -651,7 +651,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Get a script from the cluster state
      */
-    GetStoredScriptRequestBuilder prepareGetStoredScript(@Nullable String scriptLang, String id);
+    GetStoredScriptRequestBuilder prepareGetStoredScript(String id);
 
     /**
      * Get a script from the cluster state

@@ -39,18 +39,15 @@ public class RestDeleteStoredScriptAction extends BaseRestHandler {
 
     protected RestDeleteStoredScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers) {
         super(settings);
-        if (registerDefaultHandlers) {
-            controller.registerHandler(DELETE, "/_scripts/{lang}/{id}", this);
-        }
-    }
 
-    protected String getScriptLang(RestRequest request) {
-        return request.param("lang");
+        if (registerDefaultHandlers) {
+            controller.registerHandler(DELETE, "/_scripts/{id}", this);
+        }
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, NodeClient client) {
-        DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest(getScriptLang(request), request.param("id"));
+        DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest(request.param("id"));
         client.admin().cluster().deleteStoredScript(deleteStoredScriptRequest, new AcknowledgedRestListener<>(channel));
     }
 

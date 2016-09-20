@@ -32,10 +32,16 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetStoredScriptAction extends BaseRestHandler {
+    private static final String ID = "_id";
+    private static final String FOUND = "found";
+    private static final String CONTEXT = "context";
+    private static final String LANG = "lang";
+    private static final String CODE = "code";
 
     @Inject
     public RestGetStoredScriptAction(Settings settings, RestController controller) {
@@ -44,45 +50,38 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
 
     protected RestGetStoredScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers) {
         super(settings);
+
         if (registerDefaultHandlers) {
-            controller.registerHandler(GET, "/_scripts/{lang}/{id}", this);
+            controller.registerHandler(GET, "/_scripts/{id}", this);
         }
-    }
-
-    protected String getScriptFieldName() {
-        return Fields.SCRIPT;
-    }
-
-    protected String getScriptLang(RestRequest request) {
-        return request.param("lang");
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, NodeClient client) {
-        final GetStoredScriptRequest getRequest = new GetStoredScriptRequest(getScriptLang(request), request.param("id"));
+        final GetStoredScriptRequest getRequest = new GetStoredScriptRequest(request.param("id"));
+
         client.admin().cluster().getStoredScript(getRequest, new RestBuilderListener<GetStoredScriptResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetStoredScriptResponse response, XContentBuilder builder) throws Exception {
+                StoredScriptSource source = response.getSource();
+                boolean found = source == null;
+
                 builder.startObject();
-                builder.field(Fields.LANG, getRequest.lang());
-                builder.field(Fields._ID, getRequest.id());
-                boolean found = response.getStoredScript() != null;
-                builder.field(Fields.FOUND, found);
+                builder.field(ID, getRequest.id());
+                builder.field(FOUND, found);
+
                 RestStatus status = RestStatus.NOT_FOUND;
+
                 if (found) {
-                    builder.field(getScriptFieldName(), response.getStoredScript());
+                    builder.field(CONTEXT, source.context);
+                    builder.field(LANG, source.lang);
+                    builder.field(CODE, source.code);
                     status = RestStatus.OK;
                 }
+
                 builder.endObject();
                 return new BytesRestResponse(status, builder);
             }
         });
-    }
-
-    private static final class Fields {
-        private static final String SCRIPT = "script";
-        private static final String LANG = "lang";
-        private static final String _ID = "_id";
-        private static final String FOUND = "found";
     }
 }

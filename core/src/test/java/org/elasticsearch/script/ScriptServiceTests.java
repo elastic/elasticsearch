@@ -122,7 +122,7 @@ public class ScriptServiceTests extends ESTestCase {
         // TODO:
         scriptService = new ScriptService(finalSettings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
-            String getScriptFromClusterState(String scriptLang, String id) {
+            String getScriptFromClusterState(String id) {
                 //mock the script that gets retrieved from an index
                 return "100";
             }
@@ -417,67 +417,16 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(script.lang(), Script.DEFAULT_SCRIPT_LANG);
     }
 
-    public void testStoreScript() throws Exception {
-        BytesReference script = XContentFactory.jsonBuilder().startObject()
-                    .field("script", "abc")
-                .endObject().bytes();
-
-        ClusterState empty = ClusterState.builder(new ClusterName("_name")).build();
-        PutStoredScriptRequest request = new PutStoredScriptRequest("_lang", "_id")
-                .script(script);
-        ClusterState result = ScriptService.innerStoreScript(empty, "_lang", request);
-        ScriptMetaData scriptMetaData = result.getMetaData().custom(ScriptMetaData.TYPE);
-        assertNotNull(scriptMetaData);
-        assertEquals("abc", scriptMetaData.getScript("_lang", "_id"));
-    }
-
-    public void testDeleteScript() throws Exception {
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder()
-                        .putCustom(ScriptMetaData.TYPE,
-                                new ScriptMetaData.Builder(null).storeScript("_lang", "_id",
-                                    new BytesArray("{\"script\":\"abc\"}")).build()))
-                .build();
-
-        DeleteStoredScriptRequest request = new DeleteStoredScriptRequest("_lang", "_id");
-        ClusterState result = ScriptService.innerDeleteScript(cs, "_lang", request);
-        ScriptMetaData scriptMetaData = result.getMetaData().custom(ScriptMetaData.TYPE);
-        assertNotNull(scriptMetaData);
-        assertNull(scriptMetaData.getScript("_lang", "_id"));
-        assertNull(scriptMetaData.getScriptAsBytes("_lang", "_id"));
-
-        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> {
-            ScriptService.innerDeleteScript(cs, "_lang", new DeleteStoredScriptRequest("_lang", "_non_existing_id"));
-        });
-        assertEquals("Stored script with id [_non_existing_id] for language [_lang] does not exist", e.getMessage());
-    }
-
-    public void testGetStoredScript() throws Exception {
-        buildScriptService(Settings.EMPTY);
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder()
-                        .putCustom(ScriptMetaData.TYPE,
-                                new ScriptMetaData.Builder(null).storeScript("_lang", "_id",
-                                        new BytesArray("{\"script\":\"abc\"}")).build()))
-                .build();
-
-        assertEquals("abc", scriptService.getStoredScript(cs, new GetStoredScriptRequest("_lang", "_id")));
-        assertNull(scriptService.getStoredScript(cs, new GetStoredScriptRequest("_lang", "_id2")));
-
-        cs = ClusterState.builder(new ClusterName("_name")).build();
-        assertNull(scriptService.getStoredScript(cs, new GetStoredScriptRequest("_lang", "_id")));
-    }
-
     public void testValidateScriptSize() throws Exception {
         int maxSize = 0xFFFF;
         buildScriptService(Settings.EMPTY);
         // allowed
-        scriptService.validateStoredScript("_id", "test", new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 13) + "\"}"));
+        scriptService.validateStoredScript("_id", "test", randomAsciiOfLength(maxSize - 13));
 
         // disallowed
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> {
-                    scriptService.validateStoredScript("_id", "test", new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 12) + "\"}"));
+                    scriptService.validateStoredScript("_id", "test", randomAsciiOfLength(maxSize - 12));
                 });
         assertThat(e.getMessage(), equalTo(
                 "Limit of script size in bytes [" + maxSize+ "] has been exceeded for script [_id] with size [" + (maxSize + 1) + "]"));

@@ -133,7 +133,8 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
          */
         void handleSnippet(Snippet snippet) {
             if (RestTestsFromSnippetsTask.isConsoleCandidate(snippet)) {
-                unconvertedCandidates.add(snippet.path.toString())
+                unconvertedCandidates.add(snippet.path.toString()
+                    .replace('\\', '/'))
             }
             if (BAD_LANGUAGES.contains(snippet.language)) {
                 throw new InvalidUserDataException(

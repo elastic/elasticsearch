@@ -37,7 +37,7 @@ public interface ScriptContext {
      */
     enum Standard implements ScriptContext {
 
-        ANY("any"), AGGS("aggs"), SEARCH("search"), UPDATE("update"), INGEST("ingest");
+        AGGS("aggs"), SEARCH("search"), UPDATE("update"), INGEST("ingest");
 
         private final String key;
 

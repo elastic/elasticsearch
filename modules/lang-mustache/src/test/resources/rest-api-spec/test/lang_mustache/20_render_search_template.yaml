@@ -121,7 +121,7 @@
         body: { "inline": "{ \"query\": { \"match\": { \"text\": \"{{{my_value}}\" } }, \"size\": {{my_size}} }", "params": { "my_value": "bar", "my_size": 100 } }
 
 ---
-"Indexed Template query tests":
+"Stored Template query tests":
 
   - do:
       index:

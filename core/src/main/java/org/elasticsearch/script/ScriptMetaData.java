@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.script;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -35,7 +36,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 public final class ScriptMetaData implements MetaData.Custom {
@@ -46,23 +46,23 @@ public final class ScriptMetaData implements MetaData.Custom {
         public final String code;
 
         public StoredScriptSource(String context, String lang, String code) {
-            this.context = context == null ? ScriptContext.Standard.ANY.getKey() : context.toLowerCase(Locale.getDefault());
-            this.lang = lang == null ? Script.DEFAULT_SCRIPT_LANG : lang;
+            this.context = context;
+            this.lang = lang;
             this.code = code;
         }
 
         public static StoredScriptSource staticReadFrom(StreamInput in) throws IOException {
-            return new StoredScriptSource(in.readString(), in.readString(), in.readString());
+            return new StoredScriptSource(in.readOptionalString(), in.readString(), in.readString());
         }
 
         @Override
         public StoredScriptSource readFrom(StreamInput in) throws IOException {
-            return new StoredScriptSource(in.readString(), in.readString(), in.readString());
+            return new StoredScriptSource(in.readOptionalString(), in.readString(), in.readString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(context);
+            out.writeOptionalString(context);
             out.writeString(lang);
             out.writeString(code);
         }
@@ -72,9 +72,7 @@ public final class ScriptMetaData implements MetaData.Custom {
             String lang = null;
             String code = null;
 
-            for (int token = 0; token < 3; ++token) {
-                parser.nextToken();
-
+            for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
                 if (parser.currentToken() == Token.FIELD_NAME) {
                     String name = parser.currentName();
 
@@ -93,7 +91,7 @@ public final class ScriptMetaData implements MetaData.Custom {
                         }
                     } else {
                         throw new ParsingException(parser.getTokenLocation(),
-                            "unexpected token [" + parser.currentToken() + "], expected the value for one of [context, lang, code]");
+                            "unexpected token [" + parser.currentToken() + "], expected the value for one of [" + name + "]");
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
@@ -101,14 +99,15 @@ public final class ScriptMetaData implements MetaData.Custom {
                 }
             }
 
-            parser.nextToken();
-
             return new StoredScriptSource(context, lang, code);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("context", context);
+            if (context != null) {
+                builder.field("context", context);
+            }
+
             builder.field("lang", lang);
             builder.field("code", code);
 
@@ -122,16 +121,16 @@ public final class ScriptMetaData implements MetaData.Custom {
 
             StoredScriptSource that = (StoredScriptSource)o;
 
-            if (!context.equals(that.context)) return false;
-            if (!lang.equals(that.lang)) return false;
+            if (context != null ? !context.equals(that.context) : that.context != null) return false;
+            if (lang != null ? !lang.equals(that.lang) : that.lang != null) return false;
             return code.equals(that.code);
 
         }
 
         @Override
         public int hashCode() {
-            int result = context.hashCode();
-            result = 31 * result + lang.hashCode();
+            int result = context != null ? context.hashCode() : 0;
+            result = 31 * result + (lang != null ? lang.hashCode() : 0);
             result = 31 * result + code.hashCode();
             return result;
         }
@@ -194,13 +193,13 @@ public final class ScriptMetaData implements MetaData.Custom {
         ScriptMetaData scriptMetadata = state.metaData().custom(ScriptMetaData.TYPE);
 
         if (scriptMetadata == null) {
-            throw new IllegalArgumentException("stored script with id [" + id + "] does not exist");
+            throw new ResourceNotFoundException("stored script with id [" + id + "] does not exist");
         }
 
         Map<String, StoredScriptSource> scripts = new HashMap<>(scriptMetadata.scripts);
 
         if (scripts.remove(id) == null) {
-            throw new IllegalArgumentException("stored script with id [" + id + "] does not exist");
+            throw new ResourceNotFoundException("stored script with id [" + id + "] does not exist");
         }
 
         MetaData.Builder metaDataBuilder = MetaData.builder(state.getMetaData())

@@ -133,7 +133,7 @@ public class ScriptMetaDataTests extends ESTestCase {
         assertNotNull(scriptMetaData);
         assertNull(scriptMetaData.getScript("_id"));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> {
             ScriptMetaData.deleteScript(delete, "_non_existing_id");
         });
         assertEquals("stored script with id [_non_existing_id] does not exist", e.getMessage());

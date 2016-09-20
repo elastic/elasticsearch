@@ -26,8 +26,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
 
 // TODO: these really should just be part of ScriptService tests, there is nothing special about them
 public class FileScriptTests extends ESTestCase {

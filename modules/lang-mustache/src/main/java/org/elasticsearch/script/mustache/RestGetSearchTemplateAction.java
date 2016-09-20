@@ -18,19 +18,63 @@
  */
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.action.admin.cluster.RestGetStoredScriptAction;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestGetSearchTemplateAction extends RestGetStoredScriptAction {
+public class RestGetSearchTemplateAction extends BaseRestHandler {
+    private static final String ID = "id";
+    private static final String FOUND = "found";
+    private static final String LANG = "lang";
+    private static final String TEMPLATE = "template";
 
     @Inject
     public RestGetSearchTemplateAction(Settings settings, RestController controller) {
-        super(settings, controller, false);
+        super(settings);
 
         controller.registerHandler(GET, "/_search/template/{id}", this);
+    }
+
+    @Override
+    public void handleRequest(final RestRequest request, final RestChannel channel, NodeClient client) {
+        final GetStoredScriptRequest getRequest = new GetStoredScriptRequest(request.param("id"));
+
+        client.admin().cluster().getStoredScript(getRequest, new RestBuilderListener<GetStoredScriptResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(GetStoredScriptResponse response, XContentBuilder builder) throws Exception {
+                StoredScriptSource source = response.getSource();
+                boolean found = source != null;
+
+                builder.startObject();
+                builder.field(ID, getRequest.id());
+                builder.field(FOUND, found);
+
+                RestStatus status = RestStatus.NOT_FOUND;
+
+                if (found) {
+                    // builder.field(CONTEXT, source.context); TODO: once context is used start returning this
+                    builder.field(LANG, source.lang);
+                    builder.field(TEMPLATE, source.code);
+                    status = RestStatus.OK;
+                }
+
+                builder.endObject();
+                return new BytesRestResponse(status, builder);
+            }
+        });
     }
 }

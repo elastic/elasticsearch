@@ -18,19 +18,30 @@
  */
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
-public class RestDeleteSearchTemplateAction extends RestDeleteStoredScriptAction {
+public class RestDeleteSearchTemplateAction extends BaseRestHandler {
 
     @Inject
     public RestDeleteSearchTemplateAction(Settings settings, RestController controller) {
-        super(settings, controller, false);
+        super(settings);
 
         controller.registerHandler(DELETE, "/_search/template/{id}", this);
+    }
+
+    @Override
+    public void handleRequest(final RestRequest request, final RestChannel channel, NodeClient client) {
+        DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest(request.param("id"));
+        client.admin().cluster().deleteStoredScript(deleteStoredScriptRequest, new AcknowledgedRestListener<>(channel));
     }
 }

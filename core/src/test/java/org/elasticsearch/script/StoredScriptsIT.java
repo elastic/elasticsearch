@@ -33,13 +33,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 public class StoredScriptsIT extends ESIntegTestCase {
 
-    private static final int SCRIPT_MAX_SIZE_IN_BYTES = 64;
+    private static final int SCRIPT_MAX_SIZE_IN_LENGTH = 64;
     private static final String LANG = MockScriptEngine.NAME;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), SCRIPT_MAX_SIZE_IN_BYTES)
+                .put(ScriptService.SCRIPT_MAX_SIZE_IN_LENGTH.getKey(), SCRIPT_MAX_SIZE_IN_LENGTH)
                 .build();
     }
 
@@ -67,7 +67,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
     public void testMaxScriptSize() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
                 .setId("foobar")
-                .setSource(new StoredScriptSource(null, LANG, randomAsciiOfLength(SCRIPT_MAX_SIZE_IN_BYTES + 1)))
+                .setSource(new StoredScriptSource(null, LANG, randomAsciiOfLength(SCRIPT_MAX_SIZE_IN_LENGTH + 1)))
                 .get()
         );
         assertEquals("Limit of script size in bytes [64] has been exceeded for script [foobar] with size [65]", e.getMessage());

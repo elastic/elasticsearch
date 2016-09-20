@@ -18,20 +18,10 @@
  */
 package org.elasticsearch.script;
 
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -419,18 +409,18 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     public void testValidateScriptSize() throws Exception {
-        int maxSize = 0xFFFF;
+        int maxSize = 16384;
         buildScriptService(Settings.EMPTY);
         // allowed
-        scriptService.validateStoredScript("_id", "test", randomAsciiOfLength(maxSize - 13));
+        scriptService.validateStoredScript("_id", "test", randomAsciiOfLength(maxSize));
 
         // disallowed
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> {
-                    scriptService.validateStoredScript("_id", "test", randomAsciiOfLength(maxSize - 12));
+                    scriptService.validateStoredScript("_id", "test", randomAsciiOfLength(maxSize + 1));
                 });
         assertThat(e.getMessage(), equalTo(
-                "Limit of script size in bytes [" + maxSize+ "] has been exceeded for script [_id] with size [" + (maxSize + 1) + "]"));
+                "Limit of script size in bytes [" + maxSize + "] has been exceeded for script [_id] with size [" + (maxSize + 1) + "]"));
     }
 
 

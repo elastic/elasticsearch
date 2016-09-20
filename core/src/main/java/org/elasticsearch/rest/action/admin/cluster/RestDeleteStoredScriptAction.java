@@ -34,15 +34,9 @@ public class RestDeleteStoredScriptAction extends BaseRestHandler {
 
     @Inject
     public RestDeleteStoredScriptAction(Settings settings, RestController controller) {
-        this(settings, controller, true);
-    }
-
-    protected RestDeleteStoredScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers) {
         super(settings);
 
-        if (registerDefaultHandlers) {
-            controller.registerHandler(DELETE, "/_scripts/{id}", this);
-        }
+        controller.registerHandler(DELETE, "/_scripts/{id}", this);
     }
 
     @Override
@@ -50,5 +44,4 @@ public class RestDeleteStoredScriptAction extends BaseRestHandler {
         DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest(request.param("id"));
         client.admin().cluster().deleteStoredScript(deleteStoredScriptRequest, new AcknowledgedRestListener<>(channel));
     }
-
 }

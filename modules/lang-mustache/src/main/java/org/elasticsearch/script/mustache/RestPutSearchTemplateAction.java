@@ -28,9 +28,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -60,18 +63,7 @@ public class RestPutSearchTemplateAction extends BaseRestHandler {
         }
     }
 
-    static final ParseField parseTemplate = new ParseField("template");
-    static final ParseField parseContext  = new ParseField("context");
-    static final ParseField parseCode     = new ParseField("code");
-
-    static final ConstructingObjectParser<StoredScriptSource, StoredScriptSourceParserContext> CONSTRUCTOR =
-        new ConstructingObjectParser<>("StoredScriptSource", source ->
-            new StoredScriptSource((String)source[0], "mustache", (String)source[1]));
-
-    static {
-        CONSTRUCTOR.declareString(optionalConstructorArg(), parseContext);
-        CONSTRUCTOR.declareString(constructorArg(), parseCode);
-    }
+    private static final ParseField parseTemplate = new ParseField("template");
 
     @Inject
     public RestPutSearchTemplateAction(Settings settings, RestController controller) {
@@ -97,21 +89,24 @@ public class RestPutSearchTemplateAction extends BaseRestHandler {
 
             if (parser.nextToken() == Token.END_OBJECT) {
                 throw new ParsingException(parser.getTokenLocation(),
-                    "unexpected token [" + parser.currentToken() + "], expected [<code>]");
+                    "unexpected token [" + parser.currentToken() + "], expected [<template>]");
             }
 
             if (parser.currentToken() != Token.FIELD_NAME || !parseTemplate.getPreferredName().equals(parser.currentName())) {
                 throw new ParsingException(parser.getTokenLocation(),
-                    "unexpected token [" + parser.currentToken() + "], expected [script]");
+                    "unexpected token [" + parser.currentToken() + "], expected [template]");
             }
 
             if (parser.nextToken() == Token.VALUE_STRING) {
                 return new StoredScriptSource(null, "mustache", parser.text());
             } else if (parser.currentToken() == Token.START_OBJECT) {
-                return CONSTRUCTOR.apply(parser, new StoredScriptSourceParserContext());
+                XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
+                builder.copyCurrentStructure(parser);
+
+                return new StoredScriptSource(null, "mustache", builder.string());
             } else {
                 throw new ParsingException(parser.getTokenLocation(),
-                    "unexpected token [" + parser.currentToken() + "], expected [<code>]");
+                    "unexpected token [" + parser.currentToken() + "], expected [<template>]");
             }
         } catch (IOException ioe) {
             throw new RuntimeException(ioe);

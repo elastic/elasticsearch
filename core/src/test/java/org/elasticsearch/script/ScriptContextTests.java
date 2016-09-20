@@ -21,13 +21,12 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -53,7 +52,12 @@ public class ScriptContextTests extends ESTestCase {
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
 
-        return new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+        return new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
+            @Override
+            StoredScriptSource getScriptFromClusterState(String id) {
+                return new StoredScriptSource(null, MockScriptEngine.NAME, "1");
+            }
+        };
     }
 
     public void testCustomGlobalScriptContextSettings() throws Exception {

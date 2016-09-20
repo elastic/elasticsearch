@@ -33,12 +33,10 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
@@ -88,8 +86,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), Property.NodeScope);
     public static final Setting<Boolean> SCRIPT_AUTO_RELOAD_ENABLED_SETTING =
         Setting.boolSetting("script.auto_reload_enabled", true, Property.NodeScope);
-    public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_BYTES =
-        Setting.intSetting("script.max_size_in_bytes", 65535, Property.NodeScope);
+    public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_LENGTH =
+        Setting.intSetting("script.max_size_in_length", 16384, Property.NodeScope);
     public static final Setting<Integer> SCRIPT_MAX_COMPILATIONS_PER_MINUTE =
         Setting.intSetting("script.max_compilations_per_minute", 15, 0, Property.Dynamic, Property.NodeScope);
 
@@ -252,6 +250,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             throw new IllegalArgumentException("The parameter scriptContext (ScriptContext) must not be null.");
         }
 
+        // check to make sure script context exists
+        if (scriptContextRegistry.isSupportedContext(scriptContext) == false) {
+            throw new IllegalArgumentException("script context [" + scriptContext.getKey() + "] not supported");
+        }
+
         String lang = script.getLang();
         ScriptType type = script.getType();
         //script.getScript() will be id if the script type is file or stored
@@ -268,12 +271,17 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
             StoredScriptSource source = getScriptFromClusterState(id);
             //update the lang and code based on the script retrieved from the cluster state
-            lang = source.lang;
+            if (source.lang != null) {
+                lang = source.lang;
+            }
+
             code = source.code;
         }
 
         // validation cannot occur until after a stored script is retrieved
-        if (canExecuteScript(lang, script.getType(), scriptContext) == false) {
+        ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
+
+        if (scriptModes.getScriptEnabled(lang, type, scriptContext) == false) {
             throw new IllegalStateException("scripts of type [" + script.getType() + "], operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
         }
 
@@ -293,8 +301,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         if (logger.isTraceEnabled()) {
             logger.trace("Compiling lang: [{}] type: [{}] script: {}", lang, type, id);
         }
-
-        ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
 
         if (type == ScriptType.FILE) {
             CacheKey cacheKey = new CacheKey(scriptEngineService, id, null, params);
@@ -376,7 +382,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     }
 
     void validateStoredScript(String id, String lang, String code) {
-        validateScriptSize(id, code.getBytes().length);
+        validateScriptSize(id, code.length());
         if (Strings.hasLength(code)) {
             //Just try and compile it
             try {
@@ -487,11 +493,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     }
 
     private void validateScriptSize(String identifier, int scriptSizeInBytes) {
-        int allowedScriptSizeInBytes = SCRIPT_MAX_SIZE_IN_BYTES.get(settings);
-        if (scriptSizeInBytes > allowedScriptSizeInBytes) {
+        int allowedScriptSizeInLength = SCRIPT_MAX_SIZE_IN_LENGTH.get(settings);
+        if (scriptSizeInBytes > allowedScriptSizeInLength) {
             String message = LoggerMessageFormat.format(
                     "Limit of script size in bytes [{}] has been exceeded for script [{}] with size [{}]",
-                    allowedScriptSizeInBytes,
+                    allowedScriptSizeInLength,
                     identifier,
                     scriptSizeInBytes);
             throw new IllegalArgumentException(message);

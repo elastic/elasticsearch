@@ -26,7 +26,7 @@
         id: 1
   - match: { found: true }
   - match: { lang: mustache }
-  - match: { _id: "1" }
+  - match: { id: "1" }
   - match: { template: /.*query\S\S\S\Smatch_all.*/ }
 
   - do:
@@ -34,8 +34,7 @@
       get_template:
         id: 2
   - match: { found: false }
-  - match: { lang: mustache }
-  - match: { _id: "2" }
+  - match: { id: "2" }
 
   - do:
       delete_template:

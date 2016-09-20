@@ -36,6 +36,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
 
 import java.io.IOException;
@@ -60,14 +61,14 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
         }
     }
 
-    static final ParseField parseScript   = new ParseField("script");
-    static final ParseField parseContext  = new ParseField("context");
-    static final ParseField parseCode     = new ParseField("code");
-    static final ParseField parseLang     = new ParseField("lang");
+    private static final ParseField parseScript  = new ParseField("script");
+    private static final ParseField parseContext = new ParseField("context");
+    private static final ParseField parseCode    = new ParseField("code");
+    private static final ParseField parseLang    = new ParseField("lang");
 
     static final ConstructingObjectParser<StoredScriptSource, StoredScriptSourceParserContext> CONSTRUCTOR =
-        new ConstructingObjectParser<>("StoredScriptSource", source ->
-            new StoredScriptSource((String)source[0], (String)source[1], (String)source[2]));
+        new ConstructingObjectParser<>("StoredScriptSource", source -> new StoredScriptSource(
+            (String)source[0], source[1] == null ? Script.DEFAULT_SCRIPT_LANG : (String)source[1], (String)source[2]));
 
     static {
         CONSTRUCTOR.declareString(optionalConstructorArg(), parseContext);
@@ -84,7 +85,7 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, NodeClient client) {
+    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
         StoredScriptSource source = parseStoredScript(request.content());
         PutStoredScriptRequest putRequest = new PutStoredScriptRequest(request.param("id"), source);
         client.admin().cluster().putStoredScript(putRequest, new AcknowledgedRestListener<>(channel));
@@ -108,7 +109,7 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
             }
 
             if (parser.nextToken() == Token.VALUE_STRING) {
-                return new StoredScriptSource(null, null, parser.text());
+                return new StoredScriptSource(null, Script.DEFAULT_SCRIPT_LANG, parser.text());
             } else if (parser.currentToken() == Token.START_OBJECT) {
                 return CONSTRUCTOR.apply(parser, new StoredScriptSourceParserContext());
             } else {

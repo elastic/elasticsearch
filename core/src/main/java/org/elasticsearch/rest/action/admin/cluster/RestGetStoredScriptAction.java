@@ -37,7 +37,7 @@ import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetStoredScriptAction extends BaseRestHandler {
-    private static final String ID = "_id";
+    private static final String ID = "id";
     private static final String FOUND = "found";
     private static final String CONTEXT = "context";
     private static final String LANG = "lang";
@@ -45,15 +45,9 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
 
     @Inject
     public RestGetStoredScriptAction(Settings settings, RestController controller) {
-        this(settings, controller, true);
-    }
-
-    protected RestGetStoredScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers) {
         super(settings);
 
-        if (registerDefaultHandlers) {
-            controller.registerHandler(GET, "/_scripts/{id}", this);
-        }
+        controller.registerHandler(GET, "/_scripts/{id}", this);
     }
 
     @Override
@@ -64,7 +58,7 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(GetStoredScriptResponse response, XContentBuilder builder) throws Exception {
                 StoredScriptSource source = response.getSource();
-                boolean found = source == null;
+                boolean found = source != null;
 
                 builder.startObject();
                 builder.field(ID, getRequest.id());
@@ -73,7 +67,7 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
                 RestStatus status = RestStatus.NOT_FOUND;
 
                 if (found) {
-                    builder.field(CONTEXT, source.context);
+                    // builder.field(CONTEXT, source.context); TODO: once context is used start returning this
                     builder.field(LANG, source.lang);
                     builder.field(CODE, source.code);
                     status = RestStatus.OK;

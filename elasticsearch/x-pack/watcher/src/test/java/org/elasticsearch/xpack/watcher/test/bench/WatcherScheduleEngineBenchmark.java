@@ -163,7 +163,7 @@ public class WatcherScheduleEngineBenchmark {
                                 while (start.get()) {
                                     NodesStatsResponse response = client.admin().cluster().prepareNodesStats("_master").setJvm(true).get();
                                     ByteSizeValue heapUsed = response.getNodes().get(0).getJvm().getMem().getHeapUsed();
-                                    jvmUsedHeapSpace.inc(heapUsed.bytes());
+                                    jvmUsedHeapSpace.inc(heapUsed.getBytes());
                                     Thread.sleep(1000);
                                 }
                             } catch (InterruptedException ignored) {}

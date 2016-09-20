@@ -138,7 +138,7 @@ public class LegacyDateFieldTypeTests extends FieldTypeTestCase {
                 createDefaultFieldType().docValueFormat("YYYY", DateTimeZone.UTC).format(instant));
         assertEquals(instant,
                 ft.docValueFormat(null, DateTimeZone.UTC).parseLong("2015-10-12T14:10:55", false, null));
-        assertEquals(instant,
+        assertEquals(instant + 999,
                 ft.docValueFormat(null, DateTimeZone.UTC).parseLong("2015-10-12T14:10:55", true, null));
         assertEquals(LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-13").getMillis() - 1,
                 ft.docValueFormat(null, DateTimeZone.UTC).parseLong("2015-10-12||/d", true, null));

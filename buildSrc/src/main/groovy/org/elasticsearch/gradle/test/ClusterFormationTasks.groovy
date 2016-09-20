@@ -46,9 +46,9 @@ class ClusterFormationTasks {
     /**
      * Adds dependent tasks to the given task to start and stop a cluster with the given configuration.
      *
-     * Returns a NodeInfo object for the first node in the cluster.
+     * Returns a list of NodeInfo objects for each node in the cluster.
      */
-    static NodeInfo setup(Project project, Task task, ClusterConfiguration config) {
+    static List<NodeInfo> setup(Project project, Task task, ClusterConfiguration config) {
         if (task.getEnabled() == false) {
             // no need to add cluster formation tasks if the task won't run!
             return
@@ -95,22 +95,14 @@ class ClusterFormationTasks {
                 distro = project.configurations.elasticsearchBwcDistro
             }
             NodeInfo node = new NodeInfo(config, i, project, task, elasticsearchVersion, sharedDir)
-            if (i == 0) {
-                if (config.seedNodePortsFile != null) {
-                    // we might allow this in the future to be set but for now we are the only authority to set this!
-                    throw new GradleException("seedNodePortsFile has a non-null value but first node has not been intialized")
-                }
-                config.seedNodePortsFile = node.transportPortsFile;
-            }
             nodes.add(node)
-            startTasks.add(configureNode(project, task, cleanup, node, distro))
+            startTasks.add(configureNode(project, task, cleanup, node, distro, nodes.get(0)))
         }
 
         Task wait = configureWaitTask("${task.name}#wait", project, nodes, startTasks)
         task.dependsOn(wait)
 
-        // delay the resolution of the uri by wrapping in a closure, so it is not used until read for tests
-        return nodes[0]
+        return nodes
     }
 
     /** Adds a dependency on the given distribution */
@@ -141,7 +133,7 @@ class ClusterFormationTasks {
      *
      * @return a task which starts the node.
      */
-    static Task configureNode(Project project, Task task, Object dependsOn, NodeInfo node, Configuration configuration) {
+    static Task configureNode(Project project, Task task, Object dependsOn, NodeInfo node, Configuration configuration, NodeInfo seedNode) {
 
         // tasks are chained so their execution order is maintained
         Task setup = project.tasks.create(name: taskName(task, node, 'clean'), type: Delete, dependsOn: dependsOn) {
@@ -154,7 +146,7 @@ class ClusterFormationTasks {
         setup = configureCheckPreviousTask(taskName(task, node, 'checkPrevious'), project, setup, node)
         setup = configureStopTask(taskName(task, node, 'stopPrevious'), project, setup, node)
         setup = configureExtractTask(taskName(task, node, 'extract'), project, setup, node, configuration)
-        setup = configureWriteConfigTask(taskName(task, node, 'configure'), project, setup, node)
+        setup = configureWriteConfigTask(taskName(task, node, 'configure'), project, setup, node, seedNode)
         setup = configureExtraConfigFilesTask(taskName(task, node, 'extraConfig'), project, setup, node)
         setup = configureCopyPluginsTask(taskName(task, node, 'copyPlugins'), project, setup, node)
 
@@ -181,9 +173,10 @@ class ClusterFormationTasks {
         Task start = configureStartTask(taskName(task, node, 'start'), project, setup, node)
 
         if (node.config.daemonize) {
-            // if we are running in the background, make sure to stop the server when the task completes
             Task stop = configureStopTask(taskName(task, node, 'stop'), project, [], node)
+            // if we are running in the background, make sure to stop the server when the task completes
             task.finalizedBy(stop)
+            start.finalizedBy(stop)
         }
         return start
     }
@@ -249,7 +242,7 @@ class ClusterFormationTasks {
     }
 
     /** Adds a task to write elasticsearch.yml for the given node configuration */
-    static Task configureWriteConfigTask(String name, Project project, Task setup, NodeInfo node) {
+    static Task configureWriteConfigTask(String name, Project project, Task setup, NodeInfo node, NodeInfo seedNode) {
         Map esConfig = [
                 'cluster.name'                 : node.clusterName,
                 'pidfile'                      : node.pidFile,
@@ -266,15 +259,9 @@ class ClusterFormationTasks {
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         writeConfig.doFirst {
-            if (node.nodeNum > 0) { // multi-node cluster case, we have to wait for the seed node to startup
-                ant.waitfor(maxwait: '20', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond') {
-                    resourceexists {
-                        file(file: node.config.seedNodePortsFile.toString())
-                    }
-                }
-                // the seed node is enough to form the cluster - all subsequent nodes will get the seed node as a unicast
-                // host and join the cluster via that.
-                esConfig['discovery.zen.ping.unicast.hosts'] = "\"${node.config.seedNodeTransportUri()}\""
+            String unicastTransportUri = node.config.unicastTransportUri(seedNode, node, project.ant)
+            if (unicastTransportUri != null) {
+                esConfig['discovery.zen.ping.unicast.hosts'] = "\"${unicastTransportUri}\""
             }
             File configFile = new File(node.confDir, 'elasticsearch.yml')
             logger.info("Configuring ${configFile}")

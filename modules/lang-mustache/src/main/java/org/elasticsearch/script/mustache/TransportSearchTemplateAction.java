@@ -84,6 +84,8 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
                 SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
                 builder.parseXContent(new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher),
                     searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
+                builder.explain(request.isExplain());
+                builder.profile(request.isProfile());
                 searchRequest.source(builder);
 
                 searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {

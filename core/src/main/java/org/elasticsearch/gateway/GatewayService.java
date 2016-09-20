@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -282,11 +281,8 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                     routingTableBuilder.version(0);
 
                     // now, reroute
-                    RoutingAllocation.Result routingResult = allocationService.reroute(
-                            ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
-                            "state recovered");
-
-                    return ClusterState.builder(updatedState).routingResult(routingResult).build();
+                    updatedState = ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build();
+                    return allocationService.reroute(updatedState, "state recovered");
                 }
 
                 @Override

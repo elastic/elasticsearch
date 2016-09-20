@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -31,7 +32,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 
 import java.util.Collections;
@@ -71,12 +71,12 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             ,allocation), Decision.NO);
 
         // after failing the shard we are unassigned since the node is blacklisted and we can't initialize on the other node
-        state = stateFromResult(state, service.reroute(state, "try allocate again"));
+        state = service.reroute(state, "try allocate again");
         routingTable = state.routingTable();
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).currentNodeId(), "node2");
 
-        state = stateFromResult(state, service.applyStartedShards(state, routingTable.index("idx").shard(0).shards()));
+        state = service.applyStartedShards(state, routingTable.index("idx").shard(0).shards());
         routingTable = state.routingTable();
 
         // ok now we are started and can be allocated anywhere!! lets see...
@@ -84,7 +84,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).currentNodeId(), "node2");
 
         // we fail it again to check if we are initializing immediately on the other node
-        state = stateFromResult(state, service.applyFailedShard(state, routingTable.index("idx").shard(0).shards().get(0)));
+        state = service.applyFailedShard(state, routingTable.index("idx").shard(0).shards().get(0));
         routingTable = state.routingTable();
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).currentNodeId(), "node1");
@@ -97,10 +97,6 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         assertEquals(filterAllocationDecider.canAllocate(routingTable.index("idx").shard(0).shards().get(0),
             state.getRoutingNodes().node("node1")
             ,allocation), Decision.YES);
-    }
-
-    private ClusterState stateFromResult(ClusterState previousState, RoutingAllocation.Result result) {
-        return ClusterState.builder(previousState).routingTable(result.routingTable()).metaData(result.metaData()).build();
     }
 
     private ClusterState createInitialClusterState(AllocationService service, Settings settings) {

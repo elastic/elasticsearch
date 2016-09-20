@@ -972,7 +972,6 @@
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]test[/\\]geo[/\\]RandomShapeGenerator.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]test[/\\]hamcrest[/\\]ElasticsearchGeoAssertions.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]timestamp[/\\]SimpleTimestampIT.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]tribe[/\\]TribeIT.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]ttl[/\\]SimpleTTLIT.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]update[/\\]UpdateIT.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]validate[/\\]SimpleValidateQueryIT.java" checks="LineLength" />
@@ -1016,14 +1015,6 @@
   <suppress files="plugins[/\\]lang-python[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]python[/\\]PythonScriptEngineTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]lang-python[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]python[/\\]PythonScriptMultiThreadedTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]lang-python[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]python[/\\]PythonSecurityTests.java" checks="LineLength" />
-  <suppress files="plugins[/\\]mapper-attachments[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]mapper[/\\]attachments[/\\]AttachmentMapper.java" checks="LineLength" />
-  <suppress files="plugins[/\\]mapper-attachments[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]mapper[/\\]attachments[/\\]DateAttachmentMapperTests.java" checks="LineLength" />
-  <suppress files="plugins[/\\]mapper-attachments[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]mapper[/\\]attachments[/\\]EncryptedDocMapperTests.java" checks="LineLength" />
-  <suppress files="plugins[/\\]mapper-attachments[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]mapper[/\\]attachments[/\\]MetadataMapperTests.java" checks="LineLength" />
-  <suppress files="plugins[/\\]mapper-attachments[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]mapper[/\\]attachments[/\\]MultifieldAttachmentMapperTests.java" checks="LineLength" />
-  <suppress files="plugins[/\\]mapper-attachments[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]mapper[/\\]attachments[/\\]SimpleAttachmentMapperTests.java" checks="LineLength" />
-  <suppress files="plugins[/\\]mapper-attachments[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]mapper[/\\]attachments[/\\]StandaloneRunner.java" checks="LineLength" />
-  <suppress files="plugins[/\\]mapper-attachments[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]mapper[/\\]attachments[/\\]VariousDocTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]mapper-murmur3[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]mapper[/\\]murmur3[/\\]Murmur3FieldMapper.java" checks="LineLength" />
   <suppress files="plugins[/\\]mapper-murmur3[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]mapper[/\\]murmur3[/\\]Murmur3FieldMapperTests.java" checks="LineLength" />
   <suppress files="plugins[/\\]mapper-murmur3[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]mapper[/\\]murmur3[/\\]Murmur3FieldMapperUpgradeTests.java" checks="LineLength" />

@@ -124,7 +124,8 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         } else {
             sourceIndex = null;
         }
-        final IndexMetaData indexMetaData = IndexMetaData.builder("idx").settings(indexSettings).numberOfShards(1).numberOfReplicas(1).build();
+        final IndexMetaData indexMetaData = IndexMetaData.builder("idx").settings(indexSettings)
+            .numberOfShards(1).numberOfReplicas(1).build();
         metaData.put(indexMetaData, false);
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         if (shrinkIndex) {

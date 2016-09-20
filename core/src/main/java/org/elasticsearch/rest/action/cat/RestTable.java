@@ -302,17 +302,17 @@ public class RestTable {
             ByteSizeValue v = (ByteSizeValue) value;
             String resolution = request.param("bytes");
             if ("b".equals(resolution)) {
-                return Long.toString(v.toBytes());
+                return Long.toString(v.getBytes());
             } else if ("k".equals(resolution) || "kb".equals(resolution)) {
-                return Long.toString(v.toKB());
+                return Long.toString(v.getKb());
             } else if ("m".equals(resolution) || "mb".equals(resolution)) {
-                return Long.toString(v.toMB());
+                return Long.toString(v.getMb());
             } else if ("g".equals(resolution) || "gb".equals(resolution)) {
-                return Long.toString(v.toGB());
+                return Long.toString(v.getGb());
             } else if ("t".equals(resolution) || "tb".equals(resolution)) {
-                return Long.toString(v.toTB());
+                return Long.toString(v.getTb());
             } else if ("p".equals(resolution) || "pb".equals(resolution)) {
-                return Long.toString(v.toPB());
+                return Long.toString(v.getPb());
             } else {
                 return v.toString();
             }

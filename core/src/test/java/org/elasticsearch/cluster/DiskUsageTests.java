@@ -268,8 +268,8 @@ public class DiskUsageTests extends ESTestCase {
         assertNotNull(usage);
         assertNotNull(path);
         assertEquals(usage.toString(), usage.getPath(), path.getPath());
-        assertEquals(usage.toString(), usage.getTotalBytes(), path.getTotal().toBytes());
-        assertEquals(usage.toString(), usage.getFreeBytes(), path.getAvailable().toBytes());
+        assertEquals(usage.toString(), usage.getTotalBytes(), path.getTotal().getBytes());
+        assertEquals(usage.toString(), usage.getFreeBytes(), path.getAvailable().getBytes());
 
     }
 }

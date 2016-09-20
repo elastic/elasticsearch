@@ -74,9 +74,9 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
         logger.debug("using [node] query cache with size [{}] max filter count [{}]",
                 size, count);
         if (INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.get(settings)) {
-            cache = new ElasticsearchLRUQueryCache(count, size.toBytes(), context -> true);
+            cache = new ElasticsearchLRUQueryCache(count, size.getBytes(), context -> true);
         } else {
-            cache = new ElasticsearchLRUQueryCache(count, size.toBytes());
+            cache = new ElasticsearchLRUQueryCache(count, size.getBytes());
         }
         sharedRamBytesUsed = 0;
     }

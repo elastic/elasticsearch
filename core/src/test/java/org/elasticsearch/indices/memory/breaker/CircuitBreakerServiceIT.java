@@ -467,11 +467,11 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
                 for (BulkItemResponse bulkItemResponse : response) {
                     Throwable cause = ExceptionsHelper.unwrapCause(bulkItemResponse.getFailure().getCause());
                     assertThat(cause, instanceOf(CircuitBreakingException.class));
-                    assertEquals(((CircuitBreakingException) cause).getByteLimit(), inFlightRequestsLimit.toBytes());
+                    assertEquals(((CircuitBreakingException) cause).getByteLimit(), inFlightRequestsLimit.getBytes());
                 }
             }
         } catch (CircuitBreakingException ex) {
-            assertEquals(ex.getByteLimit(), inFlightRequestsLimit.toBytes());
+            assertEquals(ex.getByteLimit(), inFlightRequestsLimit.getBytes());
         }
     }
 }

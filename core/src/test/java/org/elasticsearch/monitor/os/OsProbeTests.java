@@ -88,25 +88,25 @@ public class OsProbeTests extends ESTestCase {
         }
 
         assertNotNull(stats.getMem());
-        assertThat(stats.getMem().getTotal().toBytes(), greaterThan(0L));
-        assertThat(stats.getMem().getFree().toBytes(), greaterThan(0L));
+        assertThat(stats.getMem().getTotal().getBytes(), greaterThan(0L));
+        assertThat(stats.getMem().getFree().getBytes(), greaterThan(0L));
         assertThat(stats.getMem().getFreePercent(), allOf(greaterThanOrEqualTo((short) 0), lessThanOrEqualTo((short) 100)));
-        assertThat(stats.getMem().getUsed().toBytes(), greaterThan(0L));
+        assertThat(stats.getMem().getUsed().getBytes(), greaterThan(0L));
         assertThat(stats.getMem().getUsedPercent(), allOf(greaterThanOrEqualTo((short) 0), lessThanOrEqualTo((short) 100)));
 
         assertNotNull(stats.getSwap());
         assertNotNull(stats.getSwap().getTotal());
 
-        long total = stats.getSwap().getTotal().toBytes();
+        long total = stats.getSwap().getTotal().getBytes();
         if (total > 0) {
-            assertThat(stats.getSwap().getTotal().toBytes(), greaterThan(0L));
-            assertThat(stats.getSwap().getFree().toBytes(), greaterThan(0L));
-            assertThat(stats.getSwap().getUsed().toBytes(), greaterThanOrEqualTo(0L));
+            assertThat(stats.getSwap().getTotal().getBytes(), greaterThan(0L));
+            assertThat(stats.getSwap().getFree().getBytes(), greaterThan(0L));
+            assertThat(stats.getSwap().getUsed().getBytes(), greaterThanOrEqualTo(0L));
         } else {
             // On platforms with no swap
-            assertThat(stats.getSwap().getTotal().toBytes(), equalTo(0L));
-            assertThat(stats.getSwap().getFree().toBytes(), equalTo(0L));
-            assertThat(stats.getSwap().getUsed().toBytes(), equalTo(0L));
+            assertThat(stats.getSwap().getTotal().getBytes(), equalTo(0L));
+            assertThat(stats.getSwap().getFree().getBytes(), equalTo(0L));
+            assertThat(stats.getSwap().getUsed().getBytes(), equalTo(0L));
         }
     }
 }

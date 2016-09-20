@@ -55,10 +55,10 @@ public abstract class S3OutputStream extends OutputStream {
         this.numberOfRetries = numberOfRetries;
         this.serverSideEncryption = serverSideEncryption;
 
-        if (bufferSizeInBytes < MULTIPART_MIN_SIZE.toBytes()) {
+        if (bufferSizeInBytes < MULTIPART_MIN_SIZE.getBytes()) {
             throw new IllegalArgumentException("Buffer size can't be smaller than " + MULTIPART_MIN_SIZE);
         }
-        if (bufferSizeInBytes > MULTIPART_MAX_SIZE.toBytes()) {
+        if (bufferSizeInBytes > MULTIPART_MAX_SIZE.getBytes()) {
             throw new IllegalArgumentException("Buffer size can't be larger than " + MULTIPART_MAX_SIZE);
         }
 

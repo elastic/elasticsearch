@@ -99,7 +99,7 @@ public class RecoverySettings extends AbstractComponent {
 
         this.activityTimeout = INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.get(settings);
         this.maxBytesPerSec = INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings);
-        if (maxBytesPerSec.toBytes() <= 0) {
+        if (maxBytesPerSec.getBytes() <= 0) {
             rateLimiter = null;
         } else {
             rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
@@ -172,7 +172,7 @@ public class RecoverySettings extends AbstractComponent {
 
     private void setMaxBytesPerSec(ByteSizeValue maxBytesPerSec) {
         this.maxBytesPerSec = maxBytesPerSec;
-        if (maxBytesPerSec.toBytes() <= 0) {
+        if (maxBytesPerSec.getBytes() <= 0) {
             rateLimiter = null;
         } else if (rateLimiter != null) {
             rateLimiter.setMBPerSec(maxBytesPerSec.getMbFrac());

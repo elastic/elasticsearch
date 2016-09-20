@@ -68,7 +68,7 @@ public class StoreRateLimiting {
     }
 
     public void setMaxRate(ByteSizeValue rate) {
-        if (rate.toBytes() <= 0) {
+        if (rate.getBytes() <= 0) {
             actualRateLimiter = null;
         } else if (actualRateLimiter == null) {
             actualRateLimiter = rateLimiter;

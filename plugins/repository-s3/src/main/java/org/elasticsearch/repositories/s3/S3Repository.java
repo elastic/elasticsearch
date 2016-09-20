@@ -278,7 +278,7 @@ public class S3Repository extends BlobStoreRepository {
         this.compress = getValue(metadata.settings(), settings, Repository.COMPRESS_SETTING, Repositories.COMPRESS_SETTING);
 
         // We make sure that chunkSize is bigger or equal than/to bufferSize
-        if (this.chunkSize.toBytes() < bufferSize.toBytes()) {
+        if (this.chunkSize.getBytes() < bufferSize.getBytes()) {
             throw new RepositoryException(metadata.name(), Repository.CHUNK_SIZE_SETTING.getKey() + " (" + this.chunkSize +
                 ") can't be lower than " + Repository.BUFFER_SIZE_SETTING.getKey() + " (" + bufferSize + ").");
         }

@@ -68,7 +68,7 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
     protected PageCacheRecycler(Settings settings) {
         super(settings);
         final Type type = TYPE_SETTING .get(settings);
-        final long limit = LIMIT_HEAP_SETTING .get(settings).toBytes();
+        final long limit = LIMIT_HEAP_SETTING .get(settings).getBytes();
         final int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
 
         // We have a global amount of memory that we need to divide across data types.

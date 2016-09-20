@@ -765,7 +765,7 @@ public class StoreTests extends ESTestCase {
             initialStoreSize += store.directory().fileLength(extraFiles);
         }
         StoreStats stats = store.stats();
-        assertEquals(stats.getSize().toBytes(), initialStoreSize);
+        assertEquals(stats.getSize().getBytes(), initialStoreSize);
 
         Directory dir = store.directory();
         final long length;

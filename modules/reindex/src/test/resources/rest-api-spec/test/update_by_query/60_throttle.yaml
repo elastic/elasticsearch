@@ -116,6 +116,8 @@
       tasks.get:
         wait_for_completion: true
         task_id: $task
+  - match: {response.batches: 3}
+  - match: {response.updated: 3}
 
 ---
 "Rethrottle but not unlimited":
@@ -163,3 +165,5 @@
       tasks.get:
         wait_for_completion: true
         task_id: $task
+  - match: {response.batches: 3}
+  - match: {response.updated: 3}

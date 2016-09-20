@@ -8,6 +8,9 @@
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: dest
 
   - do:
       reindex:
@@ -70,6 +73,9 @@
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: dest
 
   - do:
       reindex:
@@ -195,6 +201,9 @@
         body:    { "user": "kimchy" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: new_twitter
 
   - do:
       reindex:
@@ -226,6 +235,9 @@
         body:    { "user": "kimchy" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: new_twitter
 
   - do:
       reindex:
@@ -258,6 +270,9 @@
         body:    { "user": "junk" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: new_twitter
 
   - do:
       reindex:
@@ -292,6 +307,9 @@
         body:    { "user": "kimchy" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: new_twitter
 
   - do:
       reindex:
@@ -326,6 +344,9 @@
         body:   { "user": "kimchy" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: all_together
 
   - do:
       reindex:
@@ -373,6 +394,9 @@
         body:   { "user": "kimchy" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: new_twitter
 
   - do:
       reindex:
@@ -400,6 +424,9 @@
         body:    {}
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: dest
 
   - do:
       reindex:

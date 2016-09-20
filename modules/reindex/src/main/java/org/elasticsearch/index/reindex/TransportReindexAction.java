@@ -35,7 +35,6 @@ import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
@@ -52,6 +51,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServer;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.TTLFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
@@ -85,7 +85,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     private final ClusterService clusterService;
     private final ScriptService scriptService;
-    private final AutoCreateIndex autoCreateIndex;
     private final Client client;
     private final Set<String> remoteWhitelist;
     private final HttpServer httpServer;
@@ -93,12 +92,11 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     @Inject
     public TransportReindexAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, ScriptService scriptService,
-            AutoCreateIndex autoCreateIndex, Client client, TransportService transportService, @Nullable HttpServer httpServer) {
+            Client client, TransportService transportService, @Nullable HttpServer httpServer) {
         super(settings, ReindexAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 ReindexRequest::new);
         this.clusterService = clusterService;
         this.scriptService = scriptService;
-        this.autoCreateIndex = autoCreateIndex;
         this.client = client;
         remoteWhitelist = new HashSet<>(REMOTE_CLUSTER_WHITELIST.get(settings));
         this.httpServer = httpServer;
@@ -109,7 +107,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         checkRemoteWhitelist(request.getRemoteInfo());
         ClusterState state = clusterService.state();
         validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(), indexNameExpressionResolver,
-                autoCreateIndex, state);
+                state);
         ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
         new AsyncIndexBySearchAction((BulkByScrollTask) task, logger, client, threadPool, request, listener, scriptService, state).start();
     }
@@ -151,24 +149,15 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      * isn't available then. Package private for testing.
      */
     static void validateAgainstAliases(SearchRequest source, IndexRequest destination, RemoteInfo remoteInfo,
-                                         IndexNameExpressionResolver indexNameExpressionResolver, AutoCreateIndex autoCreateIndex,
-                                         ClusterState clusterState) {
+            IndexNameExpressionResolver indexNameExpressionResolver, ClusterState clusterState) {
         if (remoteInfo != null) {
             return;
         }
-        String target = destination.index();
-        if (false == autoCreateIndex.shouldAutoCreate(target, clusterState)) {
-            /*
-             * If we're going to autocreate the index we don't need to resolve
-             * it. This is the same sort of dance that TransportIndexRequest
-             * uses to decide to autocreate the index.
-             */
-            target = indexNameExpressionResolver.concreteIndexNames(clusterState, destination)[0];
-        }
-        for (String sourceIndex : indexNameExpressionResolver.concreteIndexNames(clusterState, source)) {
+        Index target = indexNameExpressionResolver.concreteIndices(clusterState, destination)[0];
+        for (Index sourceIndex : indexNameExpressionResolver.concreteIndices(clusterState, source)) {
             if (sourceIndex.equals(target)) {
                 ActionRequestValidationException e = new ActionRequestValidationException();
-                e.addValidationError("reindex cannot write into an index its reading from [" + target + ']');
+                e.addValidationError("reindex cannot write into an index its reading from " + target);
                 throw e;
             }
         }

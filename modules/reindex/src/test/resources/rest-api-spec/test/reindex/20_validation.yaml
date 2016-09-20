@@ -48,6 +48,9 @@
         id:      1
         body:    { "text": "test" }
   - do:
+      indices.create:
+        index: dest
+  - do:
       reindex:
         body:
           source:
@@ -215,6 +218,9 @@
         body:   { age: 23 }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: dest
 
   - do:
       catch: /\[test\]\[test\]\[1\] didn't store _source/

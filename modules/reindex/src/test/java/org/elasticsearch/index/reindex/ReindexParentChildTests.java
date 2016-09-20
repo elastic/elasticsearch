@@ -29,7 +29,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Index-by-search tests for parent/child.
+ * Reindex tests for parent/child.
  */
 public class ReindexParentChildTests extends ReindexTestCase {
     QueryBuilder findsCountry;
@@ -73,14 +73,11 @@ public class ReindexParentChildTests extends ReindexTestCase {
     public void testErrorMessageWhenBadParentChild() throws Exception {
         createParentChildIndex("source");
         createParentChildDocs("source");
+        assertAcked(client().admin().indices().prepareCreate("dest").get());
 
-        ReindexRequestBuilder copy = reindex().source("source").destination("dest").filter(findsCity);
-        try {
-            copy.get();
-            fail("Expected exception");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Can't specify parent if no parent field has been configured"));
-        }
+        Exception e = expectThrows(IllegalArgumentException.class, () ->
+            reindex().source("source").destination("dest").filter(findsCity).get());
+        assertThat(e.getMessage(), equalTo("Can't specify parent if no parent field has been configured"));
     }
 
     /**

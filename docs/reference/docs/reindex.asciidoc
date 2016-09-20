@@ -3,11 +3,19 @@
 
 experimental[The reindex API is new and should still be considered experimental.  The API may change in ways that are not backwards compatible]
 
-The most basic form of `_reindex` just copies documents from one index to another.
-This will copy documents from the `twitter` index into the `new_twitter` index:
+`_reindex` copies documents from one index to another. It never creates new
+indexes. Instead, you should create the destination index before starting the
+reindex process. This will copy documents from the `twitter` index into the
+`new_twitter` index:
 
 [source,js]
 --------------------------------------------------
+PUT new_twitter
+{
+  "settings": {
+    "index.number_of_shards": 1
+  }
+}
 POST _reindex
 {
   "source": {
@@ -70,6 +78,7 @@ POST _reindex
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
+// TEST[s/^/PUT new_twitter\n/]
 
 Setting `version_type` to `external` will cause Elasticsearch to preserve the
 `version` from the source, create any documents that are missing, and update
@@ -91,6 +100,7 @@ POST _reindex
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
+// TEST[s/^/PUT new_twitter\n/]
 
 Settings `op_type` to `create` will cause `_reindex` to only create missing
 documents in the target index. All existing documents will cause a version
@@ -111,6 +121,7 @@ POST _reindex
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
+// TEST[s/^/PUT new_twitter\n/]
 
 By default version conflicts abort the `_reindex` process but you can just
 count them by settings `"conflicts": "proceed"` in the request body:
@@ -131,6 +142,7 @@ POST _reindex
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
+// TEST[s/^/PUT new_twitter\n/]
 
 You can limit the documents by adding a type to the `source` or by adding a
 query. This will only copy ++tweet++&apos;s made by `kimchy` into `new_twitter`:
@@ -155,6 +167,7 @@ POST _reindex
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
+// TEST[s/^/PUT new_twitter\n/]
 
 `index` and `type` in `source` can both be lists, allowing you to copy from
 lots of sources in one request. This will copy documents from the `tweet` and
@@ -179,6 +192,7 @@ POST _reindex
 --------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT twitter\nPUT blog\n/]
+// TEST[s/^/PUT all_together\n/]
 
 It's also possible to limit the number of processed documents by setting
 `size`. This will only copy a single document from `twitter` to
@@ -199,6 +213,7 @@ POST _reindex
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
+// TEST[s/^/PUT new_twitter\n/]
 
 If you want a particular set of documents from the twitter index you'll
 need to sort. Sorting makes the scroll less efficient but in some contexts
@@ -221,6 +236,7 @@ POST _reindex
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
+// TEST[s/^/PUT new_twitter\n/]
 
 Like `_update_by_query`, `_reindex` supports a script that modifies the
 document. Unlike `_update_by_query`, the script is allowed to modify the
@@ -245,6 +261,7 @@ POST _reindex
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
+// TEST[s/^/PUT new_twitter\n/]
 
 Just as in `_update_by_query`, you can set `ctx.op` to change the
 operation that is executed on the destination index:
@@ -321,6 +338,7 @@ POST _reindex
 --------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT source\n/]
+// TEST[s/^/PUT dest\n/]
 
 By default `_reindex` uses scroll batches of 1000. You can change the
 batch size with the `size` field in the `source` element:
@@ -341,6 +359,7 @@ POST _reindex
 --------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT source\n/]
+// TEST[s/^/PUT dest\n/]
 
 Reindex can also use the <<ingest>> feature by specifying a
 `pipeline` like this:
@@ -360,6 +379,7 @@ POST _reindex
 --------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT source\n/]
+// TEST[s/^/PUT dest\n/]
 
 [float]
 === Reindex from Remote
@@ -394,6 +414,7 @@ POST _reindex
 // TEST[s/otherhost:9200",/\${host}"/]
 // TEST[s/"username": "user",//]
 // TEST[s/"password": "pass"//]
+// TEST[s/^/PUT dest\n/]
 
 The `host` parameter must contain a scheme, host, and port (e.g.
 `https://otherhost:9200`). The `username` and `password` parameters are
@@ -664,6 +685,7 @@ POST _reindex
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+// TEST[s/^/PUT test2\n/]
 
 Now you can get the new document:
 
@@ -716,23 +738,25 @@ The new template for the `metricbeat-*` indices is already loaded into elasticse
 but it applies only to the newly created indices. Painless can be used to reindex
 the existing documents and apply the new template.
 
-The script below extracts the date from the index name and creates a new index
-with `-1` appended. All data from `metricbeat-2016.05.31` will be reindex
-into `metricbeat-2016.05.31-1`.
+The script below extracts the date from the index name and appends `-1` to the
+non-date part. All data from `metricbeat-2016.05.31` will be reindex into
+`metricbeat-1-2016.05.31`, etc.
 
 [source,js]
 ----------------------------------------------------------------
+PUT metricbeat-1-2016.05.30
+PUT metricbeat-1-2016.05.31
 POST _reindex
 {
   "source": {
-    "index": "metricbeat-*"
+    "index": "metricbeat-2016.*"
   },
   "dest": {
-    "index": "metricbeat"
+    "index": "metricbeat-1-2016.05.30"
   },
   "script": {
     "lang": "painless",
-    "inline": "ctx._index = 'metricbeat-' + (ctx._index.substring('metricbeat-'.length(), ctx._index.length())) + '-1'"
+    "inline": "ctx._index = 'metricbeat-1-' + ctx._index.substring('metricbeat-'.length())"
   }
 }
 ----------------------------------------------------------------
@@ -743,8 +767,8 @@ All documents from the previous metricbeat indices now can be found in the `*-1`
 
 [source,js]
 ----------------------------------------------------------------
-GET metricbeat-2016.05.30-1/beat/1
-GET metricbeat-2016.05.31-1/beat/1
+GET metricbeat-1-2016.05.30/beat/1
+GET metricbeat-1-2016.05.31/beat/1
 ----------------------------------------------------------------
 // CONSOLE
 // TEST[continued]

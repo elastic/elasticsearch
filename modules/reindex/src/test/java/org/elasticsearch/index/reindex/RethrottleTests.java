@@ -22,6 +22,7 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -32,6 +33,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class RethrottleTests extends ReindexTestCase {
 
     public void testReindex() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("dest").get());
         testCase(reindex().source("test").destination("dest"), ReindexAction.NAME);
     }
 

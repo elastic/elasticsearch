@@ -8,6 +8,9 @@
         body:   { "user": "kimchy" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: new_twitter
 
   - do:
       catch: request

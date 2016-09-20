@@ -29,6 +29,9 @@
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: dest
 
   - do:
       reindex:
@@ -78,6 +81,9 @@
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: dest
 
   - do:
       reindex:
@@ -127,6 +133,9 @@
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: dest
 
   - do:
       reindex:
@@ -150,6 +159,8 @@
       tasks.get:
         wait_for_completion: true
         task_id: $task
+  - match: {response.total: 3}
+  - match: {response.created: 3}
 
 ---
 "Rethrottle but not unlimited":
@@ -182,6 +193,9 @@
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: dest
 
   - do:
       reindex:
@@ -205,3 +219,5 @@
       tasks.get:
         wait_for_completion: true
         task_id: $task
+  - match: {response.total: 3}
+  - match: {response.created: 3}

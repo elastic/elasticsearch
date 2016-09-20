@@ -14,6 +14,9 @@
         body:   { "text": "junk" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: target
 
   - do:
       reindex:
@@ -48,6 +51,9 @@
         body:   { "order": 2 }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: target
 
   - do:
       reindex:

@@ -24,6 +24,7 @@ import org.elasticsearch.action.get.GetResponse;
 import static org.elasticsearch.action.index.IndexRequest.OpType.CREATE;
 import static org.elasticsearch.index.VersionType.EXTERNAL;
 import static org.elasticsearch.index.VersionType.INTERNAL;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 
 public class ReindexVersioningTests extends ReindexTestCase {
@@ -32,7 +33,7 @@ public class ReindexVersioningTests extends ReindexTestCase {
     private static final int NEWER_VERSION = 10;
 
     public void testExternalVersioningCreatesWhenAbsentAndSetsVersion() throws Exception {
-        setupSourceAbsent();
+        setupDestAbset();
         assertThat(reindexExternal(), matcher().created(1));
         assertDest("source", SOURCE_VERSION);
     }
@@ -50,7 +51,7 @@ public class ReindexVersioningTests extends ReindexTestCase {
     }
 
     public void testInternalVersioningCreatesWhenAbsent() throws Exception {
-        setupSourceAbsent();
+        setupDestAbset();
         assertThat(reindexInternal(), matcher().created(1));
         assertDest("source", 1);
     }
@@ -68,7 +69,7 @@ public class ReindexVersioningTests extends ReindexTestCase {
     }
 
     public void testCreateCreatesWhenAbsent() throws Exception {
-        setupSourceAbsent();
+        setupDestAbset();
         assertThat(reindexCreate(), matcher().created(1));
         assertDest("source", 1);
     }
@@ -112,15 +113,15 @@ public class ReindexVersioningTests extends ReindexTestCase {
         return reindex.get();
     }
 
-    private void setupSourceAbsent() throws Exception {
+    private void setupSource() throws Exception {
         indexRandom(true, client().prepareIndex("source", "test", "test").setVersionType(EXTERNAL)
                 .setVersion(SOURCE_VERSION).setSource("foo", "source"));
 
         assertEquals(SOURCE_VERSION, client().prepareGet("source", "test", "test").get().getVersion());
     }
 
-    private void setupDest(int version) throws Exception {
-        setupSourceAbsent();
+    private void setupDestWithDoc(int version) throws Exception {
+        setupSource();
         indexRandom(true, client().prepareIndex("dest", "test", "test").setVersionType(EXTERNAL)
                 .setVersion(version).setSource("foo", "dest"));
 
@@ -128,11 +129,16 @@ public class ReindexVersioningTests extends ReindexTestCase {
     }
 
     private void setupDestOlder() throws Exception {
-        setupDest(OLDER_VERSION);
+        setupDestWithDoc(OLDER_VERSION);
     }
 
     private void setupDestNewer() throws Exception {
-        setupDest(NEWER_VERSION);
+        setupDestWithDoc(NEWER_VERSION);
+    }
+
+    private void setupDestAbset() throws Exception {
+        setupSource();
+        assertAcked(client().admin().indices().prepareCreate("dest").get());
     }
 
     private void assertDest(String fooValue, int version) {

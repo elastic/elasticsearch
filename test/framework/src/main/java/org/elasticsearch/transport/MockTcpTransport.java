@@ -98,7 +98,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         socket.bind(address);
         socket.setReuseAddress(TCP_REUSE_ADDRESS.get(settings()));
         ByteSizeValue tcpReceiveBufferSize = TCP_RECEIVE_BUFFER_SIZE.get(settings);
-        if (tcpReceiveBufferSize.bytes() > 0) {
+        if (tcpReceiveBufferSize.getBytes() > 0) {
             socket.setReceiveBufferSize(tcpReceiveBufferSize.bytesAsInt());
         }
         MockChannel serverMockChannel = new MockChannel(socket, name);
@@ -210,11 +210,11 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     private void configureSocket(Socket socket) throws SocketException {
         socket.setTcpNoDelay(TCP_NO_DELAY.get(settings));
         ByteSizeValue tcpSendBufferSize = TCP_SEND_BUFFER_SIZE.get(settings);
-        if (tcpSendBufferSize.bytes() > 0) {
+        if (tcpSendBufferSize.getBytes() > 0) {
             socket.setSendBufferSize(tcpSendBufferSize.bytesAsInt());
         }
         ByteSizeValue tcpReceiveBufferSize = TCP_RECEIVE_BUFFER_SIZE.get(settings);
-        if (tcpReceiveBufferSize.bytes() > 0) {
+        if (tcpReceiveBufferSize.getBytes() > 0) {
             socket.setReceiveBufferSize(tcpReceiveBufferSize.bytesAsInt());
         }
         socket.setReuseAddress(TCP_REUSE_ADDRESS.get(settings()));

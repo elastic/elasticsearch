@@ -1222,7 +1222,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (engine != null) {
             try {
                 Translog translog = engine.getTranslog();
-                return translog.sizeInBytes() > indexSettings.getFlushThresholdSize().bytes();
+                return translog.sizeInBytes() > indexSettings.getFlushThresholdSize().getBytes();
             } catch (AlreadyClosedException | EngineClosedException ex) {
                 // that's fine we are already close - no need to flush
             }

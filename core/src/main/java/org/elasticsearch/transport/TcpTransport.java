@@ -145,7 +145,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         Setting.byteSizeSetting("transport.tcp.receive_buffer_size", NetworkService.TcpSettings.TCP_RECEIVE_BUFFER_SIZE,
             Setting.Property.NodeScope);
 
-    private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().bytes() * 0.9);
+    private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
     private static final int PING_DATA_SIZE = -1;
 
     protected final int connectionsPerNodeRecovery;

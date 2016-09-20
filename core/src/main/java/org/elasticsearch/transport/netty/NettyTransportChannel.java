@@ -141,7 +141,6 @@ public class NettyTransportChannel implements TransportChannel {
         BytesReference bytes = stream.bytes();
         ChannelBuffer buffer = bytes.toChannelBuffer();
         NettyHeader.writeHeader(buffer, requestId, status, version);
-        channel.write(buffer);
         ChannelFuture future = channel.write(buffer);
         ChannelFutureListener onResponseSentListener = new ChannelFutureListener() {
             @Override

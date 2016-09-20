@@ -367,8 +367,8 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testCreateShrinkIndex() {
-        internalCluster().ensureAtLeastNumDataNodes(2);
-        prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", randomIntBetween(2, 7))).get();
+        internalCluster().ensureAtLeastNumDataNodes(4);
+        prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_replicas", 1).put("number_of_shards", 2)).get();
         for (int i = 0; i < 20; i++) {
             client().prepareIndex("source", randomFrom("t1", "t2", "t3")).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
         }
@@ -388,16 +388,23 @@ public class CreateIndexIT extends ESIntegTestCase {
                 .put("index.blocks.write", true)).get();
         ensureGreen();
         // now merge source into a single shard index
+
+        final boolean createWithReplicas = randomBoolean();
         assertAcked(client().admin().indices().prepareShrinkIndex("source", "target")
-            .setSettings(Settings.builder().put("index.number_of_replicas", 0).build()).get());
+            .setSettings(Settings.builder().put("index.number_of_replicas", createWithReplicas ? 1 : 0).build()).get());
         ensureGreen();
         assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
-        // bump replicas
-        client().admin().indices().prepareUpdateSettings("target")
-            .setSettings(Settings.builder()
-                .put("index.number_of_replicas", 1)).get();
-        ensureGreen();
-        assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+
+        logClusterState();
+
+        if (createWithReplicas == false) {
+            // bump replicas
+            client().admin().indices().prepareUpdateSettings("target")
+                .setSettings(Settings.builder()
+                    .put("index.number_of_replicas", 1)).get();
+            ensureGreen();
+            assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+        }
 
         for (int i = 20; i < 40; i++) {
             client().prepareIndex("target", randomFrom("t1", "t2", "t3")).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();

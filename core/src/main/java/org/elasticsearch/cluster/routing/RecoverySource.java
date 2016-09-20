@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.snapshots.Snapshot;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.Objects;
 
 /**
@@ -246,5 +247,11 @@ public abstract class RecoverySource implements Writeable, ToXContent {
         public String toString() {
             return "peer recovery";
         }
+    }
+
+    private static EnumSet<RecoverySource.Type> INITIAL_RECOVERY_TYPES = EnumSet.of(Type.EMPTY_STORE, Type.LOCAL_SHARDS, Type.SNAPSHOT);
+
+    public static boolean isInitialRecovery(RecoverySource.Type type) {
+           return INITIAL_RECOVERY_TYPES.contains(type);
     }
 }

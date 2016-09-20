@@ -5,7 +5,7 @@ The `geohash_cell` query provides access to a hierarchy of geohashes.
 By defining a geohash cell, only <<geo-point,geopoints>>
 within this cell will match this filter.
 
-To get this filter work all prefixes of a geohash need to be indexed. In
+To get this filter working all prefixes of a geohash need to be indexed. In
 example a geohash `u30` needs to be decomposed into three terms: `u30`,
 `u3` and `u`. This decomposition must be enabled in the mapping of the
 <<geo-point,geopoint>> field that's going to be filtered by

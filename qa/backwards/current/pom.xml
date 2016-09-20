@@ -22,7 +22,7 @@
         2. To keep the backwards compatibility tests alive when there isn't a
         released version that much be backwards compatible. When 2.0.0 was under
         development the backwards compatibility tests atrophied because there
-        wasn't a version to run them against. That should not happen with 3.0.0!
+        wasn't a version to run them against. That should not happen with 5.0.0!
     -->
 
     <properties>

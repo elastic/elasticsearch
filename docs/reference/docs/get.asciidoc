@@ -3,12 +3,14 @@
 
 The get API allows to get a typed JSON document from the index based on
 its id. The following example gets a JSON document from an index called
-twitter, under a type called tweet, with id valued 1:
+twitter, under a type called tweet, with id valued 0:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/1'
+GET twitter/tweet/0
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 The result of the above get operation is:
 
@@ -17,16 +19,18 @@ The result of the above get operation is:
 {
     "_index" : "twitter",
     "_type" : "tweet",
-    "_id" : "1",
+    "_id" : "0",
     "_version" : 1,
     "found": true,
     "_source" : {
         "user" : "kimchy",
-        "postDate" : "2009-11-15T14:12:12",
+        "date" : "2009-11-15T14:12:12",
+        "likes": 0,
         "message" : "trying out Elasticsearch"
     }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 The above result includes the `_index`, `_type`, `_id` and `_version`
 of the document we wish to retrieve, including the actual `_source`
@@ -38,8 +42,10 @@ The API also allows to check for the existence of a document using
 
 [source,js]
 --------------------------------------------------
-curl -XHEAD -i 'http://localhost:9200/twitter/tweet/1'
+HEAD twitter/tweet/0
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 [float]
 [[realtime]]
@@ -70,8 +76,10 @@ You can turn off `_source` retrieval by using the `_source` parameter:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/1?_source=false'
+GET twitter/tweet/0?_source=false
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 If you only need one or two fields from the complete `_source`, you can use the `_source_include`
 & `_source_exclude` parameters to include or filter out that parts you need. This can be especially helpful
@@ -80,16 +88,19 @@ of fields or wildcard expressions. Example:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/1?_source_include=*.id&_source_exclude=entities'
+GET twitter/tweet/0?_source_include=*.id&_source_exclude=entities
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 If you only want to specify includes, you can use a shorter notation:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/1?_source=*.id,retweeted'
+GET twitter/tweet/0?_source=*.id,retweeted
 --------------------------------------------------
-
+// CONSOLE
+// TEST[setup:twitter]
 
 [float]
 [[get-stored-fields]]
@@ -227,24 +238,29 @@ without any additional content around it. For example:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/1/_source'
+GET twitter/tweet/1/_source
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 You can also use the same source filtering parameters to control which parts of the `_source` will be returned:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/1/_source?_source_include=*.id&_source_exclude=entities'
+GET twitter/tweet/1/_source?_source_include=*.id&_source_exclude=entities'
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 Note, there is also a HEAD variant for the _source endpoint to efficiently test for document _source existence.
 An existing document will not have a _source if it is disabled in the <<mapping-source-field,mapping>>.
-Curl example:
 
 [source,js]
 --------------------------------------------------
-curl -XHEAD -i 'http://localhost:9200/twitter/tweet/1/_source'
+HEAD twitter/tweet/1/_source
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 [float]
 [[get-routing]]
@@ -255,10 +271,12 @@ a document, the routing value should also be provided. For example:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/1?routing=kimchy'
+GET twitter/tweet/2?routing=user1
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
-The above will get a tweet with id 1, but will be routed based on the
+The above will get a tweet with id 2, but will be routed based on the
 user. Note, issuing a get without the correct routing, will cause the
 document not to be fetched.
 

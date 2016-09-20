@@ -663,4 +663,8 @@ public class ActionModule extends AbstractModule {
             }
         }
     }
+
+    public RestController getRestController() {
+        return restController;
+    }
 }

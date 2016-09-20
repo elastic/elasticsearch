@@ -45,6 +45,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -52,6 +53,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
@@ -119,10 +121,9 @@ public abstract class TransportClient extends AbstractClient {
             }
             SettingsModule settingsModule = new SettingsModule(settings, additionalSettings, additionalSettingsFilter);
 
-            NetworkModule networkModule = new NetworkModule(networkService, settings, true);
             SearchModule searchModule = new SearchModule(settings, true, pluginsService.filterPlugins(SearchPlugin.class));
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-            entries.addAll(networkModule.getNamedWriteables());
+            entries.addAll(NetworkModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
             entries.addAll(pluginsService.filterPlugins(Plugin.class).stream()
                                          .flatMap(p -> p.getNamedWriteables().stream())
@@ -134,7 +135,6 @@ public abstract class TransportClient extends AbstractClient {
             for (Module pluginModule : pluginsService.createGuiceModules()) {
                 modules.add(pluginModule);
             }
-            modules.add(networkModule);
             modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
             ActionModule actionModule = new ActionModule(false, true, settings, null, settingsModule.getClusterSettings(),
                 pluginsService.filterPlugins(ActionPlugin.class));
@@ -147,15 +147,22 @@ public abstract class TransportClient extends AbstractClient {
             BigArrays bigArrays = new BigArrays(settings, circuitBreakerService);
             resourcesToClose.add(bigArrays);
             modules.add(settingsModule);
+            NetworkModule networkModule = new NetworkModule(settings, true, pluginsService.filterPlugins(NetworkPlugin.class), threadPool,
+                bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+            final Transport transport = networkModule.getTransportSupplier().get();
+            final TransportService transportService = new TransportService(settings, transport, threadPool,
+                networkModule.getTransportInterceptor());
             modules.add((b -> {
                 b.bind(BigArrays.class).toInstance(bigArrays);
                 b.bind(PluginsService.class).toInstance(pluginsService);
                 b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
                 b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
+                b.bind(Transport.class).toInstance(transport);
+                b.bind(TransportService.class).toInstance(transportService);
+                b.bind(NetworkService.class).toInstance(networkService);
             }));
 
             Injector injector = modules.createInjector();
-            final TransportService transportService = injector.getInstance(TransportService.class);
             final TransportClientNodesService nodesService =
                 new TransportClientNodesService(settings, transportService, threadPool);
             final TransportProxyClient proxy = new TransportProxyClient(settings, transportService, nodesService,

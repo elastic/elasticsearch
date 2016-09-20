@@ -24,6 +24,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.ESTestCase;
 
@@ -405,6 +406,27 @@ public class BootstrapCheckTests extends ESTestCase {
 
         vmName.set("Java HotSpot(TM) 32-Bit Server VM");
         BootstrapCheck.check(true, false, Collections.singletonList(check), "testClientJvmCheck");
+    }
+
+    public void testUseSerialGCCheck() throws NodeValidationException {
+        final AtomicReference<String> useSerialGC = new AtomicReference<>("true");
+        final BootstrapCheck.Check check = new BootstrapCheck.UseSerialGCCheck() {
+            @Override
+            String getUseSerialGC() {
+                return useSerialGC.get();
+            }
+        };
+
+        final NodeValidationException e = expectThrows(
+            NodeValidationException.class,
+            () -> BootstrapCheck.check(true, false, Collections.singletonList(check), "testUseSerialGCCheck"));
+        assertThat(
+            e.getMessage(),
+            containsString("JVM is using the serial collector but should not be for the best performance; " + "" +
+                "either it's the default for the VM [" + JvmInfo.jvmInfo().getVmName() +"] or -XX:+UseSerialGC was explicitly specified"));
+
+        useSerialGC.set("false");
+        BootstrapCheck.check(true, false, Collections.singletonList(check), "testUseSerialGCCheck");
     }
 
     public void testMightForkCheck() throws NodeValidationException {

@@ -43,6 +43,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
@@ -276,7 +277,7 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     protected InternalEngine createEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) throws IOException {
-        EngineConfig config = config(indexSettings, store, translogPath, mergePolicy, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
+        EngineConfig config = config(indexSettings, store, translogPath, mergePolicy, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null);
         InternalEngine internalEngine = new InternalEngine(config);
         if (config.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             internalEngine.recoverFromTranslog();
@@ -284,7 +285,8 @@ public class InternalEngineTests extends ESTestCase {
         return internalEngine;
     }
 
-    public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy, long maxUnsafeAutoIdTimestamp) {
+    public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
+                               long maxUnsafeAutoIdTimestamp, ReferenceManager.RefreshListener refreshListener) {
         IndexWriterConfig iwc = newIndexWriterConfig();
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         final EngineConfig.OpenMode openMode;
@@ -306,7 +308,8 @@ public class InternalEngineTests extends ESTestCase {
         EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings, null, store, createSnapshotDeletionPolicy(),
                 mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,
                 new TranslogHandler(shardId.getIndexName(), logger), IndexSearcher.getDefaultQueryCache(),
-                IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5), null, maxUnsafeAutoIdTimestamp);
+                IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5), refreshListener,
+            maxUnsafeAutoIdTimestamp);
 
         return config;
     }
@@ -903,7 +906,7 @@ public class InternalEngineTests extends ESTestCase {
     public void testSyncedFlush() throws IOException {
         try (Store store = createStore();
             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(),
-                     new LogByteSizeMergePolicy(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP))) {
+                     new LogByteSizeMergePolicy(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null))) {
             final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
             engine.index(new Engine.Index(newUid("1"), doc));
@@ -930,7 +933,7 @@ public class InternalEngineTests extends ESTestCase {
         for (int i = 0; i < iters; i++) {
             try (Store store = createStore();
                  InternalEngine engine = new InternalEngine(config(defaultSettings, store, createTempDir(),
-                         new LogDocMergePolicy(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP))) {
+                         new LogDocMergePolicy(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null))) {
                 final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
                 ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
                 Engine.Index doc1 = new Engine.Index(newUid("1"), doc);
@@ -1158,7 +1161,7 @@ public class InternalEngineTests extends ESTestCase {
     public void testForceMerge() throws IOException {
         try (Store store = createStore();
             Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(),
-                     new LogByteSizeMergePolicy(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP))) { // use log MP here we test some behavior in ESMP
+                     new LogByteSizeMergePolicy(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null))) { // use log MP here we test some behavior in ESMP
             int numDocs = randomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
                 ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), B_1, null);
@@ -1592,7 +1595,7 @@ public class InternalEngineTests extends ESTestCase {
 
     public void testEnableGcDeletes() throws Exception {
         try (Store store = createStore();
-            Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP))) {
+            Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null))) {
             engine.config().setEnableGcDeletes(false);
 
             // Add document
@@ -1728,7 +1731,7 @@ public class InternalEngineTests extends ESTestCase {
             // expected
         }
         // now it should be OK.
-        EngineConfig config = copy(config(defaultSettings, store, primaryTranslogDir, newMergePolicy(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP), EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG);
+        EngineConfig config = copy(config(defaultSettings, store, primaryTranslogDir, newMergePolicy(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null), EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG);
         engine = new InternalEngine(config);
     }
 
@@ -2103,7 +2106,7 @@ public class InternalEngineTests extends ESTestCase {
 
     public void testCurrentTranslogIDisCommitted() throws IOException {
         try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null);
 
             // create
             {
@@ -2368,7 +2371,7 @@ public class InternalEngineTests extends ESTestCase {
     public void testEngineMaxTimestampIsInitialized() throws IOException {
         try (Store store = createStore();
              Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE,
-                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP))) {
+                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null))) {
             assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
 
         }
@@ -2376,7 +2379,7 @@ public class InternalEngineTests extends ESTestCase {
         long maxTimestamp = Math.abs(randomLong());
         try (Store store = createStore();
              Engine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE,
-                 maxTimestamp))) {
+                 maxTimestamp, null))) {
             assertEquals(maxTimestamp, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
         }
     }
@@ -2434,5 +2437,71 @@ public class InternalEngineTests extends ESTestCase {
 
     public static long getNumIndexVersionsLookups(InternalEngine engine) { // for other tests to access this
         return engine.getNumIndexVersionsLookups();
+    }
+
+    public void testFailEngineOnRandomIO() throws IOException, InterruptedException {
+        MockDirectoryWrapper wrapper = newMockDirectory();
+        final Path translogPath = createTempDir("testFailEngineOnRandomIO");
+        try (Store store = createStore(wrapper)) {
+            CyclicBarrier join = new CyclicBarrier(2);
+            CountDownLatch start = new CountDownLatch(1);
+            AtomicInteger controller = new AtomicInteger(0);
+            EngineConfig config = config(defaultSettings, store, translogPath, newMergePolicy(),
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, new ReferenceManager.RefreshListener() {
+                    @Override
+                    public void beforeRefresh() throws IOException {
+                    }
+
+                    @Override
+                    public void afterRefresh(boolean didRefresh) throws IOException {
+                        int i = controller.incrementAndGet();
+                        if (i == 1) {
+                            throw new MockDirectoryWrapper.FakeIOException();
+                        } else if (i == 2) {
+                            try {
+                                start.await();
+                            } catch (InterruptedException e) {
+                                throw new AssertionError(e);
+                            }
+                            throw new AlreadyClosedException("boom");
+                        }
+                    }
+                });
+            InternalEngine internalEngine = new InternalEngine(config);
+            int docId = 0;
+            final ParsedDocument doc = testParsedDocument(Integer.toString(docId), Integer.toString(docId), "test", null, docId, -1,
+                testDocumentWithTextField(), new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+
+            Engine.Index index = randomAppendOnly(docId, doc, false);
+            internalEngine.index(index);
+            Runnable r = () ->  {
+                try {
+                    join.await();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+                try {
+                    internalEngine.refresh("test");
+                    fail();
+                } catch (EngineClosedException ex) {
+                    // we can't guarantee that we are entering the refresh call before it's fully
+                    // closed so we also expecting ECE here
+                    assertTrue(ex.toString(), ex.getCause() instanceof MockDirectoryWrapper.FakeIOException);
+                } catch (RefreshFailedEngineException | AlreadyClosedException  ex) {
+                    // fine
+                } finally {
+                    start.countDown();
+                }
+
+            };
+            Thread t = new Thread(r);
+            Thread t1 = new Thread(r);
+            t.start();
+            t1.start();
+            t.join();
+            t1.join();
+            assertTrue(internalEngine.isClosed.get());
+            assertTrue(internalEngine.failedEngine.get() instanceof MockDirectoryWrapper.FakeIOException);
+        }
     }
 }

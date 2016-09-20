@@ -47,7 +47,6 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
@@ -336,10 +335,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
                     RoutingTable rt = rtBuilder.build();
                     ClusterState updatedState = builder.metaData(mdBuilder).blocks(blocks).routingTable(rt).build();
-                    RoutingAllocation.Result routingResult = allocationService.reroute(
-                            ClusterState.builder(updatedState).routingTable(rt).build(),
-                            "restored snapshot [" + snapshot + "]");
-                    return ClusterState.builder(updatedState).routingResult(routingResult).build();
+                    return allocationService.reroute(updatedState, "restored snapshot [" + snapshot + "]");
                 }
 
                 private void checkAliasNameConflicts(Map<String, String> renamedIndices, Set<String> aliases) {

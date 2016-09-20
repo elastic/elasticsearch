@@ -53,17 +53,7 @@ public class DocsTestPlugin extends RestTestPlugin {
                 'List snippets that probably should be marked // CONSOLE'
         listConsoleCandidates.defaultSubstitutions = defaultSubstitutions
         listConsoleCandidates.perSnippet {
-            if (
-                       it.console != null // Already marked, nothing to do
-                    || it.testResponse    // It is a response
-                ) {
-                return
-            }
-            if (    // js almost always should be `// CONSOLE`
-                    it.language == 'js' ||
-                    // snippets containing `curl` *probably* should
-                    // be `// CONSOLE`
-                    it.curl) {
+            if (RestTestsFromSnippetsTask.isConsoleCandidate(it)) {
                 println(it.toString())
             }
         }

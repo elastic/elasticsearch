@@ -126,9 +126,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         if (initializingShards.isEmpty()) {
             return clusterState;
         }
-        RoutingAllocation.Result routingResult = strategy.applyStartedShards(clusterState,
+        return strategy.applyStartedShards(clusterState,
             arrayAsArrayList(initializingShards.get(randomInt(initializingShards.size() - 1))));
-        return ClusterState.builder(clusterState).routingResult(routingResult).build();
     }
 
     protected static AllocationDeciders yesAllocationDeciders() {
@@ -148,12 +147,12 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected ClusterState applyStartedShardsUntilNoChange(ClusterState clusterState, AllocationService service) {
-        RoutingAllocation.Result routingResult;
+        ClusterState lastClusterState;
         do {
+            lastClusterState = clusterState;
             logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
-            routingResult = service.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
-            clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
-        } while (routingResult.changed());
+            clusterState = service.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        } while (lastClusterState.equals(clusterState) == false);
         return clusterState;
     }
 

@@ -246,7 +246,7 @@ final class Bootstrap {
 
         Environment environment = initialEnvironment(foreground, pidFile, esSettings);
         try {
-            LogConfigurator.configure(environment, true);
+            LogConfigurator.configure(environment);
         } catch (IOException e) {
             throw new BootstrapException(e);
         }

@@ -18,20 +18,22 @@
  */
 package org.elasticsearch.common.xcontent;
 
-import static org.hamcrest.Matchers.hasSize;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.AbstractObjectParser.ContextParser;
+import org.elasticsearch.common.xcontent.AbstractObjectParser.NoContextParser;
+import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.test.ESTestCase;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ObjectParserTests extends ESTestCase {
 
@@ -70,6 +72,27 @@ public class ObjectParserTests extends ESTestCase {
                 + "FieldParser{preferred_name=test, supportedTokens=[VALUE_STRING], type=STRING}, "
                 + "FieldParser{preferred_name=test_array, supportedTokens=[START_ARRAY, VALUE_STRING, VALUE_NUMBER], type=INT_ARRAY}, "
                 + "FieldParser{preferred_name=test_number, supportedTokens=[VALUE_STRING, VALUE_NUMBER], type=INT}]}");
+    }
+
+    public void testNullDeclares() {
+        ObjectParser<Void, ParseFieldMatcherSupplier> objectParser = new ObjectParser<>("foo");
+        Exception e = expectThrows(IllegalArgumentException.class,
+                () -> objectParser.declareField(null, (r, c) -> null, new ParseField("test"), ObjectParser.ValueType.STRING));
+        assertEquals("[consumer] is required", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> objectParser.declareField(
+                (o, v) -> {}, (ContextParser<ParseFieldMatcherSupplier, Object>) null,
+                new ParseField("test"), ObjectParser.ValueType.STRING));
+        assertEquals("[parser] is required", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> objectParser.declareField(
+                (o, v) -> {}, (NoContextParser<Object>) null,
+                new ParseField("test"), ObjectParser.ValueType.STRING));
+        assertEquals("[parser] is required", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> objectParser.declareField(
+                (o, v) -> {}, (r, c) -> null, null, ObjectParser.ValueType.STRING));
+        assertEquals("[parseField] is required", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> objectParser.declareField(
+                (o, v) -> {}, (r, c) -> null, new ParseField("test"), null));
+        assertEquals("[type] is required", e.getMessage());
     }
 
     public void testObjectOrDefault() throws IOException {
@@ -438,6 +461,77 @@ public class ObjectParserTests extends ESTestCase {
         ParsingException e = expectThrows(ParsingException.class, () -> objectParser.apply(parser, STRICT_PARSING));
         assertEquals("[named_object_holder] failed to parse field [named]", e.getMessage());
         assertEquals("[named] doesn't support arrays. Use a single object with multiple fields.", e.getCause().getMessage());
+    }
+
+    public void testIgnoreUnknownFields() throws IOException {
+        XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());
+        b.startObject();
+        {
+            b.field("test", "foo");
+            b.field("junk", 2);
+        }
+        b.endObject();
+        b = shuffleXContent(b);
+        XContentParser parser = XContentType.JSON.xContent().createParser(b.bytes());
+
+        class TestStruct {
+            public String test;
+        }
+        ObjectParser<TestStruct, ParseFieldMatcherSupplier> objectParser = new ObjectParser<>("foo", true, null);
+        objectParser.declareField((i, c, x) -> c.test = i.text(), new ParseField("test"), ObjectParser.ValueType.STRING);
+        TestStruct s = objectParser.parse(parser, new TestStruct(), STRICT_PARSING);
+        assertEquals(s.test, "foo");
+    }
+
+    public void testIgnoreUnknownObjects() throws IOException {
+        XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());
+        b.startObject();
+        {
+            b.field("test", "foo");
+            b.startObject("junk");
+            {
+                b.field("really", "junk");
+            }
+            b.endObject();
+        }
+        b.endObject();
+        b = shuffleXContent(b);
+        XContentParser parser = XContentType.JSON.xContent().createParser(b.bytes());
+
+        class TestStruct {
+            public String test;
+        }
+        ObjectParser<TestStruct, ParseFieldMatcherSupplier> objectParser = new ObjectParser<>("foo", true, null);
+        objectParser.declareField((i, c, x) -> c.test = i.text(), new ParseField("test"), ObjectParser.ValueType.STRING);
+        TestStruct s = objectParser.parse(parser, new TestStruct(), STRICT_PARSING);
+        assertEquals(s.test, "foo");
+    }
+
+    public void testIgnoreUnknownArrays() throws IOException {
+        XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());
+        b.startObject();
+        {
+            b.field("test", "foo");
+            b.startArray("junk");
+            {
+                b.startObject();
+                {
+                    b.field("really", "junk");
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }
+        b.endObject();
+        b = shuffleXContent(b);
+        XContentParser parser = XContentType.JSON.xContent().createParser(b.bytes());
+        class TestStruct {
+            public String test;
+        }
+        ObjectParser<TestStruct, ParseFieldMatcherSupplier> objectParser = new ObjectParser<>("foo", true, null);
+        objectParser.declareField((i, c, x) -> c.test = i.text(), new ParseField("test"), ObjectParser.ValueType.STRING);
+        TestStruct s = objectParser.parse(parser, new TestStruct(), STRICT_PARSING);
+        assertEquals(s.test, "foo");
     }
 
     static class NamedObjectHolder {

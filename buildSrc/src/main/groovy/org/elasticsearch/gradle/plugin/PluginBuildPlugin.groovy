@@ -175,7 +175,7 @@ public class PluginBuildPlugin extends BuildPlugin {
     static final Pattern GIT_PATTERN = Pattern.compile(/git@([^:]+):([^\.]+)\.git/)
 
     /** Find the reponame. */
-    protected static String urlFromOrigin(String origin) {
+    static String urlFromOrigin(String origin) {
         if (origin.startsWith('https')) {
             return origin
         }
@@ -209,7 +209,7 @@ public class PluginBuildPlugin extends BuildPlugin {
         }
     }
 
-    /** Adds a task to generate a*/
+    /** Adds a task to generate a pom file for the zip distribution. */
     protected void addZipPomGeneration(Project project) {
         project.plugins.apply(MavenPublishPlugin.class)
 

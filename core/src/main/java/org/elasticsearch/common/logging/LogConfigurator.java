@@ -48,45 +48,81 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public class LogConfigurator {
 
-    public static void configure(final Environment environment, final boolean resolveConfig) throws IOException, UserException {
-        final Settings settings = environment.settings();
-
-        setLogConfigurationSystemProperty(environment, settings);
-
+    /**
+     * Configure logging without reading a log4j2.properties file, effectively configuring the
+     * status logger and all loggers to the console.
+     *
+     * @param settings for configuring logger.level and individual loggers
+     */
+    public static void configureWithoutConfig(final Settings settings) {
+        Objects.requireNonNull(settings);
         // we initialize the status logger immediately otherwise Log4j will complain when we try to get the context
-        final ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
-        builder.setStatusLevel(Level.ERROR);
-        Configurator.initialize(builder.build());
+        configureStatusLogger();
+        configureLoggerLevels(settings);
+    }
+
+    /**
+     * Configure logging reading from any log4j2.properties found in the config directory and its
+     * subdirectories from the specified environment. Will also configure logging to point the logs
+     * directory from the specified environment.
+     *
+     * @param environment the environment for reading configs and the logs path
+     * @throws IOException   if there is an issue readings any log4j2.properties in the config
+     *                       directory
+     * @throws UserException if there are no log4j2.properties in the specified configs path
+     */
+    public static void configure(final Environment environment) throws IOException, UserException {
+        Objects.requireNonNull(environment);
+        configure(environment.settings(), environment.configFile(), environment.logsFile());
+    }
+
+    private static void configure(final Settings settings, final Path configsPath, final Path logsPath) throws IOException, UserException {
+        Objects.requireNonNull(settings);
+        Objects.requireNonNull(configsPath);
+        Objects.requireNonNull(logsPath);
+
+        setLogConfigurationSystemProperty(logsPath, settings);
+        // we initialize the status logger immediately otherwise Log4j will complain when we try to get the context
+        configureStatusLogger();
 
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
 
-        if (resolveConfig) {
-            final List<AbstractConfiguration> configurations = new ArrayList<>();
-            final PropertiesConfigurationFactory factory = new PropertiesConfigurationFactory();
-            final Set<FileVisitOption> options = EnumSet.of(FileVisitOption.FOLLOW_LINKS);
-            Files.walkFileTree(environment.configFile(), options, Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    if (file.getFileName().toString().equals("log4j2.properties")) {
-                        configurations.add((PropertiesConfiguration) factory.getConfiguration(file.toString(), file.toUri()));
-                    }
-                    return FileVisitResult.CONTINUE;
+        final List<AbstractConfiguration> configurations = new ArrayList<>();
+        final PropertiesConfigurationFactory factory = new PropertiesConfigurationFactory();
+        final Set<FileVisitOption> options = EnumSet.of(FileVisitOption.FOLLOW_LINKS);
+        Files.walkFileTree(configsPath, options, Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                if (file.getFileName().toString().equals("log4j2.properties")) {
+                    configurations.add((PropertiesConfiguration) factory.getConfiguration(file.toString(), file.toUri()));
                 }
-            });
-
-            if (configurations.isEmpty()) {
-                throw new UserException(
-                    ExitCodes.CONFIG,
-                    "no log4j2.properties found; tried [" + environment.configFile() + "] and its subdirectories");
+                return FileVisitResult.CONTINUE;
             }
+        });
 
-            context.start(new CompositeConfiguration(configurations));
+        if (configurations.isEmpty()) {
+            throw new UserException(
+                    ExitCodes.CONFIG,
+                    "no log4j2.properties found; tried [" + configsPath + "] and its subdirectories");
         }
 
+        context.start(new CompositeConfiguration(configurations));
+
+        configureLoggerLevels(settings);
+    }
+
+    private static void configureStatusLogger() {
+        final ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
+        builder.setStatusLevel(Level.ERROR);
+        Configurator.initialize(builder.build());
+    }
+
+    private static void configureLoggerLevels(Settings settings) {
         if (ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.exists(settings)) {
             final Level level = ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings);
             Loggers.setLevel(ESLoggerFactory.getRootLogger(), level);
@@ -99,9 +135,10 @@ public class LogConfigurator {
         }
     }
 
+
     @SuppressForbidden(reason = "sets system property for logging configuration")
-    private static void setLogConfigurationSystemProperty(final Environment environment, final Settings settings) {
-        System.setProperty("es.logs", environment.logsFile().resolve(ClusterName.CLUSTER_NAME_SETTING.get(settings).value()).toString());
+    private static void setLogConfigurationSystemProperty(final Path logsPath, final Settings settings) {
+        System.setProperty("es.logs", logsPath.resolve(ClusterName.CLUSTER_NAME_SETTING.get(settings).value()).toString());
     }
 
 }

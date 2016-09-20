@@ -288,6 +288,7 @@ import org.elasticsearch.rest.action.cat.RestSegmentsAction;
 import org.elasticsearch.rest.action.cat.RestShardsAction;
 import org.elasticsearch.rest.action.cat.RestSnapshotAction;
 import org.elasticsearch.rest.action.cat.RestTasksAction;
+import org.elasticsearch.rest.action.cat.RestTemplatesAction;
 import org.elasticsearch.rest.action.cat.RestThreadPoolAction;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestDeleteAction;
@@ -603,6 +604,7 @@ public class ActionModule extends AbstractModule {
         registerRestHandler(handlers, RestNodeAttrsAction.class);
         registerRestHandler(handlers, RestRepositoriesAction.class);
         registerRestHandler(handlers, RestSnapshotAction.class);
+        registerRestHandler(handlers, RestTemplatesAction.class);
         for (ActionPlugin plugin : actionPlugins) {
             for (Class<? extends RestHandler> handler : plugin.getRestHandlers()) {
                 registerRestHandler(handlers, handler);

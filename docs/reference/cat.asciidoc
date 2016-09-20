@@ -186,3 +186,5 @@ include::cat/shards.asciidoc[]
 include::cat/segments.asciidoc[]
 
 include::cat/snapshots.asciidoc[]
+
+include::cat/templates.asciidoc[]

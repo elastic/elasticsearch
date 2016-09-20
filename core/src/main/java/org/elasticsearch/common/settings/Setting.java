@@ -584,10 +584,10 @@ public class Setting<T> extends ToXContentToBytes {
 
     public static ByteSizeValue parseByteSize(String s, ByteSizeValue minValue, ByteSizeValue maxValue, String key) {
         ByteSizeValue value = ByteSizeValue.parseBytesSizeValue(s, key);
-        if (value.bytes() < minValue.bytes()) {
+        if (value.getBytes() < minValue.getBytes()) {
             throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
         }
-        if (value.bytes() > maxValue.bytes()) {
+        if (value.getBytes() > maxValue.getBytes()) {
             throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be <= " + maxValue);
         }
         return value;

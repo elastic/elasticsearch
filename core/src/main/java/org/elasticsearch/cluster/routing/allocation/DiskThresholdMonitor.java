@@ -62,10 +62,10 @@ public class DiskThresholdMonitor extends AbstractComponent implements ClusterIn
      */
     private void warnAboutDiskIfNeeded(DiskUsage usage) {
         // Check absolute disk values
-        if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().bytes()) {
+        if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()) {
             logger.warn("high disk watermark [{}] exceeded on {}, shards will be relocated away from this node",
                 diskThresholdSettings.getFreeBytesThresholdHigh(), usage);
-        } else if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdLow().bytes()) {
+        } else if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdLow().getBytes()) {
             logger.info("low disk watermark [{}] exceeded on {}, replicas will not be assigned to this node",
                 diskThresholdSettings.getFreeBytesThresholdLow(), usage);
         }
@@ -100,7 +100,7 @@ public class DiskThresholdMonitor extends AbstractComponent implements ClusterIn
                 String node = entry.key;
                 DiskUsage usage = entry.value;
                 warnAboutDiskIfNeeded(usage);
-                if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().bytes() ||
+                if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes() ||
                     usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {
                     if ((System.nanoTime() - lastRunNS) > diskThresholdSettings.getRerouteInterval().nanos()) {
                         lastRunNS = System.nanoTime();
@@ -112,7 +112,7 @@ public class DiskThresholdMonitor extends AbstractComponent implements ClusterIn
                             node, diskThresholdSettings.getRerouteInterval());
                     }
                     nodeHasPassedWatermark.add(node);
-                } else if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdLow().bytes() ||
+                } else if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdLow().getBytes() ||
                     usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdLow()) {
                     nodeHasPassedWatermark.add(node);
                 } else {

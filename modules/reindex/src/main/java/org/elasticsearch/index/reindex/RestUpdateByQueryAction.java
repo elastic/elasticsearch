@@ -56,8 +56,8 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        handleRequest(request, channel, client, false, true);
+    public Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+        return doRequest(request, channel, client, false, true);
     }
 
     @Override

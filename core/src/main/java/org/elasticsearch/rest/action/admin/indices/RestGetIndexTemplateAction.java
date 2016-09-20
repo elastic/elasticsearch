@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
@@ -30,6 +31,11 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -46,7 +52,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
 
         GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
@@ -55,13 +61,22 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
 
         final boolean implicitAll = getIndexTemplatesRequest.names().length == 0;
 
-        client.admin().indices().getTemplates(getIndexTemplatesRequest, new RestToXContentListener<GetIndexTemplatesResponse>(channel) {
-            @Override
-            protected RestStatus getStatus(GetIndexTemplatesResponse response) {
-                boolean templateExists = false == response.getIndexTemplates().isEmpty();
+        return () ->
+                client.admin()
+                        .indices()
+                        .getTemplates(getIndexTemplatesRequest, new RestToXContentListener<GetIndexTemplatesResponse>(channel) {
+                            @Override
+                            protected RestStatus getStatus(GetIndexTemplatesResponse response) {
+                                boolean templateExists = false == response.getIndexTemplates().isEmpty();
 
-                return (templateExists || implicitAll) ? OK : NOT_FOUND;
-            }
-        });
+                                return (templateExists || implicitAll) ? OK : NOT_FOUND;
+                            }
+                        });
     }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Settings.FORMAT_PARAMS;
+    }
+
 }

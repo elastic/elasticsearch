@@ -37,6 +37,11 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+
 import static org.elasticsearch.client.Requests.getRepositoryRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -57,23 +62,30 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final String[] repositories = request.paramAsStringArray("repository", Strings.EMPTY_ARRAY);
         GetRepositoriesRequest getRepositoriesRequest = getRepositoryRequest(repositories);
         getRepositoriesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRepositoriesRequest.masterNodeTimeout()));
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
         settingsFilter.addFilterSettingParams(request);
-        client.admin().cluster().getRepositories(getRepositoriesRequest, new RestBuilderListener<GetRepositoriesResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(GetRepositoriesResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                for (RepositoryMetaData repositoryMetaData : response.repositories()) {
-                    RepositoriesMetaData.toXContent(repositoryMetaData, builder, request);
-                }
-                builder.endObject();
+        return () ->
+                client.admin().cluster().getRepositories(getRepositoriesRequest, new RestBuilderListener<GetRepositoriesResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(GetRepositoriesResponse response, XContentBuilder builder) throws Exception {
+                        builder.startObject();
+                        for (RepositoryMetaData repositoryMetaData : response.repositories()) {
+                            RepositoriesMetaData.toXContent(repositoryMetaData, builder, request);
+                        }
+                        builder.endObject();
 
-                return new BytesRestResponse(OK, builder);
-            }
+                        return new BytesRestResponse(OK, builder);
+                    }
         });
     }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Settings.FORMAT_PARAMS;
+    }
+
 }

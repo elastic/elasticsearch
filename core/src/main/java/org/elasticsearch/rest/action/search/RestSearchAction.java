@@ -76,11 +76,11 @@ public class RestSearchAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         BytesReference restContent = RestActions.hasBodyContent(request) ? RestActions.getRestContent(request) : null;
         parseSearchRequest(searchRequest, request, searchRequestParsers, parseFieldMatcher, restContent);
-        client.search(searchRequest, new RestStatusToXContentListener<>(channel));
+        return () -> client.search(searchRequest, new RestStatusToXContentListener<>(channel));
     }
 
     /**

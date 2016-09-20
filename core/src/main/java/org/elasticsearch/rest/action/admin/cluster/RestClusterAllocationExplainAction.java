@@ -56,7 +56,7 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         ClusterAllocationExplainRequest req;
         if (RestActions.hasBodyContent(request) == false) {
             // Empty request signals "explain the first unassigned shard you find"
@@ -67,16 +67,16 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
                 req = ClusterAllocationExplainRequest.parse(parser);
             } catch (IOException e) {
                 logger.debug("failed to parse allocation explain request", e);
-                channel.sendResponse(
-                    new BytesRestResponse(ExceptionsHelper.status(e), BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-                return;
+                return () -> channel.sendResponse(
+                        new BytesRestResponse(ExceptionsHelper.status(e), BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
         }
 
         try {
             req.includeYesDecisions(request.paramAsBoolean("include_yes_decisions", false));
             req.includeDiskInfo(request.paramAsBoolean("include_disk_info", false));
-            client.admin().cluster().allocationExplain(req, new RestBuilderListener<ClusterAllocationExplainResponse>(channel) {
+            return () ->
+                    client.admin().cluster().allocationExplain(req, new RestBuilderListener<ClusterAllocationExplainResponse>(channel) {
                 @Override
                 public RestResponse buildResponse(ClusterAllocationExplainResponse response, XContentBuilder builder) throws Exception {
                     response.getExplanation().toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -85,7 +85,9 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
             });
         } catch (Exception e) {
             logger.error("failed to explain allocation", e);
-            channel.sendResponse(new BytesRestResponse(ExceptionsHelper.status(e), BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            return () ->
+                    channel.sendResponse(
+                            new BytesRestResponse(ExceptionsHelper.status(e), BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         }
     }
 }

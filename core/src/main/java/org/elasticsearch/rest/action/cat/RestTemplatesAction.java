@@ -51,14 +51,14 @@ public class RestTemplatesAction extends AbstractCatAction {
     }
 
     @Override
-    protected void doRequest(final RestRequest request, RestChannel channel, NodeClient client) {
+    protected Runnable doCatRequest(final RestRequest request, RestChannel channel, NodeClient client) {
         final String matchPattern = request.hasParam("name") ? request.param("name") : null;
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().metaData(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
 
-        client.admin().cluster().state(clusterStateRequest, new RestResponseListener<ClusterStateResponse>(channel) {
+        return () -> client.admin().cluster().state(clusterStateRequest, new RestResponseListener<ClusterStateResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClusterStateResponse clusterStateResponse) throws Exception {
                 return RestTable.buildResponse(buildTable(request, clusterStateResponse, matchPattern), channel);

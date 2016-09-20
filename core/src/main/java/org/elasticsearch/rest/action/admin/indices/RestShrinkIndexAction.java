@@ -34,9 +34,6 @@ import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class RestShrinkIndexAction extends BaseRestHandler {
 
     @Inject
@@ -48,7 +45,7 @@ public class RestShrinkIndexAction extends BaseRestHandler {
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         if (request.param("target") == null) {
             throw new IllegalArgumentException("no target index");
         }
@@ -62,7 +59,7 @@ public class RestShrinkIndexAction extends BaseRestHandler {
         shrinkIndexRequest.timeout(request.paramAsTime("timeout", shrinkIndexRequest.timeout()));
         shrinkIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", shrinkIndexRequest.masterNodeTimeout()));
         shrinkIndexRequest.setWaitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
-        client.admin().indices().shrinkIndex(shrinkIndexRequest, new AcknowledgedRestListener<ShrinkResponse>(channel) {
+        return () -> client.admin().indices().shrinkIndex(shrinkIndexRequest, new AcknowledgedRestListener<ShrinkResponse>(channel) {
             @Override
             public void addCustomFields(XContentBuilder builder, ShrinkResponse response) throws IOException {
                 response.addCustomFields(builder);

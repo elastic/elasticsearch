@@ -46,7 +46,11 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  */
@@ -74,16 +78,19 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         ClusterRerouteRequest clusterRerouteRequest = createRequest(request, registry, parseFieldMatcher);
-        client.admin().cluster().reroute(clusterRerouteRequest, new AcknowledgedRestListener<ClusterRerouteResponse>(channel) {
+
+        // by default, return everything but metadata
+        final String metric = request.param("metric");
+        if (metric == null) {
+            request.params().put("metric", DEFAULT_METRICS);
+        }
+
+        return () -> client.admin().cluster().reroute(clusterRerouteRequest, new AcknowledgedRestListener<ClusterRerouteResponse>(channel) {
             @Override
             protected void addCustomFields(XContentBuilder builder, ClusterRerouteResponse response) throws IOException {
                 builder.startObject("state");
-                // by default, return everything but metadata
-                if (request.param("metric") == null) {
-                    request.params().put("metric", DEFAULT_METRICS);
-                }
                 settingsFilter.addFilterSettingParams(request);
                 response.getState().toXContent(builder, request);
                 builder.endObject();
@@ -95,8 +102,22 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         });
     }
 
+    private static final Set<String> RESPONSE_PARAMS;
+
+    static {
+        final Set<String> responseParams = new HashSet<>();
+        responseParams.add("metric");
+        responseParams.addAll(Settings.FORMAT_PARAMS);
+        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
+    }
+
     public static ClusterRerouteRequest createRequest(RestRequest request, AllocationCommandRegistry registry,
-            ParseFieldMatcher parseFieldMatcher) throws IOException {
+                                                      ParseFieldMatcher parseFieldMatcher) throws IOException {
         ClusterRerouteRequest clusterRerouteRequest = Requests.clusterRerouteRequest();
         clusterRerouteRequest.dryRun(request.paramAsBoolean("dry_run", clusterRerouteRequest.dryRun()));
         clusterRerouteRequest.explain(request.paramAsBoolean("explain", clusterRerouteRequest.explain()));
@@ -125,4 +146,5 @@ public class RestClusterRerouteAction extends BaseRestHandler {
             return parseFieldMatcher;
         }
     }
+
 }

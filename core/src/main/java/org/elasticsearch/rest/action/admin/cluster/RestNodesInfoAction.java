@@ -32,6 +32,9 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -65,7 +68,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String[] nodeIds;
         Set<String> metrics;
 
@@ -108,7 +111,12 @@ public class RestNodesInfoAction extends BaseRestHandler {
 
         settingsFilter.addFilterSettingParams(request);
 
-        client.admin().cluster().nodesInfo(nodesInfoRequest, new NodesResponseRestListener<>(channel));
+        return () -> client.admin().cluster().nodesInfo(nodesInfoRequest, new NodesResponseRestListener<>(channel));
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Settings.FORMAT_PARAMS;
     }
 
     @Override

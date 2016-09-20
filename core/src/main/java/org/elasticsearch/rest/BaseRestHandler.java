@@ -19,12 +19,18 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
 
 /**
  * Base handler for REST requests.
@@ -35,6 +41,7 @@ import org.elasticsearch.plugins.ActionPlugin;
  * {@link ActionPlugin#getRestHeaders()}.
  */
 public abstract class BaseRestHandler extends AbstractComponent implements RestHandler {
+
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
         Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
     protected final ParseFieldMatcher parseFieldMatcher;
@@ -43,4 +50,52 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
         super(settings);
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
     }
+
+    @Override
+    public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+        // prepare the request for execution; has the side effect of touching the request parameters
+        final Runnable action = doRequest(request, channel, client);
+
+        // validate unconsumed params, but we must exclude params used to format the response
+        // we copy because we do not want to modify the request params
+        final Set<String> unconsumedParams = new HashSet<>(request.unconsumedParams());
+        final Set<String> responseParams = responseParams();
+        final Iterator<String> it = unconsumedParams.iterator();
+
+        // this has to use an iterator lest a ConcurrentModificationException will arise
+        while (it.hasNext()) {
+            final String unconsumedParam = it.next();
+            if (responseParams.contains(unconsumedParam)) {
+                it.remove();
+            }
+        }
+
+        // validate the non-response params
+        if (!unconsumedParams.isEmpty()) {
+            throw new IllegalArgumentException("request [" + request.path() + "] contains unused params: " + unconsumedParams.toString());
+        }
+
+        // execute the action
+        action.run();
+    }
+
+    /**
+     * Prepare the request for execution. Implementations should consume all request params before
+     * returning the runnable for actual execution. Unconsumed params will immediately terminate
+     * execution of the request. However, some params are only used in processing the response;
+     * implementations can override {@link BaseRestHandler#responseParams()} to indicate such
+     * params.
+     *
+     * @param request the request to execute
+     * @param channel the channel for sending the response
+     * @param client  client for executing actions on the local node
+     * @return the action to execute
+     * @throws Exception if an exception occurred preparing the action for exectuion
+     */
+    protected abstract Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception;
+
+    protected Set<String> responseParams() {
+        return Collections.emptySet();
+    }
+
 }

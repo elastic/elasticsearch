@@ -52,21 +52,26 @@ public class RestIndicesShardStoresAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         IndicesShardStoresRequest indicesShardStoresRequest = new IndicesShardStoresRequest(
                 Strings.splitStringByCommaToArray(request.param("index")));
         if (request.hasParam("status")) {
             indicesShardStoresRequest.shardStatuses(Strings.splitStringByCommaToArray(request.param("status")));
         }
         indicesShardStoresRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesShardStoresRequest.indicesOptions()));
-        client.admin().indices().shardStores(indicesShardStoresRequest, new RestBuilderListener<IndicesShardStoresResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(IndicesShardStoresResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                response.toXContent(builder, request);
-                builder.endObject();
-                return new BytesRestResponse(OK, builder);
-            }
-        });
+        return
+                () -> client.admin()
+                        .indices()
+                        .shardStores(indicesShardStoresRequest, new RestBuilderListener<IndicesShardStoresResponse>(channel) {
+                            @Override
+                            public RestResponse buildResponse(
+                                    IndicesShardStoresResponse response,
+                                    XContentBuilder builder) throws Exception {
+                                builder.startObject();
+                                response.toXContent(builder, request);
+                                builder.endObject();
+                                return new BytesRestResponse(OK, builder);
+                            }
+                        });
     }
 }

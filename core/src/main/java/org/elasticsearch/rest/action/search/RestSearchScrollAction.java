@@ -57,7 +57,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String scrollId = request.param("scroll_id");
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
         searchScrollRequest.scrollId(scrollId);
@@ -78,7 +78,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
                 buildFromContent(RestActions.getRestContent(request), searchScrollRequest);
             }
         }
-        client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<SearchResponse>(channel));
+        return () -> client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<>(channel));
     }
 
     public static void buildFromContent(BytesReference content, SearchScrollRequest searchScrollRequest) {

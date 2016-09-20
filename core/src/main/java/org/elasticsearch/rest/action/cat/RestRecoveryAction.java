@@ -65,13 +65,13 @@ public class RestRecoveryAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doCatRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final RecoveryRequest recoveryRequest = new RecoveryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         recoveryRequest.detailed(request.paramAsBoolean("detailed", false));
         recoveryRequest.activeOnly(request.paramAsBoolean("active_only", false));
         recoveryRequest.indicesOptions(IndicesOptions.fromRequest(request, recoveryRequest.indicesOptions()));
 
-        client.admin().indices().recoveries(recoveryRequest, new RestResponseListener<RecoveryResponse>(channel) {
+        return () -> client.admin().indices().recoveries(recoveryRequest, new RestResponseListener<RecoveryResponse>(channel) {
             @Override
             public RestResponse buildResponse(final RecoveryResponse response) throws Exception {
                 return RestTable.buildResponse(buildRecoveryTable(request, response), channel);

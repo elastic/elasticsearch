@@ -52,13 +52,13 @@ public class RestForceMergeAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         ForceMergeRequest mergeRequest = new ForceMergeRequest(Strings.splitStringByCommaToArray(request.param("index")));
         mergeRequest.indicesOptions(IndicesOptions.fromRequest(request, mergeRequest.indicesOptions()));
         mergeRequest.maxNumSegments(request.paramAsInt("max_num_segments", mergeRequest.maxNumSegments()));
         mergeRequest.onlyExpungeDeletes(request.paramAsBoolean("only_expunge_deletes", mergeRequest.onlyExpungeDeletes()));
         mergeRequest.flush(request.paramAsBoolean("flush", mergeRequest.flush()));
-        client.admin().indices().forceMerge(mergeRequest, new RestBuilderListener<ForceMergeResponse>(channel) {
+        return () -> client.admin().indices().forceMerge(mergeRequest, new RestBuilderListener<ForceMergeResponse>(channel) {
             @Override
             public RestResponse buildResponse(ForceMergeResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

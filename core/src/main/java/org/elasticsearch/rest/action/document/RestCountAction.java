@@ -45,9 +45,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
-/**
- *
- */
 public class RestCountAction extends BaseRestHandler {
 
     private final IndicesQueriesRegistry indicesQueriesRegistry;
@@ -65,7 +62,7 @@ public class RestCountAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
@@ -93,7 +90,7 @@ public class RestCountAction extends BaseRestHandler {
         } else if (terminateAfter > 0) {
             searchSourceBuilder.terminateAfter(terminateAfter);
         }
-        client.search(countRequest, new RestBuilderListener<SearchResponse>(channel) {
+        return () -> client.search(countRequest, new RestBuilderListener<SearchResponse>(channel) {
             @Override
             public RestResponse buildResponse(SearchResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
@@ -109,4 +106,5 @@ public class RestCountAction extends BaseRestHandler {
             }
         });
     }
+
 }

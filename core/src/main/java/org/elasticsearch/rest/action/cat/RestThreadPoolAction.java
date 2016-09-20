@@ -69,13 +69,13 @@ public class RestThreadPoolAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doCatRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
 
-        client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
+        return () -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
@@ -95,6 +95,20 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 });
             }
         });
+    }
+
+    private static final Set<String> RESPONSE_PARAMS;
+
+    static {
+        final Set<String> responseParams = new HashSet<>();
+        responseParams.addAll(AbstractCatAction.RESPONSE_PARAMS);
+        responseParams.add("thread_pool_patterns");
+        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
     }
 
     @Override

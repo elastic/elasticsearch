@@ -39,9 +39,6 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
-/**
- *
- */
 public class RestMainAction extends BaseRestHandler {
 
     @Inject
@@ -52,8 +49,8 @@ public class RestMainAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
-        client.execute(MainAction.INSTANCE, new MainRequest(), new RestBuilderListener<MainResponse>(channel) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+        return () -> client.execute(MainAction.INSTANCE, new MainRequest(), new RestBuilderListener<MainResponse>(channel) {
             @Override
             public RestResponse buildResponse(MainResponse mainResponse, XContentBuilder builder) throws Exception {
                 return convertMainResponse(mainResponse, request, builder);

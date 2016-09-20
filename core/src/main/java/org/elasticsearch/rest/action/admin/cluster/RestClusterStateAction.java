@@ -39,7 +39,11 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.Set;
 
 public class RestClusterStateAction extends BaseRestHandler {
 
@@ -56,7 +60,7 @@ public class RestClusterStateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
         clusterStateRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterStateRequest.indicesOptions()));
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
@@ -84,7 +88,7 @@ public class RestClusterStateAction extends BaseRestHandler {
         }
         settingsFilter.addFilterSettingParams(request);
 
-        client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
+        return () -> client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
@@ -94,6 +98,20 @@ public class RestClusterStateAction extends BaseRestHandler {
                 return new BytesRestResponse(RestStatus.OK, builder);
             }
         });
+    }
+
+    private static final Set<String> RESPONSE_PARAMS;
+
+    static {
+        final Set<String> responseParams = new HashSet<>();
+        responseParams.add("metric");
+        responseParams.addAll(Settings.FORMAT_PARAMS);
+        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
     }
 
     @Override

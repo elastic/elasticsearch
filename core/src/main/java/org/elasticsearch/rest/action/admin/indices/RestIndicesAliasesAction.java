@@ -56,7 +56,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", indicesAliasesRequest.masterNodeTimeout()));
         indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
@@ -66,6 +66,6 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
         if (indicesAliasesRequest.getAliasActions().isEmpty()) {
             throw new IllegalArgumentException("No action specified");
         }
-        client.admin().indices().aliases(indicesAliasesRequest, new AcknowledgedRestListener<IndicesAliasesResponse>(channel));
+        return () -> client.admin().indices().aliases(indicesAliasesRequest, new AcknowledgedRestListener<IndicesAliasesResponse>(channel));
     }
 }

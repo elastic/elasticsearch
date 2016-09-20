@@ -29,26 +29,29 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 import static org.elasticsearch.rest.action.cat.RestTable.buildHelpWidths;
 import static org.elasticsearch.rest.action.cat.RestTable.pad;
 
-/**
- *
- */
 public abstract class AbstractCatAction extends BaseRestHandler {
 
     public AbstractCatAction(Settings settings) {
         super(settings);
     }
 
-    protected abstract void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client);
+    protected abstract Runnable doCatRequest(final RestRequest request, final RestChannel channel, final NodeClient client);
 
     protected abstract void documentation(StringBuilder sb);
 
     protected abstract Table getTableWithHeader(final RestRequest request);
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         boolean helpWanted = request.paramAsBoolean("help", false);
         if (helpWanted) {
             Table table = getTableWithHeader(request);
@@ -65,9 +68,19 @@ public abstract class AbstractCatAction extends BaseRestHandler {
                 out.append("\n");
             }
             out.close();
-            channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOutput.bytes()));
+            return () ->
+                    channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOutput.bytes()));
         } else {
-            doRequest(request, channel, client);
+            return doCatRequest(request, channel, client);
         }
     }
+
+    static Set<String> RESPONSE_PARAMS =
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList("format", "h", "v", "ts", "pri", "bytes", "size", "time")));
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
+    }
+
 }

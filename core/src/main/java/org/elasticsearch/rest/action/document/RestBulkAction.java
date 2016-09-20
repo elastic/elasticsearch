@@ -75,7 +75,7 @@ public class RestBulkAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         BulkRequest bulkRequest = Requests.bulkRequest();
         String defaultIndex = request.param("index");
         String defaultType = request.param("type");
@@ -96,7 +96,7 @@ public class RestBulkAction extends BaseRestHandler {
         bulkRequest.add(request.content(), defaultIndex, defaultType, defaultRouting, defaultFields,
             defaultFetchSourceContext, defaultPipeline, null, allowExplicitIndex);
 
-        client.bulk(bulkRequest, new RestBuilderListener<BulkResponse>(channel) {
+        return () -> client.bulk(bulkRequest, new RestBuilderListener<BulkResponse>(channel) {
             @Override
             public RestResponse buildResponse(BulkResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

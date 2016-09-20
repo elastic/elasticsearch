@@ -42,8 +42,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
-/**
- */
 public class RestFieldStatsAction extends BaseRestHandler {
 
     @Inject
@@ -56,7 +54,7 @@ public class RestFieldStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request,
+    public Runnable doRequest(final RestRequest request,
                               final RestChannel channel, final NodeClient client) throws Exception {
         if (RestActions.hasBodyContent(request) && request.hasParam("fields")) {
             throw new IllegalArgumentException("can't specify a request body and [fields] request parameter, " +
@@ -73,7 +71,7 @@ public class RestFieldStatsAction extends BaseRestHandler {
             fieldStatsRequest.setFields(Strings.splitStringByCommaToArray(request.param("fields")));
         }
 
-        client.fieldStats(fieldStatsRequest, new RestBuilderListener<FieldStatsResponse>(channel) {
+        return () -> client.fieldStats(fieldStatsRequest, new RestBuilderListener<FieldStatsResponse>(channel) {
             @Override
             public RestResponse buildResponse(FieldStatsResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
@@ -81,7 +79,7 @@ public class RestFieldStatsAction extends BaseRestHandler {
 
                 builder.startObject("indices");
                 for (Map.Entry<String, Map<String, FieldStats>> entry1 :
-                    response.getIndicesMergedFieldStats().entrySet()) {
+                        response.getIndicesMergedFieldStats().entrySet()) {
                     builder.startObject(entry1.getKey());
                     builder.startObject("fields");
                     for (Map.Entry<String, FieldStats> entry2 : entry1.getValue().entrySet()) {

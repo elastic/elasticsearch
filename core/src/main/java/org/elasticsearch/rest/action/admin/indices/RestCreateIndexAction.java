@@ -34,9 +34,6 @@ import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class RestCreateIndexAction extends BaseRestHandler {
 
     @Inject
@@ -47,7 +44,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
         if (request.hasContent()) {
             createIndexRequest.source(request.content());
@@ -56,7 +53,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
         createIndexRequest.timeout(request.paramAsTime("timeout", createIndexRequest.timeout()));
         createIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createIndexRequest.masterNodeTimeout()));
         createIndexRequest.waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
-        client.admin().indices().create(createIndexRequest, new AcknowledgedRestListener<CreateIndexResponse>(channel) {
+        return () -> client.admin().indices().create(createIndexRequest, new AcknowledgedRestListener<CreateIndexResponse>(channel) {
             @Override
             public void addCustomFields(XContentBuilder builder, CreateIndexResponse response) throws IOException {
                 response.addCustomFields(builder);

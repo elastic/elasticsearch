@@ -50,7 +50,7 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();
         TermVectorsRequest template = new TermVectorsRequest();
         template.index(request.param("index"));
@@ -59,6 +59,6 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
         multiTermVectorsRequest.ids(Strings.commaDelimitedListToStringArray(request.param("ids")));
         multiTermVectorsRequest.add(template, RestActions.getRestContent(request));
 
-        client.multiTermVectors(multiTermVectorsRequest, new RestToXContentListener<MultiTermVectorsResponse>(channel));
+        return () -> client.multiTermVectors(multiTermVectorsRequest, new RestToXContentListener<MultiTermVectorsResponse>(channel));
     }
 }

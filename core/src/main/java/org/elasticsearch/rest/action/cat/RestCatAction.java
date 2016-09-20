@@ -52,7 +52,7 @@ public class RestCatAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
-        channel.sendResponse(new BytesRestResponse(RestStatus.OK, HELP));
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+        return () -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, HELP));
     }
 }

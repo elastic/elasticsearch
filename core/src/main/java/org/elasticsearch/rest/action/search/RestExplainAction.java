@@ -64,7 +64,7 @@ public class RestExplainAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final ExplainRequest explainRequest = new ExplainRequest(request.param("index"), request.param("type"), request.param("id"));
         explainRequest.parent(request.param("parent"));
         explainRequest.routing(request.param("routing"));
@@ -92,7 +92,7 @@ public class RestExplainAction extends BaseRestHandler {
 
         explainRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 
-        client.explain(explainRequest, new RestBuilderListener<ExplainResponse>(channel) {
+        return () -> client.explain(explainRequest, new RestBuilderListener<ExplainResponse>(channel) {
             @Override
             public RestResponse buildResponse(ExplainResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

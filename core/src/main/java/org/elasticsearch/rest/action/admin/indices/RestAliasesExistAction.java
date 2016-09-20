@@ -39,8 +39,6 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-/**
- */
 public class RestAliasesExistAction extends BaseRestHandler {
 
     @Inject
@@ -52,7 +50,7 @@ public class RestAliasesExistAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String[] aliases = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);
@@ -60,7 +58,7 @@ public class RestAliasesExistAction extends BaseRestHandler {
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
         getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
 
-        client.admin().indices().aliasesExist(getAliasesRequest, new ActionListener<AliasesExistResponse>() {
+        return () -> client.admin().indices().aliasesExist(getAliasesRequest, new ActionListener<AliasesExistResponse>() {
 
             @Override
             public void onResponse(AliasesExistResponse response) {

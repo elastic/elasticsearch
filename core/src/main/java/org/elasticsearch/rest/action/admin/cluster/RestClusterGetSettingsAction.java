@@ -40,6 +40,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 public class RestClusterGetSettingsAction extends BaseRestHandler {
 
@@ -56,18 +60,23 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
                 .routingTable(false)
                 .nodes(false);
         final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
+        return () -> client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
                 return new BytesRestResponse(RestStatus.OK, renderResponse(response.getState(), renderDefaults, builder, request));
             }
         });
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Settings.FORMAT_PARAMS;
     }
 
     @Override

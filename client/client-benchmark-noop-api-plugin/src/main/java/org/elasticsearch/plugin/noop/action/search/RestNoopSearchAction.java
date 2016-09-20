@@ -47,8 +47,8 @@ public class RestNoopSearchAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
-        client.execute(NoopSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+        return () -> client.execute(NoopSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
     }
 }

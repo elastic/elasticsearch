@@ -58,16 +58,17 @@ public class RestUpgradeAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+    public Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (request.method().equals(RestRequest.Method.GET)) {
-            handleGet(request, channel, client);
+            return handleGet(request, channel, client);
         } else if (request.method().equals(RestRequest.Method.POST)) {
-            handlePost(request, channel, client);
+            return handlePost(request, channel, client);
         }
+        return () -> {};
     }
 
-    void handleGet(final RestRequest request, RestChannel channel, NodeClient client) {
-        client.admin().indices().prepareUpgradeStatus(Strings.splitStringByCommaToArray(request.param("index")))
+    Runnable handleGet(final RestRequest request, RestChannel channel, NodeClient client) {
+        return () -> client.admin().indices().prepareUpgradeStatus(Strings.splitStringByCommaToArray(request.param("index")))
                 .execute(new RestBuilderListener<UpgradeStatusResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(UpgradeStatusResponse response, XContentBuilder builder) throws Exception {
@@ -79,10 +80,10 @@ public class RestUpgradeAction extends BaseRestHandler {
                 });
     }
 
-    void handlePost(final RestRequest request, RestChannel channel, NodeClient client) {
+    Runnable handlePost(final RestRequest request, RestChannel channel, NodeClient client) {
         UpgradeRequest upgradeReq = new UpgradeRequest(Strings.splitStringByCommaToArray(request.param("index")));
         upgradeReq.upgradeOnlyAncientSegments(request.paramAsBoolean("only_ancient_segments", false));
-        client.admin().indices().upgrade(upgradeReq, new RestBuilderListener<UpgradeResponse>(channel) {
+        return () -> client.admin().indices().upgrade(upgradeReq, new RestBuilderListener<UpgradeResponse>(channel) {
             @Override
             public RestResponse buildResponse(UpgradeResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

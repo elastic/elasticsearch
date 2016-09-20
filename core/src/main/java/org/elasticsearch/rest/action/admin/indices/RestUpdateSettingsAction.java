@@ -31,6 +31,10 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -60,7 +64,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         UpdateSettingsRequest updateSettingsRequest = updateSettingsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         updateSettingsRequest.timeout(request.paramAsTime("timeout", updateSettingsRequest.timeout()));
         updateSettingsRequest.setPreserveExisting(request.paramAsBoolean("preserve_existing", updateSettingsRequest.isPreserveExisting()));
@@ -89,6 +93,12 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         }
         updateSettingsRequest.settings(updateSettings);
 
-        client.admin().indices().updateSettings(updateSettingsRequest, new AcknowledgedRestListener<>(channel));
+        return () -> client.admin().indices().updateSettings(updateSettingsRequest, new AcknowledgedRestListener<>(channel));
     }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Settings.FORMAT_PARAMS;
+    }
+
 }

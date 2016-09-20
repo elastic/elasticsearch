@@ -35,6 +35,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
+import java.util.Collections;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -54,7 +55,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
         indicesStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesStatsRequest.indicesOptions()));
         indicesStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
@@ -106,7 +107,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.includeSegmentFileSizes(true);
         }
 
-        client.admin().indices().stats(indicesStatsRequest, new RestBuilderListener<IndicesStatsResponse>(channel) {
+        return () -> client.admin().indices().stats(indicesStatsRequest, new RestBuilderListener<IndicesStatsResponse>(channel) {
             @Override
             public RestResponse buildResponse(IndicesStatsResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
@@ -122,4 +123,12 @@ public class RestIndicesStatsAction extends BaseRestHandler {
     public boolean canTripCircuitBreaker() {
         return false;
     }
+
+    private static final Set<String> RESPONSE_PARAMS = Collections.singleton("level");
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
+    }
+
 }

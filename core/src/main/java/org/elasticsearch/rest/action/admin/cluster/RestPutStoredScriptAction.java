@@ -51,9 +51,9 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, NodeClient client) {
         PutStoredScriptRequest putRequest = new PutStoredScriptRequest(getScriptLang(request), request.param("id"));
         putRequest.script(request.content());
-        client.admin().cluster().putStoredScript(putRequest, new AcknowledgedRestListener<>(channel));
+        return () -> client.admin().cluster().putStoredScript(putRequest, new AcknowledgedRestListener<>(channel));
     }
 }

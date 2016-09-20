@@ -55,7 +55,7 @@ public class RestSegmentsAction extends AbstractCatAction {
     }
 
     @Override
-    protected void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    protected Runnable doCatRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
 
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
@@ -63,7 +63,7 @@ public class RestSegmentsAction extends AbstractCatAction {
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
 
-        client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
+        return () -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 final IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest();

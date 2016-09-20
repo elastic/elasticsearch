@@ -45,11 +45,11 @@ public class RestDeleteRepositoryAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         DeleteRepositoryRequest deleteRepositoryRequest = deleteRepositoryRequest(request.param("repository"));
         deleteRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteRepositoryRequest.masterNodeTimeout()));
         deleteRepositoryRequest.timeout(request.paramAsTime("timeout", deleteRepositoryRequest.timeout()));
         deleteRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteRepositoryRequest.masterNodeTimeout()));
-        client.admin().cluster().deleteRepository(deleteRepositoryRequest, new AcknowledgedRestListener<DeleteRepositoryResponse>(channel));
+        return () -> client.admin().cluster().deleteRepository(deleteRepositoryRequest, new AcknowledgedRestListener<>(channel));
     }
 }

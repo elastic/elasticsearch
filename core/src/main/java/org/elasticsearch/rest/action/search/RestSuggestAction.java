@@ -67,7 +67,7 @@ public class RestSuggestAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
         final SearchRequest searchRequest = new SearchRequest(
                 Strings.splitStringByCommaToArray(request.param("index")), new SearchSourceBuilder());
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
@@ -82,7 +82,7 @@ public class RestSuggestAction extends BaseRestHandler {
         }
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
-        client.search(searchRequest, new RestBuilderListener<SearchResponse>(channel) {
+        return () -> client.search(searchRequest, new RestBuilderListener<SearchResponse>(channel) {
             @Override
             public RestResponse buildResponse(SearchResponse response, XContentBuilder builder) throws Exception {
                 RestStatus restStatus = RestStatus.status(response.getSuccessfulShards(),

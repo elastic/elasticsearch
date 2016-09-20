@@ -45,21 +45,23 @@ public class ExampleCatAction extends AbstractCatAction {
     }
 
     @Override
-    protected void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    protected Runnable doCatRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         Table table = getTableWithHeader(request);
         table.startRow();
         table.addCell(config.getTestConfig());
         table.endRow();
-        try {
-            channel.sendResponse(RestTable.buildResponse(table, channel));
-        } catch (Exception e) {
+        return () -> {
             try {
-                channel.sendResponse(new BytesRestResponse(channel, e));
-            } catch (Exception inner) {
-                inner.addSuppressed(e);
-                logger.error("failed to send failure response", inner);
+                channel.sendResponse(RestTable.buildResponse(table, channel));
+            } catch (Exception e) {
+                try {
+                    channel.sendResponse(new BytesRestResponse(channel, e));
+                } catch (Exception inner) {
+                    inner.addSuppressed(e);
+                    logger.error("failed to send failure response", inner);
+                }
             }
-        }
+        };
     }
 
     @Override

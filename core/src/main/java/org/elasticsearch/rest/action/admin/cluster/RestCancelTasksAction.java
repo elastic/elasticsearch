@@ -43,26 +43,27 @@ public class RestCancelTasksAction extends BaseRestHandler {
         super(settings);
         this.clusterService = clusterService;
         controller.registerHandler(POST, "/_tasks/_cancel", this);
-        controller.registerHandler(POST, "/_tasks/{taskId}/_cancel", this);
+        controller.registerHandler(POST, "/_tasks/{task_id}/_cancel", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
-        String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
-        TaskId taskId = new TaskId(request.param("taskId"));
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+        String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodes"));
+        TaskId taskId = new TaskId(request.param("task_id"));
         String[] actions = Strings.splitStringByCommaToArray(request.param("actions"));
         TaskId parentTaskId = new TaskId(request.param("parent_task_id"));
 
         CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
         cancelTasksRequest.setTaskId(taskId);
-        cancelTasksRequest.setNodesIds(nodesIds);
+        cancelTasksRequest.setNodes(nodesIds);
         cancelTasksRequest.setActions(actions);
         cancelTasksRequest.setParentTaskId(parentTaskId);
-        client.admin().cluster().cancelTasks(cancelTasksRequest, listTasksResponseListener(clusterService, channel));
+        return () -> client.admin().cluster().cancelTasks(cancelTasksRequest, listTasksResponseListener(clusterService, channel));
     }
 
     @Override
     public boolean canTripCircuitBreaker() {
         return false;
     }
+
 }

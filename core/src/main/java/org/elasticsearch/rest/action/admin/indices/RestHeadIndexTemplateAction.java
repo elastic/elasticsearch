@@ -32,13 +32,15 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-/**
- *
- */
 public class RestHeadIndexTemplateAction extends BaseRestHandler {
 
     @Inject
@@ -49,20 +51,29 @@ public class RestHeadIndexTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(request.param("name"));
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
         getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
-        client.admin().indices().getTemplates(getIndexTemplatesRequest, new RestResponseListener<GetIndexTemplatesResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(GetIndexTemplatesResponse getIndexTemplatesResponse) {
-                boolean templateExists = getIndexTemplatesResponse.getIndexTemplates().size() > 0;
-                if (templateExists) {
-                    return new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
-                } else {
-                    return new BytesRestResponse(NOT_FOUND, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
-                }
-            }
-        });
+        return () ->
+                client.admin()
+                        .indices()
+                        .getTemplates(getIndexTemplatesRequest, new RestResponseListener<GetIndexTemplatesResponse>(channel) {
+                            @Override
+                            public RestResponse buildResponse(GetIndexTemplatesResponse getIndexTemplatesResponse) {
+                                boolean templateExists = getIndexTemplatesResponse.getIndexTemplates().size() > 0;
+                                if (templateExists) {
+                                    return new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+                                } else {
+                                    return new BytesRestResponse(NOT_FOUND, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
+                                }
+                            }
+                        });
     }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Settings.FORMAT_PARAMS;
+    }
+
 }

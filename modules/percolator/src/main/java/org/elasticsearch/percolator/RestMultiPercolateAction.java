@@ -53,14 +53,13 @@ public class RestMultiPercolateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest restRequest, final RestChannel restChannel, final NodeClient client) throws Exception {
+    public Runnable doRequest(final RestRequest restRequest, final RestChannel restChannel, final NodeClient client) throws Exception {
         MultiPercolateRequest multiPercolateRequest = new MultiPercolateRequest();
         multiPercolateRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, multiPercolateRequest.indicesOptions()));
         multiPercolateRequest.indices(Strings.splitStringByCommaToArray(restRequest.param("index")));
         multiPercolateRequest.documentType(restRequest.param("type"));
         multiPercolateRequest.add(RestActions.getRestContent(restRequest), allowExplicitIndex);
-        client.execute(MultiPercolateAction.INSTANCE, multiPercolateRequest,
-                new RestToXContentListener<MultiPercolateResponse>(restChannel));
+        return () -> client.execute(MultiPercolateAction.INSTANCE, multiPercolateRequest, new RestToXContentListener<>(restChannel));
     }
 
 }

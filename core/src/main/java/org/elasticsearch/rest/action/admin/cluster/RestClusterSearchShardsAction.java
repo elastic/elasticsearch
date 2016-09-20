@@ -36,8 +36,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-/**
- */
 public class RestClusterSearchShardsAction extends BaseRestHandler {
 
     @Inject
@@ -52,7 +50,7 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterSearchShardsRequest clusterSearchShardsRequest = Requests.clusterSearchShardsRequest(indices);
         clusterSearchShardsRequest.local(request.paramAsBoolean("local", clusterSearchShardsRequest.local()));
@@ -62,6 +60,6 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
         clusterSearchShardsRequest.preference(request.param("preference"));
         clusterSearchShardsRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterSearchShardsRequest.indicesOptions()));
 
-        client.admin().cluster().searchShards(clusterSearchShardsRequest, new RestToXContentListener<ClusterSearchShardsResponse>(channel));
+        return () -> client.admin().cluster().searchShards(clusterSearchShardsRequest, new RestToXContentListener<>(channel));
     }
 }

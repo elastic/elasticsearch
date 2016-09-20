@@ -82,7 +82,7 @@ public abstract class RestHeadAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         getRequest.operationThreaded(true);
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
@@ -94,7 +94,7 @@ public abstract class RestHeadAction extends BaseRestHandler {
         getRequest.storedFields(Strings.EMPTY_ARRAY);
         // TODO we can also just return the document size as Content-Length
 
-        client.get(getRequest, new RestResponseListener<GetResponse>(channel) {
+        return () -> client.get(getRequest, new RestResponseListener<GetResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetResponse response) {
                 if (!response.isExists()) {
@@ -107,4 +107,5 @@ public abstract class RestHeadAction extends BaseRestHandler {
             }
         });
     }
+
 }

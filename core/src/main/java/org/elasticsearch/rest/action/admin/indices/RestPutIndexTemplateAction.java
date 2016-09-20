@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
@@ -28,9 +29,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
-/**
- *
- */
 public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     @Inject
@@ -41,7 +39,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
         putRequest.template(request.param("template", putRequest.template()));
         putRequest.order(request.paramAsInt("order", putRequest.order()));
@@ -49,6 +47,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));
         putRequest.source(request.content());
-        client.admin().indices().putTemplate(putRequest, new AcknowledgedRestListener<>(channel));
+        return () -> client.admin().indices().putTemplate(putRequest, new AcknowledgedRestListener<>(channel));
     }
+
 }

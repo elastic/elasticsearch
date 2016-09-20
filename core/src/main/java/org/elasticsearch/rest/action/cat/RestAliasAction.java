@@ -51,13 +51,13 @@ public class RestAliasAction extends AbstractCatAction {
 
 
     @Override
-    protected void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    protected Runnable doCatRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final GetAliasesRequest getAliasesRequest = request.hasParam("alias") ?
                 new GetAliasesRequest(request.param("alias")) :
                 new GetAliasesRequest();
         getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
 
-        client.admin().indices().getAliases(getAliasesRequest, new RestResponseListener<GetAliasesResponse>(channel) {
+        return () -> client.admin().indices().getAliases(getAliasesRequest, new RestResponseListener<GetAliasesResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetAliasesResponse response) throws Exception {
                 Table tab = buildTable(request, response);

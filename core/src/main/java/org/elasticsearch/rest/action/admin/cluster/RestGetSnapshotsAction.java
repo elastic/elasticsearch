@@ -47,7 +47,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
 
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String repository = request.param("repository");
         String[] snapshots = request.paramAsStringArray("snapshot", Strings.EMPTY_ARRAY);
 
@@ -55,6 +55,6 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
 
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
-        client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestToXContentListener<GetSnapshotsResponse>(channel));
+        return () -> client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestToXContentListener<>(channel));
     }
 }

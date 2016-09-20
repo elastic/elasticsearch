@@ -42,8 +42,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- */
 public class RestTable {
 
     public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {

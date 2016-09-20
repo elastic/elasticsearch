@@ -57,12 +57,13 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(
                 Strings.splitStringByCommaToArray(request.param("index")));
         clearIndicesCacheRequest.indicesOptions(IndicesOptions.fromRequest(request, clearIndicesCacheRequest.indicesOptions()));
         fromRequest(request, clearIndicesCacheRequest, parseFieldMatcher);
-        client.admin().indices().clearCache(clearIndicesCacheRequest, new RestBuilderListener<ClearIndicesCacheResponse>(channel) {
+        return () ->
+                client.admin().indices().clearCache(clearIndicesCacheRequest, new RestBuilderListener<ClearIndicesCacheResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClearIndicesCacheResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
@@ -85,6 +86,9 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
             if (parseFieldMatcher.match(entry.getKey(), Fields.QUERY)) {
                 clearIndicesCacheRequest.queryCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.queryCache()));
             }
+            if (parseFieldMatcher.match(entry.getKey(), Fields.REQUEST_CACHE)) {
+                clearIndicesCacheRequest.requestCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.requestCache()));
+            }
             if (parseFieldMatcher.match(entry.getKey(), Fields.FIELD_DATA)) {
                 clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.fieldDataCache()));
             }
@@ -101,6 +105,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
 
     public static class Fields {
         public static final ParseField QUERY = new ParseField("query", "filter", "filter_cache");
+        public static final ParseField REQUEST_CACHE = new ParseField("request_cache");
         public static final ParseField FIELD_DATA = new ParseField("field_data", "fielddata");
         public static final ParseField RECYCLER = new ParseField("recycler");
         public static final ParseField FIELDS = new ParseField("fields");

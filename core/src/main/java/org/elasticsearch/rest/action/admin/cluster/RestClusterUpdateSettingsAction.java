@@ -35,7 +35,11 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class RestClusterUpdateSettingsAction extends BaseRestHandler {
 
@@ -46,7 +50,7 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
         clusterUpdateSettingsRequest.timeout(request.paramAsTime("timeout", clusterUpdateSettingsRequest.timeout()));
         clusterUpdateSettingsRequest.masterNodeTimeout(
@@ -62,7 +66,7 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
             clusterUpdateSettingsRequest.persistentSettings((Map) source.get("persistent"));
         }
 
-        client.admin().cluster().updateSettings(clusterUpdateSettingsRequest,
+        return () -> client.admin().cluster().updateSettings(clusterUpdateSettingsRequest,
                 new AcknowledgedRestListener<ClusterUpdateSettingsResponse>(channel) {
                     @Override
                     protected void addCustomFields(XContentBuilder builder, ClusterUpdateSettingsResponse response) throws IOException {
@@ -75,6 +79,11 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
                         builder.endObject();
                     }
                 });
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Settings.FORMAT_PARAMS;
     }
 
     @Override

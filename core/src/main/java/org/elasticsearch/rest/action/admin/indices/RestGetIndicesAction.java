@@ -43,7 +43,11 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -64,7 +68,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] featureParams = request.paramAsStringArray("type", null);
         // Work out if the indices is a list of features
@@ -81,7 +85,8 @@ public class RestGetIndicesAction extends BaseRestHandler {
         getIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, getIndexRequest.indicesOptions()));
         getIndexRequest.local(request.paramAsBoolean("local", getIndexRequest.local()));
         getIndexRequest.humanReadable(request.paramAsBoolean("human", false));
-        client.admin().indices().getIndex(getIndexRequest, new RestBuilderListener<GetIndexResponse>(channel) {
+        final boolean includeDefaults = request.paramAsBoolean("include_defaults", false);
+        return () -> client.admin().indices().getIndex(getIndexRequest, new RestBuilderListener<GetIndexResponse>(channel) {
 
             @Override
             public RestResponse buildResponse(GetIndexResponse response, XContentBuilder builder) throws Exception {
@@ -100,7 +105,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
                             writeMappings(response.mappings().get(index), builder, request);
                             break;
                         case SETTINGS:
-                            writeSettings(response.settings().get(index), builder, request);
+                            writeSettings(response.settings().get(index), builder, request, includeDefaults);
                             break;
                         default:
                             throw new IllegalStateException("feature [" + feature + "] is not valid");
@@ -136,12 +141,14 @@ public class RestGetIndicesAction extends BaseRestHandler {
                 builder.endObject();
             }
 
-            private void writeSettings(Settings settings, XContentBuilder builder, Params params) throws IOException {
-                final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
+            private void writeSettings(
+                final Settings settings,
+                final XContentBuilder builder,
+                final Params params, final boolean includeDefaults) throws IOException {
                 builder.startObject(Fields.SETTINGS);
                 settings.toXContent(builder, params);
                 builder.endObject();
-                if (renderDefaults) {
+                if (includeDefaults) {
                     builder.startObject("defaults");
                     settingsFilter.filter(indexScopedSettings.diff(settings, RestGetIndicesAction.this.settings)).toXContent(builder,
                             request);
@@ -150,6 +157,11 @@ public class RestGetIndicesAction extends BaseRestHandler {
             }
 
         });
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Settings.FORMAT_PARAMS;
     }
 
     static class Fields {

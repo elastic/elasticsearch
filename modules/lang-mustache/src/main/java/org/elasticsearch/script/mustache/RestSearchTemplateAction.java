@@ -100,7 +100,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+    public Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (RestActions.hasBodyContent(request) == false) {
             throw new ElasticsearchException("request body is required");
         }
@@ -113,7 +113,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         SearchTemplateRequest searchTemplateRequest = parse(RestActions.getRestContent(request));
         searchTemplateRequest.setRequest(searchRequest);
 
-        client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestStatusToXContentListener<>(channel));
+        return () -> client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestStatusToXContentListener<>(channel));
     }
 
     public static SearchTemplateRequest parse(BytesReference bytes) throws IOException {

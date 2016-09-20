@@ -45,17 +45,20 @@ public class RestRepositoriesAction extends AbstractCatAction {
     }
 
     @Override
-    protected void doRequest(RestRequest request, RestChannel channel, NodeClient client) {
+    protected Runnable doCatRequest(RestRequest request, RestChannel channel, NodeClient client) {
         GetRepositoriesRequest getRepositoriesRequest = new GetRepositoriesRequest();
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
         getRepositoriesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRepositoriesRequest.masterNodeTimeout()));
 
-        client.admin().cluster().getRepositories(getRepositoriesRequest, new RestResponseListener<GetRepositoriesResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(GetRepositoriesResponse getRepositoriesResponse) throws Exception {
-                return RestTable.buildResponse(buildTable(request, getRepositoriesResponse), channel);
-            }
-        });
+        return () ->
+                client.admin()
+                        .cluster()
+                        .getRepositories(getRepositoriesRequest, new RestResponseListener<GetRepositoriesResponse>(channel) {
+                            @Override
+                            public RestResponse buildResponse(GetRepositoriesResponse getRepositoriesResponse) throws Exception {
+                                return RestTable.buildResponse(buildTable(request, getRepositoriesResponse), channel);
+                            }
+                        });
     }
 
     @Override

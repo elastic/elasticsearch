@@ -66,7 +66,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
 
         String[] texts = request.paramAsStringArrayOrEmptyIfAll("text");
 
@@ -99,7 +99,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
             }
         }
 
-        client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<>(channel));
+        return () -> client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<>(channel));
     }
 
     public static void buildFromContent(BytesReference content, AnalyzeRequest analyzeRequest, ParseFieldMatcher parseFieldMatcher) {

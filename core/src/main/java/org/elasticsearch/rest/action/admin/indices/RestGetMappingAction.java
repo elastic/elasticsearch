@@ -59,14 +59,14 @@ public class RestGetMappingAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
         GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
         getMappingsRequest.indices(indices).types(types);
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
-        client.admin().indices().getMappings(getMappingsRequest, new RestBuilderListener<GetMappingsResponse>(channel) {
+        return () -> client.admin().indices().getMappings(getMappingsRequest, new RestBuilderListener<GetMappingsResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetMappingsResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

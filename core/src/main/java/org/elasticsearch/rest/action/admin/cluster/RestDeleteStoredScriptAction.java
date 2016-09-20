@@ -49,9 +49,9 @@ public class RestDeleteStoredScriptAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, NodeClient client) {
         DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest(getScriptLang(request), request.param("id"));
-        client.admin().cluster().deleteStoredScript(deleteStoredScriptRequest, new AcknowledgedRestListener<>(channel));
+        return () -> client.admin().cluster().deleteStoredScript(deleteStoredScriptRequest, new AcknowledgedRestListener<>(channel));
     }
 
 }

@@ -41,6 +41,7 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -67,20 +68,21 @@ public class RestValidateQueryAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         validateQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, validateQueryRequest.indicesOptions()));
         validateQueryRequest.explain(request.paramAsBoolean("explain", false));
+        validateQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
+        validateQueryRequest.rewrite(request.paramAsBoolean("rewrite", false));
+
         if (RestActions.hasBodyContent(request)) {
             try {
-                validateQueryRequest
-                        .query(RestActions.getQueryContent(RestActions.getRestContent(request), indicesQueriesRegistry, parseFieldMatcher));
-            } catch(ParsingException e) {
-                channel.sendResponse(buildErrorResponse(channel.newBuilder(), e.getDetailedMessage(), validateQueryRequest.explain()));
-                return;
-            } catch(Exception e) {
-                channel.sendResponse(buildErrorResponse(channel.newBuilder(), e.getMessage(), validateQueryRequest.explain()));
-                return;
+                validateQueryRequest.query(
+                    RestActions.getQueryContent(RestActions.getRestContent(request), indicesQueriesRegistry, parseFieldMatcher));
+            } catch (ParsingException e) {
+                return () -> handleException(channel, validateQueryRequest, e.getDetailedMessage());
+            } catch (Exception e) {
+                return () -> handleException(channel, validateQueryRequest, e.getMessage());
             }
         } else {
             QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
@@ -88,37 +90,44 @@ public class RestValidateQueryAction extends BaseRestHandler {
                 validateQueryRequest.query(queryBuilder);
             }
         }
-        validateQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
-        validateQueryRequest.rewrite(request.paramAsBoolean("rewrite", false));
 
-        client.admin().indices().validateQuery(validateQueryRequest, new RestBuilderListener<ValidateQueryResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(ValidateQueryResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                builder.field(VALID_FIELD, response.isValid());
-                buildBroadcastShardsHeader(builder, request, response);
-                if (response.getQueryExplanation() != null && !response.getQueryExplanation().isEmpty()) {
-                    builder.startArray(EXPLANATIONS_FIELD);
-                    for (QueryExplanation explanation : response.getQueryExplanation()) {
-                        builder.startObject();
-                        if (explanation.getIndex() != null) {
-                            builder.field(INDEX_FIELD, explanation.getIndex());
+        return () ->
+            client.admin().indices().validateQuery(validateQueryRequest, new RestBuilderListener<ValidateQueryResponse>(channel) {
+                @Override
+                public RestResponse buildResponse(ValidateQueryResponse response, XContentBuilder builder) throws Exception {
+                    builder.startObject();
+                    builder.field(VALID_FIELD, response.isValid());
+                    buildBroadcastShardsHeader(builder, request, response);
+                    if (response.getQueryExplanation() != null && !response.getQueryExplanation().isEmpty()) {
+                        builder.startArray(EXPLANATIONS_FIELD);
+                        for (QueryExplanation explanation : response.getQueryExplanation()) {
+                            builder.startObject();
+                            if (explanation.getIndex() != null) {
+                                builder.field(INDEX_FIELD, explanation.getIndex());
+                            }
+                            builder.field(VALID_FIELD, explanation.isValid());
+                            if (explanation.getError() != null) {
+                                builder.field(ERROR_FIELD, explanation.getError());
+                            }
+                            if (explanation.getExplanation() != null) {
+                                builder.field(EXPLANATION_FIELD, explanation.getExplanation());
+                            }
+                            builder.endObject();
                         }
-                        builder.field(VALID_FIELD, explanation.isValid());
-                        if (explanation.getError() != null) {
-                            builder.field(ERROR_FIELD, explanation.getError());
-                        }
-                        if (explanation.getExplanation() != null) {
-                            builder.field(EXPLANATION_FIELD, explanation.getExplanation());
-                        }
-                        builder.endObject();
+                        builder.endArray();
                     }
-                    builder.endArray();
+                    builder.endObject();
+                    return new BytesRestResponse(OK, builder);
                 }
-                builder.endObject();
-                return new BytesRestResponse(OK, builder);
-            }
-        });
+            });
+    }
+
+    private void handleException(final RestChannel channel, final ValidateQueryRequest validateQueryRequest, final String message) {
+        try {
+            channel.sendResponse(buildErrorResponse(channel.newBuilder(), message, validateQueryRequest.explain()));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private static BytesRestResponse buildErrorResponse(XContentBuilder builder, String error, boolean explain) throws IOException {

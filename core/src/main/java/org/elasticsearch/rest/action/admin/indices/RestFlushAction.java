@@ -56,12 +56,12 @@ public class RestFlushAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         FlushRequest flushRequest = new FlushRequest(Strings.splitStringByCommaToArray(request.param("index")));
         flushRequest.indicesOptions(IndicesOptions.fromRequest(request, flushRequest.indicesOptions()));
         flushRequest.force(request.paramAsBoolean("force", flushRequest.force()));
         flushRequest.waitIfOngoing(request.paramAsBoolean("wait_if_ongoing", flushRequest.waitIfOngoing()));
-        client.admin().indices().flush(flushRequest, new RestBuilderListener<FlushResponse>(channel) {
+        return () -> client.admin().indices().flush(flushRequest, new RestBuilderListener<FlushResponse>(channel) {
             @Override
             public RestResponse buildResponse(FlushResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

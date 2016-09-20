@@ -59,7 +59,7 @@ public abstract class AbstractBaseReindexRestHandler<
         this.action = action;
     }
 
-    protected void handleRequest(RestRequest request, RestChannel channel, NodeClient client,
+    protected Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client,
                                  boolean includeCreated, boolean includeUpdated) throws IOException {
         // Build the internal request
         Request internal = setCommonOptions(request, buildRequest(request));
@@ -70,8 +70,7 @@ public abstract class AbstractBaseReindexRestHandler<
             params.put(BulkByScrollTask.Status.INCLUDE_CREATED, Boolean.toString(includeCreated));
             params.put(BulkByScrollTask.Status.INCLUDE_UPDATED, Boolean.toString(includeUpdated));
 
-            client.executeLocally(action, internal, new BulkIndexByScrollResponseContentListener(channel, params));
-            return;
+            return () -> client.executeLocally(action, internal, new BulkIndexByScrollResponseContentListener(channel, params));
         } else {
             internal.setShouldStoreResult(true);
         }
@@ -83,10 +82,9 @@ public abstract class AbstractBaseReindexRestHandler<
          */
         ActionRequestValidationException validationException = internal.validate();
         if (validationException != null) {
-            channel.sendResponse(new BytesRestResponse(channel, validationException));
-            return;
+            throw validationException;
         }
-        sendTask(channel, client.executeLocally(action, internal, LoggingTaskListener.instance()));
+        return sendTask(channel, client.executeLocally(action, internal, LoggingTaskListener.instance()));
     }
 
     /**
@@ -116,12 +114,12 @@ public abstract class AbstractBaseReindexRestHandler<
         return request;
     }
 
-    private void sendTask(RestChannel channel, Task task) throws IOException {
+    private Runnable sendTask(RestChannel channel, Task task) throws IOException {
         try (XContentBuilder builder = channel.newBuilder()) {
             builder.startObject();
             builder.field("task", clusterService.localNode().getId() + ":" + task.getId());
             builder.endObject();
-            channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+            return () -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
         }
     }
 

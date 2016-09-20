@@ -54,7 +54,7 @@ public class RestMultiGetAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         multiGetRequest.refresh(request.paramAsBoolean("refresh", multiGetRequest.refresh()));
         multiGetRequest.preference(request.param("preference"));
@@ -73,6 +73,6 @@ public class RestMultiGetAction extends BaseRestHandler {
         multiGetRequest.add(request.param("index"), request.param("type"), sFields, defaultFetchSource,
                 request.param("routing"), RestActions.getRestContent(request), allowExplicitIndex);
 
-        client.multiGet(multiGetRequest, new RestToXContentListener<MultiGetResponse>(channel));
+        return () -> client.multiGet(multiGetRequest, new RestToXContentListener<MultiGetResponse>(channel));
     }
 }

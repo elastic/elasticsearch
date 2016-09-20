@@ -57,7 +57,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final String[] aliases = request.paramAsStringArrayOrEmptyIfAll("name");
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);
@@ -65,7 +65,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
         getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
 
-        client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<GetAliasesResponse>(channel) {
+        return () -> client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<GetAliasesResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetAliasesResponse response, XContentBuilder builder) throws Exception {
                 // empty body, if indices were specified but no aliases were

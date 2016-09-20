@@ -58,7 +58,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String alias = request.param("name");
         Map<String, Object> filter = null;
@@ -117,6 +117,6 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
             aliasAction.filter(filter);
         }
         indicesAliasesRequest.addAliasAction(aliasAction);
-        client.admin().indices().aliases(indicesAliasesRequest, new AcknowledgedRestListener<>(channel));
+        return () -> client.admin().indices().aliases(indicesAliasesRequest, new AcknowledgedRestListener<>(channel));
     }
 }

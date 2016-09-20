@@ -49,12 +49,12 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest(
                 Strings.splitStringByCommaToArray(request.param("index")));
         indicesSegmentsRequest.verbose(request.paramAsBoolean("verbose", false));
         indicesSegmentsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesSegmentsRequest.indicesOptions()));
-        client.admin().indices().segments(indicesSegmentsRequest, new RestBuilderListener<IndicesSegmentResponse>(channel) {
+        return () -> client.admin().indices().segments(indicesSegmentsRequest, new RestBuilderListener<IndicesSegmentResponse>(channel) {
             @Override
             public RestResponse buildResponse(IndicesSegmentResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

@@ -45,7 +45,7 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+    public Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         // Creates the render template request
         SearchTemplateRequest renderRequest = RestSearchTemplateAction.parse(RestActions.getRestContent(request));
         renderRequest.setSimulate(true);
@@ -56,6 +56,6 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
             renderRequest.setScript(id);
         }
 
-        client.execute(SearchTemplateAction.INSTANCE, renderRequest, new RestToXContentListener<>(channel));
+        return () -> client.execute(SearchTemplateAction.INSTANCE, renderRequest, new RestToXContentListener<>(channel));
     }
 }

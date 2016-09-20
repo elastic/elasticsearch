@@ -49,7 +49,11 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -72,7 +76,7 @@ public class RestIndicesAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doCatRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().indices(indices).metaData(true);
@@ -81,7 +85,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final IndicesOptions strictExpandIndicesOptions = IndicesOptions.strictExpand();
         clusterStateRequest.indicesOptions(strictExpandIndicesOptions);
 
-        client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
+        return () -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 final ClusterState state = clusterStateResponse.getState();
@@ -121,6 +125,19 @@ public class RestIndicesAction extends AbstractCatAction {
                 });
             }
         });
+    }
+
+    private static final Set<String> RESPONSE_PARAMS;
+
+    static {
+        final Set<String> responseParams = new HashSet<>(Arrays.asList("local", "health"));
+        responseParams.addAll(AbstractCatAction.RESPONSE_PARAMS);
+        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
     }
 
     @Override

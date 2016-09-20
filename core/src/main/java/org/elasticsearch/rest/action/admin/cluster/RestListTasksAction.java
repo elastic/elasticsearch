@@ -55,14 +55,14 @@ public class RestListTasksAction extends BaseRestHandler {
 
     public static ListTasksRequest generateListTasksRequest(RestRequest request) {
         boolean detailed = request.paramAsBoolean("detailed", false);
-        String[] nodesIds = Strings.splitStringByCommaToArray(request.param("node_id"));
+        String[] nodes = Strings.splitStringByCommaToArray(request.param("nodes"));
         String[] actions = Strings.splitStringByCommaToArray(request.param("actions"));
         TaskId parentTaskId = new TaskId(request.param("parent_task_id"));
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
         TimeValue timeout = request.paramAsTime("timeout", null);
 
         ListTasksRequest listTasksRequest = new ListTasksRequest();
-        listTasksRequest.setNodesIds(nodesIds);
+        listTasksRequest.setNodes(nodes);
         listTasksRequest.setDetailed(detailed);
         listTasksRequest.setActions(actions);
         listTasksRequest.setParentTaskId(parentTaskId);
@@ -72,8 +72,10 @@ public class RestListTasksAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
-        client.admin().cluster().listTasks(generateListTasksRequest(request), listTasksResponseListener(clusterService, channel));
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+        final ListTasksRequest listTasksRequest = generateListTasksRequest(request);
+        final ActionListener<ListTasksResponse> listener = listTasksResponseListener(clusterService, channel);
+        return () -> client.admin().cluster().listTasks(listTasksRequest, listener);
     }
 
     /**

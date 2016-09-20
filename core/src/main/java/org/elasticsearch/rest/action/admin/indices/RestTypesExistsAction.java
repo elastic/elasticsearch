@@ -52,13 +52,13 @@ public class RestTypesExistsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         TypesExistsRequest typesExistsRequest = new TypesExistsRequest(
                 Strings.splitStringByCommaToArray(request.param("index")), Strings.splitStringByCommaToArray(request.param("type"))
         );
         typesExistsRequest.local(request.paramAsBoolean("local", typesExistsRequest.local()));
         typesExistsRequest.indicesOptions(IndicesOptions.fromRequest(request, typesExistsRequest.indicesOptions()));
-        client.admin().indices().typesExists(typesExistsRequest, new RestResponseListener<TypesExistsResponse>(channel) {
+        return () -> client.admin().indices().typesExists(typesExistsRequest, new RestResponseListener<TypesExistsResponse>(channel) {
             @Override
             public RestResponse buildResponse(TypesExistsResponse response) throws Exception {
                 if (response.isExists()) {

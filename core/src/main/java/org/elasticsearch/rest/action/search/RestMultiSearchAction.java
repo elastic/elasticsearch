@@ -75,9 +75,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex, searchRequestParsers, parseFieldMatcher);
-        client.multiSearch(multiSearchRequest, new RestToXContentListener<>(channel));
+        return () -> client.multiSearch(multiSearchRequest, new RestToXContentListener<>(channel));
     }
 
     /**

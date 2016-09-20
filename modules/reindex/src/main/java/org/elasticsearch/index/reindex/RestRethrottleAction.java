@@ -45,7 +45,7 @@ public class RestRethrottleAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         RethrottleRequest internalRequest = new RethrottleRequest();
         internalRequest.setTaskId(new TaskId(request.param("taskId")));
         Float requestsPerSecond = AbstractBaseReindexRestHandler.parseRequestsPerSecond(request);
@@ -53,6 +53,6 @@ public class RestRethrottleAction extends BaseRestHandler {
             throw new IllegalArgumentException("requests_per_second is a required parameter");
         }
         internalRequest.setRequestsPerSecond(requestsPerSecond);
-        client.execute(RethrottleAction.INSTANCE, internalRequest, listTasksResponseListener(clusterService, channel));
+        return () -> client.execute(RethrottleAction.INSTANCE, internalRequest, listTasksResponseListener(clusterService, channel));
     }
 }

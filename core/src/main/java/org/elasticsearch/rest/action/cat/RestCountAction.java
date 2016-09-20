@@ -58,7 +58,7 @@ public class RestCountAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doCatRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         SearchRequest countRequest = new SearchRequest(indices);
         String source = request.param("source");
@@ -72,7 +72,7 @@ public class RestCountAction extends AbstractCatAction {
                 searchSourceBuilder.query(queryBuilder);
             }
         }
-        client.search(countRequest, new RestResponseListener<SearchResponse>(channel) {
+        return () -> client.search(countRequest, new RestResponseListener<SearchResponse>(channel) {
             @Override
             public RestResponse buildResponse(SearchResponse countResponse) throws Exception {
                 return RestTable.buildResponse(buildTable(request, countResponse), channel);

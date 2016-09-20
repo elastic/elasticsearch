@@ -40,9 +40,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
-/**
- *
- */
 public class RestRefreshAction extends BaseRestHandler {
 
     @Inject
@@ -56,10 +53,10 @@ public class RestRefreshAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         RefreshRequest refreshRequest = new RefreshRequest(Strings.splitStringByCommaToArray(request.param("index")));
         refreshRequest.indicesOptions(IndicesOptions.fromRequest(request, refreshRequest.indicesOptions()));
-        client.admin().indices().refresh(refreshRequest, new RestBuilderListener<RefreshResponse>(channel) {
+        return () -> client.admin().indices().refresh(refreshRequest, new RestBuilderListener<RefreshResponse>(channel) {
             @Override
             public RestResponse buildResponse(RefreshResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

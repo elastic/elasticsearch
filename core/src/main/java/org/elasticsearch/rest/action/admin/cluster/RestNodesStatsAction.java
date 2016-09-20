@@ -53,7 +53,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         Set<String> metrics = Strings.splitStringByCommaToSet(request.param("metric", "_all"));
 
@@ -111,7 +111,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
             nodesStatsRequest.indices().includeSegmentFileSizes(true);
         }
 
-        client.admin().cluster().nodesStats(nodesStatsRequest, new NodesResponseRestListener<>(channel));
+        return () -> client.admin().cluster().nodesStats(nodesStatsRequest, new NodesResponseRestListener<>(channel));
     }
 
     @Override

@@ -47,7 +47,7 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String repository = request.param("repository", "_all");
         String[] snapshots = request.paramAsStringArray("snapshot", Strings.EMPTY_ARRAY);
         if (snapshots.length == 1 && "_all".equalsIgnoreCase(snapshots[0])) {
@@ -57,6 +57,6 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
         snapshotsStatusRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", snapshotsStatusRequest.ignoreUnavailable()));
 
         snapshotsStatusRequest.masterNodeTimeout(request.paramAsTime("master_timeout", snapshotsStatusRequest.masterNodeTimeout()));
-        client.admin().cluster().snapshotsStatus(snapshotsStatusRequest, new RestToXContentListener<>(channel));
+        return () -> client.admin().cluster().snapshotsStatus(snapshotsStatusRequest, new RestToXContentListener<>(channel));
     }
 }

@@ -44,7 +44,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("index"), request.param("new_index"));
         if (request.hasContent()) {
             rolloverIndexRequest.source(request.content());
@@ -53,6 +53,6 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         rolloverIndexRequest.timeout(request.paramAsTime("timeout", rolloverIndexRequest.timeout()));
         rolloverIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", rolloverIndexRequest.masterNodeTimeout()));
         rolloverIndexRequest.setWaitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
-        client.admin().indices().rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));
+        return () -> client.admin().indices().rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));
     }
 }

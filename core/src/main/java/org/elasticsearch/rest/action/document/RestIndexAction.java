@@ -40,9 +40,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 
-/**
- *
- */
 public class RestIndexAction extends BaseRestHandler {
 
     @Inject
@@ -62,14 +59,14 @@ public class RestIndexAction extends BaseRestHandler {
         }
 
         @Override
-        public void handleRequest(RestRequest request, RestChannel channel, final NodeClient client) {
+        public Runnable doRequest(RestRequest request, RestChannel channel, final NodeClient client) {
             request.params().put("op_type", "create");
-            RestIndexAction.this.handleRequest(request, channel, client);
+            return RestIndexAction.this.doRequest(request, channel, client);
         }
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
         indexRequest.routing(request.param("routing"));
         indexRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
@@ -84,24 +81,15 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.version(RestActions.parseVersion(request));
         indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
         String sOpType = request.param("op_type");
-        if (sOpType != null) {
-            try {
-                indexRequest.opType(IndexRequest.OpType.fromString(sOpType));
-            } catch (IllegalArgumentException eia){
-                try {
-                    XContentBuilder builder = channel.newErrorBuilder();
-                    channel.sendResponse(
-                            new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", eia.getMessage()).endObject()));
-                } catch (IOException e1) {
-                    logger.warn("Failed to send response", e1);
-                    return;
-                }
-            }
-        }
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
             indexRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
-        client.index(indexRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing())));
+        if (sOpType != null) {
+            indexRequest.opType(IndexRequest.OpType.fromString(sOpType));
+        }
+
+        return () -> client.index(indexRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing())));
     }
+
 }

@@ -80,7 +80,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
 
     @SuppressWarnings("unchecked") // List<String> casts
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+    public Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         final List<String> settings;
 
         try (XContentParser parser = XContentFactory.xContent(request.content()).createParser(request.content())) {
@@ -103,6 +103,6 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
         }
         builder.endArray().endObject();
 
-        channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+        return () -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
     }
 }

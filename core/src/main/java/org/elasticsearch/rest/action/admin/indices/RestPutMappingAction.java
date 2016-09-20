@@ -68,7 +68,7 @@ public class RestPutMappingAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
         putMappingRequest.type(request.param("type"));
         putMappingRequest.source(request.content().utf8ToString());
@@ -76,6 +76,6 @@ public class RestPutMappingAction extends BaseRestHandler {
         putMappingRequest.timeout(request.paramAsTime("timeout", putMappingRequest.timeout()));
         putMappingRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putMappingRequest.masterNodeTimeout()));
         putMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, putMappingRequest.indicesOptions()));
-        client.admin().indices().putMapping(putMappingRequest, new AcknowledgedRestListener<PutMappingResponse>(channel));
+        return () -> client.admin().indices().putMapping(putMappingRequest, new AcknowledgedRestListener<PutMappingResponse>(channel));
     }
 }

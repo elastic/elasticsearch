@@ -47,17 +47,20 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doCatRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         PendingClusterTasksRequest pendingClusterTasksRequest = new PendingClusterTasksRequest();
         pendingClusterTasksRequest.masterNodeTimeout(request.paramAsTime("master_timeout", pendingClusterTasksRequest.masterNodeTimeout()));
         pendingClusterTasksRequest.local(request.paramAsBoolean("local", pendingClusterTasksRequest.local()));
-        client.admin().cluster().pendingClusterTasks(pendingClusterTasksRequest, new RestResponseListener<PendingClusterTasksResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(PendingClusterTasksResponse pendingClusterTasks) throws Exception {
-                Table tab = buildTable(request, pendingClusterTasks);
-                return RestTable.buildResponse(tab, channel);
-            }
-        });
+        return () ->
+                client.admin()
+                        .cluster()
+                        .pendingClusterTasks(pendingClusterTasksRequest, new RestResponseListener<PendingClusterTasksResponse>(channel) {
+                            @Override
+                            public RestResponse buildResponse(PendingClusterTasksResponse pendingClusterTasks) throws Exception {
+                                Table tab = buildTable(request, pendingClusterTasks);
+                                return RestTable.buildResponse(tab, channel);
+                            }
+                        });
     }
 
     @Override

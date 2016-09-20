@@ -42,10 +42,10 @@ public class RestClusterStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest().nodesIds(request.paramAsStringArray("nodeId", null));
         clusterStatsRequest.timeout(request.param("timeout"));
-        client.admin().cluster().clusterStats(clusterStatsRequest, new NodesResponseRestListener<>(channel));
+        return () -> client.admin().cluster().clusterStats(clusterStatsRequest, new NodesResponseRestListener<>(channel));
     }
 
     @Override

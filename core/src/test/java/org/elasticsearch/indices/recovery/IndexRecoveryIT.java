@@ -136,7 +136,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     }
 
     private void slowDownRecovery(ByteSizeValue shardSize) {
-        long chunkSize = Math.max(1, shardSize.bytes() / 10);
+        long chunkSize = Math.max(1, shardSize.getBytes() / 10);
         for(RecoverySettings settings : internalCluster().getInstances(RecoverySettings.class)) {
             setChunkSize(settings, new ByteSizeValue(chunkSize, ByteSizeUnit.BYTES));
         }

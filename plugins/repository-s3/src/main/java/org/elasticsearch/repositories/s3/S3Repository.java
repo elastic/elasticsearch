@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import org.elasticsearch.cloud.aws.AwsS3Service;

@@ -212,11 +212,11 @@ class InstallPluginCommand extends SettingCommand {
             final String stagingHash = System.getProperty(PROPERTY_STAGING_ID);
             if (stagingHash != null) {
                 url = String.format(Locale.ROOT,
-                    "https://staging.elastic.co/%3$s-%1$s/download/elasticsearch-plugins/%2$s/%2$s-%3$s.zip",
+                    "https://staging.elastic.co/%3$s-%1$s/downloads/elasticsearch-plugins/%2$s/%2$s-%3$s.zip",
                     stagingHash, pluginId, version);
             } else {
                 url = String.format(Locale.ROOT,
-                    "https://artifacts.elastic.co/download/elasticsearch-plugins/%1$s/%1$s-%2$s.zip",
+                    "https://artifacts.elastic.co/downloads/elasticsearch-plugins/%1$s/%1$s-%2$s.zip",
                     pluginId, version);
             }
             terminal.println("-> Downloading " + pluginId + " from elastic");

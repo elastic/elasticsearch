@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -122,9 +123,9 @@ public class ScriptServiceTests extends ESTestCase {
         // TODO:
         scriptService = new ScriptService(finalSettings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
-            String getScriptFromClusterState(String id) {
+            StoredScriptSource getScriptFromClusterState(String id) {
                 //mock the script that gets retrieved from an index
-                return "100";
+                return new StoredScriptSource(null, null, "100");
             }
         };
     }

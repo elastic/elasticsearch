@@ -105,7 +105,7 @@ PUT test/doc/2
   "num": 2.0
 }
 
-POST _scripts/python/my_script  <1>
+POST _scripts/my_script  <1>
 {
   "script": "doc[\"num\"].value * factor"
 }
@@ -117,7 +117,6 @@ GET test/_search
       "script_score": {
         "script": {
           "id": "my_script", <2>
-          "lang": "python",
           "params": {
             "factor": 2
           }

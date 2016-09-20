@@ -359,7 +359,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return scriptLang;
     }
 
-    StoredScriptSource getScriptFromClusterState(String id) {
+    private StoredScriptSource getScriptFromClusterState(String id) {
         ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
 
         if (scriptMetadata == null) {

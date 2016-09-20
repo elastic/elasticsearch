@@ -48,13 +48,11 @@ GET my_index/_search
 
 `lang`::
 
-    Specifies the language the script is written in.  Defaults to `groovy` but
-    may be set to any of languages listed in <<modules-scripting>>. The
-    default language may be changed in the `elasticsearch.yml` config file by
-    setting `script.default_lang` to the appropriate language.
+    Specifies the language the script is written in.  Defaults to `painless` but
+    may be set to any of languages listed in <<modules-scripting>>.
 
 
-`inline`, `id`, `file`::
+`inline`, `stored`, `file`::
 
     Specifies the source of the script.  An `inline` script is specified
     `inline` as in the example above, a stored script with the specified `id`
@@ -181,23 +179,26 @@ Script reloading can be completely disabled by setting
 === Stored Scripts
 
 Scripts may be stored in and retrieved from the cluster state using the
-`_scripts` end-point:
+`_scripts` end-point.  Stored scripts must have unique id's even across
+different languages.
 
 [source,js]
 -----------------------------------
-/_scripts/{lang}/{id} <1> <2>
+/_scripts/{id} <1>
 -----------------------------------
-<1> The `lang` represents the script language.
-<2> The `id` is a unique identifier or script name.
+<1> The `id` is a unique identifier or script name.
 
 This example stores a Groovy script called `calculate-score` in the cluster
 state:
 
 [source,js]
 -----------------------------------
-POST _scripts/groovy/calculate-score
+POST _scripts/calculate-score
 {
-  "script": "log(_score * 2) + my_modifier"
+  "script": {
+      "code": "log(_score * 2) + my_modifier",
+      "lang": "groovy"
+  }
 }
 -----------------------------------
 // CONSOLE
@@ -206,12 +207,12 @@ This same script can be retrieved with:
 
 [source,js]
 -----------------------------------
-GET _scripts/groovy/calculate-score
+GET _scripts/calculate-score
 -----------------------------------
 // CONSOLE
 // TEST[continued]
 
-Stored scripts can be used by specifying the `lang` and `id` parameters as follows:
+Stored scripts can be used by specifying `id` parameter as follows:
 
 [source,js]
 --------------------------------------------------
@@ -220,8 +221,7 @@ GET _search
   "query": {
     "script": {
       "script": {
-        "lang": "groovy",
-        "id":   "calculate-score",
+        "id": "calculate-score",
         "params": {
           "my_modifier": 2
         }
@@ -237,7 +237,7 @@ And deleted with:
 
 [source,js]
 -----------------------------------
-DELETE _scripts/groovy/calculate-score
+DELETE _scripts/calculate-score
 -----------------------------------
 // CONSOLE
 // TEST[continued]

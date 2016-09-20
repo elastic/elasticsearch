@@ -17,6 +17,8 @@
  * under the License.
  */
 
+import org.elasticsearch.gradle.plugin.PluginBuildPlugin
+
 task buildZip(type: Zip) {
   baseName = 'elasticsearch'
   with archivesFiles
@@ -33,12 +35,20 @@ publishing {
       artifactId 'elasticsearch'
       artifact buildZip
     }
+    // TODO explain why we can't use the pom build by nebula
     nebulaRealPom(MavenPublication) {
       artifactId 'elasticsearch'
       pom.packaging = 'pom'
+      pom.withXml { XmlProvider xml ->
+        Node root = xml.asNode()
+        root.appendNode('name', 'Elasticsearch')
+        root.appendNode('description', 'A Distributed RESTful Search Engine')
+        root.appendNode('url', PluginBuildPlugin.urlFromOrigin(project.scminfo.origin))
+        Node scmNode = root.appendNode('scm')
+        scmNode.appendNode('url', project.scminfo.origin)
+      }
     }
   }
 }
 
 integTest.dependsOn buildZip
-

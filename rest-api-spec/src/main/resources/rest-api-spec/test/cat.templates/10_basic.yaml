@@ -126,6 +126,7 @@
     - do:
         cat.templates:
             v: true
+            name: test
 
     - match:
         $body: |
@@ -160,6 +161,7 @@
         cat.templates:
             h:  [name, template]
             v:  true
+            name: test*
 
     - match:
         $body: |

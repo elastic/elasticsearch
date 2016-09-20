@@ -13,7 +13,7 @@ link:/downloads/past-releases[Past Releases page].
 [[install-windows]]
 ==== Download and install the `.zip` package
 
-Download the `.zip` archive for Elasticsearch v{version} from: https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/zip/elasticsearch/{version}/elasticsearch-{version}.zip
+Download the `.zip` archive for Elasticsearch v{version} from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.zip
 
 Unzip it with your favourite unzip tool.  This will create a folder called
 +elasticsearch-{version}+, which we will refer to as `%ES_HOME%`. In a terminal

@@ -17,13 +17,13 @@ The `.zip` archive for Elastisearch v{version} can be downloaded and installed a
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/zip/elasticsearch/{version}/elasticsearch-{version}.zip
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.zip
 sha1sum elasticsearch-{version}.zip <1>
 unzip elasticsearch-{version}.zip
 cd elasticsearch-{version}/ <2>
 --------------------------------------------
 <1> Compare the SHA produced by `sha1sum` or `shasum` with the
-    https://download.elastics.co/elasticsearch/release/org/elasticsearch/distribution/zip/elasticsearch/{version}/elasticsearch-{version}.zip.sha1[published SHA].
+    https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.zip.sha1[published SHA].
 <2> This directory is known as `$ES_HOME`.
 
 [[install-targz]]
@@ -33,13 +33,13 @@ The `.tar.gz` archive for Elastisearch v{version} can be downloaded and installe
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/tar/elasticsearch/{version}/elasticsearch-{version}.tar.gz
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.tar.gz
 sha1sum elasticsearch-{version}.tar.gz <1>
 tar -xzf elasticsearch-{version}.tar.gz
 cd elasticsearch-{version}/ <2>
 --------------------------------------------
 <1> Compare the SHA produced by `sha1sum` or `shasum` with the
-    https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/tar/elasticsearch/{version}/elasticsearch-{version}.tar.gz.sha1[published SHA].
+    https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.tar.gz.sha1[published SHA].
 <2> This directory is known as `$ES_HOME`.
 
 [[zip-targz-running]]

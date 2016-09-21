@@ -190,7 +190,7 @@ public class BulkProcessor implements Closeable {
 
     BulkProcessor(Client client, BackoffPolicy backoffPolicy, Listener listener, @Nullable String name, int concurrentRequests, int bulkActions, ByteSizeValue bulkSize, @Nullable TimeValue flushInterval) {
         this.bulkActions = bulkActions;
-        this.bulkSize = bulkSize.bytes();
+        this.bulkSize = bulkSize.getBytes();
 
         this.bulkRequest = new BulkRequest();
         this.bulkRequestHandler = (concurrentRequests == 0) ? BulkRequestHandler.syncHandler(client, backoffPolicy, listener) : BulkRequestHandler.asyncHandler(client, backoffPolicy, listener, concurrentRequests);

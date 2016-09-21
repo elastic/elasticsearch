@@ -694,6 +694,65 @@ and it'll look like:
 
 Or you can search by `tag` or whatever you want.
 
+[float]
+=== Manually slicing
+
+Reindex supports <<sliced-scroll>> allowing you to manually parallelize the
+process relatively easily:
+
+[source,js]
+----------------------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "twitter",
+    "slice": {
+      "id": 0,
+      "max": 2
+    }
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+POST _reindex
+{
+  "source": {
+    "index": "twitter",
+    "slice": {
+      "id": 1,
+      "max": 2
+    }
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
+
+Which you can verify works with:
+
+[source,js]
+----------------------------------------------------------------
+GET _refresh
+POST new_twitter/_search?size=0&filter_path=hits.total
+----------------------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Which results in a sensible `total` like this one:
+
+[source,js]
+----------------------------------------------------------------
+{
+  "hits": {
+    "total": 120
+  }
+}
+----------------------------------------------------------------
+// TESTRESPONSE
 
 [float]
 === Reindex daily indices

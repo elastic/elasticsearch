@@ -127,9 +127,9 @@ public class RatedRequestsTests extends ESTestCase {
          + "           \"size\": 10\n"
          + "   },\n"
          + "   \"ratings\": [ "
-         + "        {\"index\": \"test\", \"type\": \"testtype\", \"doc_id\": \"1\", \"rating\" : 1 }, "
-         + "        {\"type\": \"testtype\", \"index\": \"test\", \"doc_id\": \"2\", \"rating\" : 0 }, "
-         + "        {\"doc_id\": \"3\", \"index\": \"test\", \"type\": \"testtype\", \"rating\" : 1 }]\n"
+         + "        {\"_index\": \"test\", \"_type\": \"testtype\", \"_id\": \"1\", \"rating\" : 1 }, "
+         + "        {\"_type\": \"testtype\", \"_index\": \"test\", \"_id\": \"2\", \"rating\" : 0 }, "
+         + "        {\"_id\": \"3\", \"_index\": \"test\", \"_type\": \"testtype\", \"rating\" : 1 }]\n"
          + "}";
         XContentParser parser = XContentFactory.xContent(querySpecString).createParser(querySpecString);
         QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, parser, ParseFieldMatcher.STRICT);

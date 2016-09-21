@@ -38,9 +38,9 @@ import java.util.Objects;
 public class RatedDocument extends ToXContentToBytes implements Writeable {
 
     public static final ParseField RATING_FIELD = new ParseField("rating");
-    public static final ParseField DOC_ID_FIELD = new ParseField("doc_id");
-    public static final ParseField TYPE_FIELD = new ParseField("type");
-    public static final ParseField INDEX_FIELD = new ParseField("index");
+    public static final ParseField DOC_ID_FIELD = new ParseField("_id");
+    public static final ParseField TYPE_FIELD = new ParseField("_type");
+    public static final ParseField INDEX_FIELD = new ParseField("_index");
 
     private static final ConstructingObjectParser<RatedDocument, ParseFieldMatcherSupplier> PARSER =
             new ConstructingObjectParser<>("rated_document",

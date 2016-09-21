@@ -114,6 +114,7 @@ public class ESRestTestCase extends ESTestCase {
         }
     }
 
+
     /**
      * Clean up after the test case.
      */

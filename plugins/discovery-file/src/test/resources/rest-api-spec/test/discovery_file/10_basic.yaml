@@ -1,6 +1,6 @@
 # Integration tests for file-based discovery
 #
-"Discovery File loaded":
+"Ensure cluster formed successfully with discovery file":
     # make sure both nodes joined the cluster
     - do:
         cluster.health:

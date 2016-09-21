@@ -161,5 +161,4 @@ class ClusterConfiguration {
         }
         extraConfigFiles.put(path, sourceFile)
     }
-
 }

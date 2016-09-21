@@ -5,14 +5,9 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.indices;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -22,6 +17,9 @@ import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.collector.AbstractCollector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.security.InternalClient;
+
+import java.util.Collection;
+import java.util.Collections;
 
 /**
  * Collector for indices statistics.
@@ -66,8 +64,9 @@ public class IndicesStatsCollector extends AbstractCollector {
 
             return Collections.singletonList(indicesStatsDoc);
         } catch (IndexNotFoundException e) {
-            if (XPackSettings.SECURITY_ENABLED.get(settings)
-                && IndexNameExpressionResolver.isAllIndices(Arrays.asList(monitoringSettings.indices()))) {
+            //TODO this if should go away once the empty cluster / empty set of indices behaviour is fixed in the security plugin
+            if (XPackSettings.SECURITY_ENABLED.get(settings)) {
+                //&& IndexNameExpressionResolver.isAllIndices(Arrays.asList(monitoringSettings.indices()))) {
                 logger.debug("collector [{}] - unable to collect data for missing index [{}]", name(), e.getIndex());
                 return Collections.emptyList();
             }

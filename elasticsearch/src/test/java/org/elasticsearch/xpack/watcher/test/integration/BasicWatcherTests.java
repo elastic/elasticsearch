@@ -86,6 +86,9 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertThat(getWatchResponse.getSource(), notNullValue());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/1250")
+    //this test is temporarily disabled. The security plugin honours now ignore_unavailable, but whenever there's a request left
+    //with an empty set of indices it throws exception. This will be fixed once security plugin honours allow_no_indices too.
     public void testIndexWatchRegisterWatchBeforeTargetIndex() throws Exception {
         WatcherClient watcherClient = watcherClient();
         WatcherSearchTemplateRequest searchRequest = templateRequest(searchSource().query(termQuery("field", "value")), "idx");
@@ -169,6 +172,9 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/1250")
+    //this test is temporarily disabled. The security plugin honours now ignore_unavailable, but whenever there's a request left
+    //with an empty set of indices it throws exception. This will be fixed once security plugin honours allow_no_indices too.
     public void testModifyWatches() throws Exception {
         WatcherSearchTemplateRequest searchRequest = templateRequest(searchSource().query(matchAllQuery()), "idx");
 

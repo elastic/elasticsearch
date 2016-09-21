@@ -152,7 +152,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
-    public void testResolveWildcardsExpandWilcardsOpenAndClosed() {
+    public void testResolveWildcardsStrictExpand() {
         SearchRequest request = new SearchRequest("barbaz", "foofoo*");
         request.indicesOptions(IndicesOptions.strictExpand());
         Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
@@ -163,11 +163,33 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
-    public void testResolveWildcardsExpandWilcardsOpen() {
+    public void testResolveWildcardsExpandOpenAndClosedIgnoreUnavailable() {
         SearchRequest request = new SearchRequest("barbaz", "foofoo*");
-        request.indicesOptions(randomFrom(IndicesOptions.strictExpandOpen(), IndicesOptions.lenientExpandOpen()));
+        request.indicesOptions(IndicesOptions.fromOptions(true, false, true, true));
+        Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
+        String[] replacedIndices = new String[]{"foofoobar", "foofoo", "foofoo-closed"};
+        assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(request.indices().length, equalTo(replacedIndices.length));
+        assertThat(indices, hasItems(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
+    }
+
+    public void testResolveWildcardsStrictExpandOpen() {
+        SearchRequest request = new SearchRequest("barbaz", "foofoo*");
+        request.indicesOptions(IndicesOptions.strictExpandOpen());
         Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
         String[] replacedIndices = new String[]{"barbaz", "foofoobar", "foofoo"};
+        assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(request.indices().length, equalTo(replacedIndices.length));
+        assertThat(indices, hasItems(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
+    }
+
+    public void testResolveWildcardsLenientExpandOpen() {
+        SearchRequest request = new SearchRequest("barbaz", "foofoo*");
+        request.indicesOptions(IndicesOptions.lenientExpandOpen());
+        Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
+        String[] replacedIndices = new String[]{"foofoobar", "foofoo"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
@@ -196,9 +218,11 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
-    public void testResolveWildcardsPlusAndMinusExpandWilcardsOpen() {
+    public void testResolveWildcardsPlusAndMinusExpandWilcardsOpenStrict() {
         SearchRequest request = new SearchRequest("-foofoo*", "+barbaz", "+foob*");
-        request.indicesOptions(randomFrom(IndicesOptions.strictExpandOpen(), IndicesOptions.lenientExpandOpen()));
+        if (randomBoolean()) {
+            request.indicesOptions(IndicesOptions.strictExpandOpen());
+        }
         Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
         String[] replacedIndices = new String[]{"bar", "barbaz"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
@@ -207,11 +231,33 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
-    public void testResolveWildcardsPlusAndMinusExpandWilcardsOpenAndClosed() {
+    public void testResolveWildcardsPlusAndMinusExpandWilcardsOpenIgnoreUnavailable() {
+        SearchRequest request = new SearchRequest("-foofoo*", "+barbaz", "+foob*");
+        request.indicesOptions(IndicesOptions.lenientExpandOpen());
+        Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
+        String[] replacedIndices = new String[]{"bar"};
+        assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(request.indices().length, equalTo(replacedIndices.length));
+        assertThat(indices, hasItems(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
+    }
+
+    public void testResolveWildcardsPlusAndMinusExpandWilcardsOpenAndClosedStrict() {
         SearchRequest request = new SearchRequest("-foofoo*", "+barbaz");
         request.indicesOptions(IndicesOptions.strictExpand());
         Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
         String[] replacedIndices = new String[]{"bar", "bar-closed", "barbaz"};
+        assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(request.indices().length, equalTo(replacedIndices.length));
+        assertThat(indices, hasItems(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
+    }
+
+    public void testResolveWildcardsPlusAndMinusExpandWilcardsOpenAndClosedIgnoreUnavailable() {
+        SearchRequest request = new SearchRequest("-foofoo*", "+barbaz");
+        request.indicesOptions(IndicesOptions.fromOptions(true, false, true, true));
+        Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
+        String[] replacedIndices = new String[]{"bar", "bar-closed"};
         assertThat(indices.size(), equalTo(replacedIndices.length));
         assertThat(request.indices().length, equalTo(replacedIndices.length));
         assertThat(indices, hasItems(replacedIndices));
@@ -228,8 +274,35 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         }
     }
 
+    public void testResolveExplicitIndicesStrict() {
+        SearchRequest request = new SearchRequest("missing", "bar", "barbaz");
+        if (randomBoolean()) {
+            request.indicesOptions(IndicesOptions.strictExpandOpenAndForbidClosed());
+        }
+        Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
+        String[] replacedIndices = new String[]{"missing", "bar", "barbaz"};
+        assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(request.indices().length, equalTo(replacedIndices.length));
+        assertThat(indices, hasItems(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
+    }
+
+    public void testResolveExplicitIndicesIgnoreUnavailable() {
+        SearchRequest request = new SearchRequest("missing", "bar", "barbaz");
+        request.indicesOptions(IndicesOptions.lenientExpandOpen());
+        Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
+        String[] replacedIndices = new String[]{"bar"};
+        assertThat(indices.size(), equalTo(replacedIndices.length));
+        assertThat(request.indices().length, equalTo(replacedIndices.length));
+        assertThat(indices, hasItems(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
+    }
+
     public void testResolveNoAuthorizedIndices() {
         SearchRequest request = new SearchRequest();
+        if (randomBoolean()) {
+            request.indicesOptions(IndicesOptions.lenientExpandOpen());
+        }
         try {
             defaultIndicesResolver.resolve(userNoIndices, SearchAction.NAME, request, metaData);
             fail("Expected IndexNotFoundException");
@@ -238,7 +311,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         }
     }
 
-    public void testResolveMissingIndex() {
+    public void testResolveMissingIndexStrict() {
         SearchRequest request = new SearchRequest("bar*", "missing");
         Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
         String[] expectedIndices = new String[]{"bar", "missing"};
@@ -248,8 +321,22 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.indices(), equalTo(expectedIndices));
     }
 
+    public void testResolveMissingIndexIgnoreUnavailable() {
+        SearchRequest request = new SearchRequest("bar*", "missing");
+        request.indicesOptions(IndicesOptions.lenientExpandOpen());
+        Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
+        String[] expectedIndices = new String[]{"bar"};
+        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(request.indices().length, equalTo(expectedIndices.length));
+        assertThat(indices, hasItems(expectedIndices));
+        assertThat(request.indices(), equalTo(expectedIndices));
+    }
+
     public void testResolveNonMatchingIndicesAndExplicit() {
         SearchRequest request = new SearchRequest("missing*", "bar");
+        if (randomBoolean()) {
+            request.indicesOptions(randomFrom(IndicesOptions.lenientExpandOpen(), IndicesOptions.strictExpandOpen()));
+        }
         Set<String> indices = defaultIndicesResolver.resolve(user, SearchAction.NAME, request, metaData);
         String[] expectedIndices = new String[]{"bar"};
         assertThat(indices.toArray(new String[indices.size()]), equalTo(expectedIndices));
@@ -492,8 +579,11 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("foofoobar"));
     }
 
-    public void testResolveGetAliasesRequest() {
+    public void testResolveGetAliasesRequestStrict() {
         GetAliasesRequest request = new GetAliasesRequest("alias1").indices("foo", "foofoo");
+        if (randomBoolean()) {
+            request.indicesOptions(randomFrom(IndicesOptions.strictExpand(), IndicesOptions.strictExpandOpen()));
+        }
         Set<String> indices = defaultIndicesResolver.resolve(user, GetAliasesAction.NAME, request, metaData);
         //the union of all indices and aliases gets returned
         String[] expectedIndices = new String[]{"alias1", "foo", "foofoo"};
@@ -503,8 +593,22 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
     }
 
-    public void testResolveGetAliasesRequestMissingIndex() {
+    public void testResolveGetAliasesRequestIgnoreUnavailable() {
+        GetAliasesRequest request = new GetAliasesRequest("alias1").indices("foo", "foofoo");
+        request.indicesOptions(IndicesOptions.lenientExpandOpen());
+        Set<String> indices = defaultIndicesResolver.resolve(user, GetAliasesAction.NAME, request, metaData);
+        String[] expectedIndices = new String[]{"alias1", "foofoo"};
+        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasItems(expectedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder("foofoo"));
+        assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
+    }
+
+    public void testResolveGetAliasesRequestMissingIndexStrict() {
         GetAliasesRequest request = new GetAliasesRequest();
+        if (randomBoolean()) {
+            request.indicesOptions(randomFrom(IndicesOptions.strictExpandOpen(), IndicesOptions.strictExpand()));
+        }
         request.indices("missing");
         request.aliases("alias2");
         Set<String> indices = defaultIndicesResolver.resolve(user, GetAliasesAction.NAME, request, metaData);
@@ -516,8 +620,21 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias2"));
     }
 
-    public void testResolveWildcardsGetAliasesRequest() {
+    public void testResolveGetAliasesRequestMissingIndexIgnoreUnavailable() {
         GetAliasesRequest request = new GetAliasesRequest();
+        request.indicesOptions(IndicesOptions.lenientExpandOpen());
+        request.indices("missing");
+        request.aliases("alias2");
+        IndexNotFoundException exception = expectThrows(IndexNotFoundException.class,
+                () -> defaultIndicesResolver.resolve(user, GetAliasesAction.NAME, request, metaData));
+        assertEquals("no such index", exception.getMessage());
+    }
+
+    public void testResolveWildcardsGetAliasesRequestStrictExpand() {
+        GetAliasesRequest request = new GetAliasesRequest();
+        if (randomBoolean()) {
+            request.indicesOptions(IndicesOptions.strictExpand());
+        }
         request.aliases("alias1");
         request.indices("foo*");
         Set<String> indices = defaultIndicesResolver.resolve(user, GetAliasesAction.NAME, request, metaData);
@@ -527,6 +644,36 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(indices, hasItems(expectedIndices));
         //wildcards get replaced on each single action
         assertThat(request.indices(), arrayContainingInAnyOrder("foofoobar", "foofoo", "foofoo-closed"));
+        assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
+    }
+
+    public void testResolveWildcardsGetAliasesRequestStrictExpandOpen() {
+        GetAliasesRequest request = new GetAliasesRequest();
+        request.indicesOptions(IndicesOptions.strictExpandOpen());
+        request.aliases("alias1");
+        request.indices("foo*");
+        Set<String> indices = defaultIndicesResolver.resolve(user, GetAliasesAction.NAME, request, metaData);
+        //the union of all resolved indices and aliases gets returned, based on indices and aliases that user is authorized for
+        String[] expectedIndices = new String[]{"alias1", "foofoo", "foofoobar"};
+        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasItems(expectedIndices));
+        //wildcards get replaced on each single action
+        assertThat(request.indices(), arrayContainingInAnyOrder("foofoobar", "foofoo"));
+        assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
+    }
+
+    public void testResolveWildcardsGetAliasesRequestLenientExpandOpen() {
+        GetAliasesRequest request = new GetAliasesRequest();
+        request.indicesOptions(IndicesOptions.lenientExpandOpen());
+        request.aliases("alias1");
+        request.indices("foo*", "bar", "missing");
+        Set<String> indices = defaultIndicesResolver.resolve(user, GetAliasesAction.NAME, request, metaData);
+        //the union of all resolved indices and aliases gets returned, based on indices and aliases that user is authorized for
+        String[] expectedIndices = new String[]{"alias1", "foofoo", "foofoobar", "bar"};
+        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasItems(expectedIndices));
+        //wildcards get replaced on each single action
+        assertThat(request.indices(), arrayContainingInAnyOrder("foofoobar", "foofoo", "bar"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
     }
 

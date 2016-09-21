@@ -8,6 +8,7 @@ integTest {
   includePackaged true
   systemProperty 'tests.rest.blacklist',
     ['indices.get/10_basic/*allow_no_indices*',
+     'indices.get/10_basic/Missing index should return empty object if ignore_unavailable',
      'cat.count/10_basic/Test cat count output',
      'cat.aliases/10_basic/Empty cluster',
      'indices.segments/10_basic/no segments test',

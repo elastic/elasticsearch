@@ -60,6 +60,9 @@ public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/1250")
+    //this test is temporarily disabled. The security plugin honours now ignore_unavailable, but whenever there's a request left
+    //with an empty set of indices it throws exception. This will be fixed once security plugin honours allow_no_indices too.
     public void testEmptyClusterMissingIndex() throws Exception {
         final String node = internalCluster().startNode(Settings.builder().put(MonitoringSettings.INDICES.getKey(), "unknown"));
         waitForNoBlocksOnNode(node);

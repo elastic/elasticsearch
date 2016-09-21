@@ -94,8 +94,15 @@ public class IndicesAndAliasesResolverIntegrationTests extends SecurityIntegTest
     }
 
     public void testIndexNotFoundIgnoreUnavailable() {
+        IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
         createIndices("test1", "test2", "index1");
-        assertThrowsAuthorizationException(client().prepareSearch("missing").setIndicesOptions(IndicesOptions.lenientExpandOpen()));
+
+        String index = randomFrom("test1", "test2");
+        assertReturnedIndices(client().prepareSearch("missing", index).setIndicesOptions(indicesOptions).get(), index);
+
+        assertReturnedIndices(client().prepareSearch("missing", "test*").setIndicesOptions(indicesOptions).get(), "test1", "test2");
+
+        assertReturnedIndices(client().prepareSearch("missing_*", "test*").setIndicesOptions(indicesOptions).get(), "test1", "test2");
     }
 
     public void testExplicitExclusion() {

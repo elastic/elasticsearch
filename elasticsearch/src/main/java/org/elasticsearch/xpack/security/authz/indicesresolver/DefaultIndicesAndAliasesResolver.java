@@ -29,6 +29,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.stream.Collectors;
 
 public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolver<TransportRequest> {
 
@@ -90,12 +91,16 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
             IndicesRequest.Replaceable replaceable = (IndicesRequest.Replaceable) indicesRequest;
             final boolean replaceWildcards = indicesRequest.indicesOptions().expandWildcardsOpen()
                     || indicesRequest.indicesOptions().expandWildcardsClosed();
-            List<String> authorizedIndices = replaceWildcardsWithAuthorizedIndices(indicesRequest.indices(),
-                    indicesRequest.indicesOptions(),
-                    metaData,
-                    authzService.authorizedIndicesAndAliases(user, action),
-                    replaceWildcards);
-            replaceable.indices(authorizedIndices.toArray(new String[authorizedIndices.size()]));
+            List<String> authorizedIndicesAndAliases = authzService.authorizedIndicesAndAliases(user, action);
+            List<String> replacedIndices = replaceWildcardsWithAuthorizedIndices(indicesRequest.indices(),
+                    indicesRequest.indicesOptions(), metaData, authorizedIndicesAndAliases, replaceWildcards);
+            if (indicesRequest.indicesOptions().ignoreUnavailable()) {
+                //out of all the explicit names (expanded from wildcards and original ones that were left untouched)
+                //remove all the ones that the current user is not authorized for and ignore them
+                replacedIndices = replacedIndices.stream().filter(authorizedIndicesAndAliases::contains).collect(Collectors.toList());
+                throwExceptionIfNoIndicesWereResolved(indicesRequest.indices(), replacedIndices);
+            }
+            replaceable.indices(replacedIndices.toArray(new String[replacedIndices.size()]));
             indices = Sets.newHashSet(indicesRequest.indices());
         } else {
             assert !containsWildcards(indicesRequest) :

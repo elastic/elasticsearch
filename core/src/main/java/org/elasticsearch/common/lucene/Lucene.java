@@ -27,6 +27,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
+import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -353,6 +354,8 @@ public class Lucene {
         return new ScoreDoc(in.readVInt(), in.readFloat());
     }
 
+    private static final Class<?> GEO_DISTANCE_SORT_TYPE_CLASS = LatLonDocValuesField.newDistanceSort("some_geo_field", 0, 0).getClass();
+
     public static void writeTopDocs(StreamOutput out, TopDocs topDocs) throws IOException {
         if (topDocs instanceof TopFieldDocs) {
             out.writeBoolean(true);
@@ -363,6 +366,16 @@ public class Lucene {
 
             out.writeVInt(topFieldDocs.fields.length);
             for (SortField sortField : topFieldDocs.fields) {
+                if (sortField.getClass() == GEO_DISTANCE_SORT_TYPE_CLASS) {
+                    // for geo sorting, we replace the SortField with a SortField that assumes a double field.
+                    // this works since the SortField is only used for merging top docs
+                    SortField newSortField = new SortField(sortField.getField(), SortField.Type.DOUBLE);
+                    newSortField.setMissingValue(sortField.getMissingValue());
+                    sortField = newSortField;
+                }
+                if (sortField.getClass() != SortField.class) {
+                    throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
+                }
                 if (sortField.getField() == null) {
                     out.writeBoolean(false);
                 } else {

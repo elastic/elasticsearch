@@ -51,7 +51,7 @@ final class TranslogSnapshot extends BaseTranslogReader implements Translog.Snap
     }
 
     @Override
-    public final int totalOperations() {
+    public int totalOperations() {
         return totalOperations;
     }
 
@@ -64,7 +64,7 @@ final class TranslogSnapshot extends BaseTranslogReader implements Translog.Snap
         }
     }
 
-    protected final Translog.Operation readOperation() throws IOException {
+    protected Translog.Operation readOperation() throws IOException {
         final int opSize = readSize(reusableBuffer, position);
         reuse = checksummedStream(reusableBuffer, position, opSize, reuse);
         Translog.Operation op = read(reuse);

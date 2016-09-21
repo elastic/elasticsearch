@@ -28,6 +28,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -52,7 +53,7 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
         ensureGreen();
 
         client().prepareIndex("test", "testtype").setId("1")
-                .setSource("text", "berlin").get();
+                .setSource("text", "berlin", "title", "Berlin, Germany").get();
         client().prepareIndex("test", "testtype").setId("2")
                 .setSource("text", "amsterdam").get();
         client().prepareIndex("test", "testtype").setId("3")
@@ -66,15 +67,19 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
         refresh();
     }
 
-    public void testPrecisionAtRequest() {
+    public void testPrecisionAtRequest() throws IOException {
         List<String> indices = Arrays.asList(new String[] { "test" });
         List<String> types = Arrays.asList(new String[] { "testtype" });
 
         List<RatedRequest> specifications = new ArrayList<>();
         SearchSourceBuilder testQuery = new SearchSourceBuilder();
         testQuery.query(new MatchAllQueryBuilder());
-        specifications.add(new RatedRequest("amsterdam_query", testQuery, indices, types, createRelevant("2", "3", "4", "5")));
-        specifications.add(new RatedRequest("berlin_query", testQuery, indices, types, createRelevant("1")));
+        RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query", testQuery, indices, types, createRelevant("2", "3", "4", "5"));
+        amsterdamRequest.setSummaryFields(Arrays.asList(new String[]{ "text", "title" }));
+        specifications.add(amsterdamRequest);
+        RatedRequest berlinRequest = new RatedRequest("berlin_query", testQuery, indices, types, createRelevant("1"));
+        berlinRequest.setSummaryFields(Arrays.asList(new String[]{ "text", "title" }));
+        specifications.add(berlinRequest);
 
         RankEvalSpec task = new RankEvalSpec(specifications, new PrecisionAtN(10));
 
@@ -86,11 +91,32 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
         Set<Entry<String, EvalQueryQuality>> entrySet = response.getPartialResults().entrySet();
         assertEquals(2, entrySet.size());
         for (Entry<String, EvalQueryQuality> entry : entrySet) {
+            EvalQueryQuality quality = entry.getValue();
             if (entry.getKey() == "amsterdam_query") {
-                assertEquals(2, entry.getValue().getUnknownDocs().size());
+                assertEquals(2, quality.getUnknownDocs().size());
+                List<RatedSearchHit> hitsAndRatings = quality.getHitsAndRatings();
+                assertEquals(6, hitsAndRatings.size());
+                for (RatedSearchHit hit : hitsAndRatings) {
+                    String id = hit.getSearchHit().getId();
+                    if (id.equals("1") || id.equals("6")) {
+                        assertFalse(hit.getRating().isPresent());
+                    } else {
+                        assertEquals(Rating.RELEVANT.ordinal(), hit.getRating().get().intValue());
+                    }
+                }
             }
             if (entry.getKey() == "berlin_query") {
-                assertEquals(5, entry.getValue().getUnknownDocs().size());
+                assertEquals(5, quality.getUnknownDocs().size());
+                List<RatedSearchHit> hitsAndRatings = quality.getHitsAndRatings();
+                assertEquals(6, hitsAndRatings.size());
+                for (RatedSearchHit hit : hitsAndRatings) {
+                    String id = hit.getSearchHit().getId();
+                    if (id.equals("1")) {
+                        assertEquals(Rating.RELEVANT.ordinal(), hit.getRating().get().intValue());
+                    } else {
+                        assertFalse(hit.getRating().isPresent());
+                    }
+                }
             }
         }
     }

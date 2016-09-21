@@ -50,7 +50,7 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
      *
      * dcg = 13.84826362927298 (sum of last column)
      */
-    public void testDCGAtSix() throws IOException, InterruptedException, ExecutionException {
+    public void testDCGAt() throws IOException, InterruptedException, ExecutionException {
         List<RatedDocument> rated = new ArrayList<>();
         int[] relevanceRatings = new int[] { 3, 2, 3, 0, 1, 2 };
         InternalSearchHit[] hits = new InternalSearchHit[6];
@@ -128,6 +128,59 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
          */
         dcg.setNormalize(true);
         assertEquals(12.779642067948913 / 13.347184833073591, dcg.evaluate("id", hits, rated).getQualityLevel(), 0.00001);
+    }
+
+    /**
+     * This tests that normalization works as expected when there are more rated documents than search hits
+     * because we restrict DCG to be calculated at the fourth position
+     *
+     * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1)    | (2^(rel_rank) - 1) / log_2(rank + 1)
+     * -------------------------------------------------------------------------------------------
+     * 1    | 3        | 7.0              | 1.0                | 7.0
+     * 2    | 2        | 3.0              | 1.5849625007211563 | 1.8927892607143721
+     * 3    | 3        | 7.0              | 2.0                | 3.5
+     * 4    | n/a      | n/a              | n/a                | n/a
+     * -----------------------------------------------------------------
+     * 5    | 1        | 1.0              | 2.584962500721156  | 0.38685280723454163
+     * 6    | n/a      | n/a              | n/a                | n/a
+     *
+     * dcg = 12.392789260714371 (sum of last column until position 4)
+     */
+    public void testDCGAtFourMoreRatings() throws IOException, InterruptedException, ExecutionException {
+        List<RatedDocument> rated = new ArrayList<>();
+        Integer[] relevanceRatings = new Integer[] { 3, 2, 3, null, 1};
+        InternalSearchHit[] hits = new InternalSearchHit[6];
+        for (int i = 0; i < 6; i++) {
+            if (i < relevanceRatings.length) {
+                if (relevanceRatings[i] != null) {
+                    rated.add(new RatedDocument("index", "type", Integer.toString(i), relevanceRatings[i]));
+                }
+            }
+            hits[i] = new InternalSearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
+            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0)));
+        }
+        DiscountedCumulativeGainAt dcg = new DiscountedCumulativeGainAt(4);
+        EvalQueryQuality result = dcg.evaluate("id", hits, rated);
+        assertEquals(12.392789260714371 , result.getQualityLevel(), 0.00001);
+        assertEquals(1, result.getUnknownDocs().size());
+
+        /**
+         * Check with normalization: to get the maximal possible dcg, sort documents by relevance in descending order
+         *
+         * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1)    | (2^(rel_rank) - 1) / log_2(rank + 1)
+         * -------------------------------------------------------------------------------------------
+         * 1    | 3        | 7.0              | 1.0                | 7.0
+         * 2    | 3        | 7.0              | 1.5849625007211563 | 4.416508275000202
+         * 3    | 2        | 3.0              | 2.0                | 1.5
+         * 4    | 1        | 1.0              | 2.321928094887362   | 0.43067655807339
+         * -------------------------------------------------------------------------------------------
+         * 5    | n.a        | n.a              | n.a.  | n.a.
+         * 6    | n.a        | n.a              | n.a  | n.a
+         *
+         * idcg = 13.347184833073591 (sum of last column)
+         */
+        dcg.setNormalize(true);
+        assertEquals(12.392789260714371  / 13.347184833073591, dcg.evaluate("id", hits, rated).getQualityLevel(), 0.00001);
     }
 
     public void testParseFromXContent() throws IOException {

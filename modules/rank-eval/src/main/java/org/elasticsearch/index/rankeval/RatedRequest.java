@@ -47,6 +47,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     private SearchSourceBuilder testRequest;
     private List<String> indices = new ArrayList<>();
     private List<String> types = new ArrayList<>();
+    private List<String> summaryFields = new ArrayList<>();
     /** Collection of rated queries for this query QA specification.*/
     private List<RatedDocument> ratedDocs = new ArrayList<>();
 
@@ -82,6 +83,11 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         for (int i = 0; i < intentSize; i++) {
             ratedDocs.add(new RatedDocument(in));
         }
+        int summaryFieldsSize = in.readInt();
+        summaryFields = new ArrayList<>(summaryFieldsSize);
+        for (int i = 0; i < summaryFieldsSize; i++) {
+            this.summaryFields.add(in.readString());
+        }
     }
 
     @Override
@@ -99,6 +105,10 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         out.writeInt(ratedDocs.size());
         for (RatedDocument ratedDoc : ratedDocs) {
             ratedDoc.writeTo(out);
+        }
+        out.writeInt(summaryFields.size());
+        for (String fieldName : summaryFields) {
+            out.writeString(fieldName);
         }
     }
 
@@ -146,13 +156,24 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         this.ratedDocs = ratedDocs;
     }
 
+    public void setSummaryFields(List<String> fields) {
+        this.summaryFields = fields;
+    }
+
+    /** Returns a list of fields that are included in the docs summary of matched documents. */
+    public List<String> getSummaryFields() {
+        return summaryFields;
+    }
+
     private static final ParseField ID_FIELD = new ParseField("id");
     private static final ParseField REQUEST_FIELD = new ParseField("request");
     private static final ParseField RATINGS_FIELD = new ParseField("ratings");
+    private static final ParseField FIELDS_FIELD = new ParseField("summary_fields");
     private static final ObjectParser<RatedRequest, RankEvalContext> PARSER = new ObjectParser<>("requests", RatedRequest::new);
 
     static {
         PARSER.declareString(RatedRequest::setSpecId, ID_FIELD);
+        PARSER.declareStringArray(RatedRequest::setSummaryFields, FIELDS_FIELD);
         PARSER.declareObject(RatedRequest::setTestRequest, (p, c) -> {
             try {
                 return SearchSourceBuilder.fromXContent(c.getParseContext(), c.getAggs(),  c.getSuggesters(), c.getSearchExtParsers());
@@ -186,6 +207,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
      *           },
      *           "size": 10
      *   },
+     *   "summary_fields" : ["body"],
      *   "ratings": [{ "1": 1 }, { "2": 0 }, { "3": 1 } ]
      *  }
      */
@@ -203,6 +225,13 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
             doc.toXContent(builder, params);
         }
         builder.endArray();
+        if (this.summaryFields.isEmpty() == false) {
+            builder.startArray(FIELDS_FIELD.getPreferredName());
+            for (String field : this.summaryFields) {
+                builder.value(field);
+            }
+            builder.endArray();
+        }
         builder.endObject();
         return builder;
     }
@@ -220,11 +249,12 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
                 Objects.equals(testRequest, other.testRequest) &&
                 Objects.equals(indices, other.indices) &&
                 Objects.equals(types, other.types) &&
+                Objects.equals(summaryFields, summaryFields) &&
                 Objects.equals(ratedDocs, other.ratedDocs);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(specId, testRequest, indices.hashCode(), types.hashCode(), ratedDocs.hashCode());
+        return Objects.hash(specId, testRequest, indices, types, summaryFields, ratedDocs);
     }
 }

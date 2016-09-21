@@ -34,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -72,6 +73,13 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             final RankEvalActionListener searchListener = new RankEvalActionListener(listener, qualityTask, querySpecification,
                     partialResults, unknownDocs, responseCounter);
             SearchSourceBuilder specRequest = querySpecification.getTestRequest();
+            List<String> summaryFields = querySpecification.getSummaryFields();
+            if (summaryFields.isEmpty()) {
+                specRequest.fetchSource(false);
+            } else {
+                specRequest.fetchSource(summaryFields.toArray(new String[summaryFields.size()]), new String[0]);
+            }
+
             String[] indices = new String[querySpecification.getIndices().size()];
             querySpecification.getIndices().toArray(indices);
             SearchRequest templatedRequest = new SearchRequest(indices, specRequest);

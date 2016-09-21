@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
 
@@ -140,36 +141,44 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
 
     @Override
     public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
-        Map<RatedDocumentKey, RatedDocument> ratedDocsByKey = new HashMap<>();
+        Map<RatedDocumentKey, RatedDocument> ratedDocsByKey = new HashMap<>(ratedDocs.size());
+        List<Integer> allRatings = new ArrayList<>(ratedDocs.size());
         for (RatedDocument doc : ratedDocs) {
             ratedDocsByKey.put(doc.getKey(), doc);
+            allRatings.add(doc.getRating());
         }
 
         List<RatedDocumentKey> unknownDocIds = new ArrayList<>();
-        List<Integer> ratings = new ArrayList<>();
+        List<RatedSearchHit> hitsAndRatings = new ArrayList<>();
+        List<Integer> ratingsInSearchHits = new ArrayList<>();
         for (int i = 0; (i < position && i < hits.length); i++) {
             RatedDocumentKey id = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].getId());
             RatedDocument ratedDoc = ratedDocsByKey.get(id);
             if (ratedDoc != null) {
-                ratings.add(ratedDoc.getRating());
+                ratingsInSearchHits.add(ratedDoc.getRating());
+                hitsAndRatings.add(new RatedSearchHit(hits[i], Optional.of(ratedDoc.getRating())));
             } else {
                 unknownDocIds.add(id);
                 if (unknownDocRating != null) {
-                    ratings.add(unknownDocRating);
+                    ratingsInSearchHits.add(unknownDocRating);
+                    hitsAndRatings.add(new RatedSearchHit(hits[i], Optional.of(unknownDocRating)));
                 } else {
                     // we add null here so that the later computation knows this position had no rating
-                    ratings.add(null);
+                    ratingsInSearchHits.add(null);
+                    hitsAndRatings.add(new RatedSearchHit(hits[i], Optional.empty()));
                 }
             }
         }
-        double dcg = computeDCG(ratings);
+        double dcg = computeDCG(ratingsInSearchHits);
 
         if (normalize) {
-            Collections.sort(ratings, Comparator.nullsLast(Collections.reverseOrder()));
-            double idcg = computeDCG(ratings);
+            Collections.sort(allRatings, Comparator.nullsLast(Collections.reverseOrder()));
+            double idcg = computeDCG(allRatings.subList(0, Math.min(hits.length, allRatings.size())));
             dcg = dcg / idcg;
         }
-        return new EvalQueryQuality(taskId, dcg, unknownDocIds);
+        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, dcg, unknownDocIds);
+        evalQueryQuality.addHitsAndRatings(hitsAndRatings);
+        return evalQueryQuality;
     }
 
     private static double computeDCG(List<Integer> ratings) {

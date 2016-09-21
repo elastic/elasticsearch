@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;;
@@ -42,6 +43,7 @@ public class EvalQueryQuality implements ToXContent, Writeable {
     private String id;
     private double qualityLevel;
     private MetricDetails optionalMetricDetails;
+    private List<RatedSearchHit> hits = new ArrayList<>();
 
     public EvalQueryQuality(String id, double qualityLevel, List<RatedDocumentKey> unknownDocs) {
         this.id = id;
@@ -51,7 +53,17 @@ public class EvalQueryQuality implements ToXContent, Writeable {
 
     public EvalQueryQuality(StreamInput in) throws IOException {
         this(in.readString(), in.readDouble(), in.readList(RatedDocumentKey::new));
+        this.hits = in.readList(RatedSearchHit::new);
         this.optionalMetricDetails = in.readOptionalNamedWriteable(MetricDetails.class);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(id);
+        out.writeDouble(qualityLevel);
+        out.writeList(unknownDocs);
+        out.writeList(hits);
+        out.writeOptionalNamedWriteable(this.optionalMetricDetails);
     }
 
     public String getId() {
@@ -74,15 +86,12 @@ public class EvalQueryQuality implements ToXContent, Writeable {
         return this.optionalMetricDetails;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(id);
-        out.writeDouble(qualityLevel);
-        out.writeVInt(unknownDocs.size());
-        for (RatedDocumentKey key : unknownDocs) {
-            key.writeTo(out);
-        }
-        out.writeOptionalNamedWriteable(this.optionalMetricDetails);
+    public void addHitsAndRatings(List<RatedSearchHit> hits) {
+        this.hits = hits;
+    }
+
+    public List<RatedSearchHit> getHitsAndRatings() {
+        return this.hits;
     }
 
     @Override
@@ -92,6 +101,11 @@ public class EvalQueryQuality implements ToXContent, Writeable {
         builder.startArray("unknown_docs");
         for (RatedDocumentKey key : unknownDocs) {
             key.toXContent(builder, params);
+        }
+        builder.endArray();
+        builder.startArray("hits");
+        for (RatedSearchHit hit : hits) {
+            hit.toXContent(builder, params);
         }
         builder.endArray();
         if (optionalMetricDetails != null) {
@@ -115,11 +129,12 @@ public class EvalQueryQuality implements ToXContent, Writeable {
         return Objects.equals(id, other.id) &&
                 Objects.equals(qualityLevel, other.qualityLevel) &&
                 Objects.equals(unknownDocs, other.unknownDocs) &&
+                Objects.equals(hits, other.hits) &&
                 Objects.equals(optionalMetricDetails, other.optionalMetricDetails);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(id, qualityLevel, unknownDocs, optionalMetricDetails);
+        return Objects.hash(id, qualityLevel, unknownDocs, hits, optionalMetricDetails);
     }
 }

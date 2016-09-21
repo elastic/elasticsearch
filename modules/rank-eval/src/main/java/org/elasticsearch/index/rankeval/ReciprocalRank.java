@@ -30,9 +30,12 @@ import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.naming.directory.SearchResult;
@@ -114,6 +117,11 @@ public class ReciprocalRank extends RankedListQualityMetric {
      **/
     @Override
     public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
+        Map<RatedDocumentKey, RatedDocument> ratedDocsByKey = new HashMap<>();
+        for (RatedDocument doc : ratedDocs) {
+            ratedDocsByKey.put(doc.getKey(), doc);
+        }
+
         Set<RatedDocumentKey> relevantDocIds = new HashSet<>();
         Set<RatedDocumentKey> irrelevantDocIds = new HashSet<>();
         for (RatedDocument doc : ratedDocs) {
@@ -125,23 +133,31 @@ public class ReciprocalRank extends RankedListQualityMetric {
         }
 
         List<RatedDocumentKey> unknownDocIds = new ArrayList<>();
+        List<RatedSearchHit> hitsAndRatings = new ArrayList<>();
         int firstRelevant = -1;
         boolean found = false;
         for (int i = 0; i < hits.length; i++) {
             RatedDocumentKey key = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].getId());
-            if (relevantDocIds.contains(key)) {
-                if (found == false && i < maxAcceptableRank) {
-                    firstRelevant = i + 1; // add one because rank is not 0-based
-                    found = true;
+            RatedDocument ratedDocument = ratedDocsByKey.get(key);
+            if (ratedDocument != null) {
+                if (ratedDocument.getRating() >= this.relevantRatingThreshhold) {
+                    if (found == false && i < maxAcceptableRank) {
+                        firstRelevant = i + 1; // add one because rank is not
+                                               // 0-based
+                        found = true;
+                    }
+                    hitsAndRatings.add(new RatedSearchHit(hits[i], Optional.of(ratedDocument.getRating())));
                 }
             } else {
                 unknownDocIds.add(key);
+                hitsAndRatings.add(new RatedSearchHit(hits[i], Optional.empty()));
             }
         }
 
         double reciprocalRank = (firstRelevant == -1) ? 0 : 1.0d / firstRelevant;
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, reciprocalRank, unknownDocIds);
         evalQueryQuality.addMetricDetails(new Breakdown(firstRelevant));
+        evalQueryQuality.addHitsAndRatings(hitsAndRatings);
         return evalQueryQuality;
     }
 

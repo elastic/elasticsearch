@@ -62,7 +62,7 @@ public class FlushIT extends ESIntegTestCase {
             final CountDownLatch latch = new CountDownLatch(10);
             final CopyOnWriteArrayList<Throwable> errors = new CopyOnWriteArrayList<>();
             for (int j = 0; j < 10; j++) {
-                client().admin().indices().prepareFlush("test").setWaitIfOngoing(true).execute(new ActionListener<FlushResponse>() {
+                client().admin().indices().prepareFlush("test").execute(new ActionListener<FlushResponse>() {
                     @Override
                     public void onResponse(FlushResponse flushResponse) {
                         try {

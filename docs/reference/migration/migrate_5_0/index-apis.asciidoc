@@ -69,3 +69,10 @@ prefer there to be only one (obvious) way to do things like this.
 
 As of 5.0 indexing a document with `op_type=create` without specifying an ID is not
 supported anymore.
+
+==== Flush API
+
+The `wait_if_ongoing` flag default has changed to `true` causing `_flush` calls to wait and block
+if another flush operation is currently running on the same shard. In turn, if `wait_if_ongoing` is set to
+`false` and another flush operation is already running the flush is skipped and the shards flush call will return
+immediately without any error. In previous versions `flush_not_allowed` exceptions where reported for each skipped shard.

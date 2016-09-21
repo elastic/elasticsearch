@@ -98,11 +98,3 @@ The `wait_for_relocating_shards` parameter that used to take a number is now sim
 flag `wait_for_no_relocating_shards`, which if set to true, means the request will wait (up
 until the configured timeout) for the cluster to have no shard relocations before returning.
 Defaults to false, which means the operation will not wait.
-
-==== `wait_if_ongoing` now defaults to `true` in `/_flush`
-
-The `wait_if_ongoing` flag default has changed to `true` causing `_flush` calls to wait and block
-if another flush operation is currently running on the same shard. In turn, if `wait_if_ongoing` is set to
-`false` and another flush operation is already running the flush is skipped and the shards flush call will return
-immediately without any error. In previous versions `flush_not_allowed` exceptions where reported for each skipped shard.
-

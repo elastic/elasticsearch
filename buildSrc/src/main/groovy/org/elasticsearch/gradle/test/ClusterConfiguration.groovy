@@ -95,11 +95,11 @@ class ClusterConfiguration {
     @Input
     Closure waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
-        ant.echo("==> [${new Date()}] checking health: http://${node.httpUri()}/_cluster/health?wait_for_nodes>=${numNodes}")
+        ant.echo("==> [${new Date()}] checking health: http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}")
         // checking here for wait_for_nodes to be >= the number of nodes because its possible
         // this cluster is attempting to connect to nodes created by another task (same cluster name),
         // so there will be more nodes in that case in the cluster state
-        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes>=${numNodes}",
+        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}",
                 dest: tmpFile.toString(),
                 ignoreerrors: true, // do not fail on error, so logging buffers can be flushed by the wait task
                 retries: 10)

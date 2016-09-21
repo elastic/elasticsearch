@@ -46,14 +46,14 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
     /**Average precision observed when issuing query intents with this specification.*/
     private double qualityLevel;
     /**Mapping from intent id to all documents seen for this intent that were not annotated.*/
-    private Map<String, EvalQueryQuality> partialResults;
+    private Map<String, EvalQueryQuality> details;
 
     public RankEvalResponse() {
     }
 
     public RankEvalResponse(double qualityLevel, Map<String, EvalQueryQuality> partialResults) {
         this.qualityLevel = qualityLevel;
-        this.partialResults = partialResults;
+        this.details = partialResults;
     }
 
     public double getQualityLevel() {
@@ -61,22 +61,22 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
     }
 
     public Map<String, EvalQueryQuality> getPartialResults() {
-        return Collections.unmodifiableMap(partialResults);
+        return Collections.unmodifiableMap(details);
     }
 
     @Override
     public String toString() {
-        return "RankEvalResponse, quality: " + qualityLevel + ", partial results: " + partialResults;
+        return "RankEvalResponse, quality: " + qualityLevel + ", partial results: " + details;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeDouble(qualityLevel);
-        out.writeVInt(partialResults.size());
-        for (String queryId : partialResults.keySet()) {
+        out.writeVInt(details.size());
+        for (String queryId : details.keySet()) {
             out.writeString(queryId);
-            partialResults.get(queryId).writeTo(out);
+            details.get(queryId).writeTo(out);
         }
     }
 
@@ -85,11 +85,11 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
         super.readFrom(in);
         this.qualityLevel = in.readDouble();
         int partialResultSize = in.readVInt();
-        this.partialResults = new HashMap<>(partialResultSize);
+        this.details = new HashMap<>(partialResultSize);
         for (int i = 0; i < partialResultSize; i++) {
             String queryId = in.readString();
             EvalQueryQuality partial = new EvalQueryQuality(in);
-            this.partialResults.put(queryId, partial);
+            this.details.put(queryId, partial);
         }
     }
 
@@ -98,8 +98,8 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
         builder.startObject("rank_eval");
         builder.field("quality_level", qualityLevel);
         builder.startObject("details");
-        for (String key : partialResults.keySet()) {
-            partialResults.get(key).toXContent(builder, params);
+        for (String key : details.keySet()) {
+            details.get(key).toXContent(builder, params);
         }
         builder.endObject();
         builder.endObject();
@@ -116,11 +116,11 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
         }
         RankEvalResponse other = (RankEvalResponse) obj;
         return Objects.equals(qualityLevel, other.qualityLevel) &&
-                Objects.equals(partialResults, other.partialResults);
+                Objects.equals(details, other.details);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(qualityLevel, partialResults);
+        return Objects.hash(qualityLevel, details);
     }
 }

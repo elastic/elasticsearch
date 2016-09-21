@@ -231,13 +231,12 @@ public class ReciprocalRank extends RankedListQualityMetric {
                 return false;
             }
             ReciprocalRank.Breakdown other = (ReciprocalRank.Breakdown) obj;
-            return Objects.equals(firstRelevantRank, other.firstRelevantRank) &&
-                    Objects.equals(firstRelevantRank, other.firstRelevantRank);
+            return Objects.equals(firstRelevantRank, other.firstRelevantRank);
         }
 
         @Override
         public final int hashCode() {
-            return Objects.hash(firstRelevantRank, firstRelevantRank);
+            return Objects.hash(firstRelevantRank);
         }
     }
 }

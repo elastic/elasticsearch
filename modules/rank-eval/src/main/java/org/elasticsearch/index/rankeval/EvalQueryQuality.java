@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;;
@@ -51,13 +50,7 @@ public class EvalQueryQuality implements ToXContent, Writeable {
     }
 
     public EvalQueryQuality(StreamInput in) throws IOException {
-        this.id = in.readString();
-        this.qualityLevel = in.readDouble();
-        int size = in.readVInt();
-        this.unknownDocs = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            unknownDocs.add(new RatedDocumentKey(in));
-        }
+        this(in.readString(), in.readDouble(), in.readList(RatedDocumentKey::new));
         this.optionalMetricDetails = in.readOptionalNamedWriteable(MetricDetails.class);
     }
 

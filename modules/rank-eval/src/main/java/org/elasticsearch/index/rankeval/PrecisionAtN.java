@@ -204,7 +204,7 @@ public class PrecisionAtN extends RankedListQualityMetric {
 
     public static class Breakdown implements MetricDetails {
 
-        public static final String RETRIEVED_DOCS_FIELD = "retrieved_docs";
+        public static final String DOCS_RETRIEVED_FIELD = "docs_retrieved";
         public static final String RELEVANT_DOCS_RETRIEVED_FIELD = "relevant_docs_retrieved";
         private int relevantRetrieved;
         private int retrieved;
@@ -222,7 +222,7 @@ public class PrecisionAtN extends RankedListQualityMetric {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(RELEVANT_DOCS_RETRIEVED_FIELD, relevantRetrieved);
-            builder.field(RETRIEVED_DOCS_FIELD, retrieved);
+            builder.field(DOCS_RETRIEVED_FIELD, retrieved);
             return builder;
         }
 

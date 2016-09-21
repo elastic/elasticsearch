@@ -62,10 +62,10 @@
   - match: {rank_eval.quality_level: 1}
   - match: {rank_eval.details.amsterdam_query.quality_level: 1.0}
   - match: {rank_eval.details.amsterdam_query.unknown_docs:  [ {"_index": "foo", "_type": "bar", "_id": "doc4"}]}
-  - match: {rank_eval.details.amsterdam_query.metric_details: {"relevant_docs_retrieved": 2, "retrieved_docs": 2}}
+  - match: {rank_eval.details.amsterdam_query.metric_details: {"relevant_docs_retrieved": 2, "docs_retrieved": 2}}
   - match: {rank_eval.details.berlin_query.quality_level: 1.0}
   - match: {rank_eval.details.berlin_query.unknown_docs:  [ {"_index": "foo", "_type": "bar", "_id": "doc4"}]}
-  - match: {rank_eval.details.berlin_query.metric_details: {"relevant_docs_retrieved": 1, "retrieved_docs": 1}}
+  - match: {rank_eval.details.berlin_query.metric_details: {"relevant_docs_retrieved": 1, "docs_retrieved": 1}}
 
 ---
 "Reciprocal Rank":

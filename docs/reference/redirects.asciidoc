@@ -251,7 +251,7 @@ the <<query-dsl-match-query-fuzziness,`fuzziness`>> parameter with the
 [role="exclude",id="query-dsl-geohash-cell-query"]
 === Geohash Cell Query
 
-The `geohash_cell` query has been removed. Instead use the 
+The `geohash_cell` query has been removed. Instead use the
 <<query-dsl-geo-bounding-box-query, Geo Bounding Box Query>>.
 
 [role="exclude",id="search-more-like-this"]
@@ -376,6 +376,7 @@ GET _search
   }
 }
 -------------------------
+// NOTCONSOLE
 
 move the query and filter to the `must` and `filter` parameters in the `bool`
 query:
@@ -400,6 +401,7 @@ GET _search
   }
 }
 -------------------------
+// CONSOLE
 
 [role="exclude",id="query-dsl-or-query"]
 === Or query

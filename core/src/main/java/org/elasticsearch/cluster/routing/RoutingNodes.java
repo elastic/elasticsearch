@@ -706,6 +706,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         updateAssigned(candidate, reinitializedShard);
         inactivePrimaryCount++;
         inactiveShardCount++;
+        addRecovery(reinitializedShard);
         return reinitializedShard;
     }
 

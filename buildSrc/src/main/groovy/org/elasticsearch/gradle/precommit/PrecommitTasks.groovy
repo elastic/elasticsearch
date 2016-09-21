@@ -59,8 +59,7 @@ class PrecommitTasks {
              * use the NamingConventionsCheck we break the circular dependency
              * here.
              */
-            // https://github.com/elastic/elasticsearch/issues/20243
-            // precommitTasks.add(configureLoggerUsage(project))
+            precommitTasks.add(configureLoggerUsage(project))
         }
 
 

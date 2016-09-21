@@ -20,6 +20,7 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -56,7 +57,7 @@ public class IndexResponse extends DocWriteResponse {
         builder.append(",id=").append(getId());
         builder.append(",version=").append(getVersion());
         builder.append(",result=").append(getResult().getLowercase());
-        builder.append(",shards=").append(getShardInfo());
+        builder.append(",shards=").append(Strings.toString(getShardInfo(), true));
         return builder.append("]").toString();
     }
 

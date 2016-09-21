@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.recycler.AbstractRecyclerC;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 
 import java.util.Arrays;
@@ -70,7 +68,7 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
     protected PageCacheRecycler(Settings settings) {
         super(settings);
         final Type type = TYPE_SETTING .get(settings);
-        final long limit = LIMIT_HEAP_SETTING .get(settings).bytes();
+        final long limit = LIMIT_HEAP_SETTING .get(settings).getBytes();
         final int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
 
         // We have a global amount of memory that we need to divide across data types.

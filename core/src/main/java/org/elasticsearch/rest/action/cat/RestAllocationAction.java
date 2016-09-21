@@ -126,10 +126,10 @@ public class RestAllocationAction extends AbstractCatAction {
             //if we don't know how much we use (non data nodes), it means 0
             long used = 0;
             short diskPercent = -1;
-            if (total.bytes() > 0) {
-                used = total.bytes() - avail.bytes();
-                if (used >= 0 && avail.bytes() >= 0) {
-                    diskPercent = (short) (used * 100 / (used + avail.bytes()));
+            if (total.getBytes() > 0) {
+                used = total.getBytes() - avail.getBytes();
+                if (used >= 0 && avail.getBytes() >= 0) {
+                    diskPercent = (short) (used * 100 / (used + avail.getBytes()));
                 }
             }
 
@@ -137,8 +137,8 @@ public class RestAllocationAction extends AbstractCatAction {
             table.addCell(shardCount);
             table.addCell(nodeStats.getIndices().getStore().getSize());
             table.addCell(used < 0 ? null : new ByteSizeValue(used));
-            table.addCell(avail.bytes() < 0 ? null : avail);
-            table.addCell(total.bytes() < 0 ? null : total);
+            table.addCell(avail.getBytes() < 0 ? null : avail);
+            table.addCell(total.getBytes() < 0 ? null : total);
             table.addCell(diskPercent < 0 ? null : diskPercent);
             table.addCell(node.getHostName());
             table.addCell(node.getHostAddress());

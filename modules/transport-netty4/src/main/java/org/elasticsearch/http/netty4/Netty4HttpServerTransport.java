@@ -150,9 +150,9 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         Setting.byteSizeSetting("transport.netty.receive_predictor_size",
             settings -> {
                 long defaultReceiverPredictor = 512 * 1024;
-                if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes() > 0) {
+                if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().getBytes() > 0) {
                     // we can guess a better default...
-                    long l = (long) ((0.3 * JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes()) / SETTING_HTTP_WORKER_COUNT.get
+                    long l = (long) ((0.3 * JvmInfo.jvmInfo().getMem().getDirectMemoryMax().getBytes()) / SETTING_HTTP_WORKER_COUNT.get
                         (settings));
                     defaultReceiverPredictor = Math.min(defaultReceiverPredictor, Math.max(l, 64 * 1024));
                 }
@@ -247,13 +247,13 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
         ByteSizeValue receivePredictorMin = SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MIN.get(settings);
         ByteSizeValue receivePredictorMax = SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MAX.get(settings);
-        if (receivePredictorMax.bytes() == receivePredictorMin.bytes()) {
-            recvByteBufAllocator = new FixedRecvByteBufAllocator(Math.toIntExact(receivePredictorMax.bytes()));
+        if (receivePredictorMax.getBytes() == receivePredictorMin.getBytes()) {
+            recvByteBufAllocator = new FixedRecvByteBufAllocator(Math.toIntExact(receivePredictorMax.getBytes()));
         } else {
             recvByteBufAllocator = new AdaptiveRecvByteBufAllocator(
-                Math.toIntExact(receivePredictorMin.bytes()),
-                Math.toIntExact(receivePredictorMin.bytes()),
-                Math.toIntExact(receivePredictorMax.bytes()));
+                Math.toIntExact(receivePredictorMin.getBytes()),
+                Math.toIntExact(receivePredictorMin.getBytes()),
+                Math.toIntExact(receivePredictorMax.getBytes()));
         }
 
         this.compression = SETTING_HTTP_COMPRESSION.get(settings);
@@ -263,7 +263,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         this.corsConfig = buildCorsConfig(settings);
 
         // validate max content length
-        if (maxContentLength.bytes() > Integer.MAX_VALUE) {
+        if (maxContentLength.getBytes() > Integer.MAX_VALUE) {
             logger.warn("maxContentLength[{}] set to high value, resetting it to [100mb]", maxContentLength);
             maxContentLength = new ByteSizeValue(100, ByteSizeUnit.MB);
         }
@@ -303,13 +303,13 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, SETTING_HTTP_TCP_KEEP_ALIVE.get(settings));
 
         final ByteSizeValue tcpSendBufferSize = SETTING_HTTP_TCP_SEND_BUFFER_SIZE.get(settings);
-        if (tcpSendBufferSize.bytes() > 0) {
-            serverBootstrap.childOption(ChannelOption.SO_SNDBUF, Math.toIntExact(tcpSendBufferSize.bytes()));
+        if (tcpSendBufferSize.getBytes() > 0) {
+            serverBootstrap.childOption(ChannelOption.SO_SNDBUF, Math.toIntExact(tcpSendBufferSize.getBytes()));
         }
 
         final ByteSizeValue tcpReceiveBufferSize = SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE.get(settings);
-        if (tcpReceiveBufferSize.bytes() > 0) {
-            serverBootstrap.childOption(ChannelOption.SO_RCVBUF, Math.toIntExact(tcpReceiveBufferSize.bytes()));
+        if (tcpReceiveBufferSize.getBytes() > 0) {
+            serverBootstrap.childOption(ChannelOption.SO_RCVBUF, Math.toIntExact(tcpReceiveBufferSize.getBytes()));
         }
 
         serverBootstrap.option(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
@@ -483,7 +483,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         if (boundTransportAddress == null) {
             return null;
         }
-        return new HttpInfo(boundTransportAddress, maxContentLength.bytes());
+        return new HttpInfo(boundTransportAddress, maxContentLength.getBytes());
     }
 
     @Override
@@ -548,14 +548,14 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         protected void initChannel(Channel ch) throws Exception {
             ch.pipeline().addLast("openChannels", transport.serverOpenChannels);
             final HttpRequestDecoder decoder = new HttpRequestDecoder(
-                Math.toIntExact(transport.maxInitialLineLength.bytes()),
-                Math.toIntExact(transport.maxHeaderSize.bytes()),
-                Math.toIntExact(transport.maxChunkSize.bytes()));
+                Math.toIntExact(transport.maxInitialLineLength.getBytes()),
+                Math.toIntExact(transport.maxHeaderSize.getBytes()),
+                Math.toIntExact(transport.maxChunkSize.getBytes()));
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             ch.pipeline().addLast("decoder", decoder);
             ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor());
             ch.pipeline().addLast("encoder", new HttpResponseEncoder());
-            final HttpObjectAggregator aggregator = new HttpObjectAggregator(Math.toIntExact(transport.maxContentLength.bytes()));
+            final HttpObjectAggregator aggregator = new HttpObjectAggregator(Math.toIntExact(transport.maxContentLength.getBytes()));
             if (transport.maxCompositeBufferComponents != -1) {
                 aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             }

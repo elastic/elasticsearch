@@ -586,6 +586,7 @@ public class InternalEngineTests extends ESTestCase {
         engine.close();
 
         engine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
+        assertTrue(engine.isRecovering());
         engine.recoverFromTranslog();
         Engine.Searcher searcher = wrapper.wrap(engine.acquireSearcher("test"));
         assertThat(counter.get(), equalTo(2));
@@ -594,13 +595,16 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public void testFlushIsDisabledDuringTranslogRecovery() throws IOException {
+        assertFalse(engine.isRecovering());
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
         engine.index(new Engine.Index(newUid("1"), doc));
         engine.close();
 
         engine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
-        expectThrows(FlushNotAllowedEngineException.class, () -> engine.flush(true, true));
+        expectThrows(IllegalStateException.class, () -> engine.flush(true, true));
+        assertTrue(engine.isRecovering());
         engine.recoverFromTranslog();
+        assertFalse(engine.isRecovering());
         doc = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
         engine.index(new Engine.Index(newUid("2"), doc));
         engine.flush();
@@ -2114,6 +2118,7 @@ public class InternalEngineTests extends ESTestCase {
                 Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(0)), doc, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, System.nanoTime(), -1, false);
 
                 try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG))){
+                    assertFalse(engine.isRecovering());
                     engine.index(firstIndexRequest);
 
                     expectThrows(IllegalStateException.class, () -> engine.recoverFromTranslog());
@@ -2126,6 +2131,7 @@ public class InternalEngineTests extends ESTestCase {
             {
                 for (int i = 0; i < 2; i++) {
                     try (InternalEngine engine = new InternalEngine(copy(config, EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
+                        assertTrue(engine.isRecovering());
                         Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
                         if (i == 0) {
                             assertEquals("1", userData.get(Translog.TRANSLOG_GENERATION_KEY));

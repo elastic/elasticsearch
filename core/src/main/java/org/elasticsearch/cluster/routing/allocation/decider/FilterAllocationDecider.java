@@ -93,8 +93,8 @@ public class FilterAllocationDecider extends AllocationDecider {
             // this is a setting that can only be set within the system!
             IndexMetaData indexMd = allocation.metaData().getIndexSafe(shardRouting.index());
             DiscoveryNodeFilters initialRecoveryFilters = indexMd.getInitialRecoveryFilters();
-            if (shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE &&
-                initialRecoveryFilters != null &&
+            if (initialRecoveryFilters != null  &&
+                RecoverySource.isInitialRecovery(shardRouting.recoverySource().getType()) &&
                 initialRecoveryFilters.match(node.node()) == false) {
                 return allocation.decision(Decision.NO, NAME, "node does not match index initial recovery filters [%s]",
                     indexMd.includeFilters());

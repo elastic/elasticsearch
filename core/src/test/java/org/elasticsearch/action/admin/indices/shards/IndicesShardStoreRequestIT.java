@@ -213,7 +213,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
             builders[i] = client().prepareIndex(index, "type").setSource("field", "value");
         }
         indexRandom(true, builders);
-        client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setForce(true).execute().actionGet();
     }
 
     private static final class IndexNodePredicate implements Predicate<Settings> {

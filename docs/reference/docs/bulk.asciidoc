@@ -66,17 +66,92 @@ example of a correct sequence of bulk commands:
 
 [source,js]
 --------------------------------------------------
+POST _bulk
 { "index" : { "_index" : "test", "_type" : "type1", "_id" : "1" } }
 { "field1" : "value1" }
 { "delete" : { "_index" : "test", "_type" : "type1", "_id" : "2" } }
 { "create" : { "_index" : "test", "_type" : "type1", "_id" : "3" } }
 { "field1" : "value3" }
-{ "update" : {"_id" : "1", "_type" : "type1", "_index" : "index1"} }
+{ "update" : {"_id" : "1", "_type" : "type1", "_index" : "test"} }
 { "doc" : {"field2" : "value2"} }
 --------------------------------------------------
+// CONSOLE
 
-In the above example `doc` for the `update` action is a partial
-document, that will be merged with the already stored document.
+The result of this bulk operation is:
+
+[source,js]
+--------------------------------------------------
+{
+   "took": 30,
+   "errors": false,
+   "items": [
+      {
+         "index": {
+            "_index": "test",
+            "_type": "type1",
+            "_id": "1",
+            "_version": 1,
+            "result": "created",
+            "_shards": {
+               "total": 2,
+               "successful": 1,
+               "failed": 0
+            },
+            "created": true,
+            "status": 201
+         }
+      },
+      {
+         "delete": {
+            "found": false,
+            "_index": "test",
+            "_type": "type1",
+            "_id": "2",
+            "_version": 1,
+            "result": "not_found",
+            "_shards": {
+               "total": 2,
+               "successful": 1,
+               "failed": 0
+            },
+            "status": 404
+         }
+      },
+      {
+         "create": {
+            "_index": "test",
+            "_type": "type1",
+            "_id": "3",
+            "_version": 1,
+            "result": "created",
+            "_shards": {
+               "total": 2,
+               "successful": 1,
+               "failed": 0
+            },
+            "created": true,
+            "status": 201
+         }
+      },
+      {
+         "update": {
+            "_index": "test",
+            "_type": "type1",
+            "_id": "1",
+            "_version": 2,
+            "result": "updated",
+            "_shards": {
+                "total": 2,
+                "successful": 1,
+                "failed": 0
+            },
+            "status": 200
+         }
+      }
+   ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 30/"took": $body.took/ s/"index_uuid": .../"index_uuid": $body.items.3.update.error.index_uuid/]
 
 The endpoints are `/_bulk`, `/{index}/_bulk`, and `{index}/{type}/_bulk`.
 When the index or the index/type are provided, they will be used by
@@ -155,10 +230,11 @@ times an update should be retried in the case of a version conflict.
 The `update` action payload, supports the following options: `doc`
 (partial document), `upsert`, `doc_as_upsert`, `script`, `params` (for
 script), `lang` (for script) and `_source`. See update documentation for details on
-the options. Curl example with update actions:
+the options. Example with update actions:
 
 [source,js]
 --------------------------------------------------
+POST _bulk
 { "update" : {"_id" : "1", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"} }
 { "update" : { "_id" : "0", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
@@ -170,6 +246,8 @@ the options. Curl example with update actions:
 { "update" : {"_id" : "4", "_type" : "type1", "_index" : "index1"} }
 { "doc" : {"field" : "value"}, "_source": true}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 [float]
 [[bulk-security]]

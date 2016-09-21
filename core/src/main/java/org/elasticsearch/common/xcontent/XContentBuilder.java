@@ -932,7 +932,7 @@ public final class XContentBuilder implements BytesStream, Releasable, Flushable
         if (humanReadable) {
             field(readableFieldName, byteSizeValue.toString());
         }
-        field(rawFieldName, byteSizeValue.bytes());
+        field(rawFieldName, byteSizeValue.getBytes());
         return this;
     }
 

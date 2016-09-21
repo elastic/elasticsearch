@@ -1204,7 +1204,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected final FlushResponse flush(String... indices) {
         waitForRelocation();
-        FlushResponse actionGet = client().admin().indices().prepareFlush(indices).setWaitIfOngoing(true).execute().actionGet();
+        FlushResponse actionGet = client().admin().indices().prepareFlush(indices).execute().actionGet();
         for (ShardOperationFailedException failure : actionGet.getShardFailures()) {
             assertThat("unexpected flush failure " + failure.reason(), failure.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }

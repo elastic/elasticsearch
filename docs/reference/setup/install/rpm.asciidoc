@@ -34,7 +34,7 @@ OpenSuSE based distributions, containing:
 --------------------------------------------------
 [elasticsearch-{major-version}]
 name=Elasticsearch repository for {major-version} packages
-baseurl=https://artifacts.elastic.co/packages/{major-version}/yum
+baseurl=https://artifacts.elastic.co/packages/{major-version}-prerelease/yum
 gpgcheck=1
 gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
 enabled=1

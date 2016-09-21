@@ -368,7 +368,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testCreateShrinkIndex() {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", 2)).get();
+        prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", randomIntBetween(2, 7))).get();
         for (int i = 0; i < 20; i++) {
             client().prepareIndex("source", randomFrom("t1", "t2", "t3")).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
         }

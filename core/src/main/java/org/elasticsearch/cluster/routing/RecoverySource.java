@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -251,6 +252,10 @@ public abstract class RecoverySource implements Writeable, ToXContent {
 
     private static EnumSet<RecoverySource.Type> INITIAL_RECOVERY_TYPES = EnumSet.of(Type.EMPTY_STORE, Type.LOCAL_SHARDS, Type.SNAPSHOT);
 
+    /**
+     * returns true for recovery types that indicate that a primary is being allocated for the very first time.
+     * This recoveries can be controlled by {@link IndexMetaData#INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING}
+     */
     public static boolean isInitialRecovery(RecoverySource.Type type) {
            return INITIAL_RECOVERY_TYPES.contains(type);
     }

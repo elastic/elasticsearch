@@ -147,7 +147,6 @@ class ClusterFormationTasks {
         setup = configureStopTask(taskName(task, node, 'stopPrevious'), project, setup, node)
         setup = configureExtractTask(taskName(task, node, 'extract'), project, setup, node, configuration)
         setup = configureWriteConfigTask(taskName(task, node, 'configure'), project, setup, node, seedNode)
-        setup = configureExtraConfigFilesTask(taskName(task, node, 'extraConfig'), project, setup, node)
         setup = configureCopyPluginsTask(taskName(task, node, 'copyPlugins'), project, setup, node)
 
         // install modules
@@ -161,6 +160,10 @@ class ClusterFormationTasks {
             String actionName = pluginTaskName('install', plugin.getKey(), 'Plugin')
             setup = configureInstallPluginTask(taskName(task, node, actionName), project, setup, node, plugin.getValue())
         }
+
+        // sets up any extra config files that need to be copied over to the ES instance;
+        // its run after plugins have been installed, as the extra config files may belong to plugins
+        setup = configureExtraConfigFilesTask(taskName(task, node, 'extraConfig'), project, setup, node)
 
         // extra setup commands
         for (Map.Entry<String, Object[]> command : node.config.setupCommands.entrySet()) {

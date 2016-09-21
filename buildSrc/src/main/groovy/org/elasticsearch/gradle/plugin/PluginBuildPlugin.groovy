@@ -176,6 +176,9 @@ public class PluginBuildPlugin extends BuildPlugin {
 
     /** Find the reponame. */
     static String urlFromOrigin(String origin) {
+        if (origin == null) {
+            return null // best effort, the url doesnt really matter, it is just required by maven central
+        }
         if (origin.startsWith('https')) {
             return origin
         }

@@ -17,6 +17,10 @@
  * under the License.
  */
 
+import org.elasticsearch.gradle.test.ClusterConfiguration
+import org.elasticsearch.gradle.test.ClusterFormationTasks
+import org.elasticsearch.gradle.test.NodeInfo
+
 esplugin {
     description 'Discovery file plugin enables unicast discovery from hosts stored in a file.'
     classname 'org.elasticsearch.discovery.file.FileBasedDiscoveryPlugin'
@@ -28,27 +32,35 @@ bundlePlugin {
     }
 }
 
+task seedTask << { }
+// setup the initial cluster with one node that will serve as the seed node
+// for unicast discovery
+ClusterConfiguration config = new ClusterConfiguration(project)
+config.distribution = 'zip'
+config.clusterName = 'discovery-file-test-cluster'
+List<NodeInfo> nodes = ClusterFormationTasks.setup(project, seedTask, config)
+
+// write the unicast_hosts.txt file to a temporary location to be used by the second cluster
+task setupSeedNodeAndUnicastHostsFile(type: DefaultTask) {
+    mustRunAfter(precommit)
+    dependsOn(seedTask)
+    doLast {
+        // write the unicast_hosts.txt file to a temp file in the build directory
+        File unicastHostsFile = file('build/unicast_hosts.txt')
+        unicastHostsFile.setText(nodes.get(0).transportUri(), 'UTF-8')
+    }
+}
+
+// second cluster, which will connect to the first via the unicast_hosts.txt file
 integTest {
+    dependsOn(setupSeedNodeAndUnicastHostsFile)
     cluster {
         distribution = 'zip'
-        numNodes = 2
-        clusterName = "discovery-file-test-cluster"
-        // unicast hosts in elasticsearch.yaml shouldn't exist,
-        // we are using the file-based hosts found in unicast_hosts.txt
+        clusterName = 'discovery-file-test-cluster'
+        plugin ':plugins:discovery-file'
+        // set the unicast.hosts in elasticsearch.yml to null, to ensure we are using the file-based plugin
         unicastTransportUri = { seedNode, node, ant -> null }
-        // final setup task to write the unicast_hosts.txt file using just
-        // the seed node's transport URI
-        finalSetup = { node, seedNode, ant ->
-            // for non seed nodes, set the seed node as the unicast host
-            if (node != seedNode) {
-                ant.waitfor(maxwait: '20', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond') {
-                    ant.resourceexists {
-                        ant.file(file: seedNode.transportPortsFile)
-                    }
-                }
-                File unicastHostsFile = new File(node.confDir, 'discovery-file/unicast_hosts.txt')
-                unicastHostsFile.setText(seedNode.transportUri(), 'UTF-8')
-            }
-        }
+        extraConfigFile 'discovery-file/unicast_hosts.txt', 'build/unicast_hosts.txt'
     }
+    finalizedBy ':plugins:discovery-file:seedTask#stop'
 }

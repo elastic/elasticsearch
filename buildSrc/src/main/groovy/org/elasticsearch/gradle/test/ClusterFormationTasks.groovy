@@ -147,7 +147,6 @@ class ClusterFormationTasks {
         setup = configureStopTask(taskName(task, node, 'stopPrevious'), project, setup, node)
         setup = configureExtractTask(taskName(task, node, 'extract'), project, setup, node, configuration)
         setup = configureWriteConfigTask(taskName(task, node, 'configure'), project, setup, node, seedNode)
-        setup = configureExtraConfigFilesTask(taskName(task, node, 'extraConfig'), project, setup, node)
         setup = configureCopyPluginsTask(taskName(task, node, 'copyPlugins'), project, setup, node)
 
         // install modules
@@ -162,6 +161,10 @@ class ClusterFormationTasks {
             setup = configureInstallPluginTask(taskName(task, node, actionName), project, setup, node, plugin.getValue())
         }
 
+        // sets up any extra config files that need to be copied over to the ES instance;
+        // its run after plugins have been installed, as the extra config files may belong to plugins
+        setup = configureExtraConfigFilesTask(taskName(task, node, 'extraConfig'), project, setup, node)
+
         // extra setup commands
         for (Map.Entry<String, Object[]> command : node.config.setupCommands.entrySet()) {
             // the first argument is the actual script name, relative to home
@@ -169,8 +172,6 @@ class ClusterFormationTasks {
             args[0] = new File(node.homeDir, args[0].toString())
             setup = configureExecTask(taskName(task, node, command.getKey()), project, setup, node, args)
         }
-
-        setup = configureFinalSetupTask(taskName(task, node, 'finalSetup'), project, setup, node, seedNode)
 
         Task start = configureStartTask(taskName(task, node, 'start'), project, setup, node)
 
@@ -369,14 +370,6 @@ class ClusterFormationTasks {
         Object file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
         Object[] args = [new File(node.homeDir, 'bin/elasticsearch-plugin'), 'install', file]
         return configureExecTask(name, project, setup, node, args)
-    }
-
-    static Task configureFinalSetupTask(String name, Project project, Task setup, NodeInfo node, NodeInfo seedNode) {
-        Task finalSetup = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
-        finalSetup.doLast {
-            node.config.finalSetup(node, seedNode, project.ant)
-        }
-        return finalSetup
     }
 
     /** Wrapper for command line argument: surrounds comma with double quotes **/

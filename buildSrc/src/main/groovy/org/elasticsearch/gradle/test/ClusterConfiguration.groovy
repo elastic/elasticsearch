@@ -106,15 +106,6 @@ class ClusterConfiguration {
         return tmpFile.exists()
     }
 
-    /**
-     * A closure to call to add any extra configuration setup before running the start task. The
-     * closure is passed the node info and the seed node's info. This allows any custom final setup
-     * to be executed before starting an Elasticsearch instance via the start task.
-     */
-    @Input
-    Closure finalSetup = { NodeInfo node, NodeInfo seedNode, AntBuilder ant ->
-    }
-
     public ClusterConfiguration(Project project) {
         this.project = project
     }

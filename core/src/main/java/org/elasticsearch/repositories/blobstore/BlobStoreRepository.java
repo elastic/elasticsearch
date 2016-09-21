@@ -395,7 +395,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } catch (SnapshotMissingException ex) {
             throw ex;
         } catch (IllegalStateException | SnapshotException | ElasticsearchParseException ex) {
-            logger.warn("cannot read snapshot file [{}]", ex, snapshotId);
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("cannot read snapshot file [{}]", snapshotId), ex);
         }
         MetaData metaData = null;
         try {
@@ -405,7 +405,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 metaData = readSnapshotMetaData(snapshotId, null, repositoryData.resolveIndices(indices), true);
             }
         } catch (IOException | SnapshotException ex) {
-            logger.warn("cannot read metadata for snapshot [{}]", ex, snapshotId);
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("cannot read metadata for snapshot [{}]", snapshotId), ex);
         }
         try {
             // Delete snapshot from the index file, since it is the maintainer of truth of active snapshots
@@ -601,7 +601,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 metaDataBuilder.put(indexMetaDataFormat(snapshotVersion).read(indexMetaDataBlobContainer, snapshotId.getUUID()), false);
             } catch (ElasticsearchParseException | IOException ex) {
                 if (ignoreIndexErrors) {
-                    logger.warn("[{}] [{}] failed to read metadata for index", ex, snapshotId, index.getName());
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, index.getName()), ex);
                 } else {
                     throw ex;
                 }

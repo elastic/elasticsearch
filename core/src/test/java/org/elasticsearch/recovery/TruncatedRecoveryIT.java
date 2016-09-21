@@ -111,7 +111,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         }
         ensureGreen();
         // ensure we have flushed segments and make them a big one via optimize
-        client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).get();
+        client().admin().indices().prepareFlush().setForce(true).get();
         client().admin().indices().prepareForceMerge().setMaxNumSegments(1).setFlush(true).get();
 
         final CountDownLatch latch = new CountDownLatch(1);

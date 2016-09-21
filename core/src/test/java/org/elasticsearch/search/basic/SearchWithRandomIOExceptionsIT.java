@@ -99,7 +99,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
                 client().prepareIndex("test", "type", "init" + i).setSource("test", "init").get();
             }
             client().admin().indices().prepareRefresh("test").execute().get();
-            client().admin().indices().prepareFlush("test").setWaitIfOngoing(true).execute().get();
+            client().admin().indices().prepareFlush("test").execute().get();
             client().admin().indices().prepareClose("test").execute().get();
             client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
                 .put(MockFSDirectoryService.RANDOM_IO_EXCEPTION_RATE_SETTING.getKey(), exceptionRate)

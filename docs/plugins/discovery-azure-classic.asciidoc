@@ -378,6 +378,7 @@ curl -s https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticse
 # Prepare Elasticsearch installation
 sudo dpkg -i elasticsearch-{version}.deb
 ----
+// NOTCONSOLE
 
 Check that elasticsearch is running:
 

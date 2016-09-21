@@ -206,10 +206,14 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 break;
             }
             String name = "index_" + randomAsciiOfLength(15).toLowerCase(Locale.ROOT);
-            CreateIndexRequest request = new CreateIndexRequest(name, Settings.builder()
+            Settings.Builder settingsBuilder = Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
-                .put(SETTING_NUMBER_OF_REPLICAS, randomInt(2))
-                .build()).waitForActiveShards(ActiveShardCount.NONE);
+                .put(SETTING_NUMBER_OF_REPLICAS, randomInt(2));
+            if (randomBoolean()) {
+                settingsBuilder.put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
+                    .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true);
+            }
+            CreateIndexRequest request = new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metaData().hasIndex(name));
         }

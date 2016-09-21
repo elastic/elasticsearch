@@ -160,7 +160,7 @@ to keep or remove as you see fit. When you are done with it, delete it so
 Elasticsearch can reclaim the space it uses.
 
 `wait_for_active_shards` controls how many copies of a shard must be active
-before proceeding with the request. See <<index-wait-for-active-shards,here>> 
+before proceeding with the request. See <<index-wait-for-active-shards,here>>
 for details. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
 <<docs-bulk,Bulk API>>.
@@ -339,3 +339,74 @@ like `1.7` or `12` to throttle to that level. Rethrottling that speeds up the
 query takes effect immediately but rethrotting that slows down the query will
 take effect on after completing the current batch. This prevents scroll
 timeouts.
+
+[float]
+=== Manually slicing
+
+Delete-by-query supports <<sliced-scroll>> allowing you to manually parallelize
+the process relatively easily:
+
+[source,js]
+----------------------------------------------------------------
+POST twitter/_delete_by_query
+{
+  "slice": {
+    "id": 0,
+    "max": 2
+  },
+  "query": {
+    "range": {
+      "likes": {
+        "lt": 10
+      }
+    }
+  }
+}
+POST twitter/_delete_by_query
+{
+  "slice": {
+    "id": 1,
+    "max": 2
+  },
+  "query": {
+    "range": {
+      "likes": {
+        "lt": 10
+      }
+    }
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
+
+Which you can verify works with:
+
+[source,js]
+----------------------------------------------------------------
+GET _refresh
+POST twitter/_search?size=0&filter_path=hits.total
+{
+  "query": {
+    "range": {
+      "likes": {
+        "lt": 10
+      }
+    }
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Which results in a sensible `total` like this one:
+
+[source,js]
+----------------------------------------------------------------
+{
+  "hits": {
+    "total": 0
+  }
+}
+----------------------------------------------------------------
+// TESTRESPONSE

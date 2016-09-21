@@ -32,35 +32,28 @@ bundlePlugin {
     }
 }
 
-task seedTask << { }
+task setupSeedNodeAndUnicastHostsFile(type: DefaultTask) {
+    mustRunAfter(precommit)
+}
 // setup the initial cluster with one node that will serve as the seed node
 // for unicast discovery
 ClusterConfiguration config = new ClusterConfiguration(project)
-config.distribution = 'zip'
 config.clusterName = 'discovery-file-test-cluster'
-List<NodeInfo> nodes = ClusterFormationTasks.setup(project, seedTask, config)
+List<NodeInfo> nodes = ClusterFormationTasks.setup(project, setupSeedNodeAndUnicastHostsFile, config)
+File srcUnicastHostsFile = file('build/cluster/unicast_hosts.txt')
 
 // write the unicast_hosts.txt file to a temporary location to be used by the second cluster
-task setupSeedNodeAndUnicastHostsFile(type: DefaultTask) {
-    mustRunAfter(precommit)
-    dependsOn(seedTask)
-    doLast {
-        // write the unicast_hosts.txt file to a temp file in the build directory
-        File unicastHostsFile = file('build/unicast_hosts.txt')
-        unicastHostsFile.setText(nodes.get(0).transportUri(), 'UTF-8')
-    }
+setupSeedNodeAndUnicastHostsFile.doLast {
+    // write the unicast_hosts.txt file to a temp file in the build directory
+    srcUnicastHostsFile.setText(nodes.get(0).transportUri(), 'UTF-8')
 }
 
 // second cluster, which will connect to the first via the unicast_hosts.txt file
 integTest {
     dependsOn(setupSeedNodeAndUnicastHostsFile)
     cluster {
-        distribution = 'zip'
         clusterName = 'discovery-file-test-cluster'
-        plugin ':plugins:discovery-file'
-        // set the unicast.hosts in elasticsearch.yml to null, to ensure we are using the file-based plugin
-        unicastTransportUri = { seedNode, node, ant -> null }
-        extraConfigFile 'discovery-file/unicast_hosts.txt', 'build/unicast_hosts.txt'
+        extraConfigFile 'discovery-file/unicast_hosts.txt', srcUnicastHostsFile
     }
-    finalizedBy ':plugins:discovery-file:seedTask#stop'
+    finalizedBy ':plugins:discovery-file:setupSeedNodeAndUnicastHostsFile#stop'
 }

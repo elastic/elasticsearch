@@ -78,7 +78,6 @@
   - do:
       put_script:
         id: "sum_bytes"
-        lang: "painless"
         body: >
           {
             "script" : "ctx.bytes_total = ctx.bytes_in + ctx.bytes_out"

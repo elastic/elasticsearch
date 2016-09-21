@@ -223,10 +223,6 @@ public final class ScriptMetaData implements MetaData.Custom {
         this.scripts = Collections.unmodifiableMap(new HashMap<>(scripts));
     }
 
-    public StoredScriptSource getScript(String id) {
-        return scripts.get(id);
-    }
-
     @Override
     public String type() {
         return TYPE;
@@ -235,6 +231,10 @@ public final class ScriptMetaData implements MetaData.Custom {
     @Override
     public EnumSet<MetaData.XContentContext> context() {
         return MetaData.API_AND_GATEWAY;
+    }
+
+    public StoredScriptSource getScript(String id) {
+        return scripts.get(id);
     }
 
     @Override

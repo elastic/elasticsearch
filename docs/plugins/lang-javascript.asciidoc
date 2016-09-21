@@ -106,9 +106,12 @@ PUT test/doc/2
   "num": 2.0
 }
 
-POST _scripts/my_script  <1>
+POST _scripts/my_script <1>
 {
-  "script": "doc[\"num\"].value * factor"
+  "script": {
+      "lang": "javascript",
+      "code": "doc[\"num\"].value * factor"
+  }
 }
 
 GET test/_search

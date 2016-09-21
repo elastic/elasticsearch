@@ -47,6 +47,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutStoredScriptAction extends BaseRestHandler {
+
     private static class StoredScriptSourceParserContext implements ParseFieldMatcherSupplier {
 
         private final ParseFieldMatcher parseFieldMatcher;

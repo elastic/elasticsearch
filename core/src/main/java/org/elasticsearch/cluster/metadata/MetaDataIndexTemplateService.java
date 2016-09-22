@@ -19,7 +19,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -31,11 +32,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -47,6 +50,7 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -164,8 +168,6 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                     throw new IndexTemplateAlreadyExistsException(request.name);
                 }
 
-                validateAndAddTemplate(request, templateBuilder, indicesService);
-
                 for (Alias alias : request.aliases) {
                     AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
                         .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).build();
@@ -174,7 +176,21 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                 for (Map.Entry<String, IndexMetaData.Custom> entry : request.customs.entrySet()) {
                     templateBuilder.putCustom(entry.getKey(), entry.getValue());
                 }
+
+                templateBuilder.order(request.order);
+                templateBuilder.version(request.version);
+                templateBuilder.template(request.template);
+                templateBuilder.settings(request.settings);
+                for (Map.Entry<String, String> entry : request.mappings.entrySet()) {
+                    try {
+                        templateBuilder.putMapping(entry.getKey(), entry.getValue());
+                    } catch (Exception e) {
+                        throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
+                    }
+                }
+
                 IndexTemplateMetaData template = templateBuilder.build();
+                validateAndAddTemplate(request, template, indicesService, currentState);
 
                 MetaData.Builder builder = MetaData.builder(currentState.metaData()).put(template);
 
@@ -188,14 +204,42 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         });
     }
 
-    private static void validateAndAddTemplate(final PutRequest request, IndexTemplateMetaData.Builder templateBuilder,
-            IndicesService indicesService) throws Exception {
+    private void validateAndAddTemplate(final PutRequest request, IndexTemplateMetaData currentTemplate, IndicesService indicesService,
+                                               ClusterState currentState) throws Exception {
         Index createdIndex = null;
         final String temporaryIndexName = UUIDs.randomBase64UUID();
         try {
+            // validate with only parent templates of given template
+            ArrayList<IndexTemplateMetaData> existingTemplates = metaDataCreateIndexService.findTemplates(request.template, currentState);
+
+            boolean update = false;
+            for (int i = 0; i < existingTemplates.size(); i++) {
+                if (request.name.equals(existingTemplates.get(i).getName())) {
+                    update = true;
+                    existingTemplates.set(i, currentTemplate);
+                }
+            }
+            if (update == false) {
+                existingTemplates.add(currentTemplate);
+            }
+            CollectionUtil.timSort(existingTemplates, new Comparator<IndexTemplateMetaData>() {
+                @Override
+                public int compare(IndexTemplateMetaData o1, IndexTemplateMetaData o2) {
+                    return o2.order() - o1.order();
+                }
+            });
+
+            Settings.Builder indexSettingsBuilder = Settings.builder();
+            for (int i = existingTemplates.size() - 1; i >= 0; i--) {
+                if (request.name.equals(existingTemplates.get(i).getName())) {
+                    indexSettingsBuilder.put(request.settings);
+                } else {
+                    indexSettingsBuilder.put(existingTemplates.get(i).settings());
+                }
+            }
 
             //create index service for parsing and validating "mappings"
-            Settings dummySettings = Settings.builder()
+            Settings dummySettings = indexSettingsBuilder
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(request.settings)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -207,19 +251,16 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             IndexService dummyIndexService = indicesService.createIndex(tmpIndexMetadata, Collections.emptyList());
             createdIndex = dummyIndexService.index();
 
-            templateBuilder.order(request.order);
-            templateBuilder.version(request.version);
-            templateBuilder.template(request.template);
-            templateBuilder.settings(request.settings);
-
             Map<String, Map<String, Object>> mappingsForValidation = new HashMap<>();
-            for (Map.Entry<String, String> entry : request.mappings.entrySet()) {
-                try {
-                    templateBuilder.putMapping(entry.getKey(), entry.getValue());
-                } catch (Exception e) {
-                    throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
+
+            for (IndexTemplateMetaData template : existingTemplates) {
+                for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {
+                    if (mappingsForValidation.containsKey(cursor.key)) {
+                        XContentHelper.mergeDefaults(mappingsForValidation.get(cursor.key), MapperService.parseMapping(cursor.value.string()));
+                    } else {
+                        mappingsForValidation.put(cursor.key, MapperService.parseMapping(cursor.value.string()));
+                    }
                 }
-                mappingsForValidation.put(entry.getKey(), MapperService.parseMapping(entry.getValue()));
             }
 
             dummyIndexService.mapperService().merge(mappingsForValidation, false);

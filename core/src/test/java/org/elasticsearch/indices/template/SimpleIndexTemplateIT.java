@@ -21,6 +21,7 @@ package org.elasticsearch.indices.template;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
@@ -29,8 +30,10 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -305,7 +308,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 "get template with " + Arrays.toString(names));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/8802")
     public void testBrokenMapping() throws Exception {
         // clean all templates setup by the framework.
         client().admin().indices().prepareDeleteTemplate("*").get();
@@ -669,7 +671,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
         assertThat(response.getIndexTemplates(), empty());
 
-        //Now, a complete mapping with two separated templates is error
         // base template
         client().admin().indices().preparePutTemplate("template_1")
             .setTemplate("*")
@@ -688,20 +689,192 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             .get();
 
         // put template using custom_1 analyzer
+        XContentBuilder mappingContentBuilder =
+            XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+            .startObject("field2").field("type", "text").field("analyzer", "custom_1").endObject()
+            .endObject().endObject().endObject();
+        client().admin().indices().preparePutTemplate("template_2")
+            .setTemplate("test*")
+            .setCreate(true)
+            .setOrder(1)
+            .addMapping("type1", mappingContentBuilder)
+            .get();
+        String mappings = mappingContentBuilder.string();
+
+        response = client().admin().indices().prepareGetTemplates().get();
+        assertThat(response.getIndexTemplates(), hasSize(2));
+
+        // index something into test_index, will match on both templates
+        client().admin().indices().prepareCreate("test_index").get();
+
+        ensureGreen();
+        GetMappingsResponse mappingsResponse =
+            client().admin().indices().prepareGetMappings("test_index").get();
+        MappingMetaData typeMapping = mappingsResponse.mappings().get("test_index").get("type1");
+        assertThat(typeMapping.source().toString(), equalTo(mappings));
+    }
+
+    public void testInvalidCombinationTemplates() throws Exception{
+        // clean all templates setup by the framework.
+        client().admin().indices().prepareDeleteTemplate("*").get();
+
+        // check get all templates on an empty index.
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
+        assertThat(response.getIndexTemplates(), empty());
+
+        // base template
+        client().admin().indices().preparePutTemplate("template_1")
+            .setTemplate("*")
+            .setSettings(
+                "    {\n" +
+                    "        \"index\" : {\n" +
+                    "            \"analysis\" : {\n" +
+                    "                \"analyzer\" : {\n" +
+                    "                    \"custom_1\" : {\n" +
+                    "                        \"tokenizer\" : \"whitespace\"\n" +
+                    "                    }\n" +
+                    "                }\n" +
+                    "            }\n" +
+                    "         }\n" +
+                    "    }\n")
+            .get();
+
+        // put template using custom_2 analyzer that is not exist
         MapperParsingException e = expectThrows(MapperParsingException.class,
             () -> client().admin().indices().preparePutTemplate("template_2")
-                    .setTemplate("test*")
-                    .setCreate(true)
-                    .setOrder(1)
-                    .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field2").field("type", "string").field("analyzer", "custom_1").endObject()
-                        .endObject().endObject().endObject())
+                .setTemplate("test*")
+                .setCreate(true)
+                .setOrder(1)
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                    .startObject("field2").field("type", "string").field("analyzer", "custom_2").endObject()
+                    .endObject().endObject().endObject())
                 .get());
-        assertThat(e.getMessage(), containsString("analyzer [custom_1] not found for field [field2]"));
+        assertThat(e.getMessage(), containsString("analyzer [custom_2] not found for field [field2]"));
+
+        response = client().admin().indices().prepareGetTemplates().get();
+        assertThat(response.getIndexTemplates(), hasSize(1));
+    }
+
+    public void testInvalidCombinationTemplatesAfterDelete() throws Exception{
+        // clean all templates setup by the framework.
+        client().admin().indices().prepareDeleteTemplate("*").get();
+
+        // check get all templates on an empty index.
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
+        assertThat(response.getIndexTemplates(), empty());
+
+        // base template
+        client().admin().indices().preparePutTemplate("template_1")
+            .setTemplate("*")
+            .setSettings(
+                "    {\n" +
+                    "        \"index\" : {\n" +
+                    "            \"analysis\" : {\n" +
+                    "                \"analyzer\" : {\n" +
+                    "                    \"custom_1\" : {\n" +
+                    "                        \"tokenizer\" : \"whitespace\"\n" +
+                    "                    }\n" +
+                    "                }\n" +
+                    "            }\n" +
+                    "         }\n" +
+                    "    }\n")
+            .get();
+
+        // put template using custom_1 analyzer
+        client().admin().indices().preparePutTemplate("template_2")
+            .setTemplate("test*")
+            .setCreate(true)
+            .setOrder(1)
+            .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("field2").field("type", "string").field("analyzer", "custom_1").endObject()
+                .endObject().endObject().endObject())
+            .get();
+
+        // delete base template
+        client().admin().indices().prepareDeleteTemplate("template_1").get();
 
         response = client().admin().indices().prepareGetTemplates().get();
         assertThat(response.getIndexTemplates(), hasSize(1));
 
+        // create index with template_2
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> client().admin().indices().prepareCreate("test_index").get());
+        assertThat(e.getMessage(), containsString("analyzer [custom_1] not found for field [field2]"));
+
+    }
+
+    public void testOverrideTemplates() throws Exception{
+        // clean all templates setup by the framework.
+        client().admin().indices().prepareDeleteTemplate("*").get();
+
+        // check get all templates on an empty index.
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
+        assertThat(response.getIndexTemplates(), empty());
+
+        // base template
+        client().admin().indices().preparePutTemplate("template_1")
+            .setTemplate("*")
+            .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("field2").field("type", "integer").endObject()
+                .endObject().endObject().endObject())
+            .get();
+
+        // put template override field2
+        XContentBuilder mappingContentBuilder =
+            XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("field2").field("type", "text").endObject()
+                .endObject().endObject().endObject();
+        client().admin().indices().preparePutTemplate("template_2")
+            .setTemplate("test*")
+            .setCreate(true)
+            .setOrder(1)
+            .addMapping("type1", mappingContentBuilder)
+            .get();
+        String mappings = mappingContentBuilder.string();
+
+        response = client().admin().indices().prepareGetTemplates().get();
+        assertThat(response.getIndexTemplates(), hasSize(2));
+
+        // index something into test_index, will match on both templates
+        client().admin().indices().prepareCreate("test_index").get();
+
+        ensureGreen();
+        GetMappingsResponse mappingsResponse =
+            client().admin().indices().prepareGetMappings("test_index").get();
+        MappingMetaData typeMapping = mappingsResponse.mappings().get("test_index").get("type1");
+        assertThat(typeMapping.source().toString(), equalTo(mappings));
+    }
+
+    public void testCombineTemplatesDifferentTypeAndSameField() throws Exception{
+        // clean all templates setup by the framework.
+        client().admin().indices().prepareDeleteTemplate("*").get();
+
+        // check get all templates on an empty index.
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
+        assertThat(response.getIndexTemplates(), empty());
+
+        // base template
+        client().admin().indices().preparePutTemplate("template_1")
+            .setTemplate("*")
+            .addMapping("type2", XContentFactory.jsonBuilder().startObject().startObject("type2").startObject("properties")
+                .startObject("field2").field("type", "integer").endObject()
+                .endObject().endObject().endObject())
+            .get();
+
+        // put template same field in different type
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> client().admin().indices().preparePutTemplate("template_2")
+            .setTemplate("test*")
+            .setCreate(true)
+            .setOrder(1)
+            .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("field2").field("type", "text").endObject()
+                .endObject().endObject().endObject())
+            .get());
+        assertThat(e.getMessage(), containsString("parse mapping [type1]: mapper [field2] cannot be changed from type [integer] to [text]"));
+
+        response = client().admin().indices().prepareGetTemplates().get();
+        assertThat(response.getIndexTemplates(), hasSize(1));
     }
 
     public void testOrderAndVersion() {

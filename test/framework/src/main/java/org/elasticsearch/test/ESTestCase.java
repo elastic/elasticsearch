@@ -875,6 +875,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         ));
     }
 
+    /**
+     * This cute helper class just holds all analysis building blocks that are used
+     * to build IndexAnalyzers. This is only for testing since in production we only need the
+     * result and we don't even expose it there.
+     */
     public static final class TestAnalysis {
 
         public final IndexAnalyzers indexAnalyzers;

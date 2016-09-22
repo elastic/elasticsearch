@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -122,14 +121,19 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                     throw new UnsupportedOperationException("shouldn't be here");
                 }
             });
-            final Map<String, NamedAnalyzer> analyzerMap =    new AbstractMap<String, NamedAnalyzer>() {
+            // this is just a fake map that always returns the same value for any possible string key
+            // also the entrySet impl isn't fully correct but we implement it since internally
+            // IndexAnalyzers will iterate over all analyzers to close them.
+            final Map<String, NamedAnalyzer> analyzerMap = new AbstractMap<String, NamedAnalyzer>() {
                 @Override
                 public NamedAnalyzer get(Object key) {
+                    assert key instanceof String : "key must be a string but was: " + key.getClass();
                     return new NamedAnalyzer((String)key, fakeDefault.analyzer());
                 }
 
                 @Override
                 public Set<Entry<String, NamedAnalyzer>> entrySet() {
+                    // just to ensure we can iterate over this single analzyer
                     return Collections.singletonMap(fakeDefault.name(), fakeDefault).entrySet();
                 }
             };

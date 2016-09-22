@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -78,22 +80,10 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
     }
 
     @Override
-    public void close() {
-        for (NamedAnalyzer analyzer : analyzers.values()) {
-            if (analyzer.scope() == AnalyzerScope.INDEX) {
-                try {
-                    analyzer.close();
-                } catch (NullPointerException e) {
-                    // because analyzers are aliased, they might be closed several times
-                    // an NPE is thrown in this case, so ignore....
-                    // TODO: Analyzer's can no longer have aliases in indices created in 5.x and beyond,
-                    // so we only allow the aliases for analyzers on indices created pre 5.x for backwards
-                    // compatibility.  Once pre 5.0 indices are no longer supported, this check should be removed.
-                } catch (Exception e) {
-                    logger.debug("failed to close analyzer {}", analyzer);
-                }
-            }
-        }
+    public void close() throws IOException {
+       IOUtils.close(() -> analyzers.values().stream()
+           .filter(a -> a.scope() == AnalyzerScope.INDEX)
+           .iterator());
     }
 
     /**

@@ -62,6 +62,16 @@ Scroll requests sorted by `_doc` have been optimized to more efficiently resume
 from where the previous request stopped, so this will have the same performance
 characteristics as the former `scan` search type.
 
+==== Search shard limit
+
+In 5.0, Elasticsearch rejects requests that would query more than 1000 shard
+copies (primaries or replicas).  The reason is that such large numbers of
+shards make the job of the coordinating node very CPU and memory intensive. It
+is usually a better idea to organize data in such a way that there are fewer
+larger shards. In case you would like to bypass this limit, which is
+discouraged, you can update the `action.search.shard_count.limit` cluster
+setting to a greater value.
+
 ==== `fields` parameter
 
 The `fields` parameter has been replaced by `stored_fields`.

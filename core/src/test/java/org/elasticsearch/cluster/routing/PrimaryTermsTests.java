@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -146,9 +145,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
         List<FailedRerouteAllocation.FailedShard> failedShards = new ArrayList<>();
         for (int shard : shardIdsToFail) {
             failedShards.add(new FailedRerouteAllocation.FailedShard(indexShardRoutingTable.shard(shard).primaryShard(), "test", null));
-            if (indexShardRoutingTable.shard(shard).activeShards().size() > 1) {
-                incrementPrimaryTerm(index, shard); // the primary failure should increment the primary term;
-            }
+            incrementPrimaryTerm(index, shard); // the primary failure should increment the primary term;
         }
         applyRerouteResult(allocationService.applyFailedShards(this.clusterState, failedShards,Collections.emptyList()));
     }
@@ -192,7 +189,6 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
         }
     }
 
-    @Seed("40B12EBC41004E5D")
     public void testPrimaryTermMetaDataSync() {
         assertAllPrimaryTerm();
 

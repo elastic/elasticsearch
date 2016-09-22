@@ -348,7 +348,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         }
         indexRandom(true, builder);
         if (randomBoolean()) {
-            client().admin().indices().prepareFlush("test").setWaitIfOngoing(true).setForce(true).execute().get();
+            client().admin().indices().prepareFlush("test").setForce(true).execute().get();
         }
         client().admin().indices().prepareClose("test").execute().get();
 

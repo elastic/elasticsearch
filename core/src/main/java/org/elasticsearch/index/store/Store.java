@@ -388,7 +388,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         } catch (FileNotFoundException | NoSuchFileException ex) {
             logger.info("Failed to open / find files while reading metadata snapshot");
         } catch (ShardLockObtainFailedException ex) {
-            logger.info("{}: failed to obtain shard lock", ex, shardId);
+            logger.info((Supplier<?>) () -> new ParameterizedMessage("{}: failed to obtain shard lock", shardId), ex);
         }
         return MetadataSnapshot.EMPTY;
     }
@@ -420,7 +420,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             SegmentInfos segInfo = Lucene.readSegmentInfos(dir);
             logger.trace("{} loaded segment info [{}]", shardId, segInfo);
         } catch (ShardLockObtainFailedException ex) {
-            logger.error("{} unable to acquire shard lock", ex, shardId);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("{} unable to acquire shard lock", shardId), ex);
             throw new IOException(ex);
         }
     }

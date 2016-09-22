@@ -176,6 +176,9 @@ public class PluginBuildPlugin extends BuildPlugin {
 
     /** Find the reponame. */
     static String urlFromOrigin(String origin) {
+        if (origin == null) {
+            return null // best effort, the url doesnt really matter, it is just required by maven central
+        }
         if (origin.startsWith('https')) {
             return origin
         }
@@ -218,13 +221,16 @@ public class PluginBuildPlugin extends BuildPlugin {
                 zip(MavenPublication) {
                     artifact project.bundlePlugin
                 }
-                // HUGE HACK: the underlying maven publication library refuses to deploy any attached artifacts
-                // when the packaging type is set to 'pom'. So here we create another publication using the same
-                // name that has the "real" pom, and rely on the fact that gradle will execute the publish tasks
-                // in alphabetical order. We cannot setup a dependency between the tasks because the publishing
-                // tasks are created *extremely* late in the configuration phase, so that we cannot get ahold
-                // of the actual task. Furthermore, this entire hack only exists so we can make publishing to
-                // maven local work, since we publish to maven central externally.
+                /* HUGE HACK: the underlying maven publication library refuses to deploy any attached artifacts
+                 * when the packaging type is set to 'pom'. But Sonatype's OSS repositories require source files
+                 * for artifacts that are of type 'zip'. We already publish the source and javadoc for Elasticsearch
+                 * under the various other subprojects. So here we create another publication using the same
+                 * name that has the "real" pom, and rely on the fact that gradle will execute the publish tasks
+                 * in alphabetical order. This lets us publish the zip file and even though the pom says the
+                 * type is 'pom' instead of 'zip'. We cannot setup a dependency between the tasks because the
+                 * publishing tasks are created *extremely* late in the configuration phase, so that we cannot get
+                 * ahold of the actual task. Furthermore, this entire hack only exists so we can make publishing to
+                 * maven local work, since we publish to maven central externally. */
                 zipReal(MavenPublication) {
                     pom.withXml { XmlProvider xml ->
                         Node root = xml.asNode()

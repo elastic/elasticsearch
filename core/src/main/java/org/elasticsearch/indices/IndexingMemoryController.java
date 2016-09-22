@@ -31,7 +31,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
-import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
@@ -52,7 +51,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class IndexingMemoryController extends AbstractComponent implements IndexingOperationListener, Closeable {
 
     /** How much heap (% or bytes) we will share across all actively indexing shards on this node (default: 10%). */
-    public static final Setting<ByteSizeValue> INDEX_BUFFER_SIZE_SETTING = 
+    public static final Setting<ByteSizeValue> INDEX_BUFFER_SIZE_SETTING =
             Setting.memorySizeSetting("indices.memory.index_buffer_size", "10%", Property.NodeScope);
 
     /** Only applies when <code>indices.memory.index_buffer_size</code> is a %, to set a floor on the actual size in bytes (default: 48 MB). */
@@ -386,8 +385,8 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     protected void checkIdle(IndexShard shard, long inactiveTimeNS) {
         try {
             shard.checkIdle(inactiveTimeNS);
-        } catch (EngineClosedException | FlushNotAllowedEngineException e) {
-            logger.trace("ignore exception while checking if shard {} is inactive", e, shard.shardId());
+        } catch (EngineClosedException e) {
+            logger.trace((Supplier<?>) () -> new ParameterizedMessage("ignore exception while checking if shard {} is inactive", shard.shardId()), e);
         }
     }
 }

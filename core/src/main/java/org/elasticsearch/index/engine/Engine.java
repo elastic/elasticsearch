@@ -479,7 +479,9 @@ public abstract class Engine implements Closeable {
             try {
                 length = directory.fileLength(file);
             } catch (NoSuchFileException | FileNotFoundException e) {
-                logger.warn("Tried to query fileLength but file is gone [{}] [{}]", e, directory, file);
+                final Directory finalDirectory = directory;
+                logger.warn((Supplier<?>)
+                    () -> new ParameterizedMessage("Tried to query fileLength but file is gone [{}] [{}]", finalDirectory, file), e);
             } catch (IOException e) {
                 final Directory finalDirectory = directory;
                 logger.warn(
@@ -1105,8 +1107,6 @@ public abstract class Engine implements Closeable {
                     logger.debug("flushing shard on close - this might take some time to sync files to disk");
                     try {
                         flush(); // TODO we might force a flush in the future since we have the write lock already even though recoveries are running.
-                    } catch (FlushNotAllowedEngineException ex) {
-                        logger.debug("flush not allowed during flushAndClose - skipping");
                     } catch (EngineClosedException ex) {
                         logger.debug("engine already closed - skipping flushAndClose");
                     }
@@ -1233,4 +1233,11 @@ public abstract class Engine implements Closeable {
      * This operation will close the engine if the recovery fails.
      */
     public abstract Engine recoverFromTranslog() throws IOException;
+
+    /**
+     * Returns <code>true</code> iff this engine is currently recovering from translog.
+     */
+    public boolean isRecovering() {
+        return false;
+    }
 }

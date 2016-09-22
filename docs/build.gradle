@@ -24,7 +24,6 @@ apply plugin: 'elasticsearch.docs-test'
  * only remove entries from this list. When it is empty we'll remove it
  * entirely and have a party! There will be cake and everything.... */
 buildRestTests.expectedUnconvertedCandidates = [
-  'plugins/discovery-azure-classic.asciidoc',
   'reference/aggregations.asciidoc',
   'reference/aggregations/bucket/children-aggregation.asciidoc',
   'reference/aggregations/bucket/datehistogram-aggregation.asciidoc',
@@ -115,7 +114,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/cat/snapshots.asciidoc',
   'reference/cat/templates.asciidoc',
   'reference/cat/thread_pool.asciidoc',
-  'reference/cluster.asciidoc',
   'reference/cluster/allocation-explain.asciidoc',
   'reference/cluster/nodes-info.asciidoc',
   'reference/cluster/nodes-stats.asciidoc',
@@ -161,8 +159,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/mapping/types/nested.asciidoc',
   'reference/mapping/types/object.asciidoc',
   'reference/mapping/types/percolator.asciidoc',
-  'reference/modules/cluster/misc.asciidoc',
-  'reference/modules/indices/request_cache.asciidoc',
   'reference/modules/scripting/native.asciidoc',
   'reference/modules/scripting/security.asciidoc',
   'reference/modules/scripting/using.asciidoc',

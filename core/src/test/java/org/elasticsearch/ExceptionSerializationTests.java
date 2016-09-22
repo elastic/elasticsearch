@@ -757,7 +757,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(107, org.elasticsearch.repositories.RepositoryMissingException.class);
         ids.put(108, null);
         ids.put(109, org.elasticsearch.index.engine.DocumentSourceMissingException.class);
-        ids.put(110, org.elasticsearch.index.engine.FlushNotAllowedEngineException.class);
+        ids.put(110, null); // FlushNotAllowedEngineException was removed in 5.0
         ids.put(111, org.elasticsearch.common.settings.NoClassSettingsException.class);
         ids.put(112, org.elasticsearch.transport.BindTransportException.class);
         ids.put(113, org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException.class);

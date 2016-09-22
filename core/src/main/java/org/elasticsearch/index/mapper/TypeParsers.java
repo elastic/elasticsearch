@@ -125,21 +125,21 @@ public class TypeParsers {
                 builder.storeTermVectorPayloads(nodeBooleanValue("store_term_vector_payloads", propNode, parserContext));
                 iterator.remove();
             } else if (propName.equals("analyzer")) {
-                NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
+                NamedAnalyzer analyzer = parserContext.getIndexAnalyzers().get(propNode.toString());
                 if (analyzer == null) {
                     throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
                 indexAnalyzer = analyzer;
                 iterator.remove();
             } else if (propName.equals("search_analyzer")) {
-                NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
+                NamedAnalyzer analyzer = parserContext.getIndexAnalyzers().get(propNode.toString());
                 if (analyzer == null) {
                     throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }
                 searchAnalyzer = analyzer;
                 iterator.remove();
             } else if (propName.equals("search_quote_analyzer")) {
-                NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
+                NamedAnalyzer analyzer = parserContext.getIndexAnalyzers().get(propNode.toString());
                 if (analyzer == null) {
                     throw new MapperParsingException("analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                 }

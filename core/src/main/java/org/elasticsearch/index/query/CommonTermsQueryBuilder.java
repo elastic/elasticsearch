@@ -383,7 +383,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
                 analyzerObj = context.getMapperService().searchAnalyzer();
             }
         } else {
-            analyzerObj = context.getMapperService().analysisService().analyzer(analyzer);
+            analyzerObj = context.getMapperService().getIndexAnalyzers().get(analyzer);
             if (analyzerObj == null) {
                 throw new QueryShardException(context, "[common] analyzer [" + analyzer + "] not found");
             }

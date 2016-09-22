@@ -33,7 +33,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -236,8 +235,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract IndexShard indexShard();
 
     public abstract MapperService mapperService();
-
-    public abstract AnalysisService analysisService();
 
     public abstract SimilarityService similarityService();
 

@@ -71,10 +71,11 @@ public class KuromojiAnalysisTests extends ESTestCase {
         filterFactory = analysisService.tokenFilter("kuromoji_number");
         assertThat(filterFactory, instanceOf(KuromojiNumberFilterFactory.class));
 
-        NamedAnalyzer analyzer = analysisService.analyzer("kuromoji");
+        IndexAnalyzers indexAnalyzers = analysisService.getIndexAnalyzers();
+        NamedAnalyzer analyzer = indexAnalyzers.get("kuromoji");
         assertThat(analyzer.analyzer(), instanceOf(JapaneseAnalyzer.class));
 
-        analyzer = analysisService.analyzer("my_analyzer");
+        analyzer = indexAnalyzers.get("my_analyzer");
         assertThat(analyzer.analyzer(), instanceOf(CustomAnalyzer.class));
         assertThat(analyzer.analyzer().tokenStream(null, new StringReader("")), instanceOf(JapaneseTokenizer.class));
 
@@ -198,7 +199,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
-        return createAnalysisService(new Index("test", "_na_"), nodeSettings, settings, new AnalysisKuromojiPlugin());
+        return createTestAnalysis(new Index("test", "_na_"), nodeSettings, settings, new AnalysisKuromojiPlugin());
     }
 
     public static void assertSimpleTSOutput(TokenStream stream,

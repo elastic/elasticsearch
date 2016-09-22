@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class PolishAnalysisTests extends ESTestCase {
     public void testDefaultsPolishAnalysis() throws IOException {
-        final AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), Settings.EMPTY,
+        final AnalysisService analysisService = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY,
                 new AnalysisStempelPlugin());
         TokenFilterFactory tokenizerFactory = analysisService.tokenFilter("polish_stem");
         MatcherAssert.assertThat(tokenizerFactory, instanceOf(PolishStemTokenFilterFactory.class));

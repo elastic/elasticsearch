@@ -49,7 +49,7 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("index.analysis.filter.myStemmer.type", "polish_stem")
                 .build();
-        AnalysisService analysisService = createAnalysisService(index, settings, new AnalysisStempelPlugin());
+        AnalysisService analysisService = createTestAnalysis(index, settings, new AnalysisStempelPlugin());
 
         TokenFilterFactory filterFactory = analysisService.tokenFilter("myStemmer");
 
@@ -65,7 +65,7 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
     }
 
     private void testAnalyzer(String source, String... expected_terms) throws IOException {
-        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), Settings.EMPTY, new AnalysisStempelPlugin());
+        AnalysisService analysisService = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY, new AnalysisStempelPlugin());
 
         Analyzer analyzer = analysisService.analyzer("polish").analyzer();
 

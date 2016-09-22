@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class SimpleSmartChineseAnalysisTests extends ESTestCase {
     public void testDefaultsIcuAnalysis() throws IOException {
-        final AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), Settings.EMPTY,
+        final AnalysisService analysisService = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY,
                 new AnalysisSmartChinesePlugin());
         TokenizerFactory tokenizerFactory = analysisService.tokenizer("smartcn_tokenizer");
         MatcherAssert.assertThat(tokenizerFactory, instanceOf(SmartChineseTokenizerTokenizerFactory.class));

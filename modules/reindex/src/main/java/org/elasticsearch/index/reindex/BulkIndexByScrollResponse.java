@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -29,10 +30,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
+import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 
 /**
  * Response used for actions that index many documents using a scroll request.
@@ -54,6 +58,22 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         this.bulkFailures = bulkFailures;
         this.searchFailures = searchFailures;
         this.timedOut = timedOut;
+    }
+
+    public BulkIndexByScrollResponse(Iterable<BulkIndexByScrollResponse> toMerge, @Nullable String reasonCancelled) {
+        long mergedTook = 0;
+        List<BulkByScrollTask.StatusOrException> statuses = new ArrayList<>();
+        bulkFailures = new ArrayList<>();
+        searchFailures = new ArrayList<>();
+        for (BulkIndexByScrollResponse response : toMerge) {
+            mergedTook = max(mergedTook, response.getTook().nanos());
+            statuses.add(new BulkByScrollTask.StatusOrException(response.status));
+            bulkFailures.addAll(response.getBulkFailures());
+            searchFailures.addAll(response.getSearchFailures());
+            timedOut |= response.isTimedOut();
+        }
+        took = timeValueNanos(mergedTook);
+        status = new BulkByScrollTask.Status(statuses, reasonCancelled);
     }
 
     public TimeValue getTook() {

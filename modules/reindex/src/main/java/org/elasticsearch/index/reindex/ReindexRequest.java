@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -56,7 +57,11 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     public ReindexRequest(SearchRequest search, IndexRequest destination) {
-        super(search);
+        this(search, destination, true);
+    }
+
+    private ReindexRequest(SearchRequest search, IndexRequest destination, boolean setDefaults) {
+        super(search, setDefaults);
         this.destination = destination;
     }
 
@@ -94,8 +99,13 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (destination.timestamp() != null) {
             e = addValidationError("setting timestamp on destination isn't supported. use scripts instead.", e);
         }
-        if (getRemoteInfo() != null && getSearchRequest().source().query() != null) {
-            e = addValidationError("reindex from remote sources should use RemoteInfo's query instead of source's query", e);
+        if (getRemoteInfo() != null) {
+            if (getSearchRequest().source().query() != null) {
+                e = addValidationError("reindex from remote sources should use RemoteInfo's query instead of source's query", e);
+            }
+            if (getSlices() != 1) {
+                e = addValidationError("reindex from remote sources doesn't support workers > 1 but was [" + getSlices() + "]", e);
+            }
         }
         return e;
     }
@@ -123,6 +133,13 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     public RemoteInfo getRemoteInfo() {
         return remoteInfo;
+    }
+
+    @Override
+    ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice) {
+        ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask);
+        sliced.setRemoteInfo(remoteInfo);
+        return sliced;
     }
 
     @Override

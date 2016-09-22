@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
@@ -275,6 +276,29 @@ public final class SearchRequest extends ActionRequest<SearchRequest> implements
      */
     public boolean isSuggestOnly() {
         return source != null && source.isSuggestOnly();
+    }
+
+    /**
+     * Slice this search request into {@code times} separate search requests slicing on {@code field}. Note that the slices are *shallow*
+     * copies of this request so don't change them.
+     */
+    public SearchRequest[] sliceIntoSubRequests(String field, int times) {
+        SearchRequest[] slices = new SearchRequest[times];
+        for (int slice = 0; slice < times; slice++) {
+            SliceBuilder sliceBuilder = new SliceBuilder(field, slice, times);
+            SearchSourceBuilder slicedSource;
+            if (source == null) {
+                slicedSource = new SearchSourceBuilder().slice(sliceBuilder);
+            } else {
+                if (source.slice() != null) {
+                    throw new IllegalStateException("Can't slice a request that already has a slice configuration");
+                }
+                slicedSource = source.copyWithNewSlice(sliceBuilder);
+            }
+            slices[slice] = new SearchRequest().searchType(searchType).indices(indices).routing(routing).preference(preference)
+                    .requestCache(requestCache).scroll(scroll).types(types).indicesOptions(indicesOptions).source(slicedSource);
+        }
+        return slices;
     }
 
     @Override

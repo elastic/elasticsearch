@@ -24,6 +24,7 @@ import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.IOUtils;
@@ -1066,7 +1067,7 @@ public final class InternalTestCluster extends TestCluster {
                         DiscoveryNode localNode = getInstance(ClusterService.class, nodeAndClient.name).localNode();
                         List<TaskInfo> taskInfos = taskManager.getTasks().values().stream()
                             .filter(task -> task instanceof ReplicationTask)
-                            .map(task -> task.taskInfo(localNode, true))
+                            .map(task -> task.taskInfo(localNode.getId(), true))
                             .collect(Collectors.toList());
                         ListTasksResponse response = new ListTasksResponse(taskInfos, Collections.emptyList(), Collections.emptyList());
                         XContentBuilder builder = XContentFactory.jsonBuilder()

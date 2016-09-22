@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchRequestParsers;
 
@@ -39,7 +40,6 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.script.Script.ScriptField;
 
 public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<UpdateByQueryRequest, UpdateByQueryAction> {
 

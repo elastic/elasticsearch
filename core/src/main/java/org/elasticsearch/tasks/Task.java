@@ -42,8 +42,14 @@ public class Task {
 
     private final TaskId parentTask;
 
+    /**
+     * The task's start time as a wall clock time since epoch ({@link System#currentTimeMillis()} style).
+     */
     private final long startTime;
 
+    /**
+     * The task's start time as a relative time ({@link System#nanoTime()} style).
+     */
     private final long startTimeNanos;
 
     public Task(long id, String type, String action, String description, TaskId parentTask) {
@@ -64,20 +70,27 @@ public class Task {
      * Build a version of the task status you can throw over the wire and back
      * to the user.
      *
-     * @param node
-     *            the node this task is running on
+     * @param localNodeId
+     *            the id of the node this task is running on
      * @param detailed
      *            should the information include detailed, potentially slow to
      *            generate data?
      */
-    public TaskInfo taskInfo(DiscoveryNode node, boolean detailed) {
+    public final TaskInfo taskInfo(String localNodeId, boolean detailed) {
         String description = null;
         Task.Status status = null;
         if (detailed) {
             description = getDescription();
             status = getStatus();
         }
-        return new TaskInfo(new TaskId(node.getId(), getId()), getType(), getAction(), description, status, startTime,
+        return taskInfo(localNodeId, description, status);
+    }
+
+    /**
+     * Build a proper {@link TaskInfo} for this task.
+     */
+    protected final TaskInfo taskInfo(String localNodeId, String description, Status status) {
+        return new TaskInfo(new TaskId(localNodeId, getId()), getType(), getAction(), description, status, startTime,
                 System.nanoTime() - startTimeNanos, this instanceof CancellableTask, parentTask);
     }
 
@@ -110,7 +123,7 @@ public class Task {
     }
 
     /**
-     * Returns the task start time
+     * Returns the task's start time as a wall clock time since epoch ({@link System#currentTimeMillis()} style).
      */
     public long getStartTime() {
         return startTime;
@@ -136,12 +149,12 @@ public class Task {
     public interface Status extends ToXContent, NamedWriteable {}
 
     public TaskResult result(DiscoveryNode node, Exception error) throws IOException {
-        return new TaskResult(taskInfo(node, true), error);
+        return new TaskResult(taskInfo(node.getId(), true), error);
     }
 
     public TaskResult result(DiscoveryNode node, ActionResponse response) throws IOException {
         if (response instanceof ToXContent) {
-            return new TaskResult(taskInfo(node, true), (ToXContent) response);
+            return new TaskResult(taskInfo(node.getId(), true), (ToXContent) response);
         } else {
             throw new IllegalStateException("response has to implement ToXContent to be able to store the results");
         }

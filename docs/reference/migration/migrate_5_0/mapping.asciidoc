@@ -121,7 +121,20 @@ Regex filters are not supported anymore and will be dropped on upgrade.
 
 ==== Source-transform removed
 
-The source `transform` feature has been removed. Instead, use an ingest pipeline
+The source `transform` feature has been removed. Instead, use an ingest pipeline.
+
+
+==== Field mapping limits
+
+To prevent mapping explosions, the following limits are applied to indices
+created in 5.x:
+
+* The maximum number of fields in an index is limited to 1000.
+* The maximum depth for a field (1 plus the number of `object` or `nested` parents) is limited to 20.
+* The maximum number of `nested` fields in an index is limited to 50.
+
+See <<mapping-limit-settings>> for more.
+
 
 ==== `_parent` field no longer indexed
 

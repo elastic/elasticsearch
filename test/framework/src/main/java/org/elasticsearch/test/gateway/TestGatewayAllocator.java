@@ -42,7 +42,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * An allocator used for tests that doesn't do anything
+ * A gateway allocator implementation that keeps an in memory list of started shard allocation
+ * that are used as replies to the, normally async, fetch data requests.
+ *
+ * For now only primary shard related data is fetched. Replica request always get an empty response.
+ *
+ * This class is useful to use in unit tests that require the functionality of {@link GatewayAllocator} but do
+ * not have all the infrastructure required to use it.
  */
 public class TestGatewayAllocator extends GatewayAllocator {
 
@@ -126,6 +132,9 @@ public class TestGatewayAllocator extends GatewayAllocator {
         replicaShardAllocator.allocateUnassigned(allocation);
     }
 
+    /**
+     * manually add a specific shard to the allocations the gateway keeps track of
+     */
     public void addKnownAllocation(ShardRouting shard) {
             knownAllocations.computeIfAbsent(shard.currentNodeId(), id -> new HashMap<>())
                 .put(shard.shardId(), shard);

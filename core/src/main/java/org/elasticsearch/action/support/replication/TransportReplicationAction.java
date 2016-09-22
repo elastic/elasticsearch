@@ -369,6 +369,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             int shardId = request.shardId().id();
             logger.trace("failure on replica [{}][{}], action [{}], request [{}]", t, index, shardId, actionName, request);
             if (mustFailReplica(t)) {
+                assert ignoreReplicaException(t) == false;
                 IndexService indexService = indicesService.indexService(index);
                 if (indexService == null) {
                     logger.debug("ignoring failed replica [{}][{}] because index was already removed.", index, shardId);
@@ -936,6 +937,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         onReplicaFailure(nodeId, exp);
                         logger.trace("[{}] transport failure during replica request [{}], action [{}]", exp, node, replicaRequest, transportReplicaAction);
                         if (mustFailReplica(exp)) {
+                            assert ignoreReplicaException(exp) == false;
                             logger.warn("{} failed to perform {} on node {}", exp, shardId, transportReplicaAction, node);
                             shardStateAction.shardFailed(shard, indexUUID, "failed to perform " + actionName + " on replica on node " + node, exp);
                         }

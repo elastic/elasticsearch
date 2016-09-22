@@ -19,17 +19,25 @@
 package org.elasticsearch.indices.flush;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
@@ -53,6 +61,7 @@ public class FlushIT extends ESIntegTestCase {
     public void testWaitIfOngoing() throws InterruptedException {
         createIndex("test");
         ensureGreen("test");
+        ClusterStateResponse beforeTestResponse = client().admin().cluster().prepareState().get();
         final int numIters = scaledRandomIntBetween(10, 30);
         for (int i = 0; i < numIters; i++) {
             for (int j = 0; j < 10; j++) {
@@ -84,6 +93,84 @@ public class FlushIT extends ESIntegTestCase {
             latch.await();
             assertThat(errors, emptyIterable());
         }
+        ClusterStateResponse afterTestResponse = client().admin().cluster().prepareState().get();
+        IndexRoutingTable afterRoutingTable = afterTestResponse.getState().getRoutingTable().index("test");
+        IndexRoutingTable beforeRoutingTable = beforeTestResponse.getState().getRoutingTable().index("test");
+        assertEquals(afterRoutingTable, beforeRoutingTable);
+
+    }
+
+    /**
+     * We test here that failing with FlushNotAllowedEngineException doesn't fail the shards since it's whitelisted.
+     * see #20632
+     * @throws InterruptedException
+     */
+    @Test
+    public void testDontWaitIfOngoing() throws InterruptedException {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        prepareCreate("test").setSettings(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).get();
+        ensureGreen("test");
+        ClusterStateResponse beforeTestResponse = client().admin().cluster().prepareState().get();
+        List<ShardRouting> shardRoutings = beforeTestResponse.getState().getRoutingTable().index("test")
+            .shardsWithState(ShardRoutingState.STARTED);
+        ShardRouting theReplica = null;
+        for (ShardRouting shardRouting : shardRoutings) {
+            if (shardRouting.primary() == false) {
+                theReplica = shardRouting;
+                break;
+            }
+        }
+        assertNotNull(theReplica);
+        DiscoveryNode discoveryNode = beforeTestResponse.getState().nodes().get(theReplica.currentNodeId());
+        final IndicesService instance = internalCluster().getInstance(IndicesService.class, discoveryNode.getName());
+        final ShardRouting routing = theReplica;
+        final AtomicBoolean run = new AtomicBoolean(true);
+        Thread t = new Thread() {
+            @Override
+            public void run() {
+                IndexService indexService = instance.indexService(routing.index());
+                IndexShard shard = indexService.shard(routing.id());
+                while(run.get()) {
+                    shard.flush(new FlushRequest().waitIfOngoing(true));
+                }
+            }
+        };
+        t.start();
+        final int numIters = scaledRandomIntBetween(10, 30);
+        for (int i = 0; i < numIters; i++) {
+            for (int j = 0; j < 10; j++) {
+                client().prepareIndex("test", "test").setSource("{}").get();
+            }
+            final CountDownLatch latch = new CountDownLatch(10);
+            final CopyOnWriteArrayList<Throwable> errors = new CopyOnWriteArrayList<>();
+            for (int j = 0; j < 10; j++) {
+                client().admin().indices().prepareFlush("test").setWaitIfOngoing(false).execute(new ActionListener<FlushResponse>() {
+                    @Override
+                    public void onResponse(FlushResponse flushResponse) {
+                        try {
+                            latch.countDown();
+                        } catch (Throwable ex) {
+                            onFailure(ex);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Throwable e) {
+                        errors.add(e);
+                        latch.countDown();
+                    }
+                });
+            }
+            latch.await();
+            assertThat(errors, emptyIterable());
+        }
+        run.set(false);
+        t.join();
+        ClusterStateResponse afterTestResponse = client().admin().cluster().prepareState().get();
+        IndexRoutingTable afterRoutingTable = afterTestResponse.getState().getRoutingTable().index("test");
+        IndexRoutingTable beforeRoutingTable = beforeTestResponse.getState().getRoutingTable().index("test");
+        assertEquals(afterRoutingTable, beforeRoutingTable);
+
     }
 
     public void testSyncedFlush() throws ExecutionException, InterruptedException, IOException {

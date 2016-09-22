@@ -19,14 +19,16 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class RatedDocumentKey implements Writeable {
+public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
 
     private String docId;
     private String type;
@@ -92,5 +94,15 @@ public class RatedDocumentKey implements Writeable {
     @Override
     public final int hashCode() {
         return Objects.hash(index, type, docId);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(RatedDocument.INDEX_FIELD.getPreferredName(), index);
+        builder.field(RatedDocument.TYPE_FIELD.getPreferredName(), type);
+        builder.field(RatedDocument.DOC_ID_FIELD.getPreferredName(), docId);
+        builder.endObject();
+        return builder;
     }
 }

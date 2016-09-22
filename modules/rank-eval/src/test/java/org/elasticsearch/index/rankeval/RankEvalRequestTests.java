@@ -83,14 +83,14 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
         assertEquals(1.0, response.getQualityLevel(), Double.MIN_VALUE);
-        Set<Entry<String, Collection<RatedDocumentKey>>> entrySet = response.getUnknownDocs().entrySet();
+        Set<Entry<String, EvalQueryQuality>> entrySet = response.getPartialResults().entrySet();
         assertEquals(2, entrySet.size());
-        for (Entry<String, Collection<RatedDocumentKey>> entry : entrySet) {
+        for (Entry<String, EvalQueryQuality> entry : entrySet) {
             if (entry.getKey() == "amsterdam_query") {
-                assertEquals(2, entry.getValue().size());
+                assertEquals(2, entry.getValue().getUnknownDocs().size());
             }
             if (entry.getKey() == "berlin_query") {
-                assertEquals(5, entry.getValue().size());
+                assertEquals(5, entry.getValue().getUnknownDocs().size());
             }
         }
     }

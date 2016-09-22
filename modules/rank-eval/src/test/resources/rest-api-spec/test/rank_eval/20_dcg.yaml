@@ -64,6 +64,8 @@
         }
 
   - match: {rank_eval.quality_level: 13.84826362927298}
+  - match: {rank_eval.details.dcg_query.quality_level: 13.84826362927298}
+  - match: {rank_eval.details.dcg_query.unknown_docs: [ ]}
 
 # reverse the order in which the results are returned (less relevant docs first)
 
@@ -87,6 +89,8 @@
         }
 
   - match: {rank_eval.quality_level: 10.29967439154499}
+  - match: {rank_eval.details.dcg_query_reverse.quality_level: 10.29967439154499}
+  - match: {rank_eval.details.dcg_query_reverse.unknown_docs: [ ]}
 
 # if we mix both, we should get the average
   
@@ -121,3 +125,7 @@
       }
 
   - match: {rank_eval.quality_level: 12.073969010408984}
+  - match: {rank_eval.details.dcg_query.quality_level: 13.84826362927298}
+  - match: {rank_eval.details.dcg_query.unknown_docs: [ ]}
+  - match: {rank_eval.details.dcg_query_reverse.quality_level: 10.29967439154499}
+  - match: {rank_eval.details.dcg_query_reverse.unknown_docs: [ ]}

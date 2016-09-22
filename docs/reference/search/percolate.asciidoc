@@ -488,7 +488,7 @@ By using `routing`, `filter` or `query` features the amount of queries that need
 the time the percolate API needs to run can be decreased.
 
 [float]
-=== Important Notes
+=== Limitations
 
 Because the percolator API is processing one document at a time, it doesn't support queries and filters that run
 against child documents such as `has_child` and `has_parent`.
@@ -501,6 +501,14 @@ achieve the same result (with way less memory being used).
 
 The `delete-by-query` plugin doesn't work to unregister a query, it only deletes the percolate documents from disk. In order
 to update the registered queries in memory the index needs be closed and opened.
+
+There are a number of queries that fetch data via a get call during query parsing. For example the `terms` query when
+using terms lookup, `template` query when using indexed scripts and `geo_shape` when using pre-indexed shapes. Each time
+the percolator evaluates these queries, it fetches terms, shapes etc. The data gets fetched separately on the primary,
+replica shards and when a shard is being recovered (e.g. due to relocation or node startup). This makes it likely that
+over time these percolator queries have different terms between primary and replica shards, resulting in inconsistent
+results when percolating. There is no workaround to prevent this from happening. The only alternative is to not use these
+queries and do the fetching of terms on the client side prior to indexing.
 
 [float]
 === Forcing Unmapped Fields to be Handled as Strings

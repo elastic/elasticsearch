@@ -95,13 +95,13 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     }
 
     @Override
-    protected boolean ignoreReplicaException(Throwable e) {
+    protected boolean mustFailReplica(Throwable e) {
         // if we are running flush ith wait_if_ongoing=false (default) we might get a FlushNotAllowedEngineException from the
         // replica that is a signal that there is another flush ongoing and we stepped out. This behavior has changed in 5.x
         // where we don't throw an exception anymore. In such a case we ignore the exception an do NOT fail the replica.
         if (ExceptionsHelper.unwrapCause(e).getClass() == FlushNotAllowedEngineException.class) {
-            return true;
+            return false;
         }
-        return super.ignoreReplicaException(e);
+        return super.mustFailReplica(e);
     }
 }

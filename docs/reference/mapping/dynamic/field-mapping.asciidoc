@@ -30,20 +30,6 @@ detected.  All other datatypes must be mapped explicitly.
 Besides the options listed below, dynamic field mapping rules can be further
 customised with <<dynamic-templates,`dynamic_templates`>>.
 
-[[mapping-limit-settings]]
-==== Settings to prevent mappings explosion
-
-Two settings allow to control mapping explosion, in order to prevent adversary
-documents to create huge mappings through dynamic mappings for instance:
-
-`index.mapping.total_fields.limit`::
-    The maximum number of fields in an index. The default value is `1000`.
-`index.mapping.depth.limit`::
-    The maximum depth for a field, which is measured as the number of nested
-    objects. For instance, if all fields are defined at the root object level,
-    then the depth is `1`. If there is one object mapping, then the depth is
-    `2`, etc. The default is `20`.
-
 [[date-detection]]
 ==== Date detection
 

@@ -51,15 +51,16 @@ set JAVA_OPTS=%JAVA_OPTS% -Djava.net.preferIPv4Stack=true
 )
 
 REM Add gc options. ES_GC_OPTS is unsupported, for internal testing
+SETLOCAL EnableDelayedExpansion
 if "%ES_GC_OPTS%" == "" (
-set ES_GC_OPTS=%ES_GC_OPTS% -XX:+UseParNewGC
-set ES_GC_OPTS=%ES_GC_OPTS% -XX:+UseConcMarkSweepGC
-set ES_GC_OPTS=%ES_GC_OPTS% -XX:CMSInitiatingOccupancyFraction=75
-set ES_GC_OPTS=%ES_GC_OPTS% -XX:+UseCMSInitiatingOccupancyOnly
+set ES_GC_OPTS=!ES_GC_OPTS! -XX:+UseParNewGC
+set ES_GC_OPTS=!ES_GC_OPTS! -XX:+UseConcMarkSweepGC
+set ES_GC_OPTS=!ES_GC_OPTS! -XX:CMSInitiatingOccupancyFraction=75
+set ES_GC_OPTS=!ES_GC_OPTS! -XX:+UseCMSInitiatingOccupancyOnly
 REM When running under Java 7
-REM JAVA_OPTS=%JAVA_OPTS% -XX:+UseCondCardMark
+REM JAVA_OPTS=!JAVA_OPTS! -XX:+UseCondCardMark
 )
-set JAVA_OPTS=%JAVA_OPTS%%ES_GC_OPTS%
+ENDLOCAL & set JAVA_OPTS=%JAVA_OPTS%%ES_GC_OPTS%
 
 if "%ES_GC_LOG_FILE%" == "" goto nogclog
 

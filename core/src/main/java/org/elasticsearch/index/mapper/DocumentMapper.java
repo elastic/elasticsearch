@@ -147,11 +147,11 @@ public class DocumentMapper implements ToXContent {
         }
         MapperUtils.collect(this.mapping.root, newObjectMappers, newFieldMappers);
 
-        final IndexAnalyzers analysisService = mapperService.getIndexAnalyzers();
+        final IndexAnalyzers indexAnalyzers = mapperService.getIndexAnalyzers();
         this.fieldMappers = new DocumentFieldMappers(newFieldMappers,
-                analysisService.getDefaultIndexAnalyzer(),
-                analysisService.getDefaultSearchAnalyzer(),
-                analysisService.getDefaultSearchQuoteAnalyzer());
+                indexAnalyzers.getDefaultIndexAnalyzer(),
+                indexAnalyzers.getDefaultSearchAnalyzer(),
+                indexAnalyzers.getDefaultSearchQuoteAnalyzer());
 
         Map<String, ObjectMapper> builder = new HashMap<>();
         for (ObjectMapper objectMapper : newObjectMappers) {

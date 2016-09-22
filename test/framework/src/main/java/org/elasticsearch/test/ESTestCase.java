@@ -814,7 +814,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Creates an AnalysisService with all the default analyzers configured.
+     * Creates an TestAnalysis with all the default analyzers configured.
      */
     public static TestAnalysis createTestAnalysis(Index index, Settings settings, AnalysisPlugin... analysisPlugins)
             throws IOException {
@@ -823,7 +823,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Creates an AnalysisService with all the default analyzers configured.
+     * Creates an TestAnalysis with all the default analyzers configured.
      */
     public static TestAnalysis createTestAnalysis(Index index, Settings nodeSettings, Settings settings,
                                                   AnalysisPlugin... analysisPlugins) throws IOException {
@@ -834,7 +834,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Creates an AnalysisService with all the default analyzers configured.
+     * Creates an TestAnalysis with all the default analyzers configured.
      */
     public static TestAnalysis createTestAnalysis(IndexSettings indexSettings, Settings nodeSettings,
                                                   AnalysisPlugin... analysisPlugins) throws IOException {

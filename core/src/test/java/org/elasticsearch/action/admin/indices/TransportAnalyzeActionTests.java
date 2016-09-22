@@ -73,7 +73,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         indexAnalyzers = registry.build(idxSettings);
     }
 
-    public void testNoAnalysisService() throws IOException {
+    public void testNoIndexAnalyzers() throws IOException {
         AnalyzeRequest request = new AnalyzeRequest();
         request.analyzer("standard");
         request.text("the quick brown fox");
@@ -142,7 +142,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals("<ALPHANUM>", tokens.get(3).getType());
     }
 
-    public void testWithAnalysisService() throws IOException {
+    public void testWithIndexAnalyzers() throws IOException {
 
         AnalyzeRequest request = new AnalyzeRequest();
         request.analyzer("standard");
@@ -190,7 +190,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals("hay", tokens.get(1).getTerm());
     }
 
-    public void testGetIndexAnalyserWithoutAnalysisService() throws IOException {
+    public void testGetIndexAnalyserWithoutIndexAnalyzers() throws IOException {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> TransportAnalyzeAction.analyze(
                 new AnalyzeRequest()

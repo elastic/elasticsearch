@@ -3,6 +3,9 @@
 ---
 "Analyzer":
     - do:
+        warnings:
+          - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
+          - analyzer request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
         indices.analyze:
           text:         JR新宿駅の近くにビールを飲みに行こうか
           analyzer:     kuromoji
@@ -17,6 +20,9 @@
 ---
 "Tokenizer":
     - do:
+        warnings:
+          - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
+          - tokenizer request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
         indices.analyze:
           text:         関西国際空港
           tokenizer:    kuromoji_tokenizer
@@ -28,6 +34,10 @@
 ---
 "Baseform filter":
     - do:
+        warnings:
+          - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
+          - tokenizer request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
+          - filter request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
         indices.analyze:
           text:         飲み
           tokenizer:    kuromoji_tokenizer
@@ -37,6 +47,10 @@
 ---
 "Reading filter":
     - do:
+        warnings:
+          - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
+          - tokenizer request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
+          - filter request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
         indices.analyze:
           text:         寿司
           tokenizer:    kuromoji_tokenizer
@@ -46,6 +60,10 @@
 ---
 "Stemming filter":
     - do:
+        warnings:
+          - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
+          - tokenizer request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
+          - filter request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
         indices.analyze:
           text:         サーバー
           tokenizer:    kuromoji_tokenizer

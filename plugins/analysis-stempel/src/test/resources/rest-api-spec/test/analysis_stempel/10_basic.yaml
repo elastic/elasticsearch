@@ -2,6 +2,10 @@
 #
 "Stemmer":
     - do:
+        warnings:
+          - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
+          - tokenizer request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
+          - filter request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
         indices.analyze:
           text:         studenci
           tokenizer:    keyword
@@ -11,6 +15,9 @@
 ---
 "Analyzer":
     - do:
+        warnings:
+          - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
+          - analyzer request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
         indices.analyze:
           text:         studenta był
           analyzer:     polish

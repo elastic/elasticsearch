@@ -20,6 +20,9 @@
                                     encoder: double_metaphone
                                     max_code_len: 6
     - do:
+        warnings:
+          - analyzer request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
+          - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
         indices.analyze:
             index: phonetic_sample
             analyzer: my_analyzer

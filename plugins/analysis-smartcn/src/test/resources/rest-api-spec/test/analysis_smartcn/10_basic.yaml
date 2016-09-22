@@ -2,6 +2,9 @@
 #
 "Tokenizer":
     - do:
+        warnings:
+          - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
+          - tokenizer request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
         indices.analyze:
           text:         我购买了道具和服装。
           tokenizer:    smartcn_tokenizer
@@ -16,6 +19,9 @@
 ---
 "Analyzer":
     - do:
+        warnings:
+          - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
+          - analyzer request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
         indices.analyze:
           text:         我购买了道具和服装。
           analyzer:     smartcn

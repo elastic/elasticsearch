@@ -185,7 +185,11 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
                                     context.getParseFieldMatcher());
                     if (resolvedRequest != null) {
                         SearchSourceBuilder templateResult = 
-                                SearchSourceBuilder.fromXContent(parseContext, context.getAggs(), context.getSuggesters());
+                                SearchSourceBuilder.fromXContent(
+                                        parseContext,
+                                        context.getAggs(),
+                                        context.getSuggesters(),
+                                        context.getSearchExtParsers());
                         query_spec.setTestRequest(templateResult);
                     }
                 }

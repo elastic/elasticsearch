@@ -209,7 +209,12 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         }
 
         @Override
-        public void releaseShardResources(List<ShardRouting> shardRoutings) {
+        public void applyStartedShard(ShardRouting shardRouting) {
+            // no-op
+        }
+
+        @Override
+        public void applyFailedShard(ShardRouting shardRouting) {
             // no-op
         }
 

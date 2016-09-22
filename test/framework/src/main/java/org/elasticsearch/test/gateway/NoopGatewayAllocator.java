@@ -24,8 +24,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
 
-import java.util.List;
-
 /**
  * An allocator used for tests that doesn't do anything
  */
@@ -38,7 +36,12 @@ public class NoopGatewayAllocator extends GatewayAllocator {
     }
 
     @Override
-    public void releaseShardResources(List<ShardRouting> shardRoutings) {
+    public void applyStartedShard(ShardRouting shardRouting) {
+        // noop
+    }
+
+    @Override
+    public void applyFailedShard(ShardRouting shardRouting) {
         // noop
     }
 

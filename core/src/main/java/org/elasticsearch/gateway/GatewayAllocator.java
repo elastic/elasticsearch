@@ -114,11 +114,14 @@ public class GatewayAllocator extends AbstractComponent {
         return count;
     }
 
-    public void releaseShardResources(final List<ShardRouting> shards) {
-        for (ShardRouting shard : shards) {
-            Releasables.close(asyncFetchStarted.remove(shard.shardId()));
-            Releasables.close(asyncFetchStore.remove(shard.shardId()));
-        }
+    public void applyStartedShard(final ShardRouting startedShard) {
+        Releasables.close(asyncFetchStarted.remove(startedShard.shardId()));
+        Releasables.close(asyncFetchStore.remove(startedShard.shardId()));
+    }
+
+    public void applyFailedShard(final ShardRouting failedShard) {
+        Releasables.close(asyncFetchStarted.remove(failedShard.shardId()));
+        Releasables.close(asyncFetchStore.remove(failedShard.shardId()));
     }
 
     public void allocateUnassigned(final RoutingAllocation allocation) {

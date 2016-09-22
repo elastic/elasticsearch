@@ -37,7 +37,6 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 public final class Allocators {
@@ -49,7 +48,12 @@ public final class Allocators {
         }
 
         @Override
-        public void releaseShardResources(List<ShardRouting> allocation) {
+        public void applyStartedShard(ShardRouting shardRouting) {
+            // noop
+        }
+
+        @Override
+        public void applyFailedShard(ShardRouting shardRouting) {
             // noop
         }
 

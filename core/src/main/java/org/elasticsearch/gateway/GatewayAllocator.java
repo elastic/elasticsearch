@@ -28,9 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -40,6 +38,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -115,17 +114,10 @@ public class GatewayAllocator extends AbstractComponent {
         return count;
     }
 
-    public void applyStartedShards(StartedRerouteAllocation allocation) {
-        for (ShardRouting shard : allocation.startedShards()) {
+    public void releaseShardResources(final List<ShardRouting> shards) {
+        for (ShardRouting shard : shards) {
             Releasables.close(asyncFetchStarted.remove(shard.shardId()));
             Releasables.close(asyncFetchStore.remove(shard.shardId()));
-        }
-    }
-
-    public void applyFailedShards(FailedRerouteAllocation allocation) {
-        for (FailedRerouteAllocation.FailedShard shard : allocation.failedShards()) {
-            Releasables.close(asyncFetchStarted.remove(shard.routingEntry.shardId()));
-            Releasables.close(asyncFetchStore.remove(shard.routingEntry.shardId()));
         }
     }
 

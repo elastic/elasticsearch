@@ -17,33 +17,38 @@
  * under the License.
  */
 
-package org.elasticsearch.test.gateway;
+package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.GatewayAllocator;
-
-import java.util.List;
+import org.elasticsearch.index.shard.ShardId;
 
 /**
- * An allocator used for tests that doesn't do anything
+ * A class that represents a stale shard copy.
  */
-public class NoopGatewayAllocator extends GatewayAllocator {
+public class StaleShard {
+    private final ShardId shardId;
+    private final String allocationId;
 
-    public static final NoopGatewayAllocator INSTANCE = new NoopGatewayAllocator();
-
-    protected NoopGatewayAllocator() {
-        super(Settings.EMPTY, null, null);
+    public StaleShard(ShardId shardId, String allocationId) {
+        this.shardId = shardId;
+        this.allocationId = allocationId;
     }
 
     @Override
-    public void releaseShardResources(List<ShardRouting> shardRoutings) {
-        // noop
+    public String toString() {
+        return "stale shard, shard " + shardId + ", alloc. id [" + allocationId + "]";
     }
 
-    @Override
-    public void allocateUnassigned(RoutingAllocation allocation) {
-        // noop
+    /**
+     * The shard id of the stale shard.
+     */
+    public ShardId getShardId() {
+        return shardId;
+    }
+
+    /**
+     * The allocation id of the stale shard.
+     */
+    public String getAllocationId() {
+        return allocationId;
     }
 }

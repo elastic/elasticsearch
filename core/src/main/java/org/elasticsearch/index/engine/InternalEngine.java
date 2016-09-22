@@ -82,9 +82,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
-/**
- *
- */
 public class InternalEngine extends Engine {
     /**
      * When we last pruned expired tombstones from versionMap.deletes:
@@ -170,7 +167,6 @@ public class InternalEngine extends Engine {
             allowCommits.compareAndSet(true, openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
             if (engineConfig.getRefreshListeners() != null) {
                 searcherManager.addListener(engineConfig.getRefreshListeners());
-                engineConfig.getRefreshListeners().setTranslog(translog);
             }
             success = true;
         } finally {
@@ -789,30 +785,30 @@ public class InternalEngine extends Engine {
                     } catch (Exception e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }
-                }
-                /*
-                 * we have to inc-ref the store here since if the engine is closed by a tragic event
-                 * we don't acquire the write lock and wait until we have exclusive access. This might also
-                 * dec the store reference which can essentially close the store and unless we can inc the reference
-                 * we can't use it.
-                 */
-                store.incRef();
-                try {
-                    // reread the last committed segment infos
-                    lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-                } catch (Exception e) {
-                    if (isClosed.get() == false) {
-                        try {
-                            logger.warn("failed to read latest segment infos on flush", e);
-                        } catch (Exception inner) {
-                            e.addSuppressed(inner);
+                    /*
+                     * we have to inc-ref the store here since if the engine is closed by a tragic event
+                     * we don't acquire the write lock and wait until we have exclusive access. This might also
+                     * dec the store reference which can essentially close the store and unless we can inc the reference
+                     * we can't use it.
+                     */
+                    store.incRef();
+                    try {
+                        // reread the last committed segment infos
+                        lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+                    } catch (Exception e) {
+                        if (isClosed.get() == false) {
+                            try {
+                                logger.warn("failed to read latest segment infos on flush", e);
+                            } catch (Exception inner) {
+                                e.addSuppressed(inner);
+                            }
+                            if (Lucene.isCorruptionException(e)) {
+                                throw new FlushFailedEngineException(shardId, e);
+                            }
                         }
-                        if (Lucene.isCorruptionException(e)) {
-                            throw new FlushFailedEngineException(shardId, e);
-                        }
+                    } finally {
+                        store.decRef();
                     }
-                } finally {
-                    store.decRef();
                 }
                 newCommitId = lastCommittedSegmentInfos.getId();
             } catch (FlushFailedEngineException ex) {
@@ -951,7 +947,7 @@ public class InternalEngine extends Engine {
             failEngine("already closed by tragic event on the index writer", tragedy);
         } else if (translog.isOpen() == false && translog.getTragicException() != null) {
             failEngine("already closed by tragic event on the translog", translog.getTragicException());
-        } else {
+        } else if (failedEngine.get() == null) { // we are closed but the engine is not failed yet?
             // this smells like a bug - we only expect ACE if we are in a fatal case ie. either translog or IW is closed by
             // a tragic event or has closed itself. if that is not the case we are in a buggy state and raise an assertion error
             throw new AssertionError("Unexpected AlreadyClosedException", ex);
@@ -1099,7 +1095,7 @@ public class InternalEngine extends Engine {
             mergePolicy = new ElasticsearchMergePolicy(mergePolicy);
             iwc.setMergePolicy(mergePolicy);
             iwc.setSimilarity(engineConfig.getSimilarity());
-            iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().mbFrac());
+            iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
             iwc.setCodec(engineConfig.getCodec());
             iwc.setUseCompoundFile(true); // always use compound on flush - reduces # of file-handles on refresh
             return new IndexWriter(store.directory(), iwc);

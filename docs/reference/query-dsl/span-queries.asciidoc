@@ -47,6 +47,9 @@ Accepts a list of span queries, but only returns those spans which also match a 
 The result from a single span query is returned as long is its span falls
 within the spans returned by a list of other span queries.
 
+<<query-dsl-span-field-masking-query,`field_masking_span` query>>::
+
+Allows queries like `span-near` or `span-or` across different fields.
 
 include::span-term-query.asciidoc[]
 
@@ -63,3 +66,5 @@ include::span-not-query.asciidoc[]
 include::span-containing-query.asciidoc[]
 
 include::span-within-query.asciidoc[]
+
+include::span-field-masking-query.asciidoc[]

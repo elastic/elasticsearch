@@ -217,6 +217,10 @@ fi
     install_and_check_plugin discovery ec2 aws-java-sdk-core-*.jar
 }
 
+@test "[$GROUP] install discovery-file plugin" {
+    install_and_check_plugin discovery file
+}
+
 @test "[$GROUP] install ingest-attachment plugin" {
     # we specify the version on the poi-3.15-beta1.jar so that the test does
     # not spuriously pass if the jar is missing but the other poi jars
@@ -261,10 +265,6 @@ fi
 
 @test "[$GROUP] install python plugin" {
     install_and_check_plugin lang python jython-standalone-*.jar
-}
-
-@test "[$GROUP] install mapper-attachments plugin" {
-    install_and_check_plugin mapper attachments
 }
 
 @test "[$GROUP] install murmur3 mapper plugin" {
@@ -353,6 +353,10 @@ fi
     remove_plugin discovery-ec2
 }
 
+@test "[$GROUP] remove discovery-file plugin" {
+    remove_plugin discovery-file
+}
+
 @test "[$GROUP] remove ingest-attachment plugin" {
     remove_plugin ingest-attachment
 }
@@ -371,10 +375,6 @@ fi
 
 @test "[$GROUP] remove python plugin" {
     remove_plugin lang-python
-}
-
-@test "[$GROUP] remove mapper-attachments plugin" {
-    remove_plugin mapper-attachments
 }
 
 @test "[$GROUP] remove murmur3 mapper plugin" {

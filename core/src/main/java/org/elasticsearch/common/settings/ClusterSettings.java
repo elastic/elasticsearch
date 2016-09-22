@@ -54,8 +54,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.env.Environment;
@@ -226,7 +226,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
                     NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
                     NetworkModule.HTTP_TYPE_SETTING,
-                    NetworkModule.TRANSPORT_SERVICE_TYPE_SETTING,
                     NetworkModule.TRANSPORT_TYPE_SETTING,
                     HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS,
                     HttpTransportSettings.SETTING_CORS_ENABLED,

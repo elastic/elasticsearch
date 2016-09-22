@@ -1,0 +1,34 @@
+---
+"Index data and search on the old cluster":
+ - do:
+     indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+ - do:
+     bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v1_old", "f2": 0}'
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v2_old", "f2": 1}'
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v3_old", "f2": 2}'
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v4_old", "f2": 3}'
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v5_old", "f2": 4}'
+
+ - do:
+     indices.flush:
+        index: test_index
+
+ - do:
+     search:
+        index: test_index
+
+ - match: { hits.total: 5 }

@@ -26,9 +26,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.transport.LocalTransportAddress;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -134,7 +132,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
 
         final AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.deassociateDeadNodes(any(ClusterState.class), eq(true), any(String.class)))
-            .thenReturn(mock(RoutingAllocation.Result.class));
+            .thenAnswer(im -> im.getArguments()[0]);
 
         final BiFunction<ClusterState, String, ClusterState> rejoin = (cs, r) -> {
             fail("rejoin should not be invoked");

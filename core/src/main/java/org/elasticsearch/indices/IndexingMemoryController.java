@@ -106,10 +106,10 @@ public class IndexingMemoryController extends AbstractComponent implements Index
             // We only apply the min/max when % value was used for the index buffer:
             ByteSizeValue minIndexingBuffer = MIN_INDEX_BUFFER_SIZE_SETTING.get(this.settings);
             ByteSizeValue maxIndexingBuffer = MAX_INDEX_BUFFER_SIZE_SETTING.get(this.settings);
-            if (indexingBuffer.bytes() < minIndexingBuffer.bytes()) {
+            if (indexingBuffer.getBytes() < minIndexingBuffer.getBytes()) {
                 indexingBuffer = minIndexingBuffer;
             }
-            if (maxIndexingBuffer.bytes() != -1 && indexingBuffer.bytes() > maxIndexingBuffer.bytes()) {
+            if (maxIndexingBuffer.getBytes() != -1 && indexingBuffer.getBytes() > maxIndexingBuffer.getBytes()) {
                 indexingBuffer = maxIndexingBuffer;
             }
         }
@@ -245,13 +245,13 @@ public class IndexingMemoryController extends AbstractComponent implements Index
         public void bytesWritten(int bytes) {
             long totalBytes = bytesWrittenSinceCheck.addAndGet(bytes);
             assert totalBytes >= 0;
-            while (totalBytes > indexingBuffer.bytes()/30) {
+            while (totalBytes > indexingBuffer.getBytes()/30) {
 
                 if (runLock.tryLock()) {
                     try {
                         // Must pull this again because it may have changed since we first checked:
                         totalBytes = bytesWrittenSinceCheck.get();
-                        if (totalBytes > indexingBuffer.bytes()/30) {
+                        if (totalBytes > indexingBuffer.getBytes()/30) {
                             bytesWrittenSinceCheck.addAndGet(-totalBytes);
                             // NOTE: this is only an approximate check, because bytes written is to the translog, vs indexing memory buffer which is
                             // typically smaller but can be larger in extreme cases (many unique terms).  This logic is here only as a safety against
@@ -320,9 +320,9 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
             // If we are using more than 50% of our budget across both indexing buffer and bytes we are still moving to disk, then we now
             // throttle the top shards to send back-pressure to ongoing indexing:
-            boolean doThrottle = (totalBytesWriting + totalBytesUsed) > 1.5 * indexingBuffer.bytes();
+            boolean doThrottle = (totalBytesWriting + totalBytesUsed) > 1.5 * indexingBuffer.getBytes();
 
-            if (totalBytesUsed > indexingBuffer.bytes()) {
+            if (totalBytesUsed > indexingBuffer.getBytes()) {
                 // OK we are now over-budget; fill the priority queue and ask largest shard(s) to refresh:
                 PriorityQueue<ShardAndBytesUsed> queue = new PriorityQueue<>();
 
@@ -357,7 +357,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
                 logger.debug("now write some indexing buffers: total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}], [{}] shards with non-zero indexing buffer",
                              new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING.getKey(), indexingBuffer, new ByteSizeValue(totalBytesWriting), queue.size());
 
-                while (totalBytesUsed > indexingBuffer.bytes() && queue.isEmpty() == false) {
+                while (totalBytesUsed > indexingBuffer.getBytes() && queue.isEmpty() == false) {
                     ShardAndBytesUsed largest = queue.poll();
                     logger.debug("write indexing buffer to disk for shard [{}] to free up its [{}] indexing buffer", largest.shard.shardId(), new ByteSizeValue(largest.bytesUsed));
                     writeIndexingBufferAsync(largest.shard);

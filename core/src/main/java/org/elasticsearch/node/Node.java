@@ -44,14 +44,17 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommandRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -68,7 +71,6 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -88,6 +90,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.ingest.IngestService;
@@ -101,6 +104,7 @@ import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.plugins.PluginsService;
@@ -111,7 +115,9 @@ import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchExtRegistry;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.snapshots.SnapshotShardsService;
@@ -119,6 +125,8 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -141,6 +149,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -318,8 +327,6 @@ public class Node implements Closeable {
             }
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             modules.add(new NodeModule(this, monitorService));
-            NetworkModule networkModule = new NetworkModule(networkService, settings, false);
-            modules.add(networkModule);
             modules.add(new DiscoveryModule(this.settings));
             ClusterModule clusterModule = new ClusterModule(settings, clusterService,
                 pluginsService.filterPlugins(ClusterPlugin.class));
@@ -327,10 +334,10 @@ public class Node implements Closeable {
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             modules.add(indicesModule);
             SearchModule searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class));
-            modules.add(searchModule);
-            modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false, settings,
+            ActionModule actionModule = new ActionModule(DiscoveryNode.isIngestNode(settings), false, settings,
                 clusterModule.getIndexNameExpressionResolver(), settingsModule.getClusterSettings(),
-                pluginsService.filterPlugins(ActionPlugin.class)));
+                pluginsService.filterPlugins(ActionPlugin.class));
+            modules.add(actionModule);
             modules.add(new GatewayModule());
             modules.add(new RepositoriesModule(this.environment, pluginsService.filterPlugins(RepositoryPlugin.class)));
             pluginsService.processModules(modules);
@@ -341,7 +348,7 @@ public class Node implements Closeable {
             resourcesToClose.add(bigArrays);
             modules.add(settingsModule);
             List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
-                networkModule.getNamedWriteables().stream(),
+                NetworkModule.getNamedWriteables().stream(),
                 indicesModule.getNamedWriteables().stream(),
                 searchModule.getNamedWriteables().stream(),
                 pluginsService.filterPlugins(Plugin.class).stream()
@@ -353,6 +360,7 @@ public class Node implements Closeable {
                 settingsModule.getClusterSettings(), analysisModule.getAnalysisRegistry(), searchModule.getQueryParserRegistry(),
                 clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
                 threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, metaStateService);
+
             client = new NodeClient(settings, threadPool);
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
@@ -362,8 +370,30 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(Plugin.class).stream()
                 .map(Plugin::getCustomMetaDataUpgrader)
                 .collect(Collectors.toList());
+            final NetworkModule networkModule = new NetworkModule(settings, false, pluginsService.filterPlugins(NetworkPlugin.class), threadPool,
+                bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
             final MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(customMetaDataUpgraders);
+            final Transport transport = networkModule.getTransportSupplier().get();
+            final TransportService transportService = newTransportService(settings, transport, threadPool,
+                networkModule.getTransportInterceptor());
+            final Consumer<Binder> httpBind;
+            if (networkModule.isHttpEnabled()) {
+                HttpServerTransport httpServerTransport = networkModule.getHttpServerTransportSupplier().get();
+                HttpServer httpServer = new HttpServer(settings, httpServerTransport, actionModule.getRestController(), client,
+                    circuitBreakerService);
+                httpBind = b -> {
+                    b.bind(HttpServer.class).toInstance(httpServer);
+                    b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
+                };
+            } else {
+                httpBind = b -> {
+                    b.bind(HttpServer.class).toProvider(Providers.of(null));
+                };
+            }
             modules.add(b -> {
+                    b.bind(IndicesQueriesRegistry.class).toInstance(searchModule.getQueryParserRegistry());
+                    b.bind(SearchRequestParsers.class).toInstance(searchModule.getSearchRequestParsers());
+                    b.bind(SearchExtRegistry.class).toInstance(searchModule.getSearchExtRegistry());
                     b.bind(PluginsService.class).toInstance(pluginsService);
                     b.bind(Client.class).toInstance(client);
                     b.bind(NodeClient.class).toInstance(client);
@@ -383,8 +413,12 @@ public class Node implements Closeable {
                     b.bind(IndicesService.class).toInstance(indicesService);
                     b.bind(SearchService.class).toInstance(newSearchService(clusterService, indicesService,
                         threadPool, scriptModule.getScriptService(), bigArrays, searchModule.getFetchPhase()));
+                    b.bind(Transport.class).toInstance(transport);
+                    b.bind(TransportService.class).toInstance(transportService);
+                    b.bind(NetworkService.class).toInstance(networkService);
+                    b.bind(AllocationCommandRegistry.class).toInstance(NetworkModule.getAllocationCommandRegistry());
+                    httpBind.accept(b);
                     pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));
-
                 }
             );
             injector = modules.createInjector();
@@ -409,6 +443,11 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
+    }
+
+    protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,
+                                                   TransportInterceptor interceptor) {
+        return new TransportService(settings, transport, threadPool, interceptor);
     }
 
     /**

@@ -128,7 +128,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             shardRouting.active() == false && shardRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE;
 
         // checks for exact byte comparisons
-        if (freeBytes < diskThresholdSettings.getFreeBytesThresholdLow().bytes()) {
+        if (freeBytes < diskThresholdSettings.getFreeBytesThresholdLow().getBytes()) {
             if (skipLowTresholdChecks == false) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("less than the required {} free bytes threshold ({} bytes free) on node {}, preventing allocation",
@@ -137,7 +137,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 return allocation.decision(Decision.NO, NAME,
                         "the node is above the low watermark and has less than required [%s] free, free: [%s]",
                         diskThresholdSettings.getFreeBytesThresholdLow(), new ByteSizeValue(freeBytes));
-            } else if (freeBytes > diskThresholdSettings.getFreeBytesThresholdHigh().bytes()) {
+            } else if (freeBytes > diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()) {
                 // Allow the shard to be allocated because it is primary that
                 // has never been allocated if it's under the high watermark
                 if (logger.isDebugEnabled()) {
@@ -205,7 +205,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         final long shardSize = getExpectedShardSize(shardRouting, allocation, 0);
         double freeSpaceAfterShard = freeDiskPercentageAfterShardAssigned(usage, shardSize);
         long freeBytesAfterShard = freeBytes - shardSize;
-        if (freeBytesAfterShard < diskThresholdSettings.getFreeBytesThresholdHigh().bytes()) {
+        if (freeBytesAfterShard < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()) {
             logger.warn("after allocating, node [{}] would have less than the required " +
                     "{} free bytes threshold ({} bytes free), preventing allocation",
                     node.nodeId(), diskThresholdSettings.getFreeBytesThresholdHigh(), freeBytesAfterShard);
@@ -258,7 +258,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME,
                     "this shard is not allocated on the most utilized disk and can remain");
         }
-        if (freeBytes < diskThresholdSettings.getFreeBytesThresholdHigh().bytes()) {
+        if (freeBytes < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()) {
             if (logger.isDebugEnabled()) {
                 logger.debug("less than the required {} free bytes threshold ({} bytes free) on node {}, shard cannot remain",
                         diskThresholdSettings.getFreeBytesThresholdHigh(), freeBytes, node.nodeId());

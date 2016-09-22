@@ -70,20 +70,18 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
         List<String> indices = Arrays.asList(new String[] { "test" });
         List<String> types = Arrays.asList(new String[] { "testtype" });
 
-        String specId = randomAsciiOfLength(10);
         List<RatedRequest> specifications = new ArrayList<>();
         SearchSourceBuilder testQuery = new SearchSourceBuilder();
         testQuery.query(new MatchAllQueryBuilder());
         specifications.add(new RatedRequest("amsterdam_query", testQuery, indices, types, createRelevant("2", "3", "4", "5")));
         specifications.add(new RatedRequest("berlin_query", testQuery, indices, types, createRelevant("1")));
 
-        RankEvalSpec task = new RankEvalSpec(specId, specifications, new PrecisionAtN(10));
+        RankEvalSpec task = new RankEvalSpec(specifications, new PrecisionAtN(10));
 
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
-        assertEquals(specId, response.getSpecId());
         assertEquals(1.0, response.getQualityLevel(), Double.MIN_VALUE);
         Set<Entry<String, Collection<RatedDocumentKey>>> entrySet = response.getUnknownDocs().entrySet();
         assertEquals(2, entrySet.size());
@@ -104,7 +102,6 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
         List<String> indices = Arrays.asList(new String[] { "test" });
         List<String> types = Arrays.asList(new String[] { "testtype" });
 
-        String specId = randomAsciiOfLength(10);
         List<RatedRequest> specifications = new ArrayList<>();
         SearchSourceBuilder amsterdamQuery = new SearchSourceBuilder();
         amsterdamQuery.query(new MatchAllQueryBuilder());
@@ -114,7 +111,7 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
         brokenQuery.query(brokenRangeQuery);
         specifications.add(new RatedRequest("broken_query", brokenQuery, indices, types, createRelevant("1")));
 
-        RankEvalSpec task = new RankEvalSpec(specId, specifications, new PrecisionAtN(10));
+        RankEvalSpec task = new RankEvalSpec(specifications, new PrecisionAtN(10));
 
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);

@@ -37,17 +37,7 @@ public class TranslogToolCli extends MultiCommand {
     }
 
     public static void main(String[] args) throws Exception {
-        // initialize default for es.logger.level because we will not read the log4j2.properties
-        String loggerLevel = System.getProperty("es.logger.level", "INFO");
-        String pathHome = System.getProperty("es.path.home");
-        // Set the appender for all potential log files to terminal so that other components that use the logger print out the
-        // same terminal.
-        Environment loggingEnvironment = InternalSettingsPreparer.prepareEnvironment(Settings.builder()
-                .put("path.home", pathHome)
-                .put("logger.level", loggerLevel)
-                .build(), Terminal.DEFAULT);
-        LogConfigurator.configure(loggingEnvironment, false);
-
         exit(new TranslogToolCli().main(args, Terminal.DEFAULT));
     }
+
 }

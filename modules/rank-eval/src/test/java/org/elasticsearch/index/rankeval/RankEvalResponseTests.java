@@ -47,7 +47,7 @@ public class RankEvalResponseTests extends ESTestCase {
             }
             unknownDocs.put(randomAsciiOfLength(5), ids);
         }
-        return new RankEvalResponse(randomAsciiOfLengthBetween(1, 10), randomDouble(), unknownDocs );
+        return new RankEvalResponse(randomDouble(), unknownDocs );
     }
 
     public void testSerialization() throws IOException {

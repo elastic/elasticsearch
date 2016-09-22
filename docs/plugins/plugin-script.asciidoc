@@ -53,7 +53,7 @@ sudo bin/elasticsearch-plugin install analysis-icu
 This command will install the version of the plugin that matches your
 Elasticsearch version and also show a progress bar while downloading.
 
-[float]
+[[plugin-management-custom-url]]
 === Custom URL or file system
 
 A plugin can also be downloaded directly from a custom location by specifying the URL:

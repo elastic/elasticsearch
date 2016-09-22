@@ -25,6 +25,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
@@ -39,6 +41,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -83,8 +86,10 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.point"), notNullValue());
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
-        } else {
-            assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoPointField.encodeLatLon(42.0, 51.0)));
+        } else if (version.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            GeoPoint point = new GeoPoint().resetFromIndexableField(doc.rootDoc().getField("field.point"));
+            assertThat(point.lat(), closeTo(42.0, 1e-5));
+            assertThat(point.lon(), closeTo(51.0, 1e-5));
         }
 
         assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
@@ -141,8 +146,12 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.point"), notNullValue());
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
-        } else {
+        } else if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoPointField.encodeLatLon(42.0, 51.0)));
+        } else {
+            GeoPoint point = new GeoPoint().resetFromIndexableField(doc.rootDoc().getField("field.point"));
+            assertThat(point.lat(), closeTo(42.0, 1E-5));
+            assertThat(point.lon(), closeTo(51.0, 1E-5));
         }
 
         IndexableField shape = doc.rootDoc().getField("field.shape");
@@ -211,7 +220,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.point"), notNullValue());
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
-        } else {
+        } else if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoPointField.encodeLatLon(42.0, 51.0)));
         }
 

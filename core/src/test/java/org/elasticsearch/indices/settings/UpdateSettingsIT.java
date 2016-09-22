@@ -115,7 +115,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             IndexService indexService = service.indexService(resolveIndex("test"));
             if (indexService != null) {
                 assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), -1);
-                assertEquals(indexService.getIndexSettings().getFlushThresholdSize().bytes(), 1024);
+                assertEquals(indexService.getIndexSettings().getFlushThresholdSize().getBytes(), 1024);
             }
         }
         client().admin().indices().prepareUpdateSettings("test")
@@ -129,7 +129,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             IndexService indexService = service.indexService(resolveIndex("test"));
             if (indexService != null) {
                 assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), 1000);
-                assertEquals(indexService.getIndexSettings().getFlushThresholdSize().bytes(), 1024);
+                assertEquals(indexService.getIndexSettings().getFlushThresholdSize().getBytes(), 1024);
             }
         }
     }
@@ -358,7 +358,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         public boolean sawUpdateAutoThrottle;
 
         public MockAppender(final String name) throws IllegalAccessException {
-            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], true, null, null), null);
+            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
         }
 
         @Override

@@ -112,7 +112,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             if (responseCounter.decrementAndGet() < 1) {
                 // TODO add other statistics like micro/macro avg?
                 listener.onResponse(
-                        new RankEvalResponse(task.getTaskId(), task.getEvaluator().combine(partialResults.values()), unknownDocs));
+                        new RankEvalResponse(task.getEvaluator().combine(partialResults.values()), unknownDocs));
             }
         }
 

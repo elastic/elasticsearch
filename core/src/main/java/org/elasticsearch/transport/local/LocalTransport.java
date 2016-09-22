@@ -29,7 +29,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -91,7 +90,6 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
     public static final String TRANSPORT_LOCAL_WORKERS = "transport.local.workers";
     public static final String TRANSPORT_LOCAL_QUEUE = "transport.local.queue";
 
-    @Inject
     public LocalTransport(Settings settings, ThreadPool threadPool,
                           NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super(settings);

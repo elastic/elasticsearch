@@ -21,6 +21,7 @@ package org.elasticsearch.search.geo;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
@@ -48,6 +49,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.query.GeohashCellQuery;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -433,8 +435,10 @@ public class GeoFilterIT extends ESIntegTestCase {
             String name = hit.getId();
             if (version.before(Version.V_2_2_0)) {
                 point.resetFromString(hit.fields().get("pin").getValue().toString());
-            } else {
+            } else if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
                 point.resetFromIndexHash(hit.fields().get("pin").getValue());
+            } else {
+                point.resetFromString(hit.getFields().get("pin").getValue());
             }
             double dist = distance(point.getLat(), point.getLon(), 51.11, 9.851);
 
@@ -446,7 +450,7 @@ public class GeoFilterIT extends ESIntegTestCase {
         }
     }
 
-    public void testGeohashCellFilter() throws IOException {
+    public void testLegacyGeohashCellFilter() throws IOException {
         String geohash = randomhash(10);
         logger.info("Testing geohash_cell filter for [{}]", geohash);
 
@@ -457,8 +461,11 @@ public class GeoFilterIT extends ESIntegTestCase {
         logger.info("Parent Neighbors {}", parentNeighbors);
 
         ensureYellow();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_5_0_0_alpha5);
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
 
-        client().admin().indices().prepareCreate("locations").addMapping("location", "pin", "type=geo_point,geohash_prefix=true,lat_lon=false").execute().actionGet();
+        client().admin().indices().prepareCreate("locations").setSettings(settings).addMapping("location", "pin",
+            "type=geo_point,geohash_prefix=true,lat_lon=false").execute().actionGet();
 
         // Index a pin
         client().prepareIndex("locations", "location", "1").setCreate(true).setSource("pin", geohash).execute().actionGet();

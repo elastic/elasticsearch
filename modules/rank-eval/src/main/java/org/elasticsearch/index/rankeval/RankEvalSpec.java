@@ -58,8 +58,6 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     private Collection<RatedRequest> ratedRequests = new ArrayList<>();
     /** Definition of the quality metric, e.g. precision at N */
     private RankedListQualityMetric metric;
-    /** a unique id for the whole QA task */
-    private String specId;
     /** optional: Template to base test requests on */
     private String template = "";
 
@@ -67,8 +65,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
         // TODO think if no args ctor is okay
     }
 
-    public RankEvalSpec(String specId, Collection<RatedRequest> specs, RankedListQualityMetric metric) {
-        this.specId = specId;
+    public RankEvalSpec(Collection<RatedRequest> specs, RankedListQualityMetric metric) {
         this.ratedRequests = specs;
         this.metric = metric;
     }
@@ -80,7 +77,6 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
             ratedRequests.add(new RatedRequest(in));
         }
         metric = in.readNamedWriteable(RankedListQualityMetric.class);
-        specId = in.readString();
         template = in.readString();
     }
 
@@ -91,20 +87,11 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
             spec.writeTo(out);
         }
         out.writeNamedWriteable(metric);
-        out.writeString(specId);
         out.writeString(template);
     }
 
     public void setEval(RankedListQualityMetric eval) {
         this.metric = eval;
-    }
-
-    public void setTaskId(String taskId) {
-        this.specId = taskId;
-    }
-
-    public String getTaskId() {
-        return this.specId;
     }
 
     /** Returns the precision at n configuration (containing level of n to consider).*/
@@ -137,14 +124,12 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
         return this.template;
     }
 
-    private static final ParseField SPECID_FIELD = new ParseField("spec_id");
     private static final ParseField TEMPLATE_FIELD = new ParseField("template");
     private static final ParseField METRIC_FIELD = new ParseField("metric");
     private static final ParseField REQUESTS_FIELD = new ParseField("requests");
     private static final ObjectParser<RankEvalSpec, RankEvalContext> PARSER = new ObjectParser<>("rank_eval", RankEvalSpec::new);
 
     static {
-        PARSER.declareString(RankEvalSpec::setTaskId, SPECID_FIELD);
         PARSER.declareObject(RankEvalSpec::setEvaluator, (p, c) -> {
             try {
                 return RankedListQualityMetric.fromXContent(p, c);
@@ -202,7 +187,6 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(SPECID_FIELD.getPreferredName(), this.specId);
         builder.field(TEMPLATE_FIELD.getPreferredName(), this.template);
         builder.startArray(REQUESTS_FIELD.getPreferredName());
         for (RatedRequest spec : this.ratedRequests) {
@@ -223,13 +207,12 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
             return false;
         }
         RankEvalSpec other = (RankEvalSpec) obj;
-        return Objects.equals(specId, other.specId) &&
-                Objects.equals(ratedRequests, other.ratedRequests) &&
+        return Objects.equals(ratedRequests, other.ratedRequests) &&
                 Objects.equals(metric, other.metric);
     }
-    
+
     @Override
     public final int hashCode() {
-        return Objects.hash(specId, ratedRequests, metric);
+        return Objects.hash(ratedRequests, metric);
     }
 }

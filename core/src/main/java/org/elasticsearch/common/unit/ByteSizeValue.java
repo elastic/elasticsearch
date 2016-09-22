@@ -41,7 +41,7 @@ public class ByteSizeValue implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(bytes());
+        out.writeVLong(getBytes());
     }
 
     public ByteSizeValue(long bytes) {
@@ -54,120 +54,76 @@ public class ByteSizeValue implements Writeable {
     }
 
     public int bytesAsInt() {
-        long bytes = bytes();
+        long bytes = getBytes();
         if (bytes > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("size [" + toString() + "] is bigger than max int");
         }
         return (int) bytes;
     }
 
-    public long bytes() {
+    public long getBytes() {
         return sizeUnit.toBytes(size);
     }
 
-    public long getBytes() {
-        return bytes();
-    }
-
-    public long kb() {
+    public long getKb() {
         return sizeUnit.toKB(size);
     }
 
-    public long getKb() {
-        return kb();
-    }
-
-    public long mb() {
+    public long getMb() {
         return sizeUnit.toMB(size);
     }
 
-    public long getMb() {
-        return mb();
-    }
-
-    public long gb() {
+    public long getGb() {
         return sizeUnit.toGB(size);
     }
 
-    public long getGb() {
-        return gb();
-    }
-
-    public long tb() {
+    public long getTb() {
         return sizeUnit.toTB(size);
     }
 
-    public long getTb() {
-        return tb();
-    }
-
-    public long pb() {
+    public long getPb() {
         return sizeUnit.toPB(size);
     }
 
-    public long getPb() {
-        return pb();
-    }
-
-    public double kbFrac() {
-        return ((double) bytes()) / ByteSizeUnit.C1;
-    }
-
     public double getKbFrac() {
-        return kbFrac();
-    }
-
-    public double mbFrac() {
-        return ((double) bytes()) / ByteSizeUnit.C2;
+        return ((double) getBytes()) / ByteSizeUnit.C1;
     }
 
     public double getMbFrac() {
-        return mbFrac();
-    }
-
-    public double gbFrac() {
-        return ((double) bytes()) / ByteSizeUnit.C3;
+        return ((double) getBytes()) / ByteSizeUnit.C2;
     }
 
     public double getGbFrac() {
-        return gbFrac();
-    }
-
-    public double tbFrac() {
-        return ((double) bytes()) / ByteSizeUnit.C4;
+        return ((double) getBytes()) / ByteSizeUnit.C3;
     }
 
     public double getTbFrac() {
-        return tbFrac();
-    }
-
-    public double pbFrac() {
-        return ((double) bytes()) / ByteSizeUnit.C5;
+        return ((double) getBytes()) / ByteSizeUnit.C4;
     }
 
     public double getPbFrac() {
-        return pbFrac();
+        return ((double) getBytes()) / ByteSizeUnit.C5;
     }
 
     @Override
     public String toString() {
-        long bytes = bytes();
+        long bytes = getBytes();
         double value = bytes;
         String suffix = "b";
         if (bytes >= ByteSizeUnit.C5) {
-            value = pbFrac();
+            value = getPbFrac();
             suffix = "pb";
         } else if (bytes >= ByteSizeUnit.C4) {
-            value = tbFrac();
+            value = getTbFrac();
             suffix = "tb";
         } else if (bytes >= ByteSizeUnit.C3) {
-            value = gbFrac();
+            value = getGbFrac();
             suffix = "gb";
         } else if (bytes >= ByteSizeUnit.C2) {
-            value = mbFrac();
+            value = getMbFrac();
             suffix = "mb";
         } else if (bytes >= ByteSizeUnit.C1) {
-            value = kbFrac();
+            value = getKbFrac();
             suffix = "kb";
         }
         return Strings.format1Decimals(value, suffix);
@@ -237,7 +193,7 @@ public class ByteSizeValue implements Writeable {
 
         ByteSizeValue sizeValue = (ByteSizeValue) o;
 
-        return bytes() == sizeValue.bytes();
+        return getBytes() == sizeValue.getBytes();
     }
 
     @Override

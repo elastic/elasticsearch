@@ -25,7 +25,6 @@ import org.elasticsearch.SecureSM;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.plugins.PluginInfo;
 import org.junit.Assert;
 

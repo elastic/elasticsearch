@@ -250,11 +250,11 @@ public class ClusterStatsNodes implements ToXContent {
             long freeMemory = 0;
             for (NodeStats nodeStats : nodeStatsList) {
                 if (nodeStats.getOs() != null) {
-                    long total = nodeStats.getOs().getMem().getTotal().bytes();
+                    long total = nodeStats.getOs().getMem().getTotal().getBytes();
                     if (total > 0) {
                         totalMemory += total;
                     }
-                    long free = nodeStats.getOs().getMem().getFree().bytes();
+                    long free = nodeStats.getOs().getMem().getFree().getBytes();
                     if (free > 0) {
                         freeMemory += free;
                     }
@@ -423,8 +423,8 @@ public class ClusterStatsNodes implements ToXContent {
                 }
                 maxUptime = Math.max(maxUptime, js.getUptime().millis());
                 if (js.getMem() != null) {
-                    heapUsed += js.getMem().getHeapUsed().bytes();
-                    heapMax += js.getMem().getHeapMax().bytes();
+                    heapUsed += js.getMem().getHeapUsed().getBytes();
+                    heapMax += js.getMem().getHeapMax().getBytes();
                 }
             }
             this.threads = threads;

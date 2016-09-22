@@ -21,13 +21,12 @@ package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
-
-import static org.elasticsearch.search.internal.InternalSearchHits.StreamContext;
 
 /**
  *
@@ -70,7 +69,15 @@ public class FetchSearchResult extends TransportResponse implements FetchSearchR
     }
 
     public void hits(InternalSearchHits hits) {
+        assert assertNoSearchTarget(hits);
         this.hits = hits;
+    }
+
+    private boolean assertNoSearchTarget(InternalSearchHits hits) {
+        for (SearchHit hit : hits.hits()) {
+            assert hit.getShard() == null : "expected null but got: " + hit.getShard();
+        }
+        return true;
     }
 
     public InternalSearchHits hits() {
@@ -96,13 +103,13 @@ public class FetchSearchResult extends TransportResponse implements FetchSearchR
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         id = in.readLong();
-        hits = InternalSearchHits.readSearchHits(in, InternalSearchHits.streamContext().streamShardTarget(StreamContext.ShardTargetType.NO_STREAM));
+        hits = InternalSearchHits.readSearchHits(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeLong(id);
-        hits.writeTo(out, InternalSearchHits.streamContext().streamShardTarget(StreamContext.ShardTargetType.NO_STREAM));
+        hits.writeTo(out);
     }
 }

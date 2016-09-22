@@ -29,7 +29,7 @@
         "wait_for_completion": {
            "type" : "boolean",
            "description" : "Specify whether the request should block until the all segments are upgraded (default: false)"
-	},
+        },
         "only_ancient_segments": {
           "type" : "boolean",
           "description" : "If true, only ancient (an older Lucene major release) segments will be upgraded"

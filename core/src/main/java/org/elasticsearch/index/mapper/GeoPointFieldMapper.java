@@ -48,7 +48,7 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
 
     public static class Defaults extends BaseGeoPointFieldMapper.Defaults {
 
-        public static final GeoPointFieldType FIELD_TYPE = new GeoPointFieldType();
+        public static final GeoPointFieldType FIELD_TYPE = new LegacyGeoPointFieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
@@ -129,5 +129,10 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
             context.doc().add(new GeoPointField(fieldType().name(), point.lat(), point.lon(), fieldType()));
         }
         super.parse(context, point, geoHash);
+    }
+
+    @Override
+    public LegacyGeoPointFieldType fieldType() {
+        return (LegacyGeoPointFieldType) super.fieldType();
     }
 }

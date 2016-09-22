@@ -48,11 +48,11 @@ public class SettingTests extends ESTestCase {
             Setting.byteSizeSetting("a.byte.size", new ByteSizeValue(1024), Property.Dynamic, Property.NodeScope);
         assertFalse(byteSizeValueSetting.isGroupSetting());
         ByteSizeValue byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
-        assertEquals(byteSizeValue.bytes(), 1024);
+        assertEquals(byteSizeValue.getBytes(), 1024);
 
         byteSizeValueSetting = Setting.byteSizeSetting("a.byte.size", s -> "2048b", Property.Dynamic, Property.NodeScope);
         byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
-        assertEquals(byteSizeValue.bytes(), 2048);
+        assertEquals(byteSizeValue.getBytes(), 2048);
 
 
         AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
@@ -75,20 +75,20 @@ public class SettingTests extends ESTestCase {
 
         assertFalse(memorySizeValueSetting.isGroupSetting());
         ByteSizeValue memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
-        assertEquals(memorySizeValue.bytes(), 1024);
+        assertEquals(memorySizeValue.getBytes(), 1024);
 
         memorySizeValueSetting = Setting.memorySizeSetting("a.byte.size", s -> "2048b", Property.Dynamic, Property.NodeScope);
         memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
-        assertEquals(memorySizeValue.bytes(), 2048);
+        assertEquals(memorySizeValue.getBytes(), 2048);
 
         memorySizeValueSetting = Setting.memorySizeSetting("a.byte.size", "50%", Property.Dynamic, Property.NodeScope);
         assertFalse(memorySizeValueSetting.isGroupSetting());
         memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
-        assertEquals(memorySizeValue.bytes(), JvmInfo.jvmInfo().getMem().getHeapMax().bytes() * 0.5, 1.0);
+        assertEquals(memorySizeValue.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.5, 1.0);
 
         memorySizeValueSetting = Setting.memorySizeSetting("a.byte.size", s -> "25%", Property.Dynamic, Property.NodeScope);
         memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
-        assertEquals(memorySizeValue.bytes(), JvmInfo.jvmInfo().getMem().getHeapMax().bytes() * 0.25, 1.0);
+        assertEquals(memorySizeValue.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.25, 1.0);
 
         AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
         ClusterSettings.SettingUpdater<ByteSizeValue> settingUpdater = memorySizeValueSetting.newUpdater(value::set, logger);
@@ -104,7 +104,7 @@ public class SettingTests extends ESTestCase {
         assertEquals(new ByteSizeValue(12), value.get());
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "20%").build(), Settings.EMPTY));
-        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().bytes() * 0.2)), value.get());
+        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2)), value.get());
     }
 
     public void testSimpleUpdate() {

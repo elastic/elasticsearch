@@ -82,7 +82,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@TestLogging("discovery.zen.publish:TRACE")
+@TestLogging("org.elasticsearch.discovery.zen.publish:TRACE")
 public class PublishClusterStateActionTests extends ESTestCase {
 
     private static final ClusterName CLUSTER_NAME = ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
@@ -223,7 +223,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         for (MockNode curNode : nodes.values()) {
-            curNode.action.close();
             curNode.service.close();
         }
         terminate(threadPool);

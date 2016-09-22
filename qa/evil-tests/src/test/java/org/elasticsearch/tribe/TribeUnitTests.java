@@ -39,6 +39,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -71,14 +72,14 @@ public class TribeUnitTests extends ESTestCase {
                 .put("cluster.name", "tribe1")
                 .put("node.name", "tribe1_node")
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
-                .build()).start();
+                .build(), Collections.emptyList()).start();
         tribe2 = new TribeClientNode(
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe2")
                 .put("node.name", "tribe2_node")
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
-                .build()).start();
+                .build(), Collections.emptyList()).start();
     }
 
     @AfterClass

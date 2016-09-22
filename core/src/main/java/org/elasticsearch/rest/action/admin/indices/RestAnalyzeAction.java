@@ -67,42 +67,14 @@ public class RestAnalyzeAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
 
-        String[] texts = request.paramAsStringArrayOrEmptyIfAll("text");
-
         AnalyzeRequest analyzeRequest = new AnalyzeRequest(request.param("index"));
-        analyzeRequest.text(texts);
-        analyzeRequest.analyzer(request.param("analyzer"));
-        analyzeRequest.field(request.param("field"));
-        final String tokenizer = request.param("tokenizer");
-        if (tokenizer != null) {
-            analyzeRequest.tokenizer(tokenizer);
-        }
-        for (String filter : request.paramAsStringArray("filter", Strings.EMPTY_ARRAY)) {
-            analyzeRequest.addTokenFilter(filter);
-        }
-        for (String charFilter : request.paramAsStringArray("char_filter", Strings.EMPTY_ARRAY)) {
-            analyzeRequest.addTokenFilter(charFilter);
-        }
-        analyzeRequest.explain(request.paramAsBoolean("explain", false));
-        analyzeRequest.attributes(request.paramAsStringArray("attributes", analyzeRequest.attributes()));
 
-        if (RestActions.hasBodyContent(request)) {
-            XContentType type = RestActions.guessBodyContentType(request);
-            if (type == null) {
-                if (texts == null || texts.length == 0) {
-                    texts = new String[]{ RestActions.getRestContent(request).utf8ToString() };
-                    analyzeRequest.text(texts);
-                }
-            } else {
-                // NOTE: if rest request with xcontent body has request parameters, the parameters does not override xcontent values
-                buildFromContent(RestActions.getRestContent(request), analyzeRequest, parseFieldMatcher);
-            }
-        }
+        buildFromContent(RestActions.getRestContent(request), analyzeRequest, parseFieldMatcher);
 
         return channel -> client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<>(channel));
     }
 
-    public static void buildFromContent(BytesReference content, AnalyzeRequest analyzeRequest, ParseFieldMatcher parseFieldMatcher) {
+    static void buildFromContent(BytesReference content, AnalyzeRequest analyzeRequest, ParseFieldMatcher parseFieldMatcher) {
         try (XContentParser parser = XContentHelper.createParser(content)) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException("Malformed content, must start with an object");

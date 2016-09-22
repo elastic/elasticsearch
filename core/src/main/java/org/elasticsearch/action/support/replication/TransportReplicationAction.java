@@ -935,7 +935,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     public void handleException(TransportException exp) {
                         onReplicaFailure(nodeId, exp);
                         logger.trace("[{}] transport failure during replica request [{}], action [{}]", exp, node, replicaRequest, transportReplicaAction);
-                        if (ignoreReplicaException(exp) == false) {
+                        if (mustFailReplica(exp)) {
                             logger.warn("{} failed to perform {} on node {}", exp, shardId, transportReplicaAction, node);
                             shardStateAction.shardFailed(shard, indexUUID, "failed to perform " + actionName + " on replica on node " + node, exp);
                         }

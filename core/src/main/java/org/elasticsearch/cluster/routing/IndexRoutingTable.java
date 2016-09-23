@@ -446,7 +446,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 } else if (indexMetaData.getCreationVersion().before(Version.V_5_0_0_alpha1) &&
                     unassignedInfo.getReason() != UnassignedInfo.Reason.INDEX_CREATED // tests can create old indices
                     ) {
-                    // the index is old and didn't maintain inSyncAllocationIds. Fall back to all behavior and require
+                    // the index is old and didn't maintain inSyncAllocationIds. Fall back to old behavior and require
                     // finding existing copies
                     primaryRecoverySource = StoreRecoverySource.EXISTING_STORE_INSTANCE;
                 } else if (indexMetaData.getMergeSourceIndex() != null) {

@@ -140,7 +140,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                         "allocation set " + inSyncAllocationIds);
                 }
 
-                if (shardRouting.primary() && shardRouting.initializing() && shardRouting.relocating() == false &&
+                if (indexMetaData.getCreationVersion().onOrAfter(Version.V_5_0_0_alpha1) &&
+                    shardRouting.primary() && shardRouting.initializing() && shardRouting.relocating() == false &&
                     RecoverySource.isInitialRecovery(shardRouting.recoverySource().getType()) == false &&
                     inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false)
                     throw new IllegalStateException("a primary shard routing " + shardRouting + " is a primary that is recovering from " +

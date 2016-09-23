@@ -18,30 +18,22 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -111,10 +103,11 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
     public void testNoParentNullFieldCreatedIfNoParentSpecified() throws Exception {
         Index index = new Index("_index", "testUUID");
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
-        AnalysisService analysisService = new AnalysisService(indexSettings, Collections.emptyMap(), Collections.emptyMap(),
-            Collections.emptyMap(), Collections.emptyMap());
+        NamedAnalyzer namedAnalyzer = new NamedAnalyzer("default", new StandardAnalyzer());
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, namedAnalyzer, namedAnalyzer, namedAnalyzer,
+            Collections.emptyMap());
         SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
-        MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService,
+        MapperService mapperService = new MapperService(indexSettings, indexAnalyzers, similarityService,
             new IndicesModule(emptyList()).getMapperRegistry(), () -> null);
         XContentBuilder mappingSource = jsonBuilder().startObject().startObject("some_type")
             .startObject("properties")

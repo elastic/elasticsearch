@@ -58,10 +58,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -182,7 +184,8 @@ public class TribeService extends AbstractLifecycleComponent {
 
     private final List<Node> nodes = new CopyOnWriteArrayList<>();
 
-    public TribeService(Settings settings, ClusterService clusterService, final String tribeNodeId) {
+    public TribeService(Settings settings, ClusterService clusterService, final String tribeNodeId,
+                        Collection<Class<? extends Plugin>> classpathPlugins) {
         super(settings);
         this.clusterService = clusterService;
         Map<String, Settings> nodesSettings = new HashMap<>(settings.getGroups("tribe", true));
@@ -190,7 +193,7 @@ public class TribeService extends AbstractLifecycleComponent {
         nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
             Settings clientSettings = buildClientSettings(entry.getKey(), tribeNodeId, settings, entry.getValue());
-            nodes.add(new TribeClientNode(clientSettings));
+            nodes.add(new TribeClientNode(clientSettings, classpathPlugins));
         }
 
         this.blockIndicesMetadata = BLOCKS_METADATA_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);

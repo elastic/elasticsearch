@@ -262,8 +262,8 @@ public final class EAssignment extends AExpression {
 
             rhs.write(writer, globals); // write the bytecode for the rhs
 
-            if (!(rhs instanceof EBinary) || ((EBinary)rhs).cat) {
-                writer.writeAppendStrings(rhs.actual); // append the rhs's value unless it's also a concatenation
+            if (!(rhs instanceof EBinary) || !((EBinary)rhs).cat) { // check to see if the rhs has already done a concatenation
+                writer.writeAppendStrings(rhs.actual); // append the rhs's value since it's hasn't already
             }
 
             writer.writeToStrings(); // put the value for string concat onto the stack

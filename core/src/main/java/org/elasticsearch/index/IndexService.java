@@ -43,7 +43,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
@@ -97,7 +97,7 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 public class IndexService extends AbstractIndexComponent implements IndicesClusterStateService.AllocatedIndex<IndexShard> {
 
     private final IndexEventListener eventListener;
-    private final AnalysisService analysisService;
+    private final IndexAnalyzers indexAnalyzers;
     private final IndexFieldDataService indexFieldData;
     private final BitsetFilterCache bitsetFilterCache;
     private final NodeEnvironment nodeEnv;
@@ -137,9 +137,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         List<IndexingOperationListener> indexingOperationListeners) throws IOException {
         super(indexSettings);
         this.indexSettings = indexSettings;
-        this.analysisService = registry.build(indexSettings);
+        this.indexAnalyzers = registry.build(indexSettings);
         this.similarityService = similarityService;
-        this.mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry,
+        this.mapperService = new MapperService(indexSettings, indexAnalyzers, similarityService, mapperRegistry,
             IndexService.this::newQueryShardContext);
         this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache,
             nodeServicesProvider.getCircuitBreakerService(), mapperService);
@@ -214,8 +214,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return indexFieldData;
     }
 
-    public AnalysisService analysisService() {
-        return this.analysisService;
+    public IndexAnalyzers getIndexAnalyzers() {
+        return this.indexAnalyzers;
     }
 
     public MapperService mapperService() {
@@ -239,7 +239,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     }
                 }
             } finally {
-                IOUtils.close(bitsetFilterCache, indexCache, indexFieldData, analysisService, refreshTask, fsyncTask);
+                IOUtils.close(bitsetFilterCache, indexCache, indexFieldData, indexAnalyzers, refreshTask, fsyncTask);
             }
         }
     }

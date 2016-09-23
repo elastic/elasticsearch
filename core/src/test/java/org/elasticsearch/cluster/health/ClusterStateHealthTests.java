@@ -277,9 +277,9 @@ public class ClusterStateHealthTests extends ESTestCase {
             // if the inactive primaries are due solely to recovery (not failed allocation or previously being allocated)
             // then cluster health is YELLOW, otherwise RED
             if (primaryInactiveDueToRecovery(indexName, clusterState)) {
-                assertThat(health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
+                assertThat("clusterState is:\n" + clusterState.prettyPrint(), health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
             } else {
-                assertThat(health.getStatus(), equalTo(ClusterHealthStatus.RED));
+                assertThat("clusterState is:\n" + clusterState.prettyPrint(), health.getStatus(), equalTo(ClusterHealthStatus.RED));
             }
         }
     }
@@ -530,6 +530,12 @@ public class ClusterStateHealthTests extends ESTestCase {
                 }
                 if (primaryShard.recoverySource() != null &&
                     primaryShard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
+                    return false;
+                }
+                if (primaryShard.unassignedInfo().getNumFailedAllocations() > 0) {
+                    return false;
+                }
+                if (primaryShard.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
                     return false;
                 }
             }

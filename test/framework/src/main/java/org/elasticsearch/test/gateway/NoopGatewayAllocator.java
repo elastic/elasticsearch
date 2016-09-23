@@ -20,9 +20,12 @@
 package org.elasticsearch.test.gateway;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
+
+import java.util.List;
 
 /**
  * An allocator used for tests that doesn't do anything
@@ -36,12 +39,12 @@ public class NoopGatewayAllocator extends GatewayAllocator {
     }
 
     @Override
-    public void applyStartedShard(ShardRouting shardRouting) {
+    public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
         // noop
     }
 
     @Override
-    public void applyFailedShard(ShardRouting shardRouting) {
+    public void applyFailedShards(RoutingAllocation allocation, List<FailedShard> failedShards) {
         // noop
     }
 

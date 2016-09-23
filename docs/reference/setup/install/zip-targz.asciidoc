@@ -13,7 +13,16 @@ link:/downloads/past-releases[Past Releases page].
 [[install-zip]]
 ==== Download and install the `.zip` package
 
+ifeval::["{release-state}"=="unreleased"]
+
+Version {version} of Elasticsearch has not yet been released.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+
 The `.zip` archive for Elastisearch v{version} can be downloaded and installed as follows:
+
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
@@ -26,8 +35,19 @@ cd elasticsearch-{version}/ <2>
     https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.zip.sha1[published SHA].
 <2> This directory is known as `$ES_HOME`.
 
+endif::[]
+
+
 [[install-targz]]
 ==== Download and install the `.tar.gz` package
+
+ifeval::["{release-state}"=="unreleased"]
+
+Version {version} of Elasticsearch has not yet been released.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
 
 The `.tar.gz` archive for Elastisearch v{version} can be downloaded and installed as follows:
 
@@ -41,6 +61,8 @@ cd elasticsearch-{version}/ <2>
 <1> Compare the SHA produced by `sha1sum` or `shasum` with the
     https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.tar.gz.sha1[published SHA].
 <2> This directory is known as `$ES_HOME`.
+
+endif::[]
 
 [[zip-targz-running]]
 ==== Running Elasticsearch from the command line

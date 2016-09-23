@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.rankeval.PrecisionAtN.Rating;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.test.ESTestCase;
@@ -36,17 +37,12 @@ import java.util.List;
 import java.util.Vector;
 import java.util.concurrent.ExecutionException;
 
-import static java.util.Collections.emptyList;
-
 public class PrecisionAtNTests extends ESTestCase {
 
     public void testPrecisionAtFiveCalculation() throws IOException, InterruptedException, ExecutionException {
         List<RatedDocument> rated = new ArrayList<>();
         rated.add(new RatedDocument("test", "testtype", "0", Rating.RELEVANT.ordinal()));
-        InternalSearchHit[] hits = new InternalSearchHit[1];
-        hits[0] = new InternalSearchHit(0, "0", new Text("testtype"), Collections.emptyMap());
-        hits[0].shard(new SearchShardTarget("testnode", new Index("test", "uuid"), 0));
-        EvalQueryQuality evaluated = (new PrecisionAtN(5)).evaluate("id", hits, rated);
+        EvalQueryQuality evaluated = (new PrecisionAtN(5)).evaluate("id", toSearchHits(rated, "test", "testtype"), rated);
         assertEquals(1, evaluated.getQualityLevel(), 0.00001);
         assertEquals(1, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(1, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
@@ -59,12 +55,7 @@ public class PrecisionAtNTests extends ESTestCase {
         rated.add(new RatedDocument("test", "testtype", "2", Rating.RELEVANT.ordinal()));
         rated.add(new RatedDocument("test", "testtype", "3", Rating.RELEVANT.ordinal()));
         rated.add(new RatedDocument("test", "testtype", "4", Rating.IRRELEVANT.ordinal()));
-        InternalSearchHit[] hits = new InternalSearchHit[5];
-        for (int i = 0; i < 5; i++) {
-            hits[i] = new InternalSearchHit(i, i+"", new Text("testtype"), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new Index("test", "uuid"), 0));
-        }
-        EvalQueryQuality evaluated = (new PrecisionAtN(5)).evaluate("id", hits, rated);
+        EvalQueryQuality evaluated = (new PrecisionAtN(5)).evaluate("id", toSearchHits(rated, "test", "testtype"), rated);
         assertEquals((double) 4 / 5, evaluated.getQualityLevel(), 0.00001);
         assertEquals(4, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(5, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
@@ -81,14 +72,9 @@ public class PrecisionAtNTests extends ESTestCase {
         rated.add(new RatedDocument("test", "testtype", "2", 2));
         rated.add(new RatedDocument("test", "testtype", "3", 3));
         rated.add(new RatedDocument("test", "testtype", "4", 4));
-        InternalSearchHit[] hits = new InternalSearchHit[5];
-        for (int i = 0; i < 5; i++) {
-            hits[i] = new InternalSearchHit(i, i+"", new Text("testtype"), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new Index("test", "uuid"), 0));
-        }
         PrecisionAtN precisionAtN = new PrecisionAtN(5);
         precisionAtN.setRelevantRatingThreshhold(2);
-        EvalQueryQuality evaluated = precisionAtN.evaluate("id", hits, rated);
+        EvalQueryQuality evaluated = precisionAtN.evaluate("id", toSearchHits(rated, "test", "testtype"), rated);
         assertEquals((double) 3 / 5, evaluated.getQualityLevel(), 0.00001);
         assertEquals(3, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(5, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
@@ -98,15 +84,11 @@ public class PrecisionAtNTests extends ESTestCase {
         List<RatedDocument> rated = new ArrayList<>();
         rated.add(new RatedDocument("test_other", "testtype", "0", Rating.RELEVANT.ordinal()));
         rated.add(new RatedDocument("test_other", "testtype", "1", Rating.RELEVANT.ordinal()));
-        rated.add(new RatedDocument("test", "testtype", "2", Rating.RELEVANT.ordinal()));
-        rated.add(new RatedDocument("test", "testtype", "3", Rating.RELEVANT.ordinal()));
-        rated.add(new RatedDocument("test", "testtype", "4", Rating.IRRELEVANT.ordinal()));
-        InternalSearchHit[] hits = new InternalSearchHit[5];
-        for (int i = 0; i < 5; i++) {
-            hits[i] = new InternalSearchHit(i, i+"", new Text("testtype"), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new Index("test", "uuid"), 0));
-        }
-        EvalQueryQuality evaluated = (new PrecisionAtN(5)).evaluate("id", hits, rated);
+        rated.add(new RatedDocument("test", "testtype", "0", Rating.RELEVANT.ordinal()));
+        rated.add(new RatedDocument("test", "testtype", "1", Rating.RELEVANT.ordinal()));
+        rated.add(new RatedDocument("test", "testtype", "2", Rating.IRRELEVANT.ordinal()));
+        // the following search hits contain only the last three documents
+        EvalQueryQuality evaluated = (new PrecisionAtN(5)).evaluate("id", toSearchHits(rated.subList(2, 5), "test", "testtype"), rated);
         assertEquals((double) 2 / 3, evaluated.getQualityLevel(), 0.00001);
         assertEquals(2, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(3, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
@@ -116,15 +98,10 @@ public class PrecisionAtNTests extends ESTestCase {
         List<RatedDocument> rated = new ArrayList<>();
         rated.add(new RatedDocument("test", "other_type", "0", Rating.RELEVANT.ordinal()));
         rated.add(new RatedDocument("test", "other_type", "1", Rating.RELEVANT.ordinal()));
-        rated.add(new RatedDocument("test", "testtype", "2", Rating.RELEVANT.ordinal()));
-        rated.add(new RatedDocument("test", "testtype", "3", Rating.RELEVANT.ordinal()));
-        rated.add(new RatedDocument("test", "testtype", "4", Rating.IRRELEVANT.ordinal()));
-        InternalSearchHit[] hits = new InternalSearchHit[5];
-        for (int i = 0; i < 5; i++) {
-            hits[i] = new InternalSearchHit(i, i+"", new Text("testtype"), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new Index("test", "uuid"), 0));
-        }
-        EvalQueryQuality evaluated = (new PrecisionAtN(5)).evaluate("id", hits, rated);
+        rated.add(new RatedDocument("test", "testtype", "0", Rating.RELEVANT.ordinal()));
+        rated.add(new RatedDocument("test", "testtype", "1", Rating.RELEVANT.ordinal()));
+        rated.add(new RatedDocument("test", "testtype", "2", Rating.IRRELEVANT.ordinal()));
+        EvalQueryQuality evaluated = (new PrecisionAtN(5)).evaluate("id", toSearchHits(rated.subList(2, 5), "test", "testtype"), rated);
         assertEquals((double) 2 / 3, evaluated.getQualityLevel(), 0.00001);
         assertEquals(2, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(3, ((PrecisionAtN.Breakdown) evaluated.getMetricDetails()).getRetrieved());
@@ -144,9 +121,9 @@ public class PrecisionAtNTests extends ESTestCase {
     public void testCombine() {
         PrecisionAtN metric = new PrecisionAtN();
         Vector<EvalQueryQuality> partialResults = new Vector<>(3);
-        partialResults.add(new EvalQueryQuality("a", 0.1, emptyList()));
-        partialResults.add(new EvalQueryQuality("b", 0.2, emptyList()));
-        partialResults.add(new EvalQueryQuality("c", 0.6, emptyList()));
+        partialResults.add(new EvalQueryQuality("a", 0.1));
+        partialResults.add(new EvalQueryQuality("b", 0.2));
+        partialResults.add(new EvalQueryQuality("c", 0.6));
         assertEquals(0.3, metric.combine(partialResults), Double.MIN_VALUE);
     }
 
@@ -164,5 +141,14 @@ public class PrecisionAtNTests extends ESTestCase {
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());
+    }
+
+    private static SearchHit[] toSearchHits(List<RatedDocument> rated, String index, String type) {
+        InternalSearchHit[] hits = new InternalSearchHit[rated.size()];
+        for (int i = 0; i < rated.size(); i++) {
+            hits[i] = new InternalSearchHit(i, i+"", new Text(type), Collections.emptyMap());
+            hits[i].shard(new SearchShardTarget("testnode", new Index(index, "uuid"), 0));
+        }
+        return hits;
     }
 }

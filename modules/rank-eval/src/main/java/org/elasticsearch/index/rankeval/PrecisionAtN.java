@@ -29,14 +29,14 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
 import javax.naming.directory.SearchResult;
+
+import static org.elasticsearch.index.rankeval.RankedListQualityMetric.filterUnknownDocuments;
+import static org.elasticsearch.index.rankeval.RankedListQualityMetric.joinHitsWithRatings;
 
 /**
  * Evaluate Precision at N, N being the number of search results to consider for precision calculation.
@@ -44,7 +44,7 @@ import javax.naming.directory.SearchResult;
  * By default documents with a rating equal or bigger than 1 are considered to be "relevant" for the precision
  * calculation. This value can be changes using the "relevant_rating_threshold" parameter.
  * */
-public class PrecisionAtN extends RankedListQualityMetric {
+public class PrecisionAtN implements RankedListQualityMetric {
 
     /** Number of results to check against a given set of relevant results. */
     private int n;
@@ -123,40 +123,24 @@ public class PrecisionAtN extends RankedListQualityMetric {
      **/
     @Override
     public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
-
-        Map<RatedDocumentKey, RatedDocument> relevantDocIds = new HashMap<>();
-        Map<RatedDocumentKey, RatedDocument> irrelevantDocIds = new HashMap<>();
-        for (RatedDocument doc : ratedDocs) {
-            if (doc.getRating() >= this.relevantRatingThreshhold) {
-                relevantDocIds.put(doc.getKey(), doc);
-            } else {
-                irrelevantDocIds.put(doc.getKey(), doc);
-            }
-        }
-
         int good = 0;
         int bad = 0;
-        List<RatedDocumentKey> unknownDocIds = new ArrayList<>();
-        List<RatedSearchHit> hitsAndRatings = new ArrayList<>();
-        for (int i = 0; (i < n && i < hits.length); i++) {
-            RatedDocumentKey hitKey = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].getId());
-            if (relevantDocIds.keySet().contains(hitKey)) {
-                RatedDocument ratedDocument = relevantDocIds.get(hitKey);
-                good++;
-                hitsAndRatings.add(new RatedSearchHit(hits[i], Optional.of(ratedDocument.getRating())));
-            } else if (irrelevantDocIds.keySet().contains(hitKey)) {
-                RatedDocument ratedDocument = irrelevantDocIds.get(hitKey);
-                bad++;
-                hitsAndRatings.add(new RatedSearchHit(hits[i], Optional.of(ratedDocument.getRating())));
-            } else {
-                unknownDocIds.add(hitKey);
-                hitsAndRatings.add(new RatedSearchHit(hits[i], Optional.empty()));
+        List<RatedSearchHit> ratedSearchHits = joinHitsWithRatings(hits, ratedDocs);
+        for (RatedSearchHit hit : ratedSearchHits) {
+            Optional<Integer> rating = hit.getRating();
+            if (rating.isPresent()) {
+                if (rating.get() >= this.relevantRatingThreshhold) {
+                    good++;
+                } else {
+                    bad++;
+                }
             }
         }
         double precision = (double) good / (good + bad);
-        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, precision, unknownDocIds);
+        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, precision);
         evalQueryQuality.addMetricDetails(new PrecisionAtN.Breakdown(good, good + bad));
-        evalQueryQuality.addHitsAndRatings(hitsAndRatings);
+        evalQueryQuality.addHitsAndRatings(ratedSearchHits);
+        evalQueryQuality.setUnknownDocs(filterUnknownDocuments(ratedSearchHits));
         return evalQueryQuality;
     }
 

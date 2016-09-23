@@ -39,20 +39,20 @@ import java.util.Objects;;
 public class EvalQueryQuality implements ToXContent, Writeable {
 
     /** documents seen as result for one request that were not annotated.*/
-    private List<RatedDocumentKey> unknownDocs;
+    private List<DocumentKey> unknownDocs = new ArrayList<>();
     private String id;
     private double qualityLevel;
     private MetricDetails optionalMetricDetails;
     private List<RatedSearchHit> hits = new ArrayList<>();
 
-    public EvalQueryQuality(String id, double qualityLevel, List<RatedDocumentKey> unknownDocs) {
+    public EvalQueryQuality(String id, double qualityLevel) {
         this.id = id;
-        this.unknownDocs = unknownDocs;
         this.qualityLevel = qualityLevel;
     }
 
     public EvalQueryQuality(StreamInput in) throws IOException {
-        this(in.readString(), in.readDouble(), in.readList(RatedDocumentKey::new));
+        this(in.readString(), in.readDouble());
+        this.unknownDocs = in.readList(DocumentKey::new);
         this.hits = in.readList(RatedSearchHit::new);
         this.optionalMetricDetails = in.readOptionalNamedWriteable(MetricDetails.class);
     }
@@ -74,7 +74,11 @@ public class EvalQueryQuality implements ToXContent, Writeable {
         return qualityLevel;
     }
 
-    public List<RatedDocumentKey> getUnknownDocs() {
+    public void setUnknownDocs(List<DocumentKey> unknownDocs) {
+        this.unknownDocs = unknownDocs;
+    }
+
+    public List<DocumentKey> getUnknownDocs() {
         return Collections.unmodifiableList(this.unknownDocs);
     }
 
@@ -99,7 +103,7 @@ public class EvalQueryQuality implements ToXContent, Writeable {
         builder.startObject(id);
         builder.field("quality_level", this.qualityLevel);
         builder.startArray("unknown_docs");
-        for (RatedDocumentKey key : unknownDocs) {
+        for (DocumentKey key : unknownDocs) {
             key.toXContent(builder, params);
         }
         builder.endArray();

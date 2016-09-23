@@ -32,13 +32,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
-public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
+import static org.elasticsearch.index.rankeval.RankedListQualityMetric.filterUnknownDocuments;
+import static org.elasticsearch.index.rankeval.RankedListQualityMetric.joinHitsWithRatings;
+
+public class DiscountedCumulativeGainAt implements RankedListQualityMetric {
 
     /** rank position up to which to check results. */
     private int position;
@@ -141,43 +142,24 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
 
     @Override
     public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
-        Map<RatedDocumentKey, RatedDocument> ratedDocsByKey = new HashMap<>(ratedDocs.size());
-        List<Integer> allRatings = new ArrayList<>(ratedDocs.size());
-        for (RatedDocument doc : ratedDocs) {
-            ratedDocsByKey.put(doc.getKey(), doc);
-            allRatings.add(doc.getRating());
-        }
-
-        List<RatedDocumentKey> unknownDocIds = new ArrayList<>();
-        List<RatedSearchHit> hitsAndRatings = new ArrayList<>();
-        List<Integer> ratingsInSearchHits = new ArrayList<>();
-        for (int i = 0; (i < position && i < hits.length); i++) {
-            RatedDocumentKey id = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].getId());
-            RatedDocument ratedDoc = ratedDocsByKey.get(id);
-            if (ratedDoc != null) {
-                ratingsInSearchHits.add(ratedDoc.getRating());
-                hitsAndRatings.add(new RatedSearchHit(hits[i], Optional.of(ratedDoc.getRating())));
-            } else {
-                unknownDocIds.add(id);
-                if (unknownDocRating != null) {
-                    ratingsInSearchHits.add(unknownDocRating);
-                    hitsAndRatings.add(new RatedSearchHit(hits[i], Optional.of(unknownDocRating)));
-                } else {
-                    // we add null here so that the later computation knows this position had no rating
-                    ratingsInSearchHits.add(null);
-                    hitsAndRatings.add(new RatedSearchHit(hits[i], Optional.empty()));
-                }
-            }
+        List<Integer> allRatings = ratedDocs.stream().mapToInt(RatedDocument::getRating).boxed().collect(Collectors.toList());
+        List<RatedSearchHit> ratedHits = joinHitsWithRatings(hits, ratedDocs);
+        List<Integer> ratingsInSearchHits = new ArrayList<>(Math.min(ratedHits.size(), position));
+        for (RatedSearchHit hit : ratedHits.subList(0, position)) {
+            // unknownDocRating might be null, which means it will be unrated docs are ignored in the dcg calculation
+            // we still need to add them as a placeholder so the rank of the subsequent ratings is correct
+            ratingsInSearchHits.add(hit.getRating().orElse(unknownDocRating));
         }
         double dcg = computeDCG(ratingsInSearchHits);
 
         if (normalize) {
             Collections.sort(allRatings, Comparator.nullsLast(Collections.reverseOrder()));
-            double idcg = computeDCG(allRatings.subList(0, Math.min(hits.length, allRatings.size())));
+            double idcg = computeDCG(allRatings.subList(0, Math.min(ratingsInSearchHits.size(), allRatings.size())));
             dcg = dcg / idcg;
         }
-        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, dcg, unknownDocIds);
-        evalQueryQuality.addHitsAndRatings(hitsAndRatings);
+        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, dcg);
+        evalQueryQuality.addHitsAndRatings(ratedHits);
+        evalQueryQuality.setUnknownDocs(filterUnknownDocuments(ratedHits));
         return evalQueryQuality;
     }
 

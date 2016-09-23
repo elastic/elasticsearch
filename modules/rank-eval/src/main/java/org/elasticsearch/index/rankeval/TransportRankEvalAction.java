@@ -28,7 +28,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -64,7 +64,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     protected void doExecute(RankEvalRequest request, ActionListener<RankEvalResponse> listener) {
         RankEvalSpec qualityTask = request.getRankEvalSpec();
 
-        Map<String, Collection<RatedDocumentKey>> unknownDocs = new ConcurrentHashMap<>();
+        Map<String, Collection<DocumentKey>> unknownDocs = new ConcurrentHashMap<>();
         Collection<RatedRequest> specifications = qualityTask.getSpecifications();
         AtomicInteger responseCounter = new AtomicInteger(specifications.size());
         Map<String, EvalQueryQuality> partialResults = new ConcurrentHashMap<>(specifications.size());
@@ -94,31 +94,31 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
 
         private ActionListener<RankEvalResponse> listener;
         private RatedRequest specification;
-        private Map<String, EvalQueryQuality> partialResults;
+        private Map<String, EvalQueryQuality> requestDetails;
         private RankEvalSpec task;
         private AtomicInteger responseCounter;
 
         public RankEvalActionListener(ActionListener<RankEvalResponse> listener, RankEvalSpec task, RatedRequest specification,
-                Map<String, EvalQueryQuality> partialResults, Map<String, Collection<RatedDocumentKey>> unknownDocs,
+                Map<String, EvalQueryQuality> details, Map<String, Collection<DocumentKey>> unknownDocs,
                 AtomicInteger responseCounter) {
             this.listener = listener;
             this.task = task;
             this.specification = specification;
-            this.partialResults = partialResults;
+            this.requestDetails = details;
             this.responseCounter = responseCounter;
         }
 
         @Override
         public void onResponse(SearchResponse searchResponse) {
-            SearchHits hits = searchResponse.getHits();
-            EvalQueryQuality queryQuality = task.getEvaluator().evaluate(specification.getSpecId(), hits.getHits(),
+            SearchHit[] hits = searchResponse.getHits().getHits();
+            EvalQueryQuality queryQuality = task.getEvaluator().evaluate(specification.getSpecId(), hits,
                     specification.getRatedDocs());
-            partialResults.put(specification.getSpecId(), queryQuality);
+            requestDetails.put(specification.getSpecId(), queryQuality);
 
             if (responseCounter.decrementAndGet() < 1) {
                 // TODO add other statistics like micro/macro avg?
                 listener.onResponse(
-                        new RankEvalResponse(task.getEvaluator().combine(partialResults.values()), partialResults));
+                        new RankEvalResponse(task.getEvaluator().combine(requestDetails.values()), requestDetails));
             }
         }
 

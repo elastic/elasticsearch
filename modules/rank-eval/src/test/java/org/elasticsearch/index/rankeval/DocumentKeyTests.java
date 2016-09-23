@@ -24,20 +24,20 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 
 
-public class RatedDocumentKeyTests extends ESTestCase {
+public class DocumentKeyTests extends ESTestCase {
 
-    static RatedDocumentKey createRandomRatedDocumentKey() {
+    static DocumentKey createRandomRatedDocumentKey() {
         String index = randomAsciiOfLengthBetween(0, 10);
         String type = randomAsciiOfLengthBetween(0, 10);
         String docId = randomAsciiOfLengthBetween(0, 10);
-        return  new RatedDocumentKey(index, type, docId);
+        return  new DocumentKey(index, type, docId);
     }
 
-    public RatedDocumentKey createRandomTestItem() {
+    public DocumentKey createRandomTestItem() {
         return createRandomRatedDocumentKey();
     }
 
-    public RatedDocumentKey mutateTestItem(RatedDocumentKey original) {
+    public DocumentKey mutateTestItem(DocumentKey original) {
         String index = original.getIndex();
         String type = original.getType();
         String docId = original.getDocID();
@@ -54,12 +54,12 @@ public class RatedDocumentKeyTests extends ESTestCase {
         default:
             throw new IllegalStateException("The test should only allow three parameters mutated");
         }
-        return new RatedDocumentKey(index, type, docId);
+        return new DocumentKey(index, type, docId);
     }
 
     public void testEqualsAndHash() throws IOException {
-        RatedDocumentKey testItem = createRandomRatedDocumentKey();
+        DocumentKey testItem = createRandomRatedDocumentKey();
         RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
-                new RatedDocumentKey(testItem.getIndex(), testItem.getType(), testItem.getDocID()));
+                new DocumentKey(testItem.getIndex(), testItem.getType(), testItem.getDocID()));
     }
 }

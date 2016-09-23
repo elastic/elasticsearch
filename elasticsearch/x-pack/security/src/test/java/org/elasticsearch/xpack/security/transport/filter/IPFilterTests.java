@@ -15,10 +15,13 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.MockNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -233,6 +236,17 @@ public class IPFilterTests extends ESTestCase {
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
 
         assertAddressIsDeniedForProfile("default", "8.8.8.8");
+    }
+
+    public void testThatNodeStartsWithIPFilterDisabled() throws Exception {
+        Settings settings = Settings.builder()
+                .put("path.home", createTempDir())
+                .put("xpack.security.transport.filter.enabled", randomBoolean())
+                .put("xpack.security.http.filter.enabled", randomBoolean())
+                .build();
+        try (Node node = new MockNode(settings, Collections.singletonList(XPackPlugin.class))) {
+            assertNotNull(node);
+        }
     }
 
     private void assertAddressIsAllowedForProfile(String profile, String ... inetAddresses) {

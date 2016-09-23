@@ -330,10 +330,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         components.add(new SecurityLifecycleService(settings, clusterService, threadPool, indexAuditTrail,
             nativeUsersStore, nativeRolesStore, client));
 
-        if (IPFilter.IP_FILTER_ENABLED_SETTING.get(settings)) {
-            ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), licenseState));
-            components.add(ipFilter.get());
-        }
+        ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), licenseState));
+        components.add(ipFilter.get());
         securityIntercepter.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService, authzService, licenseState,
                 sslService));
         return components;

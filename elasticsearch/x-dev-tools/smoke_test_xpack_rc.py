@@ -67,7 +67,7 @@ def wait_for_node_startup(es_dir, timeout=60, headers={}):
         conn.close()
   return False
 
-def download_release(version, hash, url):
+def download_release(version, release_hash, url):
   print('Downloading release %s from %s' % (version, url))
   tmp_dir = tempfile.mkdtemp()
   try:
@@ -81,7 +81,7 @@ def download_release(version, hash, url):
     print('  ' + '*' * 80)
     print()
     
-    smoke_test_release(version, downloaded_files, hash)
+    smoke_test_release(version, downloaded_files, release_hash)
     print('  SUCCESS')
   finally:
     shutil.rmtree(tmp_dir)
@@ -89,7 +89,7 @@ def download_release(version, hash, url):
 def get_host_from_ports_file(es_dir):
   return read_fully(os.path.join(es_dir, 'logs/http.ports')).splitlines()[0]
 
-def smoke_test_release(release, files, expected_hash):
+def smoke_test_release(release, files, release_hash):
   for release_file in files:
     if not os.path.isfile(release_file):
       raise RuntimeError('Smoketest failed missing file %s' % (release_file))
@@ -103,7 +103,7 @@ def smoke_test_release(release, files, expected_hash):
     es_plugin_path = os.path.join(es_dir, 'bin/elasticsearch-plugin')
     
     print('     Install xpack [%s]')
-    run('%s; ES_JAVA_OPTS="-Des.plugins.staging=%s" %s install -b x-pack' % (java_exe(), expected_hash, es_plugin_path))
+    run('%s; ES_JAVA_OPTS="-Des.plugins.staging=%s" %s install -b x-pack' % (java_exe(), release_hash, es_plugin_path))
     headers = { 'Authorization' : 'Basic %s' % base64.b64encode(b"es_admin:foobar").decode("UTF-8") }
     es_shield_path = os.path.join(es_dir, 'bin/x-pack/users')
     
@@ -193,8 +193,8 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser(description='SmokeTests a Release Candidate from S3 staging repo')
   parser.add_argument('--version', '-v', dest='version', default=None,
                       help='The Elasticsearch Version to smoke-tests', required=True)
-  parser.add_argument('--hash', '-s', dest='hash', default=None, required=True,
-                      help='The sha1 short hash of the git commit to smoketest')
+  parser.add_argument('--hash', '-r', dest='hash', default=None, required=True,
+                      help='The sha1 short hash of the release git commit to smoketest')
   parser.add_argument('--fetch_url', '-u', dest='url', default=None,
                       help='Fetched from the specified URL')
   parser.set_defaults(hash=None)
@@ -208,6 +208,6 @@ if __name__ == "__main__":
   if url:
     download_url = url
   else:
-    download_url = 'http://download.elasticsearch.org/elasticsearch/staging/%s-%s/org/elasticsearch/distribution/zip/elasticsearch/%s/elasticsearch-%s.zip' % (version, hash, version, version)
+    download_url = 'https://staging.elastic.co/%s-%s/downloads/elasticsearch/elasticsearch-%s.zip' % (version, hash, version)
   download_release(version, hash, download_url)
 

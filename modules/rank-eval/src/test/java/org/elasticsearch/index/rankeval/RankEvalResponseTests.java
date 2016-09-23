@@ -46,7 +46,6 @@ public class RankEvalResponseTests extends ESTestCase {
                 unknownDocs.add(DocumentKeyTests.createRandomRatedDocumentKey());
             }
             EvalQueryQuality evalQuality = new EvalQueryQuality(id, randomDoubleBetween(0.0, 1.0, true));
-            evalQuality.setUnknownDocs(unknownDocs);
             partials.put(id, evalQuality);
         }
         return new RankEvalResponse(randomDouble(), partials);

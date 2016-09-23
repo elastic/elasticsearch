@@ -36,6 +36,9 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
 
+import static org.elasticsearch.index.rankeval.RankedListQualityMetric.filterUnknownDocuments;
+
+
 public class RankEvalRequestTests  extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
@@ -93,7 +96,7 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
         for (Entry<String, EvalQueryQuality> entry : entrySet) {
             EvalQueryQuality quality = entry.getValue();
             if (entry.getKey() == "amsterdam_query") {
-                assertEquals(2, quality.getUnknownDocs().size());
+                assertEquals(2, filterUnknownDocuments(quality.getHitsAndRatings()).size());
                 List<RatedSearchHit> hitsAndRatings = quality.getHitsAndRatings();
                 assertEquals(6, hitsAndRatings.size());
                 for (RatedSearchHit hit : hitsAndRatings) {
@@ -106,7 +109,7 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
                 }
             }
             if (entry.getKey() == "berlin_query") {
-                assertEquals(5, quality.getUnknownDocs().size());
+                assertEquals(5, filterUnknownDocuments(quality.getHitsAndRatings()).size());
                 List<RatedSearchHit> hitsAndRatings = quality.getHitsAndRatings();
                 assertEquals(6, hitsAndRatings.size());
                 for (RatedSearchHit hit : hitsAndRatings) {

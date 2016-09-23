@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;;
 
@@ -39,7 +38,6 @@ import java.util.Objects;;
 public class EvalQueryQuality implements ToXContent, Writeable {
 
     /** documents seen as result for one request that were not annotated.*/
-    private List<DocumentKey> unknownDocs = new ArrayList<>();
     private String id;
     private double qualityLevel;
     private MetricDetails optionalMetricDetails;
@@ -52,7 +50,6 @@ public class EvalQueryQuality implements ToXContent, Writeable {
 
     public EvalQueryQuality(StreamInput in) throws IOException {
         this(in.readString(), in.readDouble());
-        this.unknownDocs = in.readList(DocumentKey::new);
         this.hits = in.readList(RatedSearchHit::new);
         this.optionalMetricDetails = in.readOptionalNamedWriteable(MetricDetails.class);
     }
@@ -61,7 +58,6 @@ public class EvalQueryQuality implements ToXContent, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeDouble(qualityLevel);
-        out.writeList(unknownDocs);
         out.writeList(hits);
         out.writeOptionalNamedWriteable(this.optionalMetricDetails);
     }
@@ -72,14 +68,6 @@ public class EvalQueryQuality implements ToXContent, Writeable {
 
     public double getQualityLevel() {
         return qualityLevel;
-    }
-
-    public void setUnknownDocs(List<DocumentKey> unknownDocs) {
-        this.unknownDocs = unknownDocs;
-    }
-
-    public List<DocumentKey> getUnknownDocs() {
-        return Collections.unmodifiableList(this.unknownDocs);
     }
 
     public void addMetricDetails(MetricDetails breakdown) {
@@ -103,7 +91,7 @@ public class EvalQueryQuality implements ToXContent, Writeable {
         builder.startObject(id);
         builder.field("quality_level", this.qualityLevel);
         builder.startArray("unknown_docs");
-        for (DocumentKey key : unknownDocs) {
+        for (DocumentKey key : RankedListQualityMetric.filterUnknownDocuments(hits)) {
             key.toXContent(builder, params);
         }
         builder.endArray();
@@ -132,13 +120,12 @@ public class EvalQueryQuality implements ToXContent, Writeable {
         EvalQueryQuality other = (EvalQueryQuality) obj;
         return Objects.equals(id, other.id) &&
                 Objects.equals(qualityLevel, other.qualityLevel) &&
-                Objects.equals(unknownDocs, other.unknownDocs) &&
                 Objects.equals(hits, other.hits) &&
                 Objects.equals(optionalMetricDetails, other.optionalMetricDetails);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(id, qualityLevel, unknownDocs, hits, optionalMetricDetails);
+        return Objects.hash(id, qualityLevel, hits, optionalMetricDetails);
     }
 }

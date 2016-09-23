@@ -35,7 +35,6 @@ import java.util.Optional;
 
 import javax.naming.directory.SearchResult;
 
-import static org.elasticsearch.index.rankeval.RankedListQualityMetric.filterUnknownDocuments;
 import static org.elasticsearch.index.rankeval.RankedListQualityMetric.joinHitsWithRatings;
 
 /**
@@ -140,7 +139,6 @@ public class PrecisionAtN implements RankedListQualityMetric {
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, precision);
         evalQueryQuality.addMetricDetails(new PrecisionAtN.Breakdown(good, good + bad));
         evalQueryQuality.addHitsAndRatings(ratedSearchHits);
-        evalQueryQuality.setUnknownDocs(filterUnknownDocuments(ratedSearchHits));
         return evalQueryQuality;
     }
 

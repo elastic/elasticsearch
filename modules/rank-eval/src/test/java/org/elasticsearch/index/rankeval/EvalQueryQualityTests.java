@@ -31,21 +31,22 @@ public class EvalQueryQualityTests extends ESTestCase {
     private static NamedWriteableRegistry namedWritableRegistry = new NamedWriteableRegistry(new RankEvalPlugin().getNamedWriteables());
 
     public static EvalQueryQuality randomEvalQueryQuality() {
-        List<RatedDocumentKey> unknownDocs = new ArrayList<>();
+        List<DocumentKey> unknownDocs = new ArrayList<>();
         int numberOfUnknownDocs = randomInt(5);
         for (int i = 0; i < numberOfUnknownDocs; i++) {
-            unknownDocs.add(RatedDocumentKeyTests.createRandomRatedDocumentKey());
+            unknownDocs.add(DocumentKeyTests.createRandomRatedDocumentKey());
         }
         int numberOfSearchHits = randomInt(5);
         List<RatedSearchHit> ratedHits = new ArrayList<>();
         for (int i = 0; i < numberOfSearchHits; i++) {
             ratedHits.add(RatedSearchHitTests.randomRatedSearchHit());
         }
-        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(randomAsciiOfLength(10), randomDoubleBetween(0.0, 1.0, true), unknownDocs);
+        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(randomAsciiOfLength(10), randomDoubleBetween(0.0, 1.0, true));
         if (randomBoolean()) {
             // TODO randomize this
             evalQueryQuality.addMetricDetails(new PrecisionAtN.Breakdown(1, 5));
         }
+        evalQueryQuality.setUnknownDocs(unknownDocs);
         evalQueryQuality.addHitsAndRatings(ratedHits);
         return evalQueryQuality;
     }
@@ -67,7 +68,7 @@ public class EvalQueryQualityTests extends ESTestCase {
     private static EvalQueryQuality mutateTestItem(EvalQueryQuality original) {
         String id = original.getId();
         double qualityLevel = original.getQualityLevel();
-        List<RatedDocumentKey> unknownDocs = new ArrayList<>(original.getUnknownDocs());
+        List<DocumentKey> unknownDocs = new ArrayList<>(original.getUnknownDocs());
         List<RatedSearchHit> ratedHits = new ArrayList<>(original.getHitsAndRatings());
         MetricDetails breakdown = original.getMetricDetails();
         switch (randomIntBetween(0, 3)) {
@@ -78,7 +79,7 @@ public class EvalQueryQualityTests extends ESTestCase {
             qualityLevel = qualityLevel + 0.1;
             break;
         case 2:
-            unknownDocs.add(RatedDocumentKeyTests.createRandomRatedDocumentKey());
+            unknownDocs.add(DocumentKeyTests.createRandomRatedDocumentKey());
             break;
         case 3:
             if (breakdown == null) {
@@ -93,7 +94,8 @@ public class EvalQueryQualityTests extends ESTestCase {
         default:
             throw new IllegalStateException("The test should only allow five parameters mutated");
         }
-        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(id, qualityLevel, unknownDocs);
+        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(id, qualityLevel);
+        evalQueryQuality.setUnknownDocs(unknownDocs);
         evalQueryQuality.addMetricDetails(breakdown);
         evalQueryQuality.addHitsAndRatings(ratedHits);
         return evalQueryQuality;

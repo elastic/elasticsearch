@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -46,7 +45,7 @@ import static org.junit.Assert.assertTrue;
 
 public class RankEvalTestHelper {
 
-    public static XContentParser roundtrip(ToXContentToBytes testItem) throws IOException {
+    public static XContentParser roundtrip(ToXContent testItem) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(ESTestCase.randomFrom(XContentType.values()));
         if (ESTestCase.randomBoolean()) {
             builder.prettyPrint();

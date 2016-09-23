@@ -41,11 +41,13 @@ public class RankEvalResponseTests extends ESTestCase {
         for (int i = 0; i < numberOfRequests; i++) {
             String id = randomAsciiOfLengthBetween(3, 10);
             int numberOfUnknownDocs = randomIntBetween(0, 5);
-            List<RatedDocumentKey> unknownDocs = new ArrayList<>(numberOfUnknownDocs);
+            List<DocumentKey> unknownDocs = new ArrayList<>(numberOfUnknownDocs);
             for (int d = 0; d < numberOfUnknownDocs; d++) {
-                unknownDocs.add(RatedDocumentKeyTests.createRandomRatedDocumentKey());
+                unknownDocs.add(DocumentKeyTests.createRandomRatedDocumentKey());
             }
-            partials.put(id, new EvalQueryQuality(id, randomDoubleBetween(0.0, 1.0, true), unknownDocs));
+            EvalQueryQuality evalQuality = new EvalQueryQuality(id, randomDoubleBetween(0.0, 1.0, true));
+            evalQuality.setUnknownDocs(unknownDocs);
+            partials.put(id, evalQuality);
         }
         return new RankEvalResponse(randomDouble(), partials);
     }

@@ -54,23 +54,23 @@ public class RatedDocument extends ToXContentToBytes implements Writeable {
     }
 
     private int rating;
-    private RatedDocumentKey key;
+    private DocumentKey key;
 
     public RatedDocument(String index, String type, String docId, int rating) {
-        this(new RatedDocumentKey(index, type, docId), rating);
+        this(new DocumentKey(index, type, docId), rating);
     }
 
     public RatedDocument(StreamInput in) throws IOException {
-        this.key = new RatedDocumentKey(in);
+        this.key = new DocumentKey(in);
         this.rating = in.readVInt();
     }
 
-    public RatedDocument(RatedDocumentKey ratedDocumentKey, int rating) {
+    public RatedDocument(DocumentKey ratedDocumentKey, int rating) {
         this.key = ratedDocumentKey;
         this.rating = rating;
     }
 
-    public RatedDocumentKey getKey() {
+    public DocumentKey getKey() {
         return this.key;
     }
 

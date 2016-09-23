@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
+public class DocumentKey extends ToXContentToBytes implements Writeable {
 
     private String docId;
     private String type;
@@ -46,13 +46,13 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
         this.docId = docId;
     }
 
-    public RatedDocumentKey(String index, String type, String docId) {
+    public DocumentKey(String index, String type, String docId) {
         this.index = index;
         this.type = type;
         this.docId = docId;
     }
 
-    public RatedDocumentKey(StreamInput in) throws IOException {
+    public DocumentKey(StreamInput in) throws IOException {
         this.index = in.readString();
         this.type = in.readString();
         this.docId = in.readString();
@@ -85,7 +85,7 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        RatedDocumentKey other = (RatedDocumentKey) obj;
+        DocumentKey other = (DocumentKey) obj;
         return Objects.equals(index, other.index) &&
                 Objects.equals(type, other.type) &&
                 Objects.equals(docId, other.docId);

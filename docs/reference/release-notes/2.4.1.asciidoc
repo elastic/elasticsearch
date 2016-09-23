@@ -1,0 +1,54 @@
+[[release-notes-2.4.1]]
+== 2.4.1 Release Notes
+
+[[enhancement-2.4.1]]
+[float]
+=== Enhancements
+
+Allocation::
+* Change DiskThresholdDecider's behavior when factoring in leaving shards {pull}20349[#20349]
+
+Cluster::
+* Add clusterUUID to RestMainAction output {pull}20507[#20507] (issue: {issue}20503[#20503])
+
+
+
+[[bug-2.4.1]]
+[float]
+=== Bug fixes
+
+Core::
+* Guard against negative result from FileStore.getUsableSpace when pick… {pull}20527[#20527] (issue: {issue}19554[#19554])
+
+Highlighting::
+* skip GeoPointMultiTermQuery when highlighting {pull}20412[#20412] (issue: {issue}17537[#17537])
+* Fix highlighting of MultiTermQuery within a FunctionScoreQuery {pull}20400[#20400] (issue: {issue}20392[#20392])
+
+Index APIs::
+* Fix IndexNotFoundException in multi index search request. {pull}20188[#20188] (issue: {issue}3839[#3839])
+
+Internal::
+* Don't fail replica if FlushNotAllowedEngineException is thrown {pull}20632[#20632] (issues: {issue}20569[#20569], {issue}20597[#20597])
+
+Network::
+* Don't send exception responses twice {pull}20585[#20585]
+
+Packaging::
+* Fix Windows GC options {pull}20620[#20620] (issue: {issue}20558[#20558])
+
+Query DSL::
+* Fail parsing when match query contains an array of terms {pull}20445[#20445] (issue: {issue}15741[#15741])
+
+REST::
+* Correct the description for refresh {pull}20200[#20200]
+
+Reindex API::
+* Make reindex tests a little less flaky {pull}20258[#20258]
+
+Scripting::
+* Native scripts should be created once per index, not per segment. {pull}20609[#20609]
+
+Settings::
+* Validate max thread/merge settings {pull}20383[#20383] (issue: {issue}20380[#20380])
+
+

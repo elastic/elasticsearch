@@ -30,9 +30,12 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+
+import static org.elasticsearch.index.rankeval.RankedListQualityMetric.filterUnknownDocuments;
 
 public class DiscountedCumulativeGainAtTests extends ESTestCase {
 
@@ -110,7 +113,7 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
         DiscountedCumulativeGainAt dcg = new DiscountedCumulativeGainAt(6);
         EvalQueryQuality result = dcg.evaluate("id", hits, rated);
         assertEquals(12.779642067948913, result.getQualityLevel(), 0.00001);
-        assertEquals(2, result.getUnknownDocs().size());
+        assertEquals(2, filterUnknownDocuments(result.getHitsAndRatings()).size());
 
         /**
          * Check with normalization: to get the maximal possible dcg, sort documents by relevance in descending order
@@ -148,7 +151,7 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
      */
     public void testDCGAtFourMoreRatings() throws IOException, InterruptedException, ExecutionException {
         List<RatedDocument> rated = new ArrayList<>();
-        Integer[] relevanceRatings = new Integer[] { 3, 2, 3, null, 1};
+        Integer[] relevanceRatings = new Integer[] { 3, 2, 3, null, 1, null};
         InternalSearchHit[] hits = new InternalSearchHit[6];
         for (int i = 0; i < 6; i++) {
             if (i < relevanceRatings.length) {
@@ -160,9 +163,9 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0)));
         }
         DiscountedCumulativeGainAt dcg = new DiscountedCumulativeGainAt(4);
-        EvalQueryQuality result = dcg.evaluate("id", hits, rated);
+        EvalQueryQuality result = dcg.evaluate("id",  Arrays.copyOfRange(hits, 0, 4), rated);
         assertEquals(12.392789260714371 , result.getQualityLevel(), 0.00001);
-        assertEquals(1, result.getUnknownDocs().size());
+        assertEquals(1, filterUnknownDocuments(result.getHitsAndRatings()).size());
 
         /**
          * Check with normalization: to get the maximal possible dcg, sort documents by relevance in descending order

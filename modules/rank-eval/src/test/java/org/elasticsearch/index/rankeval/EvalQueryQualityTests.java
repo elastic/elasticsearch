@@ -46,7 +46,6 @@ public class EvalQueryQualityTests extends ESTestCase {
             // TODO randomize this
             evalQueryQuality.addMetricDetails(new PrecisionAtN.Breakdown(1, 5));
         }
-        evalQueryQuality.setUnknownDocs(unknownDocs);
         evalQueryQuality.addHitsAndRatings(ratedHits);
         return evalQueryQuality;
     }
@@ -68,9 +67,8 @@ public class EvalQueryQualityTests extends ESTestCase {
     private static EvalQueryQuality mutateTestItem(EvalQueryQuality original) {
         String id = original.getId();
         double qualityLevel = original.getQualityLevel();
-        List<DocumentKey> unknownDocs = new ArrayList<>(original.getUnknownDocs());
         List<RatedSearchHit> ratedHits = new ArrayList<>(original.getHitsAndRatings());
-        MetricDetails breakdown = original.getMetricDetails();
+        MetricDetails metricDetails = original.getMetricDetails();
         switch (randomIntBetween(0, 3)) {
         case 0:
             id = id + "_";
@@ -79,24 +77,20 @@ public class EvalQueryQualityTests extends ESTestCase {
             qualityLevel = qualityLevel + 0.1;
             break;
         case 2:
-            unknownDocs.add(DocumentKeyTests.createRandomRatedDocumentKey());
-            break;
-        case 3:
-            if (breakdown == null) {
-                breakdown = new PrecisionAtN.Breakdown(1, 5);
+            if (metricDetails == null) {
+                metricDetails = new PrecisionAtN.Breakdown(1, 5);
             } else {
-                breakdown = null;
+                metricDetails = null;
             }
             break;
-        case 4:
+        case 3:
             ratedHits.add(RatedSearchHitTests.randomRatedSearchHit());
             break;
         default:
-            throw new IllegalStateException("The test should only allow five parameters mutated");
+            throw new IllegalStateException("The test should only allow four parameters mutated");
         }
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(id, qualityLevel);
-        evalQueryQuality.setUnknownDocs(unknownDocs);
-        evalQueryQuality.addMetricDetails(breakdown);
+        evalQueryQuality.addMetricDetails(metricDetails);
         evalQueryQuality.addHitsAndRatings(ratedHits);
         return evalQueryQuality;
     }

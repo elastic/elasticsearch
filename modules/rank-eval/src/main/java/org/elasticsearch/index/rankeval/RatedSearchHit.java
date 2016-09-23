@@ -100,7 +100,7 @@ public class RatedSearchHit implements Writeable, ToXContent {
 
     @Override
     public final int hashCode() {
-        //NORELEASE for this to work requires InternalSearchHit to properly implement equals()/hashCode()
+        // NORELEASE for this to work requires InternalSearchHit to properly implement equals()/hashCode()
         XContentBuilder builder;
         String hitAsXContent;
         try {

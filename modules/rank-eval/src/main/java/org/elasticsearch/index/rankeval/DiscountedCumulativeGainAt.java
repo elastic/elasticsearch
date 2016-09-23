@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.rankeval.RankedListQualityMetric.filterUnknownDocuments;
 import static org.elasticsearch.index.rankeval.RankedListQualityMetric.joinHitsWithRatings;
 
 public class DiscountedCumulativeGainAt implements RankedListQualityMetric {
@@ -159,7 +158,6 @@ public class DiscountedCumulativeGainAt implements RankedListQualityMetric {
         }
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, dcg);
         evalQueryQuality.addHitsAndRatings(ratedHits);
-        evalQueryQuality.setUnknownDocs(filterUnknownDocuments(ratedHits));
         return evalQueryQuality;
     }
 

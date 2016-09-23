@@ -20,7 +20,7 @@
 package org.elasticsearch.test.gateway;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
-import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.gateway.ReplicaShardAllocator;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
@@ -43,22 +42,27 @@ import java.util.stream.Collectors;
 
 /**
  * A gateway allocator implementation that keeps an in memory list of started shard allocation
- * that are used as replies to the, normally async, fetch data requests.
+ * that are used as replies to the, normally async, fetch data requests. The in memory list
+ * is adapted when shards are started and failed.
+ *
+ * Nodes leaving and joining the cluster do not change the list of shards the class tracks but
+ * rather serves as a filter to what is returned by fetch data. Concretely - fetch data will
+ * only return shards that were started on nodes that are currently part of the cluster.
  *
  * For now only primary shard related data is fetched. Replica request always get an empty response.
+ *
  *
  * This class is useful to use in unit tests that require the functionality of {@link GatewayAllocator} but do
  * not have all the infrastructure required to use it.
  */
 public class TestGatewayAllocator extends GatewayAllocator {
 
-    Map<String, Map<ShardId,ShardRouting>> knownAllocations = new HashMap<>();
-    Map<String, DiscoveryNode> knownNodes = new HashMap<>();
+    Map<String /* node id */, Map<ShardId, ShardRouting>> knownAllocations = new HashMap<>();
+    DiscoveryNodes currentNodes = DiscoveryNodes.EMPTY_NODES;
 
     PrimaryShardAllocator primaryShardAllocator = new PrimaryShardAllocator(Settings.EMPTY) {
         @Override
-        protected AsyncShardFetch.FetchResult<NodeGatewayStartedShards>
-        fetchData(ShardRouting shard, RoutingAllocation allocation) {
+        protected AsyncShardFetch.FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation) {
             // for now always return immediately what we know
             final ShardId shardId = shard.shardId();
             final Set<String> ignoreNodes = allocation.getIgnoreNodes(shardId);
@@ -66,12 +70,12 @@ public class TestGatewayAllocator extends GatewayAllocator {
                 .flatMap(shardMap -> shardMap.values().stream())
                 .filter(ks -> ks.shardId().equals(shardId))
                 .filter(ks -> ignoreNodes.contains(ks.currentNodeId()) == false)
-                .filter(ks -> knownNodes.containsKey(ks.currentNodeId()))
+                .filter(ks -> currentNodes.nodeExists(ks.currentNodeId()))
                 .collect(Collectors.toMap(
-                    routing -> knownNodes.get(routing.currentNodeId()),
+                    routing -> currentNodes.get(routing.currentNodeId()),
                     routing ->
                         new NodeGatewayStartedShards(
-                            knownNodes.get(routing.currentNodeId()), -1, routing.allocationId().getId(), routing.primary())));
+                            currentNodes.get(routing.currentNodeId()), -1, routing.allocationId().getId(), routing.primary())));
 
             return new AsyncShardFetch.FetchResult<>(shardId, foundShards, Collections.emptySet(), ignoreNodes);
         }
@@ -93,7 +97,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
 
     @Override
     public void applyStartedShards(StartedRerouteAllocation allocation) {
-        updateNodes(allocation);
+        currentNodes = allocation.nodes();
         for (ShardRouting shard: allocation.routingNodes().shards(ShardRouting::active)) {
             addKnownAllocation(shard);
         }
@@ -101,7 +105,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
 
     @Override
     public void applyFailedShards(FailedRerouteAllocation allocation) {
-        updateNodes(allocation);
+        currentNodes = allocation.nodes();
         for (FailedRerouteAllocation.FailedShard failedShard : allocation.failedShards()) {
             final ShardRouting failedRouting = failedShard.routingEntry;
             Map<ShardId, ShardRouting> nodeAllocations = knownAllocations.get(failedRouting.currentNodeId());
@@ -114,22 +118,10 @@ public class TestGatewayAllocator extends GatewayAllocator {
         }
     }
 
-    private void updateNodes(RoutingAllocation allocation) {
-        knownNodes.clear();
-        for (DiscoveryNode node: allocation.nodes()) {
-            knownNodes.put(node.getId(), node);
-        }
-    }
-
     @Override
     public void allocateUnassigned(RoutingAllocation allocation) {
-        updateNodes(allocation);
-        RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
-        unassigned.sort(PriorityComparator.getAllocationComparator(allocation)); // sort for priority ordering
-
-        primaryShardAllocator.allocateUnassigned(allocation);
-        replicaShardAllocator.processExistingRecoveries(allocation);
-        replicaShardAllocator.allocateUnassigned(allocation);
+        currentNodes = allocation.nodes();
+        super.allocateUnassigned(allocation);
     }
 
     /**

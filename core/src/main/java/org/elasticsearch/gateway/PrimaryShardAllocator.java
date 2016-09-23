@@ -138,7 +138,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
         if (inSyncAllocationIds.isEmpty()) {
             assert Version.indexCreated(indexMetaData.getSettings()).before(Version.V_5_0_0_alpha1) :
-                "trying to allocated a primary with an empty in sync allocation id set, but index is new. index: "
+                "trying to allocate a primary with an empty in sync allocation id set, but index is new. index: "
                     + indexMetaData.getIndex();
             // when we load an old index (after upgrading cluster) or restore a snapshot of an old index
             // fall back to old version-based allocation mode

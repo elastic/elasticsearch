@@ -59,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.CLUSTER_RECOVERED;
+import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.INDEX_CREATED;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.INDEX_REOPENED;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -83,8 +84,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         final RoutingAllocation allocation;
         // with old version, we can't know if a shard was allocated before or not
         allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders(),
-            INDEX_REOPENED, Version.CURRENT);
-        //randomFrom(INDEX_CREATED, CLUSTER_RECOVERED, INDEX_REOPENED)
+            randomFrom(INDEX_CREATED, CLUSTER_RECOVERED, INDEX_REOPENED), Version.CURRENT);
         testAllocator.allocateUnassigned(allocation);
         assertThat(allocation.routingNodesChanged(), equalTo(false));
         assertThat(allocation.routingNodes().unassigned().size(), equalTo(1));

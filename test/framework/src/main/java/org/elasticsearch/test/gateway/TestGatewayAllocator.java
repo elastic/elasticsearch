@@ -119,7 +119,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
     @Override
     public void allocateUnassigned(RoutingAllocation allocation) {
         currentNodes = allocation.nodes();
-        super.allocateUnassigned(allocation);
+        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator);
     }
 
     /**

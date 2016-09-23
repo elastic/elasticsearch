@@ -1,7 +1,7 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
-:version:        5.0.0-alpha5
+:version:        5.0.0-beta1
 :major-version:  5.x
 :lucene_version: 6.2.0
 :branch:         master

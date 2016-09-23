@@ -644,7 +644,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                 routingTableBuilder.addAsFromCloseToOpen(metaData.index(shardId.getIndex()));
                 break;
             default:
-                throw new UnsupportedOperationException("can't do " + reason + " for you. teach me");
+                throw new IllegalArgumentException("can't do " + reason + " for you. teach me");
         }
         ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metaData(metaData)

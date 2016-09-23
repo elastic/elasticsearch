@@ -294,7 +294,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         }
 
         int shardsToFail = randomIntBetween(1, numberOfReplicas);
-        ArrayList<FailedRerouteAllocation.FailedShard> failedShards = new ArrayList<>();
+        ArrayList<FailedShard> failedShards = new ArrayList<>();
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
         Set<String> failedNodes = new HashSet<>();
         Set<ShardRouting> shardRoutingsToFail = new HashSet<>();
@@ -303,7 +303,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
             logger.info("failing shard on node [{}]", failedNode);
             ShardRouting shardToFail = routingNodes.node(failedNode).iterator().next();
             if (shardRoutingsToFail.contains(shardToFail) == false) {
-                failedShards.add(new FailedRerouteAllocation.FailedShard(shardToFail, null, null));
+                failedShards.add(new FailedShard(shardToFail, null, null));
                 failedNodes.add(failedNode);
                 shardRoutingsToFail.add(shardToFail);
             }
@@ -311,8 +311,9 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
 
         clusterState = strategy.applyFailedShards(clusterState, failedShards);
         routingNodes = clusterState.getRoutingNodes();
-        for (FailedRerouteAllocation.FailedShard failedShard : failedShards) {
-            if (routingNodes.getByAllocationId(failedShard.routingEntry.shardId(), failedShard.routingEntry.allocationId().getId()) != null) {
+        for (FailedShard failedShard : failedShards) {
+            if (routingNodes.getByAllocationId(failedShard.getRoutingEntry().shardId(),
+                                               failedShard.getRoutingEntry().allocationId().getId()) != null) {
                 fail("shard " + failedShard + " was not failed");
             }
         }

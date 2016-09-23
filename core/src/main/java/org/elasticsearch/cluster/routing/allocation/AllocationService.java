@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterInfoService;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
@@ -61,7 +60,6 @@ public class AllocationService extends AbstractComponent {
     private final GatewayAllocator gatewayAllocator;
     private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
-    private final ClusterName clusterName;
 
     @Inject
     public AllocationService(Settings settings, AllocationDeciders allocationDeciders, GatewayAllocator gatewayAllocator,
@@ -71,7 +69,6 @@ public class AllocationService extends AbstractComponent {
         this.gatewayAllocator = gatewayAllocator;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
-        clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
     }
 
     /**
@@ -91,10 +88,12 @@ public class AllocationService extends AbstractComponent {
         RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
-        StartedRerouteAllocation allocation = new StartedRerouteAllocation(allocationDeciders, routingNodes, clusterState, startedShards,
-            clusterInfoService.getClusterInfo(), currentNanoTime());
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState,
+            clusterInfoService.getClusterInfo(), currentNanoTime(), false);
         applyStartedShards(allocation, startedShards);
-        gatewayAllocator.applyStartedShards(allocation);
+        for (ShardRouting startedShard : startedShards) {
+            gatewayAllocator.applyStartedShard(startedShard);
+        }
         if (withReroute) {
             reroute(allocation);
         }
@@ -123,11 +122,11 @@ public class AllocationService extends AbstractComponent {
     }
 
     public ClusterState applyFailedShard(ClusterState clusterState, ShardRouting failedShard) {
-        return applyFailedShards(clusterState, Collections.singletonList(new FailedRerouteAllocation.FailedShard(failedShard, null, null)),
+        return applyFailedShards(clusterState, Collections.singletonList(new FailedShard(failedShard, null, null)),
             Collections.emptyList());
     }
 
-    public ClusterState applyFailedShards(ClusterState clusterState, List<FailedRerouteAllocation.FailedShard> failedShards) {
+    public ClusterState applyFailedShards(ClusterState clusterState, List<FailedShard> failedShards) {
         return applyFailedShards(clusterState, failedShards, Collections.emptyList());
     }
 
@@ -139,8 +138,8 @@ public class AllocationService extends AbstractComponent {
      * <p>
      * If the same instance of ClusterState is returned, then no change has been made.</p>
      */
-    public ClusterState applyFailedShards(final ClusterState clusterState, List<FailedRerouteAllocation.FailedShard> failedShards,
-                                            List<FailedRerouteAllocation.StaleShard> staleShards) {
+    public ClusterState applyFailedShards(final ClusterState clusterState, final List<FailedShard> failedShards,
+                                          final List<StaleShard> staleShards) {
         if (staleShards.isEmpty() && failedShards.isEmpty()) {
             return clusterState;
         }
@@ -150,11 +149,11 @@ public class AllocationService extends AbstractComponent {
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
         long currentNanoTime = currentNanoTime();
-        FailedRerouteAllocation allocation = new FailedRerouteAllocation(allocationDeciders, routingNodes, tmpState, failedShards,
-            clusterInfoService.getClusterInfo(), currentNanoTime);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, tmpState,
+            clusterInfoService.getClusterInfo(), currentNanoTime, false);
 
-        for (FailedRerouteAllocation.FailedShard failedShardEntry : failedShards) {
-            ShardRouting shardToFail = failedShardEntry.routingEntry;
+        for (FailedShard failedShardEntry : failedShards) {
+            ShardRouting shardToFail = failedShardEntry.getRoutingEntry();
             IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardToFail.shardId().getIndex());
             allocation.addIgnoreShardForNode(shardToFail.shardId(), shardToFail.currentNodeId());
             // failing a primary also fails initializing replica shards, re-resolve ShardRouting
@@ -165,18 +164,20 @@ public class AllocationService extends AbstractComponent {
                         shardToFail.shardId(), shardToFail, failedShard);
                 }
                 int failedAllocations = failedShard.unassignedInfo() != null ? failedShard.unassignedInfo().getNumFailedAllocations() : 0;
-                UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, failedShardEntry.message,
-                    failedShardEntry.failure, failedAllocations + 1, currentNanoTime, System.currentTimeMillis(), false,
+                UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, failedShardEntry.getMessage(),
+                    failedShardEntry.getFailure(), failedAllocations + 1, currentNanoTime, System.currentTimeMillis(), false,
                     AllocationStatus.NO_ATTEMPT);
                 routingNodes.failShard(logger, failedShard, unassignedInfo, indexMetaData, allocation.changes());
             } else {
                 logger.trace("{} shard routing failed in an earlier iteration (routing: {})", shardToFail.shardId(), shardToFail);
             }
         }
-        gatewayAllocator.applyFailedShards(allocation);
+        for (FailedShard failedShard : failedShards) {
+            gatewayAllocator.applyFailedShard(failedShard.getRoutingEntry());
+        }
 
         reroute(allocation);
-        String failedShardsAsString = firstListElementsToCommaDelimitedString(failedShards, s -> s.routingEntry.shardId().toString());
+        String failedShardsAsString = firstListElementsToCommaDelimitedString(failedShards, s -> s.getRoutingEntry().shardId().toString());
         return buildResultAndLogHealthChange(clusterState, allocation, "shards failed [" + failedShardsAsString + "] ...");
     }
 

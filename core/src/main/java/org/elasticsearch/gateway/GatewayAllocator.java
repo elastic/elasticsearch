@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -114,14 +115,18 @@ public class GatewayAllocator extends AbstractComponent {
         return count;
     }
 
-    public void applyStartedShard(final ShardRouting startedShard) {
-        Releasables.close(asyncFetchStarted.remove(startedShard.shardId()));
-        Releasables.close(asyncFetchStore.remove(startedShard.shardId()));
+    public void applyStartedShards(final RoutingAllocation allocation, final List<ShardRouting> startedShards) {
+        for (ShardRouting startedShard : startedShards) {
+            Releasables.close(asyncFetchStarted.remove(startedShard.shardId()));
+            Releasables.close(asyncFetchStore.remove(startedShard.shardId()));
+        }
     }
 
-    public void applyFailedShard(final ShardRouting failedShard) {
-        Releasables.close(asyncFetchStarted.remove(failedShard.shardId()));
-        Releasables.close(asyncFetchStore.remove(failedShard.shardId()));
+    public void applyFailedShards(final RoutingAllocation allocation, final List<FailedShard> failedShards) {
+        for (FailedShard failedShard : failedShards) {
+            Releasables.close(asyncFetchStarted.remove(failedShard.getRoutingEntry().shardId()));
+            Releasables.close(asyncFetchStore.remove(failedShard.getRoutingEntry().shardId()));
+        }
     }
 
     public void allocateUnassigned(final RoutingAllocation allocation) {

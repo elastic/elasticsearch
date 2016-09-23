@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
@@ -209,12 +210,12 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         }
 
         @Override
-        public void applyStartedShard(ShardRouting shardRouting) {
+        public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
             // no-op
         }
 
         @Override
-        public void applyFailedShard(ShardRouting shardRouting) {
+        public void applyFailedShards(RoutingAllocation allocation, List<FailedShard> failedShards) {
             // no-op
         }
 

@@ -336,7 +336,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
                 Set<String> insyncAids = shardTable.activeShards().stream().map(
                     shr -> shr.allocationId().getId()).collect(Collectors.toSet());
                 final ShardRouting primaryShard = shardTable.primaryShard();
-                if (primaryShard.initializing() &&
+                if (primaryShard.initializing() && primaryShard.relocating() == false &&
                     RecoverySource.isInitialRecovery(primaryShard.recoverySource().getType()) == false ) {
                     // simulate a primary was initialized based on aid
                     insyncAids.add(primaryShard.allocationId().getId());

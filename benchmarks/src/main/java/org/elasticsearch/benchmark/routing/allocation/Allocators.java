@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -37,6 +38,7 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 public final class Allocators {
@@ -48,12 +50,12 @@ public final class Allocators {
         }
 
         @Override
-        public void applyStartedShard(ShardRouting shardRouting) {
+        public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
             // noop
         }
 
         @Override
-        public void applyFailedShard(ShardRouting shardRouting) {
+        public void applyFailedShards(RoutingAllocation allocation, List<FailedShard> failedShards) {
             // noop
         }
 

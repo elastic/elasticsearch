@@ -91,9 +91,7 @@ public class AllocationService extends AbstractComponent {
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState,
             clusterInfoService.getClusterInfo(), currentNanoTime(), false);
         applyStartedShards(allocation, startedShards);
-        for (ShardRouting startedShard : startedShards) {
-            gatewayAllocator.applyStartedShard(startedShard);
-        }
+        gatewayAllocator.applyStartedShards(allocation, startedShards);
         if (withReroute) {
             reroute(allocation);
         }
@@ -172,9 +170,7 @@ public class AllocationService extends AbstractComponent {
                 logger.trace("{} shard routing failed in an earlier iteration (routing: {})", shardToFail.shardId(), shardToFail);
             }
         }
-        for (FailedShard failedShard : failedShards) {
-            gatewayAllocator.applyFailedShard(failedShard.getRoutingEntry());
-        }
+        gatewayAllocator.applyFailedShards(allocation, failedShards);
 
         reroute(allocation);
         String failedShardsAsString = firstListElementsToCommaDelimitedString(failedShards, s -> s.getRoutingEntry().shardId().toString());

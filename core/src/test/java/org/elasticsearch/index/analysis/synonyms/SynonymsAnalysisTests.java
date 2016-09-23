@@ -30,7 +30,7 @@ import org.elasticsearch.common.lucene.all.AllTokenStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class SynonymsAnalysisTests extends ESTestCase {
     protected final Logger logger = Loggers.getLogger(getClass());
-    private AnalysisService analysisService;
+    private IndexAnalyzers indexAnalyzers;
 
     public void testSynonymsAnalysis() throws IOException {
         InputStream synonyms = getClass().getResourceAsStream("synonyms.txt");
@@ -64,7 +64,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        analysisService = createAnalysisService(idxSettings, settings);
+        indexAnalyzers = createTestAnalysis(idxSettings, settings).indexAnalyzers;
 
         match("synonymAnalyzer", "kimchy is the dude abides", "shay is the elasticsearch man!");
         match("synonymAnalyzer_file", "kimchy is the dude abides", "shay is the elasticsearch man!");
@@ -74,8 +74,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
     }
 
     private void match(String analyzerName, String source, String target) throws IOException {
-
-        Analyzer analyzer = analysisService.analyzer(analyzerName).analyzer();
+        Analyzer analyzer = indexAnalyzers.get(analyzerName).analyzer();
 
         TokenStream stream = AllTokenStream.allTokenStream("_all", source, 1.0f, analyzer);
         stream.reset();

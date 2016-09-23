@@ -318,13 +318,13 @@ public class StringFieldMapper extends FieldMapper {
                     // we need to update to actual analyzers if they are not set in this case...
                     // so we can inject the position increment gap...
                     if (builder.fieldType().indexAnalyzer() == null) {
-                        builder.fieldType().setIndexAnalyzer(parserContext.analysisService().defaultIndexAnalyzer());
+                        builder.fieldType().setIndexAnalyzer(parserContext.getIndexAnalyzers().getDefaultIndexAnalyzer());
                     }
                     if (builder.fieldType().searchAnalyzer() == null) {
-                        builder.fieldType().setSearchAnalyzer(parserContext.analysisService().defaultSearchAnalyzer());
+                        builder.fieldType().setSearchAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchAnalyzer());
                     }
                     if (builder.fieldType().searchQuoteAnalyzer() == null) {
-                        builder.fieldType().setSearchQuoteAnalyzer(parserContext.analysisService().defaultSearchQuoteAnalyzer());
+                        builder.fieldType().setSearchQuoteAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchQuoteAnalyzer());
                     }
                     iterator.remove();
                 } else if (propName.equals("ignore_above")) {

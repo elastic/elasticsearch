@@ -27,7 +27,6 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -294,9 +293,6 @@ public class TestSearchContext extends SearchContext {
         }
         return null;
     }
-
-    @Override
-    public AnalysisService analysisService() { return indexService.analysisService();}
 
     @Override
     public SimilarityService similarityService() {

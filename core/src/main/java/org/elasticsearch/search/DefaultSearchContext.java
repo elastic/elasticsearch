@@ -39,7 +39,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -495,11 +494,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public MapperService mapperService() {
         return indexService.mapperService();
-    }
-
-    @Override
-    public AnalysisService analysisService() {
-        return indexService.analysisService();
     }
 
     @Override

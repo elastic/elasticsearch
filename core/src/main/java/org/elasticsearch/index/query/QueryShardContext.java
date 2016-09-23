@@ -41,7 +41,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -116,8 +116,8 @@ public class QueryShardContext extends QueryRewriteContext {
         this.isFilter = false;
     }
 
-    public AnalysisService getAnalysisService() {
-        return mapperService.analysisService();
+    public IndexAnalyzers getIndexAnalyzers() {
+        return mapperService.getIndexAnalyzers();
     }
 
     public Similarity getSearchSimilarity() {

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.bucketselector.BucketSelectorPipelineAggregationBuilder;
@@ -47,7 +46,7 @@ public class BucketSelectorTests extends BasePipelineAggregationTestCase<BucketS
                 params = new HashMap<String, Object>();
                 params.put("foo", "bar");
             }
-            script = new Script("script", randomFrom(ScriptType.values()), randomFrom("my_lang", null), params);
+            script = new Script("script", randomFrom(Script.ScriptType.values()), randomFrom("my_lang", null), params);
         }
         BucketSelectorPipelineAggregationBuilder factory = new BucketSelectorPipelineAggregationBuilder(name, bucketsPaths, script);
         if (randomBoolean()) {

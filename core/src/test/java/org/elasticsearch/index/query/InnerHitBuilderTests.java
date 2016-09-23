@@ -34,7 +34,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -364,7 +364,7 @@ public class InnerHitBuilderTests extends ESTestCase {
     }
 
     static SearchSourceBuilder.ScriptField randomScript() {
-        ScriptService.ScriptType randomScriptType = randomFrom(ScriptService.ScriptType.values());
+        ScriptType randomScriptType = randomFrom(Script.ScriptType.values());
         Map<String, Object> randomMap = null;
         if (randomBoolean()) {
             randomMap = new HashMap<>();

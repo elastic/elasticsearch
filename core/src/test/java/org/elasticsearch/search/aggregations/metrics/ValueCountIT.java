@@ -28,10 +28,7 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
@@ -43,7 +40,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -161,7 +157,7 @@ public class ValueCountIT extends ESIntegTestCase {
 
     public void testSingleValuedScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(new Script("value", ScriptType.INLINE, FieldValueScriptEngine.NAME, null))).execute().actionGet();
+                .addAggregation(count("count").script(new Script("value", Script.ScriptType.INLINE, FieldValueScriptEngine.NAME, null))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -173,7 +169,7 @@ public class ValueCountIT extends ESIntegTestCase {
 
     public void testMultiValuedScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(new Script("values", ScriptType.INLINE, FieldValueScriptEngine.NAME, null))).execute().actionGet();
+                .addAggregation(count("count").script(new Script("values", Script.ScriptType.INLINE, FieldValueScriptEngine.NAME, null))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -186,7 +182,7 @@ public class ValueCountIT extends ESIntegTestCase {
     public void testSingleValuedScriptWithParams() throws Exception {
         Map<String, Object> params = Collections.singletonMap("s", "value");
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(new Script("", ScriptType.INLINE, FieldValueScriptEngine.NAME, params))).execute().actionGet();
+                .addAggregation(count("count").script(new Script("", Script.ScriptType.INLINE, FieldValueScriptEngine.NAME, params))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -199,7 +195,7 @@ public class ValueCountIT extends ESIntegTestCase {
     public void testMultiValuedScriptWithParams() throws Exception {
         Map<String, Object> params = Collections.singletonMap("s", "values");
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(new Script("", ScriptType.INLINE, FieldValueScriptEngine.NAME, params))).execute().actionGet();
+                .addAggregation(count("count").script(new Script("", Script.ScriptType.INLINE, FieldValueScriptEngine.NAME, params))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 

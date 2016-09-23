@@ -36,7 +36,6 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.junit.Before;
 
@@ -104,7 +103,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
 
     @Override
     protected TemplateQueryBuilder doCreateTestQueryBuilder() {
-        return new TemplateQueryBuilder(new Script(templateBase.toString(), ScriptType.INLINE, "mustache", null, null));
+        return new TemplateQueryBuilder(new Script(templateBase.toString(), Script.ScriptType.INLINE, "mustache", null, null));
     }
 
     @Override
@@ -136,7 +135,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
     public void testJSONGeneration() throws IOException {
         Map<String, Object> vars = new HashMap<>();
         vars.put("template", "filled");
-        TemplateQueryBuilder builder = new TemplateQueryBuilder("I am a $template string", ScriptType.INLINE, vars);
+        TemplateQueryBuilder builder = new TemplateQueryBuilder("I am a $template string", Script.ScriptType.INLINE, vars);
         XContentBuilder content = XContentFactory.jsonBuilder();
         content.startObject();
         builder.doXContent(content, null);
@@ -151,7 +150,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         String query = "{\"template\": {\"inline\": \"{\\\"match_{{template}}\\\": {}}\\\"\",\"params\" : {\"template\" : \"all\"}}}";
         Map<String, Object> params = new HashMap<>();
         params.put("template", "all");
-        QueryBuilder expectedBuilder = new TemplateQueryBuilder(expectedTemplateString, ScriptType.INLINE, params);
+        QueryBuilder expectedBuilder = new TemplateQueryBuilder(expectedTemplateString, Script.ScriptType.INLINE, params);
         assertParsedQuery(query, expectedBuilder);
     }
 
@@ -160,14 +159,14 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         String query = "{\"template\": {\"inline\": {\"match_{{template}}\": {}},\"params\" : {\"template\" : \"all\"}}}";
         Map<String, Object> params = new HashMap<>();
         params.put("template", "all");
-        QueryBuilder expectedBuilder = new TemplateQueryBuilder(expectedTemplateString, ScriptType.INLINE, params, XContentType.JSON);
+        QueryBuilder expectedBuilder = new TemplateQueryBuilder(expectedTemplateString, Script.ScriptType.INLINE, params, XContentType.JSON);
         assertParsedQuery(query, expectedBuilder);
     }
 
     @Override
     public void testMustRewrite() throws IOException {
         String query = "{ \"match_all\" : {}}";
-        QueryBuilder builder = new TemplateQueryBuilder(new Script(query, ScriptType.INLINE, "mockscript",
+        QueryBuilder builder = new TemplateQueryBuilder(new Script(query, Script.ScriptType.INLINE, "mockscript",
         Collections.emptyMap(), XContentType.JSON));
         try {
             builder.toQuery(createShardContext());
@@ -180,11 +179,11 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
 
     public void testRewriteWithInnerName() throws IOException {
         final String query = "{ \"match_all\" : {\"_name\" : \"foobar\"}}";
-        QueryBuilder builder = new TemplateQueryBuilder(new Script(query, ScriptType.INLINE, "mockscript",
+        QueryBuilder builder = new TemplateQueryBuilder(new Script(query, Script.ScriptType.INLINE, "mockscript",
              Collections.emptyMap(), XContentType.JSON));
         assertEquals(new MatchAllQueryBuilder().queryName("foobar"), builder.rewrite(createShardContext()));
 
-        builder = new TemplateQueryBuilder(new Script(query, ScriptType.INLINE, "mockscript",
+        builder = new TemplateQueryBuilder(new Script(query, Script.ScriptType.INLINE, "mockscript",
             Collections.emptyMap(), XContentType.JSON)).queryName("outer");
         assertEquals(new BoolQueryBuilder().must(new MatchAllQueryBuilder().queryName("foobar")).queryName("outer"),
             builder.rewrite(createShardContext()));
@@ -192,11 +191,11 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
 
     public void testRewriteWithInnerBoost() throws IOException {
         final TermQueryBuilder query = new TermQueryBuilder("foo", "bar").boost(2);
-        QueryBuilder builder = new TemplateQueryBuilder(new Script(query.toString(), ScriptType.INLINE, "mockscript",
+        QueryBuilder builder = new TemplateQueryBuilder(new Script(query.toString(), Script.ScriptType.INLINE, "mockscript",
             Collections.emptyMap(), XContentType.JSON));
         assertEquals(query, builder.rewrite(createShardContext()));
 
-        builder = new TemplateQueryBuilder(new Script(query.toString(), ScriptType.INLINE, "mockscript",
+        builder = new TemplateQueryBuilder(new Script(query.toString(), Script.ScriptType.INLINE, "mockscript",
             Collections.emptyMap(), XContentType.JSON)).boost(3);
         assertEquals(new BoolQueryBuilder().must(query).boost(3), builder.rewrite(createShardContext()));
     }

@@ -31,7 +31,6 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
@@ -514,9 +513,9 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             Map<String, Object> params = null;
             params = new HashMap<>();
             params.put("param", randomIntBetween(1, 100));
-            script = new Script("native_significance_score_script_with_params", ScriptType.INLINE, "native", params);
+            script = new Script("native_significance_score_script_with_params", Script.ScriptType.INLINE, "native", params);
         } else {
-            script = new Script("native_significance_score_script_no_params", ScriptType.INLINE, "native", null);
+            script = new Script("native_significance_score_script_no_params", Script.ScriptType.INLINE, "native", null);
         }
         return new ScriptHeuristic(script);
     }

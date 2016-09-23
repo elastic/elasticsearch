@@ -24,7 +24,6 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -104,7 +103,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
                 new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
             public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params) {
-                return new CompiledScript(ScriptType.INLINE, "mockName", "test", script);
+                return new CompiledScript(Script.ScriptType.INLINE, "mockName", "test", script);
             }
         };
 

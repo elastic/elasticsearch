@@ -26,7 +26,6 @@ import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -68,7 +67,7 @@ public class GroovyScriptTests extends ESIntegTestCase {
     }
 
     public void assertScript(String scriptString) {
-        Script script = new Script(scriptString, ScriptType.INLINE, GroovyScriptEngineService.NAME, null);
+        Script script = new Script(scriptString, Script.ScriptType.INLINE, GroovyScriptEngineService.NAME, null);
         SearchResponse resp = client().prepareSearch("test")
                 .setSource(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).sort(SortBuilders.
                         scriptSort(script, ScriptSortType.NUMBER)))
@@ -85,7 +84,7 @@ public class GroovyScriptTests extends ESIntegTestCase {
         try {
             client().prepareSearch("test")
                     .setQuery(
-                            constantScoreQuery(scriptQuery(new Script("1 == not_found", ScriptType.INLINE, GroovyScriptEngineService.NAME,
+                            constantScoreQuery(scriptQuery(new Script("1 == not_found", Script.ScriptType.INLINE, GroovyScriptEngineService.NAME,
                                     null)))).get();
             fail("should have thrown an exception");
         } catch (SearchPhaseExecutionException e) {
@@ -100,7 +99,7 @@ public class GroovyScriptTests extends ESIntegTestCase {
         try {
             client().prepareSearch("test")
                     .setQuery(constantScoreQuery(scriptQuery(
-                            new Script("null.foo", ScriptType.INLINE, GroovyScriptEngineService.NAME, null)))).get();
+                            new Script("null.foo", Script.ScriptType.INLINE, GroovyScriptEngineService.NAME, null)))).get();
             fail("should have thrown an exception");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString() + "should not contained NotSerializableTransportException",
@@ -120,7 +119,7 @@ public class GroovyScriptTests extends ESIntegTestCase {
 
         // doc[] access
         SearchResponse resp = client().prepareSearch("test").setQuery(functionScoreQuery(scriptFunction(
-                new Script("doc['bar'].value", ScriptType.INLINE, GroovyScriptEngineService.NAME, null)))
+                new Script("doc['bar'].value", Script.ScriptType.INLINE, GroovyScriptEngineService.NAME, null)))
                         .boostMode(CombineFunction.REPLACE)).get();
 
         assertNoFailures(resp);
@@ -135,7 +134,7 @@ public class GroovyScriptTests extends ESIntegTestCase {
 
         // _score can be accessed
         SearchResponse resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchQuery("foo", "dog"),
-                scriptFunction(new Script("_score", ScriptType.INLINE, GroovyScriptEngineService.NAME, null)))
+                scriptFunction(new Script("_score", Script.ScriptType.INLINE, GroovyScriptEngineService.NAME, null)))
             .boostMode(CombineFunction.REPLACE)).get();
         assertNoFailures(resp);
         assertSearchHits(resp, "3", "1");
@@ -147,7 +146,7 @@ public class GroovyScriptTests extends ESIntegTestCase {
                 .prepareSearch("test")
                 .setQuery(
                         functionScoreQuery(matchQuery("foo", "dog"), scriptFunction(
-                                new Script("_score > 0.0 ? _score : 0", ScriptType.INLINE, GroovyScriptEngineService.NAME, null)))
+                                new Script("_score > 0.0 ? _score : 0", Script.ScriptType.INLINE, GroovyScriptEngineService.NAME, null)))
                                         .boostMode(CombineFunction.REPLACE)).get();
         assertNoFailures(resp);
         assertSearchHits(resp, "3", "1");

@@ -28,7 +28,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.Script;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -52,7 +52,7 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
 
         String id = request.param("id");
         if (id != null) {
-            renderRequest.setScriptType(ScriptService.ScriptType.STORED);
+            renderRequest.setScriptType(Script.ScriptType.STORED);
             renderRequest.setScript(id);
         }
 

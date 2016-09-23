@@ -22,6 +22,7 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.Script.ScriptType;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,11 +44,11 @@ public class ScriptSettings {
     @Deprecated
     public static final String LEGACY_SCRIPT_SETTING = "script.legacy.default_lang";
 
-    private static final Map<ScriptService.ScriptType, Setting<Boolean>> SCRIPT_TYPE_SETTING_MAP;
+    private static final Map<ScriptType, Setting<Boolean>> SCRIPT_TYPE_SETTING_MAP;
 
     static {
-        Map<ScriptService.ScriptType, Setting<Boolean>> scriptTypeSettingMap = new HashMap<>();
-        for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
+        Map<ScriptType, Setting<Boolean>> scriptTypeSettingMap = new HashMap<>();
+        for (ScriptType scriptType : Script.ScriptType.values()) {
             scriptTypeSettingMap.put(scriptType, Setting.boolSetting(
                 ScriptModes.sourceKey(scriptType),
                 scriptType.getDefaultScriptEnabled(),
@@ -84,7 +85,7 @@ public class ScriptSettings {
         return scriptContextSettingMap;
     }
 
-    private static List<Setting<Boolean>> languageSettings(Map<ScriptService.ScriptType, Setting<Boolean>> scriptTypeSettingMap,
+    private static List<Setting<Boolean>> languageSettings(Map<ScriptType, Setting<Boolean>> scriptTypeSettingMap,
                                                               Map<ScriptContext, Setting<Boolean>> scriptContextSettingMap,
                                                               ScriptEngineRegistry scriptEngineRegistry,
                                                               ScriptContextRegistry scriptContextRegistry) {
@@ -96,13 +97,13 @@ public class ScriptSettings {
                 continue;
             }
             final String language = scriptEngineRegistry.getLanguage(scriptEngineService);
-            for (final ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
+            for (final ScriptType scriptType : Script.ScriptType.values()) {
                 // Top level, like "script.engine.groovy.inline"
                 final boolean defaultNonFileScriptMode = scriptEngineRegistry.getDefaultInlineScriptEnableds().get(language);
                 boolean defaultLangAndType = defaultNonFileScriptMode;
                 // Files are treated differently because they are never default-deny
-                if (ScriptService.ScriptType.FILE == scriptType) {
-                    defaultLangAndType = ScriptService.ScriptType.FILE.getDefaultScriptEnabled();
+                if (Script.ScriptType.FILE == scriptType) {
+                    defaultLangAndType = Script.ScriptType.FILE.getDefaultScriptEnabled();
                 }
                 final boolean defaultIfNothingSet = defaultLangAndType;
 

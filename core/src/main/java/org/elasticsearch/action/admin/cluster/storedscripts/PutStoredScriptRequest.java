@@ -23,7 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
+import org.elasticsearch.script.Script.StoredScriptSource;
 
 import java.io.IOException;
 

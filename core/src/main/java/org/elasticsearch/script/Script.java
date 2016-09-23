@@ -19,273 +19,711 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
-/**
- * Script holds all the parameters necessary to compile or find in cache and then execute a script.
- */
-public final class Script implements ToXContent, Writeable {
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.script.Script.ScriptType.FILE;
+import static org.elasticsearch.script.Script.ScriptType.INLINE;
+import static org.elasticsearch.script.Script.ScriptType.STORED;
 
-    public static final ScriptType DEFAULT_TYPE = ScriptType.INLINE;
-    public static final String DEFAULT_SCRIPT_LANG = "painless";
+public final class Script {
 
-    private String script;
-    private ScriptType type;
-    @Nullable private String lang;
-    @Nullable private Map<String, Object> params;
-    @Nullable private XContentType contentType;
+    public enum ScriptType {
 
-    /**
-     * Constructor for simple inline script. The script will have no lang or params set.
-     *
-     * @param script The inline script to execute.
-     */
-    public Script(String script) {
-        this(script, ScriptType.INLINE, null, null);
-    }
+        INLINE( 0 , "inline" , new ParseField("inline")       , false ),
+        STORED( 1 , "stored" , new ParseField("stored", "id") , false ),
+        FILE(   2 , "file"   , new ParseField("file")         , true  );
 
-    public Script(String script, ScriptType type, String lang, @Nullable Map<String, ?> params) {
-        this(script, type, lang, params, null);
-    }
-
-    /**
-     * Constructor for Script.
-     *
-     * @param script        The cache key of the script to be compiled/executed. For inline scripts this is the actual
-     *                      script source code. For indexed scripts this is the id used in the request. For on file
-     *                      scripts this is the file name.
-     * @param type          The type of script -- dynamic, stored, or file.
-     * @param lang          The language of the script to be compiled/executed.
-     * @param params        The map of parameters the script will be executed with.
-     * @param contentType   The {@link XContentType} of the script. Only relevant for inline scripts that have not been
-     *                      defined as a plain string, but as json or yaml content. This class needs this information
-     *                      when serializing the script back to xcontent.
-     */
-    @SuppressWarnings("unchecked")
-    public Script(String script, ScriptType type, String lang, @Nullable Map<String, ?> params,
-                  @Nullable XContentType  contentType) {
-        if (contentType != null && type != ScriptType.INLINE) {
-            throw new IllegalArgumentException("The parameter contentType only makes sense for inline scripts");
-        }
-        this.script = Objects.requireNonNull(script);
-        this.type = Objects.requireNonNull(type);
-        this.lang = lang == null ? DEFAULT_SCRIPT_LANG : lang;
-        this.params = (Map<String, Object>) params;
-        this.contentType = contentType;
-    }
-
-    public Script(StreamInput in) throws IOException {
-        script = in.readString();
-        if (in.readBoolean()) {
-            type = ScriptType.readFrom(in);
-        }
-        lang = in.readOptionalString();
-        params = in.readMap();
-        if (in.readBoolean()) {
-            contentType = XContentType.readFrom(in);
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(script);
-        boolean hasType = type != null;
-        out.writeBoolean(hasType);
-        if (hasType) {
-            ScriptType.writeTo(type, out);
-        }
-        out.writeOptionalString(lang);
-        out.writeMap(params);
-        boolean hasContentType = contentType != null;
-        out.writeBoolean(hasContentType);
-        if (hasContentType) {
-            XContentType.writeTo(contentType, out);
-        }
-    }
-
-    /**
-     * Method for getting the script.
-     * @return The cache key of the script to be compiled/executed.  For dynamic scripts this is the actual
-     *         script source code.  For indexed scripts this is the id used in the request.  For on disk scripts
-     *         this is the file name.
-     */
-    public String getScript() {
-        return script;
-    }
-
-    /**
-     * Method for getting the type.
-     *
-     * @return The type of script -- inline, stored, or file.
-     */
-    public ScriptType getType() {
-        return type;
-    }
-
-    /**
-     * Method for getting language.
-     *
-     * @return The language of the script to be compiled/executed.
-     */
-    public String getLang() {
-        return lang;
-    }
-
-    /**
-     * Method for getting the parameters.
-     *
-     * @return The map of parameters the script will be executed with.
-     */
-    public Map<String, Object> getParams() {
-        return params;
-    }
-
-    /**
-     * @return The content type of the script if it is an inline script and the script has been defined as json
-     *         or yaml content instead of a plain string.
-     */
-    public XContentType getContentType() {
-        return contentType;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
-        if (type == null) {
-            return builder.value(script);
-        }
-        builder.startObject();
-        if (type == ScriptType.INLINE && contentType != null && builder.contentType() == contentType) {
-            builder.rawField(type.getParseField().getPreferredName(), new BytesArray(script));
-        } else {
-            builder.field(type.getParseField().getPreferredName(), script);
-        }
-        if (lang != null) {
-            builder.field(ScriptField.LANG.getPreferredName(), lang);
-        }
-        if (params != null) {
-            builder.field(ScriptField.PARAMS.getPreferredName(), params);
-        }
-        builder.endObject();
-        return builder;
-    }
-
-    public static Script parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return parse(parser, parseFieldMatcher, null);
-    }
-
-    public static Script parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, @Nullable String lang) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        // If the parser hasn't yet been pushed to the first token, do it now
-        if (token == null) {
-            token = parser.nextToken();
-        }
-        if (token == XContentParser.Token.VALUE_STRING) {
-            return new Script(parser.text(), ScriptType.INLINE, lang, null);
-        }
-        if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("expected a string value or an object, but found [{}] instead", token);
-        }
-        String script = null;
-        ScriptType type = null;
-        Map<String, Object> params = null;
-        XContentType contentType = null;
-        String cfn = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                cfn = parser.currentName();
-            } else if (parseFieldMatcher.match(cfn, ScriptType.INLINE.getParseField())) {
-                type = ScriptType.INLINE;
-                if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                    contentType = parser.contentType();
-                    XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-                    script = builder.copyCurrentStructure(parser).bytes().utf8ToString();
-                } else {
-                    script = parser.text();
+        public static ScriptType fromValue(int value) throws IOException {
+            for (ScriptType type : values()) {
+                if (type.value == value) {
+                    return type;
                 }
-            } else if (parseFieldMatcher.match(cfn, ScriptType.FILE.getParseField())) {
-                type = ScriptType.FILE;
-                if (token == XContentParser.Token.VALUE_STRING) {
-                    script = parser.text();
-                } else {
-                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", cfn, token);
+            }
+
+            throw new IllegalArgumentException("unexpected script type [" + value + "], " + "expected one of [" +
+                FILE.value + "(" + FILE.name + "), " +
+                STORED.value + "(" + STORED.name + "), " +
+                INLINE.value + "(" + INLINE.name + ")]");
+        }
+
+        public static ScriptType fromName(String name) throws IOException {
+            for (ScriptType type : values()) {
+                if (type.name.equals(name)) {
+                    return type;
                 }
-            } else if (parseFieldMatcher.match(cfn, ScriptType.STORED.getParseField())) {
-                type = ScriptType.STORED;
-                if (token == XContentParser.Token.VALUE_STRING) {
-                    script = parser.text();
-                } else {
-                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", cfn, token);
-                }
-            } else if (parseFieldMatcher.match(cfn, ScriptField.LANG)) {
-                if (token == XContentParser.Token.VALUE_STRING) {
-                    lang = parser.text();
-                } else {
-                    throw new ElasticsearchParseException("expected a string value for field [{}], but found [{}]", cfn, token);
-                }
-            } else if (parseFieldMatcher.match(cfn, ScriptField.PARAMS)) {
-                if (token == XContentParser.Token.START_OBJECT) {
-                    params = parser.map();
-                } else {
-                    throw new ElasticsearchParseException("expected an object for field [{}], but found [{}]", cfn, token);
-                }
-            } else {
-                throw new ElasticsearchParseException("unexpected field [{}]", cfn);
+            }
+
+            throw new IllegalArgumentException("unexpected script type [" + name + "], " + "expected one of " +
+                "[" + FILE.name + ", " + STORED.name + ", " + INLINE.name + ")]");
+        }
+
+        public final int value;
+        public final String name;
+        public final ParseField parse;
+        public final boolean enabled;
+
+        ScriptType(int value, String name, ParseField parse, boolean enabled) {
+            this.value = value;
+            this.name = name;
+            this.parse = parse;
+            this.enabled = enabled;
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
+
+    public static final class ScriptField {
+
+        public static final ParseField SCRIPT = new ParseField("script");
+        public static final ParseField TEMPLATE = new ParseField("template");
+        public static final ParseField CONTEXT = new ParseField("context");
+        public static final ParseField LANG = new ParseField("lang");
+        public static final ParseField CODE = new ParseField("code");
+        public static final ParseField PARAMS = new ParseField("params");
+
+        private ScriptField() {}
+    }
+
+    public static final class StoredScriptSource extends AbstractDiffable<StoredScriptSource> implements ToXContent {
+
+        private static final class StoredScriptSourceParserContext implements ParseFieldMatcherSupplier {
+
+            private final ParseFieldMatcher parseFieldMatcher;
+
+            StoredScriptSourceParserContext() {
+                this.parseFieldMatcher = new ParseFieldMatcher(true);
+            }
+
+            @Override
+            public ParseFieldMatcher getParseFieldMatcher() {
+                return parseFieldMatcher;
             }
         }
-        if (script == null) {
-            throw new ElasticsearchParseException("expected one of [{}], [{}] or [{}] fields, but found none",
-                    ScriptType.INLINE.getParseField() .getPreferredName(), ScriptType.FILE.getParseField().getPreferredName(),
-                    ScriptType.STORED.getParseField() .getPreferredName());
+
+        private static final ConstructingObjectParser<StoredScriptSource, StoredScriptSourceParserContext> CONSTRUCTOR =
+            new ConstructingObjectParser<>("StoredScriptSource", source -> new StoredScriptSource(
+                false, (String)source[0], source[1] == null ? Script.DEFAULT_SCRIPT_LANG : (String)source[1], (String)source[2], null));
+
+        static {
+                CONSTRUCTOR.declareString(optionalConstructorArg(), ScriptField.CONTEXT);
+                CONSTRUCTOR.declareString(optionalConstructorArg(), ScriptField.LANG);
+                CONSTRUCTOR.declareString(constructorArg(), ScriptField.CODE);
         }
-        return new Script(script, type, lang, params, contentType);
+
+        public static StoredScriptSource parse(XContentParser parser) throws IOException {
+            if (parser.currentToken() == null) {
+                parser.nextToken();
+            }
+
+            if (parser.currentToken() != Token.START_OBJECT) {
+                throw new ParsingException(parser.getTokenLocation(),
+                    "unexpected token [" + parser.currentToken() + "], expected start object [{]");
+            }
+
+            if (parser.nextToken() == Token.END_OBJECT) {
+                throw new ParsingException(parser.getTokenLocation(),
+                    "unexpected token [" + parser.currentToken() + "], expected [<code>]");
+            }
+
+            if (parser.currentToken() == Token.FIELD_NAME && ScriptField.SCRIPT.getPreferredName().equals(parser.currentName())) {
+                if (parser.nextToken() == Token.VALUE_STRING) {
+                    return new StoredScriptSource(false, null, Script.DEFAULT_SCRIPT_LANG, parser.text(), Collections.emptyMap());
+                } else if (parser.currentToken() == Token.START_OBJECT) {
+                    return CONSTRUCTOR.apply(parser, new StoredScriptSourceParserContext());
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                        "unexpected token [" + parser.currentToken() + "], expected [<code>]");
+                }
+            } else if (parser.currentToken() == Token.FIELD_NAME && ScriptField.TEMPLATE.getPreferredName().equals(parser.currentName())) {
+                if (parser.nextToken() == Token.VALUE_STRING) {
+                    return new StoredScriptSource(true, null, "mustache", parser.text(), null);
+                } else if (parser.currentToken() == Token.START_OBJECT) {
+                    XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
+                    builder.copyCurrentStructure(parser);
+
+                    Map<String, String> options = new HashMap<>();
+                    options.put(CONTENT_TYPE_OPTION, parser.contentType().mediaType());
+
+                    return new StoredScriptSource(true, null, "mustache", builder.bytes().utf8ToString(), options);
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                        "unexpected token [" + parser.currentToken() + "], expected [<template>]");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(),
+                    "unexpected token [" + parser.currentToken() + "], " +
+                        "expected [" + ScriptField.SCRIPT.getPreferredName() + ", " + ScriptField.TEMPLATE.getPreferredName() + "]");
+            }
+        }
+
+        public static StoredScriptSource staticReadFrom(StreamInput in) throws IOException {
+            boolean template = in.readBoolean();
+            String context = in.readOptionalString();
+            String lang = in.readString();
+            String code = in.readString();
+            Map<String, String> options = new HashMap<>();
+
+            for (int count = in.readInt(); count > 0; --count) {
+                options.put(in.readString(), in.readString());
+            }
+
+            return new StoredScriptSource(template, context, lang, code, options);
+        }
+
+        public final boolean template;
+        public final String context;
+        public final String lang;
+        public final String code;
+        public final Map<String, String> options;
+
+        public StoredScriptSource(boolean template, String context, String lang, String code, Map<String, String> options) {
+            this.template = template;
+            this.context = context;
+            this.lang = lang;
+            this.code = code;
+            this.options = Collections.unmodifiableMap(new HashMap<>(options));
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+
+            if (template) {
+                String content = options.get(CONTENT_TYPE_OPTION);
+
+                if (content != null && content.equals(builder.contentType().mediaType())) {
+                    builder.rawField(ScriptField.TEMPLATE.getPreferredName(), new BytesArray(code));
+                } else {
+                    builder.field(ScriptField.TEMPLATE.getPreferredName(), code);
+                }
+            } else {
+                builder.startObject(ScriptField.SCRIPT.getPreferredName());
+
+                if (context != null) {
+                    builder.field(ScriptField.CONTEXT.getPreferredName(), context);
+                }
+
+                builder.field(ScriptField.LANG.getPreferredName(), lang);
+                builder.field(ScriptField.CODE.getPreferredName(), code);
+
+                builder.endObject();
+            }
+
+            builder.endObject();
+
+            return builder;
+        }
+
+        @Override
+        public StoredScriptSource readFrom(StreamInput in) throws IOException {
+            return staticReadFrom(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(template);
+            out.writeOptionalString(context);
+            out.writeString(lang);
+            out.writeString(code);
+            out.writeInt(options.size());
+
+            for (Map.Entry<String, String> option : options.entrySet()) {
+                out.writeString(option.getKey());
+                out.writeString(option.getValue());
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            StoredScriptSource that = (StoredScriptSource)o;
+
+            if (template != that.template) return false;
+            if (context != null ? !context.equals(that.context) : that.context != null) return false;
+            if (!lang.equals(that.lang)) return false;
+            if (!code.equals(that.code)) return false;
+            return options.equals(that.options);
+
+        }
+
+        @Override
+        public int hashCode() {
+            int result = (template ? 1 : 0);
+            result = 31 * result + (context != null ? context.hashCode() : 0);
+            result = 31 * result + lang.hashCode();
+            result = 31 * result + code.hashCode();
+            result = 31 * result + options.hashCode();
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "StoredScriptSource{" +
+                "template=" + template +
+                ", context='" + context + '\'' +
+                ", lang='" + lang + '\'' +
+                ", code='" + code + '\'' +
+                ", options=" + options +
+                '}';
+        }
     }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(lang, params, script, type, contentType);
+    public static final class ScriptInput implements ToXContent, Writeable {
+
+        public static ScriptInput parse(XContentParser parser, ParseFieldMatcher matcher, String lang) throws IOException {
+            Token token = parser.currentToken();
+
+            if (token == null) {
+                token = parser.nextToken();
+            }
+
+            if (token == Token.VALUE_STRING) {
+                return new ScriptInput(new InlineScriptLookup(lang == null ? DEFAULT_SCRIPT_LANG : lang, parser.text(), null));
+            } else if (token != Token.START_OBJECT) {
+                throw new ParsingException(parser.getTokenLocation(),
+                    "unexpected value [" + parser.text() + "], expected [{, <code>]");
+            }
+
+            ScriptType type = null;
+            String id = null;
+            String code = null;
+            Map<String, String> options = new HashMap<>();
+            Map<String, Object> params = null;
+
+            String name = null;
+
+            while ((token = parser.nextToken()) != Token.END_OBJECT) {
+                if (token == Token.FIELD_NAME) {
+                    name = parser.currentName();
+                } else if (matcher.match(name, FILE.parse)) {
+                    if (type != null) {
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "unexpected script type [" + FILE.parse.getPreferredName() + "], " +
+                                "when type has already been specified [" + type.name + "]");
+                    }
+
+                    type = FILE;
+
+                    if (token == Token.VALUE_STRING) {
+                        id = parser.text();
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "unexpected value [" + parser.text() + "], expected [<id>]");
+                    }
+                } else if (matcher.match(name, STORED.parse)) {
+                    if (type != null) {
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "unexpected script type [" + STORED.parse.getPreferredName() + "], " +
+                                "when type has already been specified [" + type.name + "]");
+                    }
+
+                    type = STORED;
+
+                    if (token == Token.VALUE_STRING) {
+                        id = parser.text();
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "unexpected value [" + parser.text() + "], expected [<id>]");
+                    }
+                } else if (matcher.match(name, INLINE.parse)) {
+                    if (type != null) {
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "unexpected script type [" + INLINE.parse.getPreferredName() + "], " +
+                                "when type has already been specified [" + type.name + "]");
+                    }
+
+                    type = INLINE;
+
+                    if (parser.currentToken() == Token.START_OBJECT) {
+                        options.put(CONTENT_TYPE_OPTION, parser.contentType().mediaType());
+                        XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
+                        code = builder.copyCurrentStructure(parser).bytes().utf8ToString();
+                    } else {
+                        code = parser.text();
+                    }
+                } else if (matcher.match(name, ScriptField.LANG)) {
+                    if (token == Token.VALUE_STRING) {
+                        lang = parser.text();
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "unexpected value [" + parser.text() + "], expected [<lang>]");
+                    }
+                } else if (matcher.match(name, ScriptField.PARAMS)) {
+                    if (token == Token.START_OBJECT) {
+                        params = parser.map();
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "unexpected value [" + parser.text() + "], expected [<params>]");
+                    }
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                        "unexpected token [" + parser.currentToken() + "], expected [" +
+                            FILE.parse.getPreferredName() + ", " +
+                            STORED.parse.getPreferredName() + ", " +
+                            INLINE.parse.getPreferredName() + ", " +
+                            ScriptField.LANG.getPreferredName() + ", " +
+                            ScriptField.PARAMS.getPreferredName() +
+                        "]");
+                }
+            }
+
+            if (type == FILE) {
+                if (lang != null) {
+                    throw new IllegalArgumentException("[lang] should not be used when specifiying a [" + FILE.name + "] script");
+                }
+
+                if (id == null) {
+                    throw new IllegalArgumentException("must specify [id] when using an [" + FILE.name + "] script");
+                }
+
+                return new ScriptInput(new FileScriptLookup(id), params);
+            } else if (type == STORED) {
+                if (lang != null) {
+                    throw new IllegalArgumentException("[lang] should not be used when specifiying a [" + STORED.name + "] script");
+                }
+
+                if (id == null) {
+                    throw new IllegalArgumentException("must specify [id] when using an [" + STORED.name + "] script");
+                }
+
+                return new ScriptInput(new StoredScriptLookup(id), params);
+            } else if (type == INLINE) {
+                if (lang == null) {
+                    lang = DEFAULT_SCRIPT_LANG;
+                }
+
+                if (code == null) {
+                    throw new IllegalArgumentException("must specify [code] when using an [" + INLINE.name + "] script");
+                }
+
+                return new ScriptInput(new InlineScriptLookup(lang, code, options), params);
+            } else {
+                throw new IllegalArgumentException("must specify [type] of script, " +
+                    "expected [" + FILE.name + ", " + STORED.name + "," + INLINE.name + "]");
+            }
+        }
+
+        public static ScriptInput readFrom(StreamInput in) throws IOException {
+            ScriptType type = ScriptType.fromValue(in.readInt());
+            ScriptLookup lookup;
+
+            if (type == FILE) {
+                lookup = FileScriptLookup.readFrom(in);
+            } else if (type == STORED) {
+                lookup = StoredScriptLookup.readFrom(in);
+            } else if (type == INLINE) {
+                lookup = StoredScriptLookup.readFrom(in);
+            } else {
+                throw new IllegalArgumentException("unexpected script type [" + type.name + "], " +
+                    "expected [" + FILE.name + ", " + STORED.name + "," + INLINE.name + "]");
+            }
+
+            Map<String, Object> params = in.readMap();
+
+            return new ScriptInput(lookup, params);
+        }
+
+        public final ScriptLookup lookup;
+        public final Map<String, Object> params;
+
+        public ScriptInput(ScriptLookup lookup) {
+            this(lookup, null);
+        }
+
+        public ScriptInput(ScriptLookup lookup, Map<String, Object> params) {
+            this.lookup = lookup;
+
+            params = params == null ? new HashMap<>() : new HashMap<>(params);
+            this.params = Collections.unmodifiableMap(params);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            lookup.toXContent(builder, params);
+            builder.field(ScriptField.PARAMS.getPreferredName(), params);
+            builder.endObject();
+
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeInt(lookup.getType().value);
+            lookup.writeTo(out);
+            out.writeMap(params);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            ScriptInput that = (ScriptInput)o;
+
+            if (!lookup.equals(that.lookup)) return false;
+            return params.equals(that.params);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = lookup.hashCode();
+            result = 31 * result + params.hashCode();
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "ScriptInput{" +
+                "lookup=" + lookup +
+                ", params=" + params +
+                '}';
+        }
     }
 
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null) return false;
-        if (getClass() != obj.getClass()) return false;
-        Script other = (Script) obj;
+    public static final class FileScriptLookup implements ScriptLookup {
 
-        return Objects.equals(lang, other.lang) &&
-                Objects.equals(params, other.params) &&
-                Objects.equals(script, other.script) &&
-                Objects.equals(type, other.type) &&
-                Objects.equals(contentType, other.contentType);
+        public static FileScriptLookup readFrom(StreamInput in) throws IOException {
+            return new FileScriptLookup(in.readString());
+        }
+
+        public final String id;
+
+        public FileScriptLookup(String id) {
+            this.id = id;
+        }
+
+        @Override
+        public ScriptType getType() {
+            return FILE;
+        }
+
+        @Override
+        public CompiledScript getCompiled(ScriptService service, ScriptContext context) {
+            return null;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(id);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(FILE.parse.getPreferredName(), id);
+
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            FileScriptLookup that = (FileScriptLookup)o;
+
+            return id.equals(that.id);
+
+        }
+
+        @Override
+        public int hashCode() {
+            return id.hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return "FileScriptLookup{" +
+                "id='" + id + '\'' +
+                '}';
+        }
     }
 
-    @Override
-    public String toString() {
-        return "[script: " + script + ", type: " + type.getParseField().getPreferredName() + ", lang: "
-                + lang + ", params: " + params + "]";
+    public static final class StoredScriptLookup implements ScriptLookup {
+
+        public static StoredScriptLookup readFrom(StreamInput in) throws IOException {
+            return new StoredScriptLookup(in.readString());
+        }
+
+        public final String id;
+
+        public StoredScriptLookup(String id) {
+            this.id = id;
+        }
+
+        @Override
+        public ScriptType getType() {
+            return STORED;
+        }
+
+        @Override
+        public CompiledScript getCompiled(ScriptService service, ScriptContext context) {
+            return null;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(id);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(STORED.parse.getPreferredName(), id);
+
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            StoredScriptLookup that = (StoredScriptLookup)o;
+
+            return id.equals(that.id);
+
+        }
+
+        @Override
+        public int hashCode() {
+            return id.hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return "StoredScriptLookup{" +
+                "id='" + id + '\'' +
+                '}';
+        }
     }
 
-    public interface ScriptField {
-        ParseField SCRIPT = new ParseField("script");
-        ParseField LANG = new ParseField("lang");
-        ParseField PARAMS = new ParseField("params");
+    public static final class InlineScriptLookup implements ScriptLookup {
+
+        public static InlineScriptLookup readFrom(StreamInput in) throws IOException {
+            String lang = in.readString();
+            String code = in.readString();
+            Map<String, String> options = new HashMap<>();
+
+            for (int count = in.readInt(); count > 0; --count) {
+                options.put(in.readString(), in.readString());
+            }
+
+            return new InlineScriptLookup(lang, code, options);
+        }
+
+        public final String lang;
+        public final String code;
+        public final Map<String, String> options;
+
+        public InlineScriptLookup(String lang, String code, Map<String, String> options) {
+            this.lang = lang;
+            this.code = code;
+            this.options = Collections.unmodifiableMap(new HashMap<>(options));
+        }
+
+        @Override
+        public ScriptType getType() {
+            return INLINE;
+        }
+
+        @Override
+        public CompiledScript getCompiled(ScriptService service, ScriptContext context) {
+            return null;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(lang);
+            out.writeString(code);
+            out.writeInt(options.size());
+
+            for (Map.Entry<String, String> option : options.entrySet()) {
+                out.writeString(option.getKey());
+                out.writeString(option.getValue());
+            }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(ScriptField.LANG.getPreferredName(), lang);
+
+            String content = options.get(CONTENT_TYPE_OPTION);
+
+            if (content != null && content.equals(builder.contentType().mediaType())) {
+                builder.rawField(INLINE.parse.getPreferredName(), new BytesArray(code));
+            } else {
+                builder.field(INLINE.parse.getPreferredName(), code);
+            }
+
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            InlineScriptLookup that = (InlineScriptLookup)o;
+
+            if (!lang.equals(that.lang)) return false;
+            if (!code.equals(that.code)) return false;
+            return options.equals(that.options);
+
+        }
+
+        @Override
+        public int hashCode() {
+            int result = lang.hashCode();
+            result = 31 * result + code.hashCode();
+            result = 31 * result + options.hashCode();
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "InlineScriptLookup{" +
+                "lang='" + lang + '\'' +
+                ", code='" + code + '\'' +
+                ", options=" + options +
+                '}';
+        }
     }
 
+    public interface ScriptLookup extends ToXContent, Writeable {
+        ScriptType getType();
+        CompiledScript getCompiled(ScriptService service, ScriptContext context);
+    }
+
+    public static final String DEFAULT_SCRIPT_LANG = "painless";
+
+    public static final String CONTENT_TYPE_OPTION = "content_type";
+
+    private Script() {}
 }

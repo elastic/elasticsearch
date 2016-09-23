@@ -42,7 +42,7 @@ import java.util.Set;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.script.ScriptService.ScriptType.INLINE;
+import static org.elasticsearch.script.Script.ScriptType.INLINE;
 import static org.elasticsearch.script.mustache.MustacheScriptEngineService.CONTENT_TYPE_PARAM;
 import static org.elasticsearch.script.mustache.MustacheScriptEngineService.PLAIN_TEXT_CONTENT_TYPE;
 import static org.hamcrest.Matchers.both;

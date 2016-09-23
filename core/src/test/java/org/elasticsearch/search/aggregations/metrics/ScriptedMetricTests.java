@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricAggregationBuilder;
 
@@ -54,7 +53,7 @@ public class ScriptedMetricTests extends BaseAggregationTestCase<ScriptedMetricA
         if (randomBoolean()) {
             return new Script(script);
         } else {
-            return new Script(script, randomFrom(ScriptType.values()), randomFrom("my_lang", null), null);
+            return new Script(script, randomFrom(Script.ScriptType.values()), randomFrom("my_lang", null), null);
         }
     }
 

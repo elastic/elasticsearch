@@ -32,7 +32,6 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ExplainableSearchScript;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -76,7 +75,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         SearchResponse response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
                                 functionScoreQuery(termQuery("text", "text"),
-                                        scriptFunction(new Script("native_explainable_script", ScriptType.INLINE, "native", null)))
+                                        scriptFunction(new Script("native_explainable_script", Script.ScriptType.INLINE, "native", null)))
                                         .boostMode(CombineFunction.REPLACE)))).actionGet();
 
         ElasticsearchAssertions.assertNoFailures(response);

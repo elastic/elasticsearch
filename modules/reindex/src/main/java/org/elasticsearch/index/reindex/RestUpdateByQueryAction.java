@@ -26,15 +26,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.search.SearchRequestParsers;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.suggest.Suggesters;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -83,7 +80,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
     @SuppressWarnings("unchecked")
     static Script parseScript(Map<String, Object> config, ParseFieldMatcher parseFieldMatcher) {
         String script = null;
-        ScriptService.ScriptType type = null;
+        ScriptType type = null;
         String lang = null;
         Map<String, Object> params = null;
         for (Iterator<Map.Entry<String, Object>> itr = config.entrySet().iterator(); itr.hasNext();) {
@@ -102,24 +99,24 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
                 } else {
                     throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (parseFieldMatcher.match(parameterName, ScriptService.ScriptType.INLINE.getParseField())) {
+            } else if (parseFieldMatcher.match(parameterName, Script.ScriptType.INLINE.getParseField())) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     script = (String) parameterValue;
-                    type = ScriptService.ScriptType.INLINE;
+                    type = Script.ScriptType.INLINE;
                 } else {
                     throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (parseFieldMatcher.match(parameterName, ScriptService.ScriptType.FILE.getParseField())) {
+            } else if (parseFieldMatcher.match(parameterName, Script.ScriptType.FILE.getParseField())) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     script = (String) parameterValue;
-                    type = ScriptService.ScriptType.FILE;
+                    type = Script.ScriptType.FILE;
                 } else {
                     throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (parseFieldMatcher.match(parameterName, ScriptService.ScriptType.STORED.getParseField())) {
+            } else if (parseFieldMatcher.match(parameterName, Script.ScriptType.STORED.getParseField())) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     script = (String) parameterValue;
-                    type = ScriptService.ScriptType.STORED;
+                    type = Script.ScriptType.STORED;
                 } else {
                     throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                 }
@@ -127,8 +124,8 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
         }
         if (script == null) {
             throw new ElasticsearchParseException("expected one of [{}], [{}] or [{}] fields, but found none",
-                    ScriptService.ScriptType.INLINE.getParseField().getPreferredName(), ScriptService.ScriptType.FILE.getParseField()
-                    .getPreferredName(), ScriptService.ScriptType.STORED.getParseField().getPreferredName());
+                    Script.ScriptType.INLINE.getParseField().getPreferredName(), Script.ScriptType.FILE.getParseField()
+                    .getPreferredName(), Script.ScriptType.STORED.getParseField().getPreferredName());
         }
         assert type != null : "if script is not null, type should definitely not be null";
         return new Script(script, type, lang, params);

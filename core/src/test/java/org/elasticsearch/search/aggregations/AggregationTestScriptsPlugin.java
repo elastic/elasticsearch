@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.script.ScriptService.ScriptType;
+import static org.elasticsearch.script.Script.ScriptType;
 
 /**
  * This class contains various mocked scripts that are used in aggregations integration tests.

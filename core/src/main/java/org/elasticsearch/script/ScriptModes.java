@@ -21,7 +21,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.Script.ScriptType;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -73,7 +73,7 @@ public class ScriptModes {
     }
 
     static String sourceKey(ScriptType scriptType) {
-        return SCRIPT_SETTINGS_PREFIX + "." + scriptType.getScriptType();
+        return SCRIPT_SETTINGS_PREFIX + "." + scriptType.name;
     }
 
     static String getGlobalKey(String lang, ScriptType scriptType) {

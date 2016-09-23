@@ -19,7 +19,6 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -27,10 +26,10 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.script.Script.StoredScriptSource;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,111 +38,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 public final class ScriptMetaData implements MetaData.Custom {
-
-    public static final class StoredScriptSource extends AbstractDiffable<StoredScriptSource> implements ToXContent {
-        public final String context;
-        public final String lang;
-        public final String code;
-
-        public StoredScriptSource(String context, String lang, String code) {
-            this.context = context;
-            this.lang = lang;
-            this.code = code;
-        }
-
-        public static StoredScriptSource staticReadFrom(StreamInput in) throws IOException {
-            return new StoredScriptSource(in.readOptionalString(), in.readString(), in.readString());
-        }
-
-        @Override
-        public StoredScriptSource readFrom(StreamInput in) throws IOException {
-            return new StoredScriptSource(in.readOptionalString(), in.readString(), in.readString());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(context);
-            out.writeString(lang);
-            out.writeString(code);
-        }
-
-        public static StoredScriptSource fromXContent(XContentParser parser) throws IOException {
-            String context = null;
-            String lang = null;
-            String code = null;
-
-            for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
-                if (parser.currentToken() == Token.FIELD_NAME) {
-                    String name = parser.currentName();
-
-                    parser.nextToken();
-
-                    if (parser.currentToken() == Token.VALUE_STRING) {
-                        if ("context".equals(name)) {
-                            context = parser.text();
-                        } else if ("lang".equals(name)) {
-                            lang = parser.text();
-                        } else if ("code".equals(name)) {
-                            code = parser.text();
-                        } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                "unexpected token [" + parser.currentToken() + "], expected one of [context, lang, code]");
-                        }
-                    } else {
-                        throw new ParsingException(parser.getTokenLocation(),
-                            "unexpected token [" + parser.currentToken() + "], expected the value for one of [" + name + "]");
-                    }
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "unexpected token [" + parser.currentToken() + "], expected one of [context, lang, code]");
-                }
-            }
-
-            return new StoredScriptSource(context, lang, code);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (context != null) {
-                builder.field("context", context);
-            }
-
-            builder.field("lang", lang);
-            builder.field("code", code);
-
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            StoredScriptSource that = (StoredScriptSource)o;
-
-            if (context != null ? !context.equals(that.context) : that.context != null) return false;
-            if (lang != null ? !lang.equals(that.lang) : that.lang != null) return false;
-            return code.equals(that.code);
-
-        }
-
-        @Override
-        public int hashCode() {
-            int result = context != null ? context.hashCode() : 0;
-            result = 31 * result + (lang != null ? lang.hashCode() : 0);
-            result = 31 * result + code.hashCode();
-            return result;
-        }
-
-        @Override
-        public String toString() {
-            return "StoredScriptSource{" +
-                "context='" + context + '\'' +
-                ", lang='" + lang + '\'' +
-                ", code='" + code + '\'' +
-                '}';
-        }
-    }
 
     static final class ScriptMetadataDiff implements Diff<MetaData.Custom> {
 
@@ -154,7 +48,8 @@ public final class ScriptMetaData implements MetaData.Custom {
         }
 
         public ScriptMetadataDiff(StreamInput in) throws IOException {
-            pipelines = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), new StoredScriptSource(null, null, null));
+            pipelines = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
+                new StoredScriptSource(false, null, null, null, null));
         }
 
         @Override
@@ -265,10 +160,10 @@ public final class ScriptMetaData implements MetaData.Custom {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {
-            builder.startObject(entry.getKey());
+            builder.field(entry.getKey());
             entry.getValue().toXContent(builder, params);
-            builder.endObject();
         }
+
         return builder;
     }
 
@@ -289,13 +184,9 @@ public final class ScriptMetaData implements MetaData.Custom {
                             "unexpected token [" + token + "], no stored script id specified");
                     }
 
-                    scripts.put(id, StoredScriptSource.fromXContent(parser));
+                    scripts.put(id, StoredScriptSource.parse(parser));
 
                     id = null;
-
-                    if (parser.currentToken() != Token.END_OBJECT) {
-                        throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "], expected end object [}]");
-                    }
 
                     break;
                 default:

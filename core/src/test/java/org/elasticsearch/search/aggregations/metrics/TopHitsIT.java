@@ -32,7 +32,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
@@ -582,7 +581,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                             .explain(true)
                                             .storedField("text")
                                             .fieldDataField("field1")
-                                            .scriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap()))
+                                            .scriptField("script", new Script("5", Script.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap()))
                                             .fetchSource("text", null)
                                             .version(true)
                                 )
@@ -864,7 +863,7 @@ public class TopHitsIT extends ESIntegTestCase {
                         nested("to-comments", "comments").subAggregation(
                                 topHits("top-comments").size(1).highlighter(new HighlightBuilder().field(hlField)).explain(true)
                                                 .fieldDataField("comments.user")
-                                        .scriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap())).fetchSource("comments.message", null)
+                                        .scriptField("script", new Script("5", Script.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap())).fetchSource("comments.message", null)
                                         .version(true).sort("comments.date", SortOrder.ASC))).get();
         assertHitCount(searchResponse, 2);
         Nested nested = searchResponse.getAggregations().get("to-comments");

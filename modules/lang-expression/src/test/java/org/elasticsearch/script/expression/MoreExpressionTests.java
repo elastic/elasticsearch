@@ -36,7 +36,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -85,7 +84,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         req.setQuery(QueryBuilders.matchAllQuery())
                 .addSort(SortBuilders.fieldSort("_uid")
                         .order(SortOrder.ASC))
-                .addScriptField("foo", new Script(script, ScriptType.INLINE, "expression", paramsMap));
+                .addScriptField("foo", new Script(script, Script.ScriptType.INLINE, "expression", paramsMap));
         return req;
     }
 
@@ -124,7 +123,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
                 client().prepareIndex("test", "doc", "1").setSource("text", "hello goodbye"),
                 client().prepareIndex("test", "doc", "2").setSource("text", "hello hello hello goodbye"),
                 client().prepareIndex("test", "doc", "3").setSource("text", "hello hello goodebye"));
-        ScoreFunctionBuilder<?> score = ScoreFunctionBuilders.scriptFunction(new Script("1 / _score", ScriptType.INLINE, "expression", null));
+        ScoreFunctionBuilder<?> score = ScoreFunctionBuilders.scriptFunction(new Script("1 / _score", Script.ScriptType.INLINE, "expression", null));
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("text", "hello"), score).boostMode(CombineFunction.REPLACE));
         req.setSearchType(SearchType.DFS_QUERY_THEN_FETCH); // make sure DF is consistent
@@ -164,7 +163,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         assertEquals(1985.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(1983.0, hits.getAt(1).field("foo").getValue(), 0.0D);
     }
-    
+
     public void testDateObjectMethods() throws Exception {
         ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "date0", "type=date", "date1", "type=date"));
         ensureGreen("test");
@@ -257,7 +256,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         assertEquals(2.5, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(1.5, hits.getAt(2).field("foo").getValue(), 0.0D);
-        
+
         // make sure count() works for missing
         rsp = buildRequest("doc['double2'].count()").get();
         assertSearchResponse(rsp);
@@ -266,7 +265,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         assertEquals(1.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(0.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(0.0, hits.getAt(2).field("foo").getValue(), 0.0D);
-        
+
         // make sure .empty works in the same way
         rsp = buildRequest("doc['double2'].empty ? 5.0 : 2.0").get();
         assertSearchResponse(rsp);
@@ -429,13 +428,13 @@ public class MoreExpressionTests extends ESIntegTestCase {
         req.setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(
                         AggregationBuilders.stats("int_agg").field("x")
-                                .script(new Script("_value * 3", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)))
+                                .script(new Script("_value * 3", Script.ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)))
                 .addAggregation(
                         AggregationBuilders.stats("double_agg").field("y")
-                                .script(new Script("_value - 1.1", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)))
+                                .script(new Script("_value - 1.1", Script.ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)))
                 .addAggregation(
                         AggregationBuilders.stats("const_agg").field("x") // specifically to test a script w/o _value
-                                .script(new Script("3.0", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null))
+                                .script(new Script("3.0", Script.ScriptType.INLINE, ExpressionScriptEngineService.NAME, null))
                 );
 
         SearchResponse rsp = req.get();
@@ -469,7 +468,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         req.setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(
                         AggregationBuilders.terms("term_agg").field("text")
-                                .script(new Script("_value", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)));
+                                .script(new Script("_value", Script.ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)));
 
         String message;
         try {
@@ -496,7 +495,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         vars.put("xyz", -1);
 
         Expression expr = JavascriptCompiler.compile("a+b+xyz");
-        CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, "", "expression", expr);
+        CompiledScript compiledScript = new CompiledScript(Script.ScriptType.INLINE, "", "expression", expr);
 
         ExpressionExecutableScript ees = new ExpressionExecutableScript(compiledScript, vars);
         assertEquals((Double) ees.run(), 4.5, 0.001);
@@ -559,7 +558,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
             UpdateRequestBuilder urb = client().prepareUpdate().setIndex("test_index");
             urb.setType("doc");
             urb.setId("1");
-            urb.setScript(new Script("0", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null));
+            urb.setScript(new Script("0", Script.ScriptType.INLINE, ExpressionScriptEngineService.NAME, null));
             urb.get();
             fail("Expression scripts should not be allowed to run as update scripts.");
         } catch (Exception e) {
@@ -590,7 +589,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
                                 .subAggregation(sum("threeSum").field("three"))
                                 .subAggregation(sum("fourSum").field("four"))
                                 .subAggregation(bucketScript("totalSum",
-                                    new Script("_value0 + _value1 + _value2", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null),
+                                    new Script("_value0 + _value1 + _value2", Script.ScriptType.INLINE, ExpressionScriptEngineService.NAME, null),
                                     "twoSum", "threeSum", "fourSum")))
                 .execute().actionGet();
 
@@ -616,7 +615,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
             }
         }
     }
-    
+
     public void testGeo() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point");
@@ -649,7 +648,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         assertEquals(1, rsp.getHits().getTotalHits());
         assertEquals(3170D, rsp.getHits().getAt(0).field("foo").getValue(), 50D);
     }
-    
+
     public void testBoolean() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("vip").field("type", "boolean");

@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.GeneralScriptException;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -55,9 +56,8 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
 
     public static final String NAME = "mustache";
 
-    static final String CONTENT_TYPE_PARAM = "content_type";
-    static final String JSON_CONTENT_TYPE = "application/json";
-    static final String PLAIN_TEXT_CONTENT_TYPE = "text/plain";
+    public static final String JSON_CONTENT_TYPE = "application/json";
+    public static final String PLAIN_TEXT_CONTENT_TYPE = "text/plain";
 
     /** Thread local UTF8StreamWriter to store template execution results in, thread local to save object creation.*/
     private static ThreadLocal<SoftReference<UTF8StreamWriter>> utf8StreamWriter = new ThreadLocal<>();
@@ -97,7 +97,7 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
     }
 
     private boolean isJsonEscapingEnabled(Map<String, String> params) {
-        return JSON_CONTENT_TYPE.equals(params.getOrDefault(CONTENT_TYPE_PARAM, JSON_CONTENT_TYPE));
+        return JSON_CONTENT_TYPE.equals(params.getOrDefault(Script.CONTENT_TYPE_OPTION, JSON_CONTENT_TYPE));
     }
 
     @Override

@@ -30,7 +30,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -54,7 +54,7 @@ public class NativeScriptTests extends ESTestCase {
         scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
 
         ExecutableScript executable = scriptModule.getScriptService().executable(
-                new Script("my", ScriptType.INLINE, NativeScriptEngineService.NAME, null), ScriptContext.Standard.SEARCH,
+                new Script("my", Script.ScriptType.INLINE, NativeScriptEngineService.NAME, null), ScriptContext.Standard.SEARCH,
                 Collections.emptyMap());
         assertThat(executable.run().toString(), equalTo("test"));
     }
@@ -62,7 +62,7 @@ public class NativeScriptTests extends ESTestCase {
     public void testFineGrainedSettingsDontAffectNativeScripts() throws IOException {
         Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
-            ScriptType scriptType = randomFrom(ScriptType.values());
+            ScriptType scriptType = randomFrom(Script.ScriptType.values());
             builder.put("script" + "." + scriptType.getScriptType(), randomBoolean());
         } else {
             ScriptContext scriptContext = randomFrom(ScriptContext.Standard.values());
@@ -81,7 +81,7 @@ public class NativeScriptTests extends ESTestCase {
             scriptContextRegistry, scriptSettings);
 
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
-            assertThat(scriptService.compile(new Script("my", ScriptType.INLINE, NativeScriptEngineService.NAME, null), scriptContext,
+            assertThat(scriptService.compile(new Script("my", Script.ScriptType.INLINE, NativeScriptEngineService.NAME, null), scriptContext,
                     Collections.emptyMap()), notNullValue());
         }
     }

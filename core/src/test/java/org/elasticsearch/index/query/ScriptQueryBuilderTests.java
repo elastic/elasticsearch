@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -37,7 +36,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     protected ScriptQueryBuilder doCreateTestQueryBuilder() {
         String script = "1";
         Map<String, Object> params = Collections.emptyMap();
-        return new ScriptQueryBuilder(new Script(script, ScriptType.INLINE, MockScriptEngine.NAME, params));
+        return new ScriptQueryBuilder(new Script(script, Script.ScriptType.INLINE, MockScriptEngine.NAME, params));
     }
 
     @Override

@@ -19,13 +19,10 @@
 
 package org.elasticsearch.script.expression;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -59,7 +56,7 @@ public class StoredExpressionTests extends ESIntegTestCase {
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         try {
             client().prepareUpdate("test", "scriptTest", "1")
-                    .setScript(new Script("script1", ScriptService.ScriptType.STORED, ExpressionScriptEngineService.NAME, null)).get();
+                    .setScript(new Script("script1", Script.ScriptType.STORED, ExpressionScriptEngineService.NAME, null)).get();
             fail("update script should have been rejected");
         } catch(Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
@@ -68,7 +65,7 @@ public class StoredExpressionTests extends ESIntegTestCase {
         try {
             client().prepareSearch()
                     .setSource(
-                            new SearchSourceBuilder().scriptField("test1", new Script("script1", ScriptType.STORED, "expression", null)))
+                            new SearchSourceBuilder().scriptField("test1", new Script("script1", Script.ScriptType.STORED, "expression", null)))
                     .setIndices("test").setTypes("scriptTest").get();
             fail("search script should have been rejected");
         } catch(Exception e) {
@@ -78,7 +75,7 @@ public class StoredExpressionTests extends ESIntegTestCase {
             client().prepareSearch("test")
                     .setSource(
                             new SearchSourceBuilder().aggregation(AggregationBuilders.terms("test").script(
-                                    new Script("script1", ScriptType.STORED, "expression", null)))).get();
+                                    new Script("script1", Script.ScriptType.STORED, "expression", null)))).get();
         } catch (Exception e) {
             assertThat(e.toString(), containsString("scripts of type [stored], operation [aggs] and lang [expression] are disabled"));
         }

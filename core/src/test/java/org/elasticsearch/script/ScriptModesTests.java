@@ -21,7 +21,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -78,7 +78,7 @@ public class ScriptModesTests extends ESTestCase {
     @After
     public void assertNativeScriptsAreAlwaysAllowed() {
         if (assertScriptModesNonNull) {
-            assertThat(scriptModes.getScriptEnabled(NativeScriptEngineService.NAME, randomFrom(ScriptType.values()), randomFrom(scriptContexts)), equalTo(true));
+            assertThat(scriptModes.getScriptEnabled(NativeScriptEngineService.NAME, randomFrom(Script.ScriptType.values()), randomFrom(scriptContexts)), equalTo(true));
         }
     }
 
@@ -86,7 +86,7 @@ public class ScriptModesTests extends ESTestCase {
     public void assertAllSettingsWereChecked() {
         if (assertScriptModesNonNull) {
             assertThat(scriptModes, notNullValue());
-            int numberOfSettings = ScriptType.values().length * scriptContextRegistry.scriptContexts().size();
+            int numberOfSettings = Script.ScriptType.values().length * scriptContextRegistry.scriptContexts().size();
             numberOfSettings += 3; // for top-level inline/store/file settings
             assertThat(scriptModes.scriptEnabled.size(), equalTo(numberOfSettings));
             if (assertAllSettingsWereChecked) {
@@ -97,15 +97,15 @@ public class ScriptModesTests extends ESTestCase {
 
     public void testDefaultSettings() {
         this.scriptModes = new ScriptModes(scriptSettings, Settings.EMPTY);
-        assertScriptModesAllOps(true, ScriptType.FILE);
-        assertScriptModesAllOps(false, ScriptType.STORED, ScriptType.INLINE);
+        assertScriptModesAllOps(true, Script.ScriptType.FILE);
+        assertScriptModesAllOps(false, Script.ScriptType.STORED, Script.ScriptType.INLINE);
     }
 
     public void testMissingSetting() {
         assertAllSettingsWereChecked = false;
         this.scriptModes = new ScriptModes(scriptSettings, Settings.EMPTY);
         try {
-            scriptModes.getScriptEnabled("non_existing", randomFrom(ScriptType.values()), randomFrom(scriptContexts));
+            scriptModes.getScriptEnabled("non_existing", randomFrom(Script.ScriptType.values()), randomFrom(scriptContexts));
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("not found for lang [non_existing]"));
@@ -113,13 +113,13 @@ public class ScriptModesTests extends ESTestCase {
     }
 
     public void testScriptTypeGenericSettings() {
-        int randomInt = randomIntBetween(1, ScriptType.values().length - 1);
+        int randomInt = randomIntBetween(1, Script.ScriptType.values().length - 1);
         Set<ScriptType> randomScriptTypesSet = new HashSet<>();
         boolean[] randomScriptModes = new boolean[randomInt];
         for (int i = 0; i < randomInt; i++) {
             boolean added = false;
             while (added == false) {
-                added = randomScriptTypesSet.add(randomFrom(ScriptType.values()));
+                added = randomScriptTypesSet.add(randomFrom(Script.ScriptType.values()));
             }
             randomScriptModes[i] = randomBoolean();
         }
@@ -133,14 +133,14 @@ public class ScriptModesTests extends ESTestCase {
         for (int i = 0; i < randomInt; i++) {
             assertScriptModesAllOps(randomScriptModes[i], randomScriptTypes[i]);
         }
-        if (randomScriptTypesSet.contains(ScriptType.FILE) == false) {
-            assertScriptModesAllOps(true, ScriptType.FILE);
+        if (randomScriptTypesSet.contains(Script.ScriptType.FILE) == false) {
+            assertScriptModesAllOps(true, Script.ScriptType.FILE);
         }
-        if (randomScriptTypesSet.contains(ScriptType.STORED) == false) {
-            assertScriptModesAllOps(false, ScriptType.STORED);
+        if (randomScriptTypesSet.contains(Script.ScriptType.STORED) == false) {
+            assertScriptModesAllOps(false, Script.ScriptType.STORED);
         }
-        if (randomScriptTypesSet.contains(ScriptType.INLINE) == false) {
-            assertScriptModesAllOps(false, ScriptType.INLINE);
+        if (randomScriptTypesSet.contains(Script.ScriptType.INLINE) == false) {
+            assertScriptModesAllOps(false, Script.ScriptType.INLINE);
         }
     }
 
@@ -167,8 +167,8 @@ public class ScriptModesTests extends ESTestCase {
         }
 
         ScriptContext[] complementOf = complementOf(randomScriptContexts);
-        assertScriptModes(true, new ScriptType[]{ScriptType.FILE}, complementOf);
-        assertScriptModes(false, new ScriptType[]{ScriptType.STORED, ScriptType.INLINE}, complementOf);
+        assertScriptModes(true, new ScriptType[]{Script.ScriptType.FILE}, complementOf);
+        assertScriptModes(false, new ScriptType[]{Script.ScriptType.STORED, Script.ScriptType.INLINE}, complementOf);
     }
 
     public void testConflictingScriptTypeAndOpGenericSettings() {
@@ -181,8 +181,8 @@ public class ScriptModesTests extends ESTestCase {
         this.scriptModes = new ScriptModes(scriptSettings, builder.build());
         assertScriptModesAllTypes(false, scriptContext);
         ScriptContext[] complementOf = complementOf(scriptContext);
-        assertScriptModes(true, new ScriptType[]{ScriptType.FILE, ScriptType.STORED}, complementOf);
-        assertScriptModes(true, new ScriptType[]{ScriptType.INLINE}, complementOf);
+        assertScriptModes(true, new ScriptType[]{Script.ScriptType.FILE, Script.ScriptType.STORED}, complementOf);
+        assertScriptModes(true, new ScriptType[]{Script.ScriptType.INLINE}, complementOf);
     }
 
     private void assertScriptModesAllOps(boolean expectedScriptEnabled, ScriptType... scriptTypes) {
@@ -190,7 +190,7 @@ public class ScriptModesTests extends ESTestCase {
     }
 
     private void assertScriptModesAllTypes(boolean expectedScriptEnabled, ScriptContext... scriptContexts) {
-        assertScriptModes(expectedScriptEnabled, ScriptType.values(), scriptContexts);
+        assertScriptModes(expectedScriptEnabled, Script.ScriptType.values(), scriptContexts);
     }
 
     private void assertScriptModes(boolean expectedScriptEnabled, ScriptType[] scriptTypes, ScriptContext... scriptContexts) {

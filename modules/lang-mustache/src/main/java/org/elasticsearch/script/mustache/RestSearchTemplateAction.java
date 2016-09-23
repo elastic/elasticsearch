@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -42,10 +41,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchRequestParsers;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.suggest.Suggesters;
 
 import java.io.IOException;
 
@@ -61,17 +58,17 @@ public class RestSearchTemplateAction extends BaseRestHandler {
                         request.setScriptParams(parser.map())
                 , new ParseField("params"), ObjectParser.ValueType.OBJECT);
         PARSER.declareString((request, s) -> {
-            request.setScriptType(ScriptService.ScriptType.FILE);
+            request.setScriptType(Script.ScriptType.FILE);
             request.setScript(s);
         }, new ParseField("file"));
         PARSER.declareString((request, s) -> {
-            request.setScriptType(ScriptService.ScriptType.STORED);
+            request.setScriptType(Script.ScriptType.STORED);
             request.setScript(s);
         }, new ParseField("id"));
         PARSER.declareBoolean(SearchTemplateRequest::setExplain, new ParseField("explain"));
         PARSER.declareBoolean(SearchTemplateRequest::setProfile, new ParseField("profile"));
         PARSER.declareField((parser, request, value) -> {
-            request.setScriptType(ScriptService.ScriptType.INLINE);
+            request.setScriptType(Script.ScriptType.INLINE);
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
                     request.setScript(builder.copyCurrentStructure(parser).bytes().utf8ToString());

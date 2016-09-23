@@ -21,6 +21,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
 import org.elasticsearch.test.ESTestCase;
 
@@ -62,7 +63,7 @@ public class ScriptContextTests extends ESTestCase {
 
     public void testCustomGlobalScriptContextSettings() throws Exception {
         ScriptService scriptService = makeScriptService();
-        for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
+        for (ScriptType scriptType : Script.ScriptType.values()) {
             try {
                 Script script = new Script("1", scriptType, MockScriptEngine.NAME, null);
                 scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"), Collections.emptyMap());
@@ -75,7 +76,7 @@ public class ScriptContextTests extends ESTestCase {
 
     public void testCustomScriptContextSettings() throws Exception {
         ScriptService scriptService = makeScriptService();
-        Script script = new Script("1", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, null);
+        Script script = new Script("1", Script.ScriptType.INLINE, MockScriptEngine.NAME, null);
         try {
             scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"), Collections.emptyMap());
             fail("script compilation should have been rejected");
@@ -91,7 +92,7 @@ public class ScriptContextTests extends ESTestCase {
 
     public void testUnknownPluginScriptContext() throws Exception {
         ScriptService scriptService = makeScriptService();
-        for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
+        for (ScriptType scriptType : Script.ScriptType.values()) {
             try {
                 Script script = new Script("1", scriptType, MockScriptEngine.NAME, null);
                 scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "unknown"), Collections.emptyMap());
@@ -110,7 +111,7 @@ public class ScriptContextTests extends ESTestCase {
             }
         };
         ScriptService scriptService = makeScriptService();
-        for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
+        for (ScriptType scriptType : Script.ScriptType.values()) {
             try {
                 Script script = new Script("1", scriptType, MockScriptEngine.NAME, null);
                 scriptService.compile(script, context, Collections.emptyMap());

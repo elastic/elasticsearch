@@ -28,8 +28,6 @@ import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
@@ -61,7 +59,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         client().prepareIndex("test", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         SearchResponse searchResponse = client().prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
-                .setQuery(scriptQuery(new Script(NativeTestScriptedTimeout.TEST_NATIVE_SCRIPT_TIMEOUT, ScriptType.INLINE, "native", null)))
+                .setQuery(scriptQuery(new Script(NativeTestScriptedTimeout.TEST_NATIVE_SCRIPT_TIMEOUT, Script.ScriptType.INLINE, "native", null)))
                 .execute().actionGet();
         assertThat(searchResponse.isTimedOut(), equalTo(true));
     }

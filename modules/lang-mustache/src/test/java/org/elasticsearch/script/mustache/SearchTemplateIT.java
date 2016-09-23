@@ -18,18 +18,15 @@
  */
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
@@ -77,14 +74,14 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         expectThrows(Exception.class, () -> new SearchTemplateRequestBuilder(client())
                 .setRequest(searchRequest)
                 .setScript(query)
-                .setScriptType(ScriptType.INLINE)
+                .setScriptType(Script.ScriptType.INLINE)
                 .setScriptParams(randomBoolean() ? null : Collections.emptyMap())
                 .get());
 
         SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
                 .setRequest(searchRequest)
                 .setScript(query)
-                .setScriptType(ScriptType.INLINE)
+                .setScriptType(Script.ScriptType.INLINE)
                 .setScriptParams(Collections.singletonMap("my_size", 1))
                 .get();
 
@@ -174,7 +171,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
         SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
                 .setRequest(new SearchRequest("test").types("type"))
-                .setScript("testTemplate").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
+                .setScript("testTemplate").setScriptType(Script.ScriptType.STORED).setScriptParams(templateParams)
                 .get();
         assertHitCount(searchResponse.getResponse(), 4);
 
@@ -187,7 +184,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
         new SearchTemplateRequestBuilder(client())
                 .setRequest(new SearchRequest("test").types("type"))
-                .setScript("/template_index/mustache/1000").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
+                .setScript("/template_index/mustache/1000").setScriptType(Script.ScriptType.STORED).setScriptParams(templateParams)
                 .get());
         assertThat(e.getMessage(), containsString("illegal stored script id [/template_index/mustache/1000] contains [/]"));
     }
@@ -237,7 +234,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
                 .setRequest(new SearchRequest().indices("test").types("type"))
                 .setScript("1a")
-                .setScriptType(ScriptType.STORED)
+                .setScriptType(Script.ScriptType.STORED)
                 .setScriptParams(templateParams)
                 .get();
         assertHitCount(searchResponse.getResponse(), 4);
@@ -245,28 +242,28 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         expectThrows(IllegalArgumentException.class, () -> new SearchTemplateRequestBuilder(client())
                 .setRequest(new SearchRequest().indices("test").types("type"))
                 .setScript("/template_index/mustache/1000")
-                .setScriptType(ScriptType.STORED)
+                .setScriptType(Script.ScriptType.STORED)
                 .setScriptParams(templateParams)
                 .get());
 
         expectThrows(IllegalArgumentException.class, () -> new SearchTemplateRequestBuilder(client())
                 .setRequest(new SearchRequest().indices("test").types("type"))
                 .setScript("/myindex/mustache/1")
-                .setScriptType(ScriptType.STORED)
+                .setScriptType(Script.ScriptType.STORED)
                 .setScriptParams(templateParams)
                 .get());
 
         templateParams.put("fieldParam", "bar");
         searchResponse = new SearchTemplateRequestBuilder(client())
                 .setRequest(new SearchRequest("test").types("type"))
-                .setScript("2").setScriptType(ScriptService.ScriptType.STORED).setScriptParams(templateParams)
+                .setScript("2").setScriptType(Script.ScriptType.STORED).setScriptParams(templateParams)
                 .get();
         assertHitCount(searchResponse.getResponse(), 1);
 
         Map<String, Object> vars = new HashMap<>();
         vars.put("fieldParam", "bar");
 
-        TemplateQueryBuilder builder = new TemplateQueryBuilder("3", ScriptService.ScriptType.STORED, vars);
+        TemplateQueryBuilder builder = new TemplateQueryBuilder("3", Script.ScriptType.STORED, vars);
         SearchResponse sr = client().prepareSearch().setQuery(builder)
                 .execute().actionGet();
         assertHitCount(sr, 1);
@@ -298,7 +295,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
             ParsingException e = expectThrows(ParsingException.class, () -> new SearchTemplateRequestBuilder(client())
                     .setRequest(new SearchRequest("testindex").types("test"))
-                    .setScript("git01").setScriptType(ScriptService.ScriptType.STORED).setScriptParams(templateParams)
+                    .setScript("git01").setScriptType(Script.ScriptType.STORED).setScriptParams(templateParams)
                     .get());
             assertThat(e.getMessage(), containsString("[match] query does not support type ooophrase_prefix"));
 
@@ -310,7 +307,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
             SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
                     .setRequest(new SearchRequest("testindex").types("test"))
-                    .setScript("git01").setScriptType(ScriptService.ScriptType.STORED).setScriptParams(templateParams)
+                    .setScript("git01").setScriptType(Script.ScriptType.STORED).setScriptParams(templateParams)
                     .get();
             assertHitCount(searchResponse.getResponse(), 1);
         }
@@ -338,7 +335,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
         SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
                 .setRequest(new SearchRequest("test").types("type"))
-                .setScript("4").setScriptType(ScriptService.ScriptType.STORED).setScriptParams(arrayTemplateParams)
+                .setScript("4").setScriptType(Script.ScriptType.STORED).setScriptParams(arrayTemplateParams)
                 .get();
         assertHitCount(searchResponse.getResponse(), 5);
     }

@@ -30,7 +30,6 @@ import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -298,7 +297,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         scriptQuery(
                 new Script(
                     "mygroovyscript",
-                    ScriptType.FILE,
+                    Script.ScriptType.FILE,
                     "groovy",
                     parameters)
             );

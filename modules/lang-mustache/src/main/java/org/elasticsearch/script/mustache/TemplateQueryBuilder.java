@@ -37,8 +37,8 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -59,11 +59,11 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     /** Template to fill. */
     private final Script template;
 
-    public TemplateQueryBuilder(String template, ScriptService.ScriptType scriptType, Map<String, Object> params) {
+    public TemplateQueryBuilder(String template, ScriptType scriptType, Map<String, Object> params) {
         this(new Script(template, scriptType, "mustache", params));
     }
 
-    public TemplateQueryBuilder(String template, ScriptService.ScriptType scriptType, Map<String, Object> params, XContentType ct) {
+    public TemplateQueryBuilder(String template, ScriptType scriptType, Map<String, Object> params, XContentType ct) {
         this(new Script(template, scriptType, "mustache", params, ct));
     }
 

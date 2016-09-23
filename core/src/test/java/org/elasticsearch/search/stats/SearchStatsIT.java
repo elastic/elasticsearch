@@ -34,7 +34,6 @@ import org.elasticsearch.index.search.stats.SearchStats.Stats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -121,7 +120,7 @@ public class SearchStatsIT extends ESIntegTestCase {
             SearchResponse searchResponse = internalCluster().coordOnlyNodeClient().prepareSearch()
                     .setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2")
                     .highlighter(new HighlightBuilder().field("field"))
-                    .addScriptField("script1", new Script("_source.field", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                    .addScriptField("script1", new Script("_source.field", Script.ScriptType.INLINE, CustomScriptPlugin.NAME, null))
                     .setSize(100)
                     .execute().actionGet();
             assertHitCount(searchResponse, docsTest1 + docsTest2);

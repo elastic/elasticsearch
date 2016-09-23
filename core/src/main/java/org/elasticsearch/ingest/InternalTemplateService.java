@@ -42,7 +42,7 @@ public class InternalTemplateService implements TemplateService {
         int mustacheStart = template.indexOf("{{");
         int mustacheEnd = template.indexOf("}}");
         if (mustacheStart != -1 && mustacheEnd != -1 && mustacheStart < mustacheEnd) {
-            Script script = new Script(template, ScriptService.ScriptType.INLINE, "mustache", Collections.emptyMap());
+            Script script = new Script(template, Script.ScriptType.INLINE, "mustache", Collections.emptyMap());
             CompiledScript compiledScript = scriptService.compile(
                 script,
                 ScriptContext.Standard.INGEST,

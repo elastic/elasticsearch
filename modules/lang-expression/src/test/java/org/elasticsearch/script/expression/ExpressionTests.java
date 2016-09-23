@@ -22,8 +22,8 @@ package org.elasticsearch.script.expression;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -34,7 +34,7 @@ import java.util.Collections;
 public class ExpressionTests extends ESSingleNodeTestCase {
     ExpressionScriptEngineService service;
     SearchLookup lookup;
-    
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -42,10 +42,10 @@ public class ExpressionTests extends ESSingleNodeTestCase {
         service = new ExpressionScriptEngineService(Settings.EMPTY);
         lookup = new SearchLookup(index.mapperService(), index.fieldData(), null);
     }
-    
+
     private SearchScript compile(String expression) {
         Object compiled = service.compile(null, expression, Collections.emptyMap());
-        return service.search(new CompiledScript(ScriptType.INLINE, "randomName", "expression", compiled), lookup, Collections.<String, Object>emptyMap());
+        return service.search(new CompiledScript(Script.ScriptType.INLINE, "randomName", "expression", compiled), lookup, Collections.<String, Object>emptyMap());
     }
 
     public void testNeedsScores() {
@@ -54,14 +54,14 @@ public class ExpressionTests extends ESSingleNodeTestCase {
         assertTrue(compile("1/_score").needsScores());
         assertTrue(compile("doc['d'].value * _score").needsScores());
     }
-    
+
     public void testCompileError() {
         ScriptException e = expectThrows(ScriptException.class, () -> {
             compile("doc['d'].value * *@#)(@$*@#$ + 4");
         });
         assertTrue(e.getCause() instanceof ParseException);
     }
-    
+
     public void testLinkError() {
         ScriptException e = expectThrows(ScriptException.class, () -> {
             compile("doc['e'].value * 5");

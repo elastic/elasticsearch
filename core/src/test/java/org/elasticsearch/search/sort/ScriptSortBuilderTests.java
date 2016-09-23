@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.junit.Rule;
@@ -184,7 +183,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertEquals("doc['field_name'].value * factor", builder.script().getScript());
         assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().getLang());
         assertEquals(1.1, builder.script().getParams().get("factor"));
-        assertEquals(ScriptType.INLINE, builder.script().getType());
+        assertEquals(Script.ScriptType.INLINE, builder.script().getType());
         assertEquals(ScriptSortType.NUMBER, builder.type());
         assertEquals(SortOrder.ASC, builder.order());
         assertEquals(SortMode.MAX, builder.sortMode());
@@ -210,7 +209,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertEquals("doc['field_name'].value", builder.script().getScript());
         assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().getLang());
         assertNull(builder.script().getParams());
-        assertEquals(ScriptType.INLINE, builder.script().getType());
+        assertEquals(Script.ScriptType.INLINE, builder.script().getType());
         assertEquals(ScriptSortType.NUMBER, builder.type());
         assertEquals(SortOrder.ASC, builder.order());
         assertEquals(SortMode.MAX, builder.sortMode());

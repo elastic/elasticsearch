@@ -37,7 +37,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
+import org.elasticsearch.cluster.routing.allocation.StaleShard;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -251,8 +252,8 @@ public class ShardStateAction extends AbstractComponent {
         public BatchResult<ShardEntry> execute(ClusterState currentState, List<ShardEntry> tasks) throws Exception {
             BatchResult.Builder<ShardEntry> batchResultBuilder = BatchResult.builder();
             List<ShardEntry> tasksToBeApplied = new ArrayList<>();
-            List<FailedRerouteAllocation.FailedShard> shardRoutingsToBeApplied = new ArrayList<>();
-            List<FailedRerouteAllocation.StaleShard> staleShardsToBeApplied = new ArrayList<>();
+            List<FailedShard> failedShardsToBeApplied = new ArrayList<>();
+            List<StaleShard> staleShardsToBeApplied = new ArrayList<>();
 
             for (ShardEntry task : tasks) {
                 IndexMetaData indexMetaData = currentState.metaData().index(task.shardId.getIndex());
@@ -292,7 +293,7 @@ public class ShardStateAction extends AbstractComponent {
                         if (task.primaryTerm > 0 && inSyncAllocationIds.contains(task.allocationId)) {
                             logger.debug("{} marking shard {} as stale (shard failed task: [{}])", task.shardId, task.allocationId, task);
                             tasksToBeApplied.add(task);
-                            staleShardsToBeApplied.add(new FailedRerouteAllocation.StaleShard(task.shardId, task.allocationId));
+                            staleShardsToBeApplied.add(new StaleShard(task.shardId, task.allocationId));
                         } else {
                             // tasks that correspond to non-existent shards are marked as successful
                             logger.debug("{} ignoring shard failed task [{}] (shard does not exist anymore)", task.shardId, task);
@@ -302,18 +303,18 @@ public class ShardStateAction extends AbstractComponent {
                         // failing a shard also possibly marks it as stale (see IndexMetaDataUpdater)
                         logger.debug("{} failing shard {} (shard failed task: [{}])", task.shardId, matched, task);
                         tasksToBeApplied.add(task);
-                        shardRoutingsToBeApplied.add(new FailedRerouteAllocation.FailedShard(matched, task.message, task.failure));
+                        failedShardsToBeApplied.add(new FailedShard(matched, task.message, task.failure));
                     }
                 }
             }
-            assert tasksToBeApplied.size() == shardRoutingsToBeApplied.size() + staleShardsToBeApplied.size();
+            assert tasksToBeApplied.size() == failedShardsToBeApplied.size() + staleShardsToBeApplied.size();
 
             ClusterState maybeUpdatedState = currentState;
             try {
-                maybeUpdatedState = applyFailedShards(currentState, shardRoutingsToBeApplied, staleShardsToBeApplied);
+                maybeUpdatedState = applyFailedShards(currentState, failedShardsToBeApplied, staleShardsToBeApplied);
                 batchResultBuilder.successes(tasksToBeApplied);
             } catch (Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to apply failed shards {}", shardRoutingsToBeApplied), e);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to apply failed shards {}", failedShardsToBeApplied), e);
                 // failures are communicated back to the requester
                 // cluster state will not be updated in this case
                 batchResultBuilder.failures(tasksToBeApplied, e);
@@ -323,8 +324,7 @@ public class ShardStateAction extends AbstractComponent {
         }
 
         // visible for testing
-        ClusterState applyFailedShards(ClusterState currentState, List<FailedRerouteAllocation.FailedShard> failedShards,
-                                                   List<FailedRerouteAllocation.StaleShard> staleShards) {
+        ClusterState applyFailedShards(ClusterState currentState, List<FailedShard> failedShards, List<StaleShard> staleShards) {
             return allocationService.applyFailedShards(currentState, failedShards, staleShards);
         }
 

@@ -1,6 +1,9 @@
 [[breaking_50_packaging]]
 === Packaging
 
+==== APT/YUM repository URL changes
+
+
 ==== Default logging using systemd (since Elasticsearch 2.2.0)
 
 In previous versions of Elasticsearch, the default logging

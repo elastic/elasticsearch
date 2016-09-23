@@ -42,6 +42,7 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Random;
 
@@ -101,9 +102,25 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             boolean nodesRemoved = false;
             if (nodeIdCounter > 1 && rarely()) {
                 int nodeId = scaledRandomIntBetween(0, nodeIdCounter - 2);
-                logger.info("removing node [{}]", nodeId);
-                newNodesBuilder.remove("NODE_" + nodeId);
-                nodesRemoved = true;
+                final String node = "NODE_" + nodeId;
+                boolean safeToRemove = true;
+                RoutingNode routingNode = clusterState.getRoutingNodes().node(node);
+                for (ShardRouting shard: routingNode != null ? routingNode : Collections.<ShardRouting>emptyList()) {
+                    if (shard.active() && shard.primary()) {
+                        // make sure there is an active replica to prevent from going red
+                        if (clusterState.routingTable().shardRoutingTable(shard.shardId()).activeShards().size() <= 1) {
+                            safeToRemove = false;
+                            break;
+                        }
+                    }
+                }
+                if (safeToRemove) {
+                    logger.info("removing node [{}]", nodeId);
+                    newNodesBuilder.remove(node);
+                    nodesRemoved = true;
+                } else {
+                    logger.debug("not removing node [{}] as it holds a primary with no replacement", nodeId);
+                }
             }
 
             stateBuilder.nodes(newNodesBuilder.build());
@@ -142,7 +159,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
 
         } while (clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size() != 0 ||
                 clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size() != 0 && iterations < 200);
-        logger.info("Done Balancing after [{}] iterations", iterations);
+        logger.info("Done Balancing after [{}] iterations. State:\n{}", iterations, clusterState.prettyPrint());
         // we stop after 200 iterations if it didn't stabelize by then something is likely to be wrong
         assertThat("max num iteration exceeded", iterations, Matchers.lessThan(200));
         assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(0));

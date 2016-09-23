@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
@@ -31,6 +32,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -90,5 +92,16 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     @Override
     protected boolean shouldExecuteReplication(Settings settings) {
         return true;
+    }
+
+    @Override
+    protected boolean mustFailReplica(Throwable e) {
+        // if we are running flush ith wait_if_ongoing=false (default) we might get a FlushNotAllowedEngineException from the
+        // replica that is a signal that there is another flush ongoing and we stepped out. This behavior has changed in 5.x
+        // where we don't throw an exception anymore. In such a case we ignore the exception an do NOT fail the replica.
+        if (ExceptionsHelper.unwrapCause(e).getClass() == FlushNotAllowedEngineException.class) {
+            return false;
+        }
+        return super.mustFailReplica(e);
     }
 }

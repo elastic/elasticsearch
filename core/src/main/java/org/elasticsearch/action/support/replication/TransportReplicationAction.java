@@ -205,6 +205,14 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         return false;
     }
 
+    /**
+     * Returns <code>true</code> iff the replica must be failed if it threw the given exception.
+     * This defaults to the inverse of {@link #ignoreReplicaException(Throwable)}
+     */
+    protected boolean mustFailReplica(Throwable e) {
+        return ignoreReplicaException(e) == false;
+    }
+
     protected boolean isConflictException(Throwable e) {
         Throwable cause = ExceptionsHelper.unwrapCause(e);
         // on version conflict or document missing, it means
@@ -360,7 +368,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             String index = request.shardId().getIndex();
             int shardId = request.shardId().id();
             logger.trace("failure on replica [{}][{}], action [{}], request [{}]", t, index, shardId, actionName, request);
-            if (ignoreReplicaException(t) == false) {
+            if (mustFailReplica(t)) {
+                assert ignoreReplicaException(t) == false;
                 IndexService indexService = indicesService.indexService(index);
                 if (indexService == null) {
                     logger.debug("ignoring failed replica [{}][{}] because index was already removed.", index, shardId);
@@ -927,7 +936,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     public void handleException(TransportException exp) {
                         onReplicaFailure(nodeId, exp);
                         logger.trace("[{}] transport failure during replica request [{}], action [{}]", exp, node, replicaRequest, transportReplicaAction);
-                        if (ignoreReplicaException(exp) == false) {
+                        if (mustFailReplica(exp)) {
+                            assert ignoreReplicaException(exp) == false;
                             logger.warn("{} failed to perform {} on node {}", exp, shardId, transportReplicaAction, node);
                             shardStateAction.shardFailed(shard, indexUUID, "failed to perform " + actionName + " on replica on node " + node, exp);
                         }

@@ -22,9 +22,8 @@ package org.elasticsearch.test.gateway;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.GatewayAllocator;
@@ -36,6 +35,7 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData.Node
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -96,18 +96,16 @@ public class TestGatewayAllocator extends GatewayAllocator {
     }
 
     @Override
-    public void applyStartedShards(StartedRerouteAllocation allocation) {
+    public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
         currentNodes = allocation.nodes();
-        for (ShardRouting shard: allocation.routingNodes().shards(ShardRouting::active)) {
-            addKnownAllocation(shard);
-        }
+        allocation.routingNodes().shards(ShardRouting::active).forEach(this::addKnownAllocation);
     }
 
     @Override
-    public void applyFailedShards(FailedRerouteAllocation allocation) {
+    public void applyFailedShards(RoutingAllocation allocation, List<FailedShard> failedShards) {
         currentNodes = allocation.nodes();
-        for (FailedRerouteAllocation.FailedShard failedShard : allocation.failedShards()) {
-            final ShardRouting failedRouting = failedShard.routingEntry;
+        for (FailedShard failedShard : failedShards) {
+            final ShardRouting failedRouting = failedShard.getRoutingEntry();
             Map<ShardId, ShardRouting> nodeAllocations = knownAllocations.get(failedRouting.currentNodeId());
             if (nodeAllocations != null) {
                 nodeAllocations.remove(failedRouting.shardId());

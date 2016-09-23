@@ -46,6 +46,7 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.hamcrest.Matchers;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -395,15 +396,14 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         }
 
         @Override
-        public void applyStartedShards(StartedRerouteAllocation allocation) {
+        public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
             // noop
         }
 
         @Override
-        public void applyFailedShards(FailedRerouteAllocation allocation) {
+        public void applyFailedShards(RoutingAllocation allocation, List<FailedShard> failedShards) {
             // noop
         }
-
         @Override
         public void allocateUnassigned(RoutingAllocation allocation) {
             // noop

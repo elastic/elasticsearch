@@ -214,12 +214,12 @@ public class TermVectorsService  {
         MapperService mapperService = indexShard.mapperService();
         Analyzer analyzer;
         if (perFieldAnalyzer != null && perFieldAnalyzer.containsKey(field)) {
-            analyzer = mapperService.analysisService().analyzer(perFieldAnalyzer.get(field).toString());
+            analyzer = mapperService.getIndexAnalyzers().get(perFieldAnalyzer.get(field).toString());
         } else {
             analyzer = mapperService.fullName(field).indexAnalyzer();
         }
         if (analyzer == null) {
-            analyzer = mapperService.analysisService().defaultIndexAnalyzer();
+            analyzer = mapperService.getIndexAnalyzers().getDefaultIndexAnalyzer();
         }
         return analyzer;
     }

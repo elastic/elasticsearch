@@ -53,7 +53,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RandomAllocationDeciderTests;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -210,10 +210,10 @@ public class ClusterStateChanges extends AbstractComponent {
         return allocationService.deassociateDeadNodes(clusterState, reroute, reason);
     }
 
-    public ClusterState applyFailedShards(ClusterState clusterState, List<FailedRerouteAllocation.FailedShard> failedShards) {
+    public ClusterState applyFailedShards(ClusterState clusterState, List<FailedShard> failedShards) {
         List<ShardStateAction.ShardEntry> entries = failedShards.stream().map(failedShard ->
-            new ShardStateAction.ShardEntry(failedShard.routingEntry.shardId(), failedShard.routingEntry.allocationId().getId(),
-                0L, failedShard.message, failedShard.failure))
+            new ShardStateAction.ShardEntry(failedShard.getRoutingEntry().shardId(), failedShard.getRoutingEntry().allocationId().getId(),
+                0L, failedShard.getMessage(), failedShard.getFailure()))
             .collect(Collectors.toList());
         try {
             return shardFailedClusterStateTaskExecutor.execute(clusterState, entries).resultingState;

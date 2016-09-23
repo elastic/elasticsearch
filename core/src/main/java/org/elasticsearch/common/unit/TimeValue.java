@@ -39,7 +39,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-public class TimeValue implements Writeable {
+public class TimeValue implements Writeable, Comparable<TimeValue> {
 
     /** How many nano-seconds in one milli-second */
     public static final long NSEC_PER_MSEC = TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
@@ -387,5 +387,29 @@ public class TimeValue implements Writeable {
 
     public static long nsecToMSec(long ns) {
         return ns / NSEC_PER_MSEC;
+    }
+
+    @Override
+    public int compareTo(TimeValue timeValue) {
+        Byte thisByte = TIME_UNIT_BYTE_MAP.get(timeUnit);
+        Byte otherByte = TIME_UNIT_BYTE_MAP.get(timeValue.timeUnit);
+        TimeUnit minUnit = BYTE_TIME_UNIT_MAP.get(thisByte > otherByte ? thisByte : otherByte);
+        long thisDuration = minUnit.convert(duration, timeUnit);
+        long otherDuration = minUnit.convert(timeValue.duration, timeValue.timeUnit);
+
+        if (thisDuration == otherDuration) {
+            if (thisDuration == Long.MAX_VALUE || thisDuration == Long.MIN_VALUE) {
+                if (thisByte > otherByte) {
+                    return 1;
+                } else if (thisByte < otherByte) {
+                    return -1;
+                }
+            }
+            return 0;
+        } else if (thisDuration < otherDuration) {
+            return -1;
+        } else {
+            return 1;
+        }
     }
 }

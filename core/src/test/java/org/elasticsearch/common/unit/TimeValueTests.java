@@ -224,4 +224,31 @@ public class TimeValueTests extends ESTestCase {
         assertEquals("36h", new TimeValue(36, TimeUnit.HOURS).getStringRep());
         assertEquals("1000d", new TimeValue(1000, TimeUnit.DAYS).getStringRep());
     }
+
+    public void testCompareEquality() {
+        long randomLong = randomPositiveLong();
+        TimeUnit randomUnit = randomFrom(TimeUnit.values());
+        TimeValue firstValue = new TimeValue(randomLong, randomUnit);
+        TimeValue secondValue = new TimeValue(randomLong, randomUnit);
+        assertEquals(0, firstValue.compareTo(secondValue));
+    }
+
+    public void testCompareValue() {
+        long firstRandom = randomPositiveLong();
+        long secondRandom = randomValueOtherThan(firstRandom, ESTestCase::randomPositiveLong);
+        TimeUnit unit = randomFrom(TimeUnit.values());
+        TimeValue firstValue = new TimeValue(firstRandom, unit);
+        TimeValue secondValue = new TimeValue(secondRandom, unit);
+        assertEquals(firstRandom > secondRandom, firstValue.compareTo(secondValue) > 0);
+        assertEquals(secondRandom > firstRandom, secondValue.compareTo(firstValue) > 0);
+    }
+
+    public void testCompareUnits() {
+        long number = randomPositiveLong();
+        TimeUnit randomUnit = randomValueOtherThan(TimeUnit.DAYS, ()->randomFrom(TimeUnit.values()));
+        TimeValue firstValue = new TimeValue(number, randomUnit);
+        TimeValue secondValue = new TimeValue(number, TimeUnit.DAYS);
+        assertTrue(firstValue.compareTo(secondValue) < 0);
+        assertTrue(secondValue.compareTo(firstValue) > 0);
+    }
 }

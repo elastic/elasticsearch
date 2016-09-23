@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-public class ByteSizeValue implements Writeable {
+public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue> {
 
     private final long size;
     private final ByteSizeUnit unit;
@@ -103,6 +103,25 @@ public class ByteSizeValue implements Writeable {
 
     public double getPbFrac() {
         return ((double) getBytes()) / ByteSizeUnit.C5;
+    }
+
+    public long convert(ByteSizeUnit unit) {
+        switch (unit) {
+            case BYTES:
+                return getBytes();
+            case KB:
+                return getKb();
+            case MB:
+                return getMb();
+            case GB:
+                return getGb();
+            case TB:
+                return getTb();
+            case PB:
+                return getPb();
+            default:
+                throw new UnsupportedOperationException("Unsupported ByteSizeUnit: " + unit.toString());
+        }
     }
 
     @Override
@@ -201,5 +220,30 @@ public class ByteSizeValue implements Writeable {
         int result = Long.hashCode(size);
         result = 31 * result + (unit != null ? unit.hashCode() : 0);
         return result;
+    }
+
+    @Override
+    public int compareTo(ByteSizeValue other) {
+        long unitValue = unit.toBytes(1);
+        long otherUnitValue = other.unit.toBytes(1);
+
+        ByteSizeUnit minUnit = unitValue < otherUnitValue ? unit : other.unit;
+        long thisValue = this.convert(minUnit);
+        long otherValue = other.convert(minUnit);
+
+        if (thisValue == otherValue) {
+            if (thisValue == Long.MAX_VALUE || thisValue == Long.MIN_VALUE) {
+                if (unitValue > otherUnitValue) {
+                    return 1;
+                } else if (unitValue < otherUnitValue) {
+                    return -1;
+                }
+            }
+            return 0;
+        } else if (thisValue < otherValue) {
+            return -1;
+        } else {
+            return 1;
+        }
     }
 }

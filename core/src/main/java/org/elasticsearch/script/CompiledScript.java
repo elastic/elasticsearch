@@ -26,23 +26,33 @@ import org.elasticsearch.script.Script.ScriptType;
  */
 public class CompiledScript {
 
+    private final ScriptContext context;
     private final ScriptType type;
-    private final String name;
-    private final ScriptEngineService lang;
+    private final String id;
+    private final ScriptEngineService engine;
     private final Object compiled;
 
     /**
      * Constructor for CompiledScript.
      * @param type The type of script to be executed.
-     * @param name The name of the script to be executed.
-     * @param lang The language of the script to be executed.
+     * @param id The id of the script to be executed.
+     * @param engine The {@link ScriptEngineService} used to compile this script.
      * @param compiled The compiled script Object that is executable.
      */
-    public CompiledScript(ScriptType type, String name, String lang, Object compiled) {
+    public CompiledScript(ScriptContext context, ScriptType type, String id, ScriptEngineService engine, Object compiled) {
+        this.context = context;
         this.type = type;
-        this.name = name;
-        this.lang = lang;
+        this.id = id;
+        this.engine = engine;
         this.compiled = compiled;
+    }
+
+    /**
+     * Method to get the compilation context.
+     * @return The context the script was compiled in.
+     */
+    public ScriptContext context() {
+        return context;
     }
 
     /**
@@ -57,8 +67,8 @@ public class CompiledScript {
      * Method to get the name of the script.
      * @return The name of the script to be executed.
      */
-    public String name() {
-        return name;
+    public String id() {
+        return id;
     }
 
     /**
@@ -66,7 +76,15 @@ public class CompiledScript {
      * @return The language of the script to be executed.
      */
     public String lang() {
-        return lang;
+        return engine.getType();
+    }
+
+    /**
+     * Method to get the {@link ScriptEngineService}.
+     * @return The {@link} ScriptEngineService used to compiled this script.
+     */
+    ScriptEngineService engine() {
+        return engine;
     }
 
     /**
@@ -82,6 +100,6 @@ public class CompiledScript {
      */
     @Override
     public String toString() {
-        return type + " script [" + name + "] using lang [" + lang + "]";
+        return type + " script [" + id + "] using lang [" + lang() + "]";
     }
 }

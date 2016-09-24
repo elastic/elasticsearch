@@ -36,14 +36,13 @@ public interface ScriptEngineService extends Closeable {
 
     /**
      * Compiles a script.
-     * @param context the context the script will be compiled under
-     * @param id id of the script - inline will be {@code null},
-     *                              stored will be the id,
-     *                              file will be the file name
-     * @param code actual source of the script
-     * @param options compile-time parameters (such as flags to the compiler)
+     * @param scriptName name of the script. {@code null} if it is anonymous (inline).
+     *                                        For a file script, its the file name (with extension).
+     *                                        For a stored script, its the identifier.
+     * @param scriptSource actual source of the script
+     * @param params compile-time parameters (such as flags to the compiler)
      */
-    Object compile(ScriptContext context, String id, String code, Map<String, String> options);
+    Object compile(String scriptName, String scriptSource, Map<String, String> params);
 
     ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars);
 

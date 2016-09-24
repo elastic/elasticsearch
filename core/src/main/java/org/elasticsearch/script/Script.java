@@ -527,7 +527,7 @@ public final class Script {
 
         @Override
         public CompiledScript getCompiled(ScriptService service, ScriptContext context) {
-            return null;
+            return service.getFileScript(context, id);
         }
 
         @Override
@@ -585,7 +585,7 @@ public final class Script {
 
         @Override
         public CompiledScript getCompiled(ScriptService service, ScriptContext context) {
-            return null;
+            return service.getStoredScript(context, id);
         }
 
         @Override
@@ -655,7 +655,7 @@ public final class Script {
 
         @Override
         public CompiledScript getCompiled(ScriptService service, ScriptContext context) {
-            return null;
+            return service.getInlineScript(context, lang, code, options);
         }
 
         @Override

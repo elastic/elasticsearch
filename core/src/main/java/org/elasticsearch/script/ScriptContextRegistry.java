@@ -43,9 +43,7 @@ public final class ScriptContextRegistry {
 
     public ScriptContextRegistry(Collection<ScriptContext.Plugin> customScriptContexts) {
         Map<String, ScriptContext> scriptContexts = new HashMap<>();
-        for (ScriptContext.Standard scriptContext : ScriptContext.Standard.values()) {
-            scriptContexts.put(scriptContext.getKey(), scriptContext);
-        }
+        scriptContexts.put()
         for (ScriptContext.Plugin customScriptContext : customScriptContexts) {
             validateScriptContext(customScriptContext);
             ScriptContext previousContext = scriptContexts.put(customScriptContext.getKey(), customScriptContext);

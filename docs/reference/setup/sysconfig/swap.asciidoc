@@ -64,20 +64,15 @@ Systems using `systemd`::
 
 Another possible reason why `mlockall` can fail is that the temporary directory
 (usually `/tmp`) is mounted with the `noexec` option. This can be solved by
-specifying a new temp directory, by starting Elasticsearch with:
-
-[source,sh]
---------------
-./bin/elasticsearch -Djava.io.tmpdir=/path/to/temp/dir
---------------
-
-or using the `ES_JAVA_OPTS` environment variable:
+specifying a new temp directory using the `ES_JAVA_OPTS` environment variable:
 
 [source,sh]
 --------------
 export ES_JAVA_OPTS="$ES_JAVA_OPTS -Djava.io.tmpdir=/path/to/temp/dir"
 ./bin/elasticsearch
 --------------
+
+or setting this JVM flag in the jvm.options configuration file.
 
 [[disable-swap-files]]
 ==== Disable all swap files

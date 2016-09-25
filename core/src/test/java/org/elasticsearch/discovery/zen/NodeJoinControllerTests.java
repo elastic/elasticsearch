@@ -90,7 +90,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-@TestLogging("org.elasticsearch.discovery.zen:TRACE")
+@TestLogging("org.elasticsearch.discovery.zen:TRACE,org.elasticsearch.cluster.service:TRACE")
 public class NodeJoinControllerTests extends ESTestCase {
 
     private static ThreadPool threadPool;

@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocationTestCase {
+
     public void testPreferLocalPrimaryAllocationOverFiltered() {
         int concurrentRecoveries = randomIntBetween(1, 10);
         int primaryRecoveries = randomIntBetween(1, 10);
@@ -66,8 +67,7 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
 
         logger.info("adding two nodes and performing rerouting till all are allocated");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .add(newNode("node1", singletonMap("tag1", "value1")))
-                .add(newNode("node2", singletonMap("tag1", "value2")))).build();
+                .add(newNode("node1")).add(newNode("node2"))).build();
 
         clusterState = strategy.reroute(clusterState, "reroute");
 
@@ -82,12 +82,12 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
                 .put(IndexMetaData.builder(clusterState.metaData().index("test1")).settings(settings(Version.CURRENT)
                         .put("index.number_of_shards", numberOfShards)
                         .put("index.number_of_replicas", 0)
-                        .put("index.routing.allocation.exclude.tag1", "value2")
+                        .put("index.routing.allocation.exclude._name", "node2")
                         .build()))
                 .put(IndexMetaData.builder(clusterState.metaData().index("test2")).settings(settings(Version.CURRENT)
                         .put("index.number_of_shards", numberOfShards)
                         .put("index.number_of_replicas", 0)
-                        .put("index.routing.allocation.exclude.tag1", "value2")
+                        .put("index.routing.allocation.exclude._name", "node2")
                         .build()))
                 .build();
         clusterState = ClusterState.builder(clusterState).metaData(metaData).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node1")).build();

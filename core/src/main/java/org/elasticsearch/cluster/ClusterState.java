@@ -290,7 +290,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
                 sb.append(TAB).append(TAB).append(shard).append(": ");
                 sb.append("p_term [").append(indexMetaData.primaryTerm(shard)).append("], ");
-                sb.append("a_ids ").append(indexMetaData.inSyncAllocationIds(shard)).append("\n");
+                sb.append("isa_ids ").append(indexMetaData.inSyncAllocationIds(shard)).append("\n");
             }
         }
         sb.append(blocks().prettyPrint());

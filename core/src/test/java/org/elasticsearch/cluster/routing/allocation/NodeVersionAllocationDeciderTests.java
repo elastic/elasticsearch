@@ -53,7 +53,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.gateway.NoopGatewayAllocator;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -326,7 +326,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY, Collections.singleton(new NodeVersionAllocationDecider(Settings.EMPTY)));
         AllocationService strategy = new MockAllocationService(Settings.EMPTY,
             allocationDeciders,
-            NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
+            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
         state = strategy.reroute(state, new AllocationCommands(), true, false).getClusterState();
         // the two indices must stay as is, the replicas cannot move to oldNode2 because versions don't match
         assertThat(state.routingTable().index(shard2.getIndex()).shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(0));
@@ -342,10 +342,12 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 MASTER_DATA_ROLES, VersionUtils.getPreviousVersion());
 
         int numberOfShards = randomIntBetween(1, 3);
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(numberOfShards).numberOfReplicas
-                (randomIntBetween(0, 3)))
-            .build();
+        final IndexMetaData.Builder indexMetaData = IndexMetaData.builder("test").settings(settings(Version.CURRENT))
+            .numberOfShards(numberOfShards).numberOfReplicas(randomIntBetween(0, 3));
+        for (int i = 0; i < numberOfShards; i++) {
+            indexMetaData.putInSyncAllocationIds(i, Collections.singleton("_test_"));
+        }
+        MetaData metaData = MetaData.builder().put(indexMetaData).build();
 
         ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metaData(metaData)
@@ -358,7 +360,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             new NodeVersionAllocationDecider(Settings.EMPTY)));
         AllocationService strategy = new MockAllocationService(Settings.EMPTY,
             allocationDeciders,
-            NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
+            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
         state = strategy.reroute(state, new AllocationCommands(), true, false).getClusterState();
 
         // Make sure that primary shards are only allocated on the new node

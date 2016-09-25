@@ -63,7 +63,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", Integer.MAX_VALUE)
                 .build());
         this.numberOfShards = randomIntBetween(1, 5);
-        this.numberOfReplicas = randomIntBetween(1, 5);
+        this.numberOfReplicas = randomIntBetween(0, 5);
         logger.info("Setup test with {} shards and {} replicas.", this.numberOfShards, this.numberOfReplicas);
         this.primaryTermsPerIndex.clear();
         MetaData metaData = MetaData.builder()

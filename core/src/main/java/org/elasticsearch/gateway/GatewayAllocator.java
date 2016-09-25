@@ -130,6 +130,13 @@ public class GatewayAllocator extends AbstractComponent {
     }
 
     public void allocateUnassigned(final RoutingAllocation allocation) {
+        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator);
+    }
+
+    // allow for testing infra to change shard allocators implementation
+    protected static void innerAllocatedUnassigned(RoutingAllocation allocation,
+                                                   PrimaryShardAllocator primaryShardAllocator,
+                                                   ReplicaShardAllocator replicaShardAllocator) {
         RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
         unassigned.sort(PriorityComparator.getAllocationComparator(allocation)); // sort for priority ordering
 

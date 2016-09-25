@@ -81,10 +81,6 @@ public class AllocationService extends AbstractComponent {
      * If the same instance of the {@link ClusterState} is returned, then no change has been made.</p>
      */
     public ClusterState applyStartedShards(ClusterState clusterState, List<ShardRouting> startedShards) {
-        return applyStartedShards(clusterState, startedShards, true);
-    }
-
-    public ClusterState applyStartedShards(ClusterState clusterState, List<ShardRouting> startedShards, boolean withReroute) {
         if (startedShards.isEmpty()) {
             return clusterState;
         }
@@ -95,9 +91,7 @@ public class AllocationService extends AbstractComponent {
             clusterInfoService.getClusterInfo(), currentNanoTime());
         applyStartedShards(allocation, startedShards);
         gatewayAllocator.applyStartedShards(allocation);
-        if (withReroute) {
-            reroute(allocation);
-        }
+        reroute(allocation);
         String startedShardsAsString = firstListElementsToCommaDelimitedString(startedShards, s -> s.shardId().toString());
         return buildResultAndLogHealthChange(clusterState, allocation, "shards started [" + startedShardsAsString + "] ...");
     }

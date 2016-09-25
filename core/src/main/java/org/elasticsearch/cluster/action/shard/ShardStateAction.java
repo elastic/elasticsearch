@@ -422,7 +422,7 @@ public class ShardStateAction extends AbstractComponent {
 
             ClusterState maybeUpdatedState = currentState;
             try {
-                maybeUpdatedState = allocationService.applyStartedShards(currentState, shardRoutingsToBeApplied, true);
+                maybeUpdatedState = allocationService.applyStartedShards(currentState, shardRoutingsToBeApplied);
                 builder.successes(tasksToBeApplied);
             } catch (Exception e) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to apply started shards {}", shardRoutingsToBeApplied), e);

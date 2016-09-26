@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.joda.time.DateTimeZone;
 
@@ -88,7 +89,7 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
 
         XContentParser parser = context.parser();
         String field = null;
-        Script script = null;
+        ScriptInput script = null;
         ValueType valueType = null;
         String format = null;
         Object missing = null;
@@ -137,7 +138,7 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
                 }
             } else if (scriptable && token == XContentParser.Token.START_OBJECT) {
                 if (context.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                    script = ScriptInput.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                 } else if (!token(aggregationName, currentFieldName, token, parserContext, otherOptions)) {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");

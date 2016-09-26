@@ -298,7 +298,7 @@ public final class Script {
     public static final class ScriptInput implements ToXContent, Writeable {
 
         public static ScriptInput create(ScriptType type, String lang, String idOrCode,
-                                         Map<String, Object> params, Map<String, String> options) {
+                                         Map<String, String> options, Map<String, Object> params) {
             if (type == FILE) {
                 if (lang != null) {
                     throw new IllegalArgumentException("[" + ScriptField.LANG.getPreferredName() + "]" +
@@ -350,18 +350,18 @@ public final class Script {
         }
 
         public static ScriptInput update(ScriptInput copy, ScriptType type, String lang, String idOrCode,
-                                         Map<String, Object> params, Map<String, String> options) {
+                                         Map<String, String> options, Map<String, Object> params) {
             if (copy == null) {
-                return create(type, lang, idOrCode, params, options);
+                return create(type, lang, idOrCode, options, params);
             }
 
             type = type == null ? copy.lookup.getType() : type;
             lang = lang == null ? copy.lookup.getLang() : lang;
             idOrCode = idOrCode == null ? copy.lookup.getIdOrCode() : idOrCode;
-            params = params == null ? copy.params : params;
             options = options == null ? copy.lookup.getOptions() : options;
+            params = params == null ? copy.params : params;
 
-            return create(type, lang, idOrCode, params, options);
+            return create(type, lang, idOrCode, options, params);
         }
 
         public static ScriptInput parse(XContentParser parser, ParseFieldMatcher matcher, String lang) throws IOException {
@@ -461,7 +461,7 @@ public final class Script {
                 }
             }
 
-            return create(type, lang, idOrCode, params, options);
+            return create(type, lang, idOrCode, options, params);
         }
 
         public static ScriptInput readFrom(StreamInput in) throws IOException {

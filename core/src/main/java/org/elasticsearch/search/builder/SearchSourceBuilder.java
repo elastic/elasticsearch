@@ -37,6 +37,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchExtParser;
 import org.elasticsearch.search.SearchExtRegistry;
@@ -786,7 +787,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * @param script
      *            The script
      */
-    public SearchSourceBuilder scriptField(String name, Script script) {
+    public SearchSourceBuilder scriptField(String name, ScriptInput script) {
         scriptField(name, script, false);
         return this;
     }
@@ -799,7 +800,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * @param script
      *            The script
      */
-    public SearchSourceBuilder scriptField(String name, Script script, boolean ignoreFailure) {
+    public SearchSourceBuilder scriptField(String name, ScriptInput script, boolean ignoreFailure) {
         if (scriptFields == null) {
             scriptFields = new ArrayList<>();
         }
@@ -1229,9 +1230,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
         private final boolean ignoreFailure;
         private final String fieldName;
-        private final Script script;
+        private final ScriptInput script;
 
-        public ScriptField(String fieldName, Script script, boolean ignoreFailure) {
+        public ScriptField(String fieldName, ScriptInput script, boolean ignoreFailure) {
             this.fieldName = fieldName;
             this.script = script;
             this.ignoreFailure = ignoreFailure;
@@ -1242,7 +1243,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
          */
         public ScriptField(StreamInput in) throws IOException {
             fieldName = in.readString();
-            script = new Script(in);
+            script = ScriptInput.readFrom(in);
             ignoreFailure = in.readBoolean();
         }
 
@@ -1257,7 +1258,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             boolean ignoreFailure = false;
             XContentParser parser = context.parser();
             String scriptFieldName = parser.currentName();
-            Script script = null;
+            ScriptInput script = null;
 
             XContentParser.Token token;
             token = parser.nextToken();
@@ -1268,7 +1269,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         currentFieldName = parser.currentName();
                     } else if (token.isValue()) {
                         if (context.getParseFieldMatcher().match(currentFieldName, SCRIPT_FIELD)) {
-                            script = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                            script = ScriptInput.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                         } else if (context.getParseFieldMatcher().match(currentFieldName, IGNORE_FAILURE_FIELD)) {
                             ignoreFailure = parser.booleanValue();
                         } else {
@@ -1277,7 +1278,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         }
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if (context.getParseFieldMatcher().match(currentFieldName, SCRIPT_FIELD)) {
-                            script = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                            script = ScriptInput.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName
                                     + "].", parser.getTokenLocation());
@@ -1300,7 +1301,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             return fieldName;
         }
 
-        public Script script() {
+        public ScriptInput script() {
             return script;
         }
 

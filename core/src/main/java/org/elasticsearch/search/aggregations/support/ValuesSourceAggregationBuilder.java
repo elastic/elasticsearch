@@ -27,6 +27,8 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.Script.SearchScriptBinding;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.DocValueFormat;
@@ -80,7 +82,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     private final ValuesSourceType valuesSourceType;
     private final ValueType targetValueType;
     private String field = null;
-    private Script script = null;
+    private ScriptInput script = null;
     private ValueType valueType = null;
     private String format = null;
     private Object missing = null;
@@ -126,7 +128,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     private void read(StreamInput in) throws IOException {
         field = in.readOptionalString();
         if (in.readBoolean()) {
-            script = new Script(in);
+            script = ScriptInput.readFrom(in);
         }
         if (in.readBoolean()) {
             valueType = ValueType.readFromStream(in);
@@ -200,7 +202,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
      * Sets the script to use for this aggregation.
      */
     @SuppressWarnings("unchecked")
-    public AB script(Script script) {
+    public AB script(ScriptInput script) {
         if (script == null) {
             throw new IllegalArgumentException("[script] must not be null: [" + name + "]");
         }
@@ -211,7 +213,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     /**
      * Gets the script to use for this aggregation.
      */
-    public Script script() {
+    public ScriptInput script() {
         return script;
     }
 
@@ -375,9 +377,9 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         return config;
     }
 
-    private SearchScript createScript(Script script, SearchContext context) {
-        return script == null ? null
-                : context.scriptService().search(context.lookup(), script, ScriptContext.Standard.AGGS, Collections.emptyMap());
+    private SearchScript createScript(ScriptInput script, SearchContext context) {
+        return script == null ? null : SearchScriptBinding.bind(
+            context.scriptService(), ScriptContext.Standard.AGGS, context.lookup(), script.lookup, script.params);
     }
 
     private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {

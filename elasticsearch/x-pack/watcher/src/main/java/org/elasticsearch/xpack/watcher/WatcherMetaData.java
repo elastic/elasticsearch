@@ -55,6 +55,7 @@ public class WatcherMetaData extends AbstractDiffable<MetaData.Custom> implement
     @Override
     public MetaData.Custom fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
+        Boolean manuallyStopped = null;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             switch (token) {
@@ -63,10 +64,13 @@ public class WatcherMetaData extends AbstractDiffable<MetaData.Custom> implement
                     break;
                 case VALUE_BOOLEAN:
                     if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.MANUALLY_STOPPED)) {
-                        return new WatcherMetaData(parser.booleanValue());
+                        manuallyStopped = parser.booleanValue();
                     }
                     break;
             }
+        }
+        if (manuallyStopped != null) {
+            return new WatcherMetaData(manuallyStopped);
         }
         return null;
     }

@@ -34,6 +34,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
+import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.Script.SearchScriptBinding;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
@@ -50,9 +52,9 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     private static final ParseField PARAMS_FIELD = new ParseField("params");
 
-    private final Script script;
+    private final ScriptInput script;
 
-    public ScriptQueryBuilder(Script script) {
+    public ScriptQueryBuilder(ScriptInput script) {
         if (script == null) {
             throw new IllegalArgumentException("script cannot be null");
         }
@@ -64,7 +66,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
      */
     public ScriptQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        script = new Script(in);
+        script = ScriptInput.readFrom(in);
     }
 
     @Override
@@ -72,7 +74,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         script.writeTo(out);
     }
 
-    public Script script() {
+    public ScriptInput script() {
         return this.script;
     }
 
@@ -92,7 +94,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
     public static Optional<ScriptQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         // also, when caching, since its isCacheable is false, will result in loading all bit set...
-        Script script = null;
+        ScriptInput script = null;
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
@@ -106,7 +108,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseContext.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, parseContext.getParseFieldMatcher(), parseContext.getDefaultScriptLanguage());
+                    script = ScriptInput.parse(parser, parseContext.getParseFieldMatcher(), parseContext.getDefaultScriptLanguage());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
                 }
@@ -116,7 +118,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, parseContext.getParseFieldMatcher(), parseContext.getDefaultScriptLanguage());
+                    script = ScriptInput.parse(parser, parseContext.getParseFieldMatcher(), parseContext.getDefaultScriptLanguage());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
                 }
@@ -139,13 +141,14 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     static class ScriptQuery extends Query {
 
-        private final Script script;
+        private final ScriptInput script;
 
         private final SearchScript searchScript;
 
-        public ScriptQuery(Script script, ScriptService scriptService, SearchLookup searchLookup) {
+        public ScriptQuery(ScriptInput script, ScriptService scriptService, SearchLookup searchLookup) {
             this.script = script;
-            this.searchScript = scriptService.search(searchLookup, script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+            this.searchScript =
+                SearchScriptBinding.bind(scriptService, ScriptContext.Standard.SEARCH, searchLookup, script.lookup, script.params);
         }
 
         @Override

@@ -41,6 +41,8 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.Script.SearchScriptBinding;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
@@ -89,7 +91,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     private int tokenLimit = NoisyChannelSpellChecker.DEFAULT_TOKEN_LIMIT;
     private String preTag;
     private String postTag;
-    private Script collateQuery;
+    private ScriptInput collateQuery;
     private Map<String, Object> collateParams;
     private boolean collatePrune = PhraseSuggestionContext.DEFAULT_COLLATE_PRUNE;
     private SmoothingModel model;
@@ -137,7 +139,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         postTag = in.readOptionalString();
         separator = in.readString();
         if (in.readBoolean()) {
-            collateQuery = new Script(in);
+            collateQuery = ScriptInput.readFrom(in);
         }
         collateParams = in.readMap();
         collatePrune = in.readOptionalBoolean();
@@ -391,14 +393,15 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
      * Sets a query used for filtering out suggested phrases (collation).
      */
     public PhraseSuggestionBuilder collateQuery(String collateQuery) {
-        this.collateQuery = new Script(collateQuery, Script.ScriptType.INLINE, "mustache", Collections.emptyMap());
+        this.collateQuery =
+            ScriptInput.create(Script.ScriptType.INLINE, "mustache", collateQuery, Collections.emptyMap(), Collections.emptyMap());
         return this;
     }
 
     /**
      * Sets a query used for filtering out suggested phrases (collation).
      */
-    public PhraseSuggestionBuilder collateQuery(Script collateQueryTemplate) {
+    public PhraseSuggestionBuilder collateQuery(ScriptInput collateQueryTemplate) {
         this.collateQuery = collateQueryTemplate;
         return this;
     }
@@ -406,7 +409,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     /**
      * gets the query used for filtering out suggested phrases (collation).
      */
-    public Script collateQuery() {
+    public ScriptInput collateQuery() {
         return this.collateQuery;
     }
 
@@ -565,7 +568,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
                                         "suggester[phrase][collate] query already set, doesn't support additional ["
                                         + currentFieldName + "]");
                             }
-                            Script template = Script.parse(parser, parseFieldMatcher, "mustache");
+                            ScriptInput template = ScriptInput.parse(parser, parseFieldMatcher, "mustache");
                             tmpSuggestion.collateQuery(template);
                         } else if (parseFieldMatcher.match(currentFieldName, PhraseSuggestionBuilder.COLLATE_QUERY_PARAMS)) {
                             tmpSuggestion.collateParams(parser.map());
@@ -632,8 +635,8 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         }
 
         if (this.collateQuery != null) {
-            CompiledScript compiledScript = context.getScriptService().compile(this.collateQuery, ScriptContext.Standard.SEARCH,
-                    Collections.emptyMap());
+            CompiledScript compiledScript = this.collateQuery.lookup.getCompiled(
+                context.getScriptService(), ScriptContext.Standard.SEARCH, SearchScriptBinding.BINDING);
             suggestionContext.setCollateQueryScript(compiledScript);
             if (this.collateParams != null) {
                 suggestionContext.setCollateScriptParams(this.collateParams);

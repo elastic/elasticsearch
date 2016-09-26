@@ -24,6 +24,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ExecutableScriptBinding;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -50,10 +52,10 @@ import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resol
 public class BucketScriptPipelineAggregator extends PipelineAggregator {
     private final DocValueFormat formatter;
     private final GapPolicy gapPolicy;
-    private final Script script;
+    private final ScriptInput script;
     private final Map<String, String> bucketsPathsMap;
 
-    public BucketScriptPipelineAggregator(String name, Map<String, String> bucketsPathsMap, Script script, DocValueFormat formatter,
+    public BucketScriptPipelineAggregator(String name, Map<String, String> bucketsPathsMap, ScriptInput script, DocValueFormat formatter,
             GapPolicy gapPolicy, Map<String, Object> metadata) {
         super(name, bucketsPathsMap.values().toArray(new String[bucketsPathsMap.size()]), metadata);
         this.bucketsPathsMap = bucketsPathsMap;
@@ -68,7 +70,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
     @SuppressWarnings("unchecked")
     public BucketScriptPipelineAggregator(StreamInput in) throws IOException {
         super(in);
-        script = new Script(in);
+        script = ScriptInput.readFrom(in);
         formatter = in.readNamedWriteable(DocValueFormat.class);
         gapPolicy = GapPolicy.readFrom(in);
         bucketsPathsMap = (Map<String, String>) in.readGenericValue();
@@ -92,13 +94,13 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg = (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends Bucket> buckets = originalAgg.getBuckets();
 
-        CompiledScript compiledScript = reduceContext.scriptService().compile(script, ScriptContext.Standard.AGGS,
-                Collections.emptyMap());
+        CompiledScript compiledScript =
+            script.lookup.getCompiled(reduceContext.scriptService(), ScriptContext.Standard.AGGS, ExecutableScriptBinding.BINDING);
         List newBuckets = new ArrayList<>();
         for (Bucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();
-            if (script.getParams() != null) {
-                vars.putAll(script.getParams());
+            if (script.params != null) {
+                vars.putAll(script.params);
             }
             boolean skipBucket = false;
             for (Map.Entry<String, String> entry : bucketsPathsMap.entrySet()) {
@@ -114,7 +116,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
             if (skipBucket) {
                 newBuckets.add(bucket);
             } else {
-                ExecutableScript executableScript = reduceContext.scriptService().executable(compiledScript, vars);
+                ExecutableScript executableScript = ExecutableScriptBinding.bind(compiledScript, vars);
                 Object returned = executableScript.run();
                 if (returned == null) {
                     newBuckets.add(bucket);

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -38,14 +39,14 @@ import java.util.Map.Entry;
 
 public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedMetricAggregatorFactory> {
 
-    private final Script initScript;
-    private final Script mapScript;
-    private final Script combineScript;
-    private final Script reduceScript;
+    private final ScriptInput initScript;
+    private final ScriptInput mapScript;
+    private final ScriptInput combineScript;
+    private final ScriptInput reduceScript;
     private final Map<String, Object> params;
 
-    public ScriptedMetricAggregatorFactory(String name, Type type, Script initScript, Script mapScript, Script combineScript,
-            Script reduceScript, Map<String, Object> params, AggregationContext context, AggregatorFactory<?> parent,
+    public ScriptedMetricAggregatorFactory(String name, Type type, ScriptInput initScript, ScriptInput mapScript, ScriptInput combineScript,
+            ScriptInput reduceScript, Map<String, Object> params, AggregationContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
         super(name, type, context, parent, subFactories, metaData);
         this.initScript = initScript;
@@ -73,20 +74,22 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
                 pipelineAggregators, metaData);
     }
 
-    private static Script insertParams(Script script, Map<String, Object> params) {
+    private static ScriptInput insertParams(ScriptInput script, Map<String, Object> params) {
         if (script == null) {
             return null;
         }
-        return new Script(script.getScript(), script.getType(), script.getLang(), params);
+        return ScriptInput.create(
+            script.lookup.getType(), script.lookup.getLang(), script.lookup.getIdOrCode(), script.lookup.getOptions(), params);
     }
 
-    private static Script deepCopyScript(Script script, SearchContext context) {
+    private static ScriptInput deepCopyScript(ScriptInput script, SearchContext context) {
         if (script != null) {
-            Map<String, Object> params = script.getParams();
+            Map<String, Object> params = script.params;
             if (params != null) {
                 params = deepCopyParams(params, context);
             }
-            return new Script(script.getScript(), script.getType(), script.getLang(), params);
+            return ScriptInput.create(
+                script.lookup.getType(), script.lookup.getLang(), script.lookup.getIdOrCode(), script.lookup.getOptions(), params);
         } else {
             return null;
         }

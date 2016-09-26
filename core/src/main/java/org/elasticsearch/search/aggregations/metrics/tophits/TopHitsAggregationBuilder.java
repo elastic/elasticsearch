@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -418,7 +419,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
      * @param script
      *            The script
      */
-    public TopHitsAggregationBuilder scriptField(String name, Script script) {
+    public TopHitsAggregationBuilder scriptField(String name, ScriptInput script) {
         if (name == null) {
             throw new IllegalArgumentException("scriptField [name] must not be null: [" + name + "]");
         }
@@ -437,7 +438,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
      * @param script
      *            The script
      */
-    public TopHitsAggregationBuilder scriptField(String name, Script script, boolean ignoreFailure) {
+    public TopHitsAggregationBuilder scriptField(String name, ScriptInput script, boolean ignoreFailure) {
         if (name == null) {
             throw new IllegalArgumentException("scriptField [name] must not be null: [" + name + "]");
         }
@@ -615,14 +616,14 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                         String scriptFieldName = parser.currentName();
                         token = parser.nextToken();
                         if (token == XContentParser.Token.START_OBJECT) {
-                            Script script = null;
+                            ScriptInput script = null;
                             boolean ignoreFailure = false;
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     currentFieldName = parser.currentName();
                                 } else if (token.isValue()) {
                                     if (context.getParseFieldMatcher().match(currentFieldName, SearchSourceBuilder.SCRIPT_FIELD)) {
-                                        script = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                                        script = ScriptInput.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                                     } else if (context.getParseFieldMatcher().match(currentFieldName,
                                             SearchSourceBuilder.IGNORE_FAILURE_FIELD)) {
                                         ignoreFailure = parser.booleanValue();
@@ -633,7 +634,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                                     }
                                 } else if (token == XContentParser.Token.START_OBJECT) {
                                     if (context.getParseFieldMatcher().match(currentFieldName, SearchSourceBuilder.SCRIPT_FIELD)) {
-                                        script = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                                        script = ScriptInput.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                                     } else {
                                         throw new ParsingException(parser.getTokenLocation(),
                                                 "Unknown key for a " + token + " in [" + currentFieldName + "].",

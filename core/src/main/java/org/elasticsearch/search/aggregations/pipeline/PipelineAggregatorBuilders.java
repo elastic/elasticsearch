@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregationBuilder;
@@ -80,21 +81,21 @@ public final class PipelineAggregatorBuilders {
     }
 
     public static BucketScriptPipelineAggregationBuilder bucketScript(String name,
-            Map<String, String> bucketsPathsMap, Script script) {
+            Map<String, String> bucketsPathsMap, ScriptInput script) {
         return new BucketScriptPipelineAggregationBuilder(name, bucketsPathsMap, script);
     }
 
-    public static BucketScriptPipelineAggregationBuilder bucketScript(String name, Script script,
+    public static BucketScriptPipelineAggregationBuilder bucketScript(String name, ScriptInput script,
             String... bucketsPaths) {
         return new BucketScriptPipelineAggregationBuilder(name, script, bucketsPaths);
     }
 
     public static BucketSelectorPipelineAggregationBuilder bucketSelector(String name,
-            Map<String, String> bucketsPathsMap, Script script) {
+            Map<String, String> bucketsPathsMap, ScriptInput script) {
         return new BucketSelectorPipelineAggregationBuilder(name, bucketsPathsMap, script);
     }
 
-    public static BucketSelectorPipelineAggregationBuilder bucketSelector(String name, Script script,
+    public static BucketSelectorPipelineAggregationBuilder bucketSelector(String name, ScriptInput script,
             String... bucketsPaths) {
         return new BucketSelectorPipelineAggregationBuilder(name, script, bucketsPaths);
     }

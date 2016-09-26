@@ -29,6 +29,7 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
@@ -639,7 +640,7 @@ public abstract class QueryBuilders {
      *
      * @param script The script to filter by.
      */
-    public static ScriptQueryBuilder scriptQuery(Script script) {
+    public static ScriptQueryBuilder scriptQuery(ScriptInput script) {
         return new ScriptQueryBuilder(script);
     }
 

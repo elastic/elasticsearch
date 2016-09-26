@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
+import org.elasticsearch.script.Script.SearchScriptBinding;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -100,8 +101,8 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
         }
         if (scriptFields != null) {
             for (ScriptField field : scriptFields) {
-                SearchScript searchScript = subSearchContext.scriptService().search(subSearchContext.lookup(), field.script(),
-                        ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                SearchScript searchScript = SearchScriptBinding.bind(subSearchContext.scriptService(), ScriptContext.Standard.SEARCH,
+                    subSearchContext.lookup(), field.script().lookup, field.script().params);
                 subSearchContext.scriptFields().add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                         field.fieldName(), searchScript, field.ignoreFailure()));
             }

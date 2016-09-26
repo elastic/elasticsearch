@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 
 /**
  * Static method aliases for constructors of known {@link ScoreFunctionBuilder}s.
@@ -64,12 +65,12 @@ public class ScoreFunctionBuilders {
         return new LinearDecayFunctionBuilder(fieldName, origin, scale, offset, decay);
     }
 
-    public static ScriptScoreFunctionBuilder scriptFunction(Script script) {
+    public static ScriptScoreFunctionBuilder scriptFunction(ScriptInput script) {
         return (new ScriptScoreFunctionBuilder(script));
     }
 
     public static ScriptScoreFunctionBuilder scriptFunction(String script) {
-        return (new ScriptScoreFunctionBuilder(new Script(script)));
+        return (new ScriptScoreFunctionBuilder(ScriptInput.create(script)));
     }
 
     public static RandomScoreFunctionBuilder randomFunction(int seed) {
@@ -83,7 +84,7 @@ public class ScoreFunctionBuilders {
     public static RandomScoreFunctionBuilder randomFunction(String seed) {
         return (new RandomScoreFunctionBuilder()).seed(seed);
     }
-    
+
     public static WeightBuilder weightFactorFunction(float weight) {
         return (WeightBuilder)(new WeightBuilder().setWeight(weight));
     }

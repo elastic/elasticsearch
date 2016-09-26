@@ -21,6 +21,7 @@ package org.elasticsearch.search.sort;
 
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 
 /**
@@ -52,7 +53,7 @@ public class SortBuilders {
      * @param script The script to use.
      * @param type   The type, can either be "string" or "number".
      */
-    public static ScriptSortBuilder scriptSort(Script script, ScriptSortType type) {
+    public static ScriptSortBuilder scriptSort(ScriptInput script, ScriptSortType type) {
         return new ScriptSortBuilder(script, type);
     }
 

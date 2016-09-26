@@ -30,7 +30,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.Script.ScriptField;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -48,10 +50,10 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     private final LongAccessor supersetSizeHolder;
     private final LongAccessor subsetDfHolder;
     private final LongAccessor supersetDfHolder;
-    private final Script script;
+    private final ScriptInput script;
     ExecutableScript searchScript = null;
 
-    public ScriptHeuristic(Script script) {
+    public ScriptHeuristic(ScriptInput script) {
         subsetSizeHolder = new LongAccessor();
         supersetSizeHolder = new LongAccessor();
         subsetDfHolder = new LongAccessor();
@@ -63,7 +65,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
      * Read from a stream.
      */
     public ScriptHeuristic(StreamInput in) throws IOException {
-        this(new Script(in));
+        this(ScriptInput.readFrom(in));
     }
 
     @Override
@@ -82,7 +84,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     }
 
     public void initialize(ScriptService scriptService) {
-        searchScript = scriptService.executable(script, ScriptContext.Standard.AGGS, Collections.emptyMap());
+        searchScript = ExecutableScriptBinding.bind(scriptService, ScriptContext.Standard.AGGS, script.lookup, script.params);
         searchScript.setNextVar("_subset_freq", subsetDfHolder);
         searchScript.setNextVar("_subset_size", subsetSizeHolder);
         searchScript.setNextVar("_superset_freq", supersetDfHolder);
@@ -150,7 +152,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             throws IOException, QueryShardException {
         XContentParser parser = context.getParser();
         String heuristicName = parser.currentName();
-        Script script = null;
+        ScriptInput script = null;
         XContentParser.Token token;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -158,7 +160,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
                 currentFieldName = parser.currentName();
             } else {
                 if (context.matchField(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                    script = ScriptInput.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                 } else {
                     throw new ElasticsearchParseException("failed to parse [{}] significance heuristic. unknown object [{}]", heuristicName, currentFieldName);
                 }
@@ -173,9 +175,9 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     public static class ScriptHeuristicBuilder implements SignificanceHeuristicBuilder {
 
-        private Script script = null;
+        private ScriptInput script = null;
 
-        public ScriptHeuristicBuilder setScript(Script script) {
+        public ScriptHeuristicBuilder setScript(ScriptInput script) {
             this.script = script;
             return this;
         }

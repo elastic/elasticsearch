@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -48,18 +49,18 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.
 public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<BucketScriptPipelineAggregationBuilder> {
     public static final String NAME = "bucket_script";
 
-    private final Script script;
+    private final ScriptInput script;
     private final Map<String, String> bucketsPathsMap;
     private String format = null;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
 
-    public BucketScriptPipelineAggregationBuilder(String name, Map<String, String> bucketsPathsMap, Script script) {
+    public BucketScriptPipelineAggregationBuilder(String name, Map<String, String> bucketsPathsMap, ScriptInput script) {
         super(name, NAME, new TreeMap<>(bucketsPathsMap).values().toArray(new String[bucketsPathsMap.size()]));
         this.bucketsPathsMap = bucketsPathsMap;
         this.script = script;
     }
 
-    public BucketScriptPipelineAggregationBuilder(String name, Script script, String... bucketsPaths) {
+    public BucketScriptPipelineAggregationBuilder(String name, ScriptInput script, String... bucketsPaths) {
         this(name, convertToBucketsPathMap(bucketsPaths), script);
     }
 
@@ -73,7 +74,7 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
         for (int i = 0; i < mapSize; i++) {
             bucketsPathsMap.put(in.readString(), in.readString());
         }
-        script = new Script(in);
+        script = ScriptInput.readFrom(in);
         format = in.readOptionalString();
         gapPolicy = GapPolicy.readFrom(in);
     }
@@ -161,7 +162,7 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
     public static BucketScriptPipelineAggregationBuilder parse(String reducerName, QueryParseContext context) throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token;
-        Script script = null;
+        ScriptInput script = null;
         String currentFieldName = null;
         Map<String, String> bucketsPathsMap = null;
         String format = null;
@@ -179,7 +180,7 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
                 } else if (context.getParseFieldMatcher().match(currentFieldName, GAP_POLICY)) {
                     gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
                 } else if (context.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                    script = ScriptInput.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
@@ -201,7 +202,7 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (context.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                    script = ScriptInput.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                 } else if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
                     Map<String, Object> map = parser.map();
                     bucketsPathsMap = new HashMap<>();

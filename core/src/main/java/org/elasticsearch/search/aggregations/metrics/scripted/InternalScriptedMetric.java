@@ -25,6 +25,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ExecutableScriptBinding;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
@@ -38,10 +40,10 @@ import java.util.List;
 import java.util.Map;
 
 public class InternalScriptedMetric extends InternalMetricsAggregation implements ScriptedMetric {
-    private final Script reduceScript;
+    private final ScriptInput reduceScript;
     private final Object aggregation;
 
-    public InternalScriptedMetric(String name, Object aggregation, Script reduceScript, List<PipelineAggregator> pipelineAggregators,
+    public InternalScriptedMetric(String name, Object aggregation, ScriptInput reduceScript, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.aggregation = aggregation;
@@ -53,7 +55,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
      */
     public InternalScriptedMetric(StreamInput in) throws IOException {
         super(in);
-        reduceScript = in.readOptionalWriteable(Script::new);
+        reduceScript = in.readOptionalWriteable(ScriptInput::readFrom);
         aggregation = in.readGenericValue();
     }
 
@@ -85,12 +87,11 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
         if (firstAggregation.reduceScript != null) {
             Map<String, Object> vars = new HashMap<>();
             vars.put("_aggs", aggregationObjects);
-            if (firstAggregation.reduceScript.getParams() != null) {
-                vars.putAll(firstAggregation.reduceScript.getParams());
+            if (firstAggregation.reduceScript.params != null) {
+                vars.putAll(firstAggregation.reduceScript.params);
             }
-            CompiledScript compiledScript = reduceContext.scriptService().compile(firstAggregation.reduceScript,
-                    ScriptContext.Standard.AGGS, Collections.emptyMap());
-            ExecutableScript script = reduceContext.scriptService().executable(compiledScript, vars);
+            ExecutableScript script = ExecutableScriptBinding.bind(
+                reduceContext.scriptService(), ScriptContext.Standard.AGGS, firstAggregation.reduceScript.lookup, vars);
             aggregation = script.run();
         } else {
             aggregation = aggregationObjects;

@@ -25,6 +25,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ExecutableScriptBinding;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -45,11 +47,11 @@ import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resol
 public class BucketSelectorPipelineAggregator extends PipelineAggregator {
     private GapPolicy gapPolicy;
 
-    private Script script;
+    private ScriptInput script;
 
     private Map<String, String> bucketsPathsMap;
 
-    public BucketSelectorPipelineAggregator(String name, Map<String, String> bucketsPathsMap, Script script, GapPolicy gapPolicy,
+    public BucketSelectorPipelineAggregator(String name, Map<String, String> bucketsPathsMap, ScriptInput script, GapPolicy gapPolicy,
             Map<String, Object> metadata) {
         super(name, bucketsPathsMap.values().toArray(new String[bucketsPathsMap.size()]), metadata);
         this.bucketsPathsMap = bucketsPathsMap;
@@ -63,7 +65,7 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
     @SuppressWarnings("unchecked")
     public BucketSelectorPipelineAggregator(StreamInput in) throws IOException {
         super(in);
-        script = new Script(in);
+        script = ScriptInput.readFrom(in);
         gapPolicy = GapPolicy.readFrom(in);
         bucketsPathsMap = (Map<String, String>) in.readGenericValue();
     }
@@ -86,13 +88,13 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
                 (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends Bucket> buckets = originalAgg.getBuckets();
 
-        CompiledScript compiledScript = reduceContext.scriptService().compile(script, ScriptContext.Standard.AGGS,
-                Collections.emptyMap());
+        CompiledScript compiledScript =
+            script.lookup.getCompiled(reduceContext.scriptService(), ScriptContext.Standard.AGGS, ExecutableScriptBinding.BINDING);
         List newBuckets = new ArrayList<>();
         for (Bucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();
-            if (script.getParams() != null) {
-                vars.putAll(script.getParams());
+            if (script.params != null) {
+                vars.putAll(script.params);
             }
             for (Map.Entry<String, String> entry : bucketsPathsMap.entrySet()) {
                 String varName = entry.getKey();
@@ -100,11 +102,11 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
                 Double value = resolveBucketValue(originalAgg, bucket, bucketsPath, gapPolicy);
                 vars.put(varName, value);
             }
-            ExecutableScript executableScript = reduceContext.scriptService().executable(compiledScript, vars);
+            ExecutableScript executableScript = ExecutableScriptBinding.bind(compiledScript, vars);
             Object scriptReturnValue = executableScript.run();
             final boolean keepBucket;
             // TODO: WTF!!!!!
-            if ("expression".equals(script.getLang())) {
+            if ("expression".equals(compiledScript.lang())) {
                 double scriptDoubleValue = (double) scriptReturnValue;
                 keepBucket = scriptDoubleValue == 1.0;
             } else {

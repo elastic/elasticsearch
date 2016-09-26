@@ -297,8 +297,17 @@ public final class Script {
 
     public static final class ScriptInput implements ToXContent, Writeable {
 
+        public static ScriptInput create(String idOrCode) {
+            return create(null, null, idOrCode, Collections.emptyMap(), Collections.emptyMap());
+        }
+
         public static ScriptInput create(ScriptType type, String lang, String idOrCode,
                                          Map<String, String> options, Map<String, Object> params) {
+
+            if (type == null) {
+                type = DEFAULT_SCRIPT_TYPE;
+            }
+
             if (type == FILE) {
                 if (lang != null) {
                     throw new IllegalArgumentException("[" + ScriptField.LANG.getPreferredName() + "]" +
@@ -820,11 +829,11 @@ public final class Script {
                                             ScriptLookup lookup, Map<String, Object> variables) {
             CompiledScript compiled = lookup.getCompiled(service, context, ExecutableScriptBinding.BINDING);
 
-            return bind(compiled.engine(), compiled, variables);
+            return bind(compiled, variables);
         }
 
-        public static ExecutableScript bind(ScriptEngineService engine, CompiledScript compiled, Map<String, Object> variables) {
-            return engine.executable(compiled, variables);
+        public static ExecutableScript bind(CompiledScript compiled, Map<String, Object> variables) {
+            return compiled.engine().executable(compiled, variables);
         }
 
         private ExecutableScriptBinding() {}
@@ -842,12 +851,11 @@ public final class Script {
                                         ScriptLookup lookup, Map<String, Object> variables) {
             CompiledScript compiled = lookup.getCompiled(service, context, SearchScriptBinding.BINDING);
 
-            return bind(compiled.engine(), compiled, search, variables);
+            return bind(compiled, search, variables);
         }
 
-        public static SearchScript bind(
-            ScriptEngineService engine, CompiledScript compiled, SearchLookup lookup, Map<String, Object> variables) {
-            return engine.search(compiled, lookup, variables);
+        public static SearchScript bind(CompiledScript compiled, SearchLookup lookup, Map<String, Object> variables) {
+            return compiled.engine().search(compiled, lookup, variables);
         }
 
         private SearchScriptBinding() {}
@@ -859,6 +867,7 @@ public final class Script {
     }
 
     public static final String DEFAULT_SCRIPT_LANG = "painless";
+    public static final ScriptType DEFAULT_SCRIPT_TYPE = INLINE;
 
     public static final String CONTENT_TYPE_OPTION = "content_type";
 

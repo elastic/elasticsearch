@@ -31,6 +31,8 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
+import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.Script.SearchScriptBinding;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 
@@ -45,9 +47,9 @@ import java.util.Objects;
 public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScoreFunctionBuilder> {
     public static final String NAME = "script_score";
 
-    private final Script script;
+    private final ScriptInput script;
 
-    public ScriptScoreFunctionBuilder(Script script) {
+    public ScriptScoreFunctionBuilder(ScriptInput script) {
         if (script == null) {
             throw new IllegalArgumentException("script must not be null");
         }
@@ -59,7 +61,7 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
      */
     public ScriptScoreFunctionBuilder(StreamInput in) throws IOException {
         super(in);
-        script = new Script(in);
+        script = ScriptInput.readFrom(in);
     }
 
     @Override
@@ -67,7 +69,7 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
         script.writeTo(out);
     }
 
-    public Script getScript() {
+    public ScriptInput getScript() {
         return this.script;
     }
 
@@ -96,8 +98,8 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) {
         try {
-            SearchScript searchScript = context.getScriptService().search(context.lookup(), script, ScriptContext.Standard.SEARCH,
-                    Collections.emptyMap());
+            SearchScript searchScript = SearchScriptBinding.bind(
+                context.getScriptService(), ScriptContext.Standard.SEARCH, context.lookup(), script.lookup, script.params);
             return new ScriptScoreFunction(script, searchScript);
         } catch (Exception e) {
             throw new QueryShardException(context, "script_score: the script could not be loaded", e);
@@ -107,7 +109,7 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
     public static ScriptScoreFunctionBuilder fromXContent(QueryParseContext parseContext)
             throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
-        Script script = null;
+        ScriptInput script = null;
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -115,7 +117,7 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
                 currentFieldName = parser.currentName();
             } else {
                 if (parseContext.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, parseContext.getParseFieldMatcher(), parseContext.getDefaultScriptLanguage());
+                    script = ScriptInput.parse(parser, parseContext.getParseFieldMatcher(), parseContext.getDefaultScriptLanguage());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), NAME + " query does not support [" + currentFieldName + "]");
                 }

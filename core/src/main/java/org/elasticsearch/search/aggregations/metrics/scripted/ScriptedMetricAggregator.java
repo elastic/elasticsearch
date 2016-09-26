@@ -23,6 +23,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ExecutableScriptBinding;
+import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.Script.SearchScriptBinding;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
@@ -43,21 +46,21 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
 
     private final SearchScript mapScript;
     private final ExecutableScript combineScript;
-    private final Script reduceScript;
+    private final ScriptInput reduceScript;
     private Map<String, Object> params;
 
-    protected ScriptedMetricAggregator(String name, Script initScript, Script mapScript, Script combineScript, Script reduceScript,
+    protected ScriptedMetricAggregator(String name, ScriptInput initScript, ScriptInput mapScript, ScriptInput combineScript, ScriptInput reduceScript,
             Map<String, Object> params, AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.params = params;
         ScriptService scriptService = context.searchContext().scriptService();
         if (initScript != null) {
-            scriptService.executable(initScript, ScriptContext.Standard.AGGS, Collections.emptyMap()).run();
+            ExecutableScriptBinding.bind(scriptService, ScriptContext.Standard.AGGS, initScript.lookup, initScript.params).run();
         }
-        this.mapScript = scriptService.search(context.searchContext().lookup(), mapScript, ScriptContext.Standard.AGGS, Collections.emptyMap());
+        this.mapScript = SearchScriptBinding.bind(scriptService, ScriptContext.Standard.AGGS, context.searchContext().lookup(), mapScript.lookup, mapScript.params);
         if (combineScript != null) {
-            this.combineScript = scriptService.executable(combineScript, ScriptContext.Standard.AGGS, Collections.emptyMap());
+            this.combineScript = ExecutableScriptBinding.bind(scriptService, ScriptContext.Standard.AGGS, combineScript.lookup, combineScript.params);
         } else {
             this.combineScript = null;
         }

@@ -41,6 +41,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
@@ -121,8 +122,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     final Map<String, Object> vars = suggestion.getCollateScriptParams();
                     vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
                     QueryShardContext shardContext = suggestion.getShardContext();
-                    ScriptService scriptService = shardContext.getScriptService();
-                    final ExecutableScript executable = scriptService.executable(collateScript, vars);
+                    final ExecutableScript executable = ExecutableScriptBinding.bind(collateScript, vars);
                     final BytesReference querySource = (BytesReference) executable.run();
                     try (XContentParser parser = XContentFactory.xContent(querySource).createParser(querySource)) {
                         Optional<QueryBuilder> innerQueryBuilder = shardContext.newParseContext(parser).parseInnerQueryBuilder();

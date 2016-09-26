@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 
 import java.util.Map;
 
@@ -88,7 +89,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * e.g. <code>ctx._source.mycounter += 1</code>.
      *
      */
-    public UpdateRequestBuilder setScript(Script script) {
+    public UpdateRequestBuilder setScript(ScriptInput script) {
         request.script(script);
         return this;
     }

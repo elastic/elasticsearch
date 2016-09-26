@@ -23,6 +23,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ExecutableScriptBinding;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 
@@ -42,15 +44,14 @@ public class InternalTemplateService implements TemplateService {
         int mustacheStart = template.indexOf("{{");
         int mustacheEnd = template.indexOf("}}");
         if (mustacheStart != -1 && mustacheEnd != -1 && mustacheStart < mustacheEnd) {
-            Script script = new Script(template, Script.ScriptType.INLINE, "mustache", Collections.emptyMap());
-            CompiledScript compiledScript = scriptService.compile(
-                script,
-                ScriptContext.Standard.INGEST,
-                Collections.emptyMap());
+            ScriptInput script = ScriptInput.create(
+                Script.ScriptType.INLINE, "mustache", template, Collections.emptyMap(), Collections.emptyMap());
+            CompiledScript compiledScript = script.lookup.getCompiled(
+                scriptService, ScriptContext.Standard.INGEST, ExecutableScriptBinding.BINDING);
             return new Template() {
                 @Override
                 public String execute(Map<String, Object> model) {
-                    ExecutableScript executableScript = scriptService.executable(compiledScript, model);
+                    ExecutableScript executableScript = ExecutableScriptBinding.bind(compiledScript, model);
                     Object result = executableScript.run();
                     if (result instanceof BytesReference) {
                         return ((BytesReference) result).utf8ToString();

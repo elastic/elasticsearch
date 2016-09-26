@@ -48,6 +48,8 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
+import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.Script.SearchScriptBinding;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.DocValueFormat;
@@ -73,7 +75,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     public static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path");
     public static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter");
 
-    private final Script script;
+    private final ScriptInput script;
 
     private final ScriptSortType type;
 
@@ -92,7 +94,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
      *            The type of the script, can be either {@link ScriptSortType#STRING} or
      *            {@link ScriptSortType#NUMBER}
      */
-    public ScriptSortBuilder(Script script, ScriptSortType type) {
+    public ScriptSortBuilder(ScriptInput script, ScriptSortType type) {
         Objects.requireNonNull(script, "script cannot be null");
         Objects.requireNonNull(type, "type cannot be null");
         this.script = script;
@@ -112,7 +114,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
      * Read from a stream.
      */
     public ScriptSortBuilder(StreamInput in) throws IOException {
-        script = new Script(in);
+        script = ScriptInput.readFrom(in);
         type = ScriptSortType.readFromStream(in);
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
@@ -133,7 +135,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     /**
      * Get the script used in this sort.
      */
-    public Script script() {
+    public ScriptInput script() {
         return this.script;
     }
 
@@ -230,7 +232,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     public static ScriptSortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException {
         XContentParser parser = context.parser();
         ParseFieldMatcher parseField = context.getParseFieldMatcher();
-        Script script = null;
+        ScriptInput script = null;
         ScriptSortType type = null;
         SortMode sortMode = null;
         SortOrder order = null;
@@ -244,7 +246,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 currentName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseField.match(currentName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, parseField, context.getDefaultScriptLanguage());
+                    script = ScriptInput.parse(parser, parseField, context.getDefaultScriptLanguage());
                 } else if (parseField.match(currentName, NESTED_FILTER_FIELD)) {
                     nestedFilter = context.parseInnerQueryBuilder();
                 } else {
@@ -260,7 +262,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 } else if (parseField.match(currentName, NESTED_PATH_FIELD)) {
                     nestedPath = parser.text();
                 } else if (parseField.match(currentName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, parseField, context.getDefaultScriptLanguage());
+                    script = ScriptInput.parse(parser, parseField, context.getDefaultScriptLanguage());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] failed to parse field [" + currentName + "]");
                 }
@@ -286,8 +288,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
-        final SearchScript searchScript = context.getScriptService().search(
-                context.lookup(), script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+        final SearchScript searchScript = SearchScriptBinding.bind(
+            context.getScriptService(), ScriptContext.Standard.SEARCH, context.lookup(), script.lookup, script.params);
 
         MultiValueMode valueMode = null;
         if (sortMode != null) {

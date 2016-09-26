@@ -49,6 +49,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ExecutableScriptBinding;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -118,7 +120,7 @@ public class UpdateHelper extends AbstractComponent {
                 if (!"create".equals(scriptOpChoice)) {
                     if (!"none".equals(scriptOpChoice)) {
                         logger.warn("Used upsert operation [{}] for script [{}], doing nothing...", scriptOpChoice,
-                                request.script.getScript());
+                                request.script.lookup.getIdOrCode());
                     }
                     UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),
                             getResult.getVersion(), DocWriteResponse.Result.NOOP);
@@ -238,16 +240,16 @@ public class UpdateHelper extends AbstractComponent {
             update.setGetResult(extractGetResult(request, request.index(), getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
-            logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script.getScript());
+            logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script.lookup.getIdOrCode());
             UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(), getResult.getVersion(), DocWriteResponse.Result.NOOP);
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         }
     }
 
-    private Map<String, Object> executeScript(Script script, Map<String, Object> ctx) {
+    private Map<String, Object> executeScript(ScriptInput script, Map<String, Object> ctx) {
         try {
             if (scriptService != null) {
-                ExecutableScript executableScript = scriptService.executable(script, ScriptContext.Standard.UPDATE, Collections.emptyMap());
+                ExecutableScript executableScript = ExecutableScriptBinding.bind(scriptService, ScriptContext.Standard.UPDATE, script.lookup, script.params);
                 executableScript.setNextVar("ctx", ctx);
                 executableScript.run();
                 // we need to unwrap the ctx...

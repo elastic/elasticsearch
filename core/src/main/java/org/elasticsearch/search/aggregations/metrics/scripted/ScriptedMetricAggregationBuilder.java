@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -50,10 +51,10 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     private static final ParseField REDUCE_SCRIPT_FIELD = new ParseField("reduce_script");
     private static final ParseField PARAMS_FIELD = new ParseField("params");
 
-    private Script initScript;
-    private Script mapScript;
-    private Script combineScript;
-    private Script reduceScript;
+    private ScriptInput initScript;
+    private ScriptInput mapScript;
+    private ScriptInput combineScript;
+    private ScriptInput reduceScript;
     private Map<String, Object> params;
 
     public ScriptedMetricAggregationBuilder(String name) {
@@ -65,10 +66,10 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
      */
     public ScriptedMetricAggregationBuilder(StreamInput in) throws IOException {
         super(in, TYPE);
-        initScript = in.readOptionalWriteable(Script::new);
-        mapScript = in.readOptionalWriteable(Script::new);
-        combineScript = in.readOptionalWriteable(Script::new);
-        reduceScript = in.readOptionalWriteable(Script::new);
+        initScript = in.readOptionalWriteable(ScriptInput::readFrom);
+        mapScript = in.readOptionalWriteable(ScriptInput::readFrom);
+        combineScript = in.readOptionalWriteable(ScriptInput::readFrom);
+        reduceScript = in.readOptionalWriteable(ScriptInput::readFrom);
         if (in.readBoolean()) {
             params = in.readMap();
         }
@@ -90,7 +91,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     /**
      * Set the <tt>init</tt> script.
      */
-    public ScriptedMetricAggregationBuilder initScript(Script initScript) {
+    public ScriptedMetricAggregationBuilder initScript(ScriptInput initScript) {
         if (initScript == null) {
             throw new IllegalArgumentException("[initScript] must not be null: [" + name + "]");
         }
@@ -101,14 +102,14 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     /**
      * Get the <tt>init</tt> script.
      */
-    public Script initScript() {
+    public ScriptInput initScript() {
         return initScript;
     }
 
     /**
      * Set the <tt>map</tt> script.
      */
-    public ScriptedMetricAggregationBuilder mapScript(Script mapScript) {
+    public ScriptedMetricAggregationBuilder mapScript(ScriptInput mapScript) {
         if (mapScript == null) {
             throw new IllegalArgumentException("[mapScript] must not be null: [" + name + "]");
         }
@@ -119,14 +120,14 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     /**
      * Get the <tt>map</tt> script.
      */
-    public Script mapScript() {
+    public ScriptInput mapScript() {
         return mapScript;
     }
 
     /**
      * Set the <tt>combine</tt> script.
      */
-    public ScriptedMetricAggregationBuilder combineScript(Script combineScript) {
+    public ScriptedMetricAggregationBuilder combineScript(ScriptInput combineScript) {
         if (combineScript == null) {
             throw new IllegalArgumentException("[combineScript] must not be null: [" + name + "]");
         }
@@ -137,14 +138,14 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     /**
      * Get the <tt>combine</tt> script.
      */
-    public Script combineScript() {
+    public ScriptInput combineScript() {
         return combineScript;
     }
 
     /**
      * Set the <tt>reduce</tt> script.
      */
-    public ScriptedMetricAggregationBuilder reduceScript(Script reduceScript) {
+    public ScriptedMetricAggregationBuilder reduceScript(ScriptInput reduceScript) {
         if (reduceScript == null) {
             throw new IllegalArgumentException("[reduceScript] must not be null: [" + name + "]");
         }
@@ -155,7 +156,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     /**
      * Get the <tt>reduce</tt> script.
      */
-    public Script reduceScript() {
+    public ScriptInput reduceScript() {
         return reduceScript;
     }
 
@@ -213,10 +214,10 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     public static ScriptedMetricAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        Script initScript = null;
-        Script mapScript = null;
-        Script combineScript = null;
-        Script reduceScript = null;
+        ScriptInput initScript = null;
+        ScriptInput mapScript = null;
+        ScriptInput combineScript = null;
+        ScriptInput reduceScript = null;
         Map<String, Object> params = null;
         XContentParser.Token token;
         String currentFieldName = null;
@@ -232,13 +233,13 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.VALUE_STRING) {
                 if (context.getParseFieldMatcher().match(currentFieldName, INIT_SCRIPT_FIELD)) {
-                    initScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                    initScript = ScriptInput.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                 } else if (context.getParseFieldMatcher().match(currentFieldName, MAP_SCRIPT_FIELD)) {
-                    mapScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                    mapScript = ScriptInput.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                 } else if (context.getParseFieldMatcher().match(currentFieldName, COMBINE_SCRIPT_FIELD)) {
-                    combineScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                    combineScript = ScriptInput.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                 } else if (context.getParseFieldMatcher().match(currentFieldName, REDUCE_SCRIPT_FIELD)) {
-                    reduceScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                    reduceScript = ScriptInput.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                 } else if (token == XContentParser.Token.START_OBJECT &&
                         context.getParseFieldMatcher().match(currentFieldName, PARAMS_FIELD)) {
                     params = parser.map();

@@ -26,6 +26,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -255,7 +256,7 @@ public final class IpRangeAggregationBuilder
     }
 
     @Override
-    public IpRangeAggregationBuilder script(Script script) {
+    public IpRangeAggregationBuilder script(ScriptInput script) {
         throw new IllegalArgumentException("[ip_range] does not support scripts");
     }
 

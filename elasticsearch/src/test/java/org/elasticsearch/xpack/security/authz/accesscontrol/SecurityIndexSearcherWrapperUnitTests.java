@@ -46,6 +46,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -124,7 +125,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         Index index = new Index("_index", "testUUID");
         scriptService = mock(ScriptService.class);
         indexSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
-        NamedAnalyzer namedAnalyzer = new NamedAnalyzer("default", new StandardAnalyzer());
+        NamedAnalyzer namedAnalyzer = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, namedAnalyzer, namedAnalyzer, namedAnalyzer,
                 Collections.emptyMap());
         SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());

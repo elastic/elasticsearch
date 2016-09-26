@@ -34,8 +34,10 @@
             "description" : "Comma-separated list of column names to display"
         },
         "health": {
-            "type" : "string",
-            "description" : "A health status (\"green\", \"yellow\", or \"red\" to filter only indices matching the specified health status"
+          "type" : "enum",
+          "options" : ["green","yellow","red"],
+          "default" : null,
+          "description" : "A health status (\"green\", \"yellow\", or \"red\" to filter only indices matching the specified health status"
         },
         "help": {
           "type": "boolean",

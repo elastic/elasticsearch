@@ -816,6 +816,13 @@ public final class Script {
     public final static class ExecutableScriptBinding implements ScriptBinding {
         public final static ExecutableScriptBinding BINDING = new ExecutableScriptBinding();
 
+        public static ExecutableScript bind(ScriptService service, ScriptContext context,
+                                            ScriptLookup lookup, Map<String, Object> variables) {
+            CompiledScript compiled = lookup.getCompiled(service, context, ExecutableScriptBinding.BINDING);
+
+            return bind(compiled.engine(), compiled, variables);
+        }
+
         public static ExecutableScript bind(ScriptEngineService engine, CompiledScript compiled, Map<String, Object> variables) {
             return engine.executable(compiled, variables);
         }
@@ -830,6 +837,13 @@ public final class Script {
 
     public final static class SearchScriptBinding implements ScriptBinding {
         public final static SearchScriptBinding BINDING = new SearchScriptBinding();
+
+        public static SearchScript bind(ScriptService service, ScriptContext context, SearchLookup search,
+                                        ScriptLookup lookup, Map<String, Object> variables) {
+            CompiledScript compiled = lookup.getCompiled(service, context, SearchScriptBinding.BINDING);
+
+            return bind(compiled.engine(), compiled, search, variables);
+        }
 
         public static SearchScript bind(
             ScriptEngineService engine, CompiledScript compiled, SearchLookup lookup, Map<String, Object> variables) {

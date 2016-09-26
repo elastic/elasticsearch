@@ -19,7 +19,7 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.script.Script.ScriptType;
+import org.elasticsearch.common.settings.Settings;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -43,7 +43,9 @@ public final class ScriptContextRegistry {
 
     public ScriptContextRegistry(Collection<ScriptContext.Plugin> customScriptContexts) {
         Map<String, ScriptContext> scriptContexts = new HashMap<>();
-        scriptContexts.put()
+        for (ScriptContext.Standard scriptContext : ScriptContext.Standard.values()) {
+            scriptContexts.put(scriptContext.getKey(), scriptContext);
+        }
         for (ScriptContext.Plugin customScriptContext : customScriptContexts) {
             validateScriptContext(customScriptContext);
             ScriptContext previousContext = scriptContexts.put(customScriptContext.getKey(), customScriptContext);
@@ -59,13 +61,6 @@ public final class ScriptContextRegistry {
      */
     Collection<ScriptContext> scriptContexts() {
         return scriptContexts.values();
-    }
-
-    /**
-     * @return the {@link ScriptContext} from the passed in key
-     */
-    ScriptContext getContextFromKey(String key) {
-        return scriptContexts.get(key);
     }
 
     /**
@@ -87,7 +82,7 @@ public final class ScriptContextRegistry {
 
     private static Set<String> reservedScriptContexts() {
         Set<String> reserved = new HashSet<>(Script.ScriptType.values().length + ScriptContext.Standard.values().length);
-        for (ScriptType scriptType : Script.ScriptType.values()) {
+        for (Script.ScriptType scriptType : Script.ScriptType.values()) {
             reserved.add(scriptType.toString());
         }
         for (ScriptContext.Standard scriptContext : ScriptContext.Standard.values()) {

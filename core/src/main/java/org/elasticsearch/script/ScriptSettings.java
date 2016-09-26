@@ -51,7 +51,7 @@ public class ScriptSettings {
         for (ScriptType scriptType : Script.ScriptType.values()) {
             scriptTypeSettingMap.put(scriptType, Setting.boolSetting(
                 ScriptModes.sourceKey(scriptType),
-                scriptType.getDefaultScriptEnabled(),
+                scriptType.enabled,
                 Property.NodeScope));
         }
         SCRIPT_TYPE_SETTING_MAP = Collections.unmodifiableMap(scriptTypeSettingMap);
@@ -103,7 +103,7 @@ public class ScriptSettings {
                 boolean defaultLangAndType = defaultNonFileScriptMode;
                 // Files are treated differently because they are never default-deny
                 if (Script.ScriptType.FILE == scriptType) {
-                    defaultLangAndType = Script.ScriptType.FILE.getDefaultScriptEnabled();
+                    defaultLangAndType = ScriptType.FILE.enabled;
                 }
                 final boolean defaultIfNothingSet = defaultLangAndType;
 

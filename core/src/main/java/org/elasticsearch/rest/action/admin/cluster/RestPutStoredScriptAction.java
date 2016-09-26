@@ -52,7 +52,7 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
         StoredScriptSource source;
 
         try (XContentParser parser = XContentHelper.createParser(request.content())) {
-            source = StoredScriptSource.parseScript(parser);
+            source = StoredScriptSource.parse(parser);
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);
         }

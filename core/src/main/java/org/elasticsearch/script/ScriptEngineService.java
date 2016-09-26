@@ -20,6 +20,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.script.Script.ScriptBinding;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.Closeable;

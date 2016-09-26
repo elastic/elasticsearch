@@ -20,47 +20,39 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.script.Script.ScriptInput;
 
 /**
  * Context of an operation that uses scripts as part of its execution.
  */
 public interface ScriptContext {
-    public static final AggsScriptContext AGGS = new AggsScriptContext();
-    public static final SearchScriptContext SEARCH = new SearchScriptContext();
-    public static final UpdateScriptContext UPDATE = new UpdateScriptContext();
-    public static final IngestScriptContext INGEST = new IngestScriptContext();
 
     /**
      * @return the name of the operation
      */
     String getKey();
 
-    public class AggsScriptContext implements ScriptContext {
-        public String getKey() {
-            return "aggs";
-        }
-    }
+    /**
+     * Standard operations that make use of scripts as part of their execution.
+     * Note that the suggest api is considered part of search for simplicity, as well as the percolate api.
+     */
+    enum Standard implements ScriptContext {
 
-    public class SearchScriptContext implements ScriptContext {
-        public String getKey() {
-            return "search";
+        AGGS("aggs"), SEARCH("search"), UPDATE("update"), INGEST("ingest");
+
+        private final String key;
+
+        Standard(String key) {
+            this.key = key;
         }
 
-        public SearchScript bind(ScriptService service, ScriptInput input) {
-            CompiledScript compiled = input.lookup.getCompiled(service, this);
-        }
-    }
-
-    public class UpdateScriptContext implements ScriptContext {
+        @Override
         public String getKey() {
-            return "udpate";
+            return key;
         }
-    }
 
-    public class IngestScriptContext implements ScriptContext {
-        public String getKey() {
-            return "ingest";
+        @Override
+        public String toString() {
+            return getKey();
         }
     }
 

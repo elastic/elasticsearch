@@ -49,8 +49,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.Script.ScriptBinding;
 import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.script.Script.StoredScriptSource;
+import org.elasticsearch.script.Script.UnknownScriptBinding;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -215,7 +217,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
                 InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8);
                 String code = Streams.copyToString(reader);
-                CompiledScript compiled = compile(null, FILE, split[ID], engine.getType(), code, Collections.emptyMap());
+                CompiledScript compiled =
+                    compile(null, UnknownScriptBinding.BINDING, FILE, split[ID], engine.getType(), code, Collections.emptyMap());
 
                 FileCacheKey key = new FileCacheKey(split[ID]);
                 fileCache.put(key, compiled);
@@ -467,7 +470,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
     }
 
-    public void putStoreScript(ClusterService clusterService, PutStoredScriptRequest request, ActionListener<PutStoredScriptResponse> listener) {
+    public void putStoreScript(ClusterService clusterService, PutStoredScriptRequest request,
+                               ActionListener<PutStoredScriptResponse> listener) {
         String id = request.id();
         StoredScriptSource source = request.source();
 
@@ -482,9 +486,10 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         getScriptEngineServiceForLang(source.lang);
         canExecuteScriptInAnyContext(STORED, source.lang);
-        compile(null, STORED, id, source.lang, source.code, source.options);
+        compile(null, UnknownScriptBinding.BINDING, STORED, id, source.lang, source.code, source.options);
 
-        clusterService.submitStateUpdateTask("put-script-" + request.id(), new AckedClusterStateUpdateTask<PutStoredScriptResponse>(request, listener) {
+        clusterService.submitStateUpdateTask("put-script-" + request.id(),
+            new AckedClusterStateUpdateTask<PutStoredScriptResponse>(request, listener) {
 
             @Override
             protected PutStoredScriptResponse newResponse(boolean acknowledged) {
@@ -498,8 +503,10 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         });
     }
 
-    public void deleteStoredScript(ClusterService clusterService, DeleteStoredScriptRequest request, ActionListener<DeleteStoredScriptResponse> listener) {
-        clusterService.submitStateUpdateTask("delete-script-" + request.id(), new AckedClusterStateUpdateTask<DeleteStoredScriptResponse>(request, listener) {
+    public void deleteStoredScript(ClusterService clusterService, DeleteStoredScriptRequest request,
+                                   ActionListener<DeleteStoredScriptResponse> listener) {
+        clusterService.submitStateUpdateTask("delete-script-" + request.id(),
+            new AckedClusterStateUpdateTask<DeleteStoredScriptResponse>(request, listener) {
 
             @Override
             protected DeleteStoredScriptResponse newResponse(boolean acknowledged) {
@@ -517,7 +524,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return ScriptMetaData.getScript(state, request.id());
     }
 
-    CompiledScript getInlineScript(ScriptContext context, String lang, String code, Map<String, String> options) {
+    CompiledScript getInlineScript(ScriptContext context, ScriptBinding binding, String lang, String code, Map<String, String> options) {
         canExecuteScriptInSpecificContext(context, INLINE, lang);
 
         InlineCacheKey key = new InlineCacheKey(lang, code, options);
@@ -528,7 +535,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 compiled = inlineCache.get(key);
 
                 if (compiled == null) {
-                    compiled = compile(context, INLINE, null, lang, code, options);
+                    compiled = compile(context, binding, INLINE, null, lang, code, options);
                     inlineCache.put(key, compiled);
                 }
             }
@@ -537,7 +544,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return compiled;
     }
 
-    CompiledScript getStoredScript(ScriptContext context, String id) {
+    CompiledScript getStoredScript(ScriptContext context, ScriptBinding binding, String id) {
         StoredCacheKey key = new StoredCacheKey(id);
         CompiledScript compiled = storedCache.get(key);
         boolean check = true;
@@ -556,7 +563,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     canExecuteScriptInSpecificContext(context, STORED, source.lang);
                     check = false;
 
-                    compiled = compile(context, STORED, id, source.lang, source.code, source.options);
+                    compiled = compile(context, binding, STORED, id, source.lang, source.code, source.options);
                     storedCache.put(key, compiled);
                 }
             }
@@ -569,7 +576,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return compiled;
     }
 
-    CompiledScript getFileScript(ScriptContext context, String id) {
+    CompiledScript getFileScript(ScriptContext context, ScriptBinding binding, String id) {
         FileCacheKey key = new FileCacheKey(id);
         CompiledScript compiled = fileCache.get(key);
 
@@ -582,7 +589,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return compiled;
     }
 
-    private CompiledScript compile(ScriptContext context, ScriptType type,
+    private CompiledScript compile(ScriptContext context, ScriptBinding binding, ScriptType type,
                                    String id, String lang, String code, Map<String, String> options) {
         if (logger.isTraceEnabled()) {
             logger.trace("compiling script with context [{}], type [{}], lang [{}], options [{}]", context, type, lang, options);
@@ -592,7 +599,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             ScriptEngineService engine = getScriptEngineServiceForLang(lang);
 
             checkCompilationLimit();
-            Object compiled = engine.compile(id, code, options);
+            Object compiled = binding.compile(engine, id, code, options);
             scriptMetrics.onCompilation();
 
             return new CompiledScript(context, type, id, engine, compiled);

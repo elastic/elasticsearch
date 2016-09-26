@@ -34,7 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -101,9 +101,9 @@ public final class Script {
 
         public static final ParseField SCRIPT = new ParseField("script");
         public static final ParseField TEMPLATE = new ParseField("template");
-        public static final ParseField CONTEXT = new ParseField("context");
+        public static final ParseField BIND = new ParseField("bind");
         public static final ParseField LANG = new ParseField("lang");
-        public static final ParseField CODE = new ParseField("code");
+        public static final ParseField CODE = new ParseField("code", "script");
         public static final ParseField PARAMS = new ParseField("params");
 
         private ScriptField() {}
@@ -130,7 +130,7 @@ public final class Script {
                 false, (String)source[0], source[1] == null ? Script.DEFAULT_SCRIPT_LANG : (String)source[1], (String)source[2], null));
 
         static {
-                CONSTRUCTOR.declareString(optionalConstructorArg(), ScriptField.CONTEXT);
+                CONSTRUCTOR.declareString(optionalConstructorArg(), ScriptField.BIND);
                 CONSTRUCTOR.declareString(optionalConstructorArg(), ScriptField.LANG);
                 CONSTRUCTOR.declareString(constructorArg(), ScriptField.CODE);
         }
@@ -196,17 +196,17 @@ public final class Script {
         }
 
         public final boolean template;
-        public final String context;
+        public final String binding;
         public final String lang;
         public final String code;
         public final Map<String, String> options;
 
-        public StoredScriptSource(boolean template, String context, String lang, String code, Map<String, String> options) {
+        public StoredScriptSource(boolean template, String binding, String lang, String code, Map<String, String> options) {
             this.template = template;
-            this.context = context;
+            this.binding = binding;
             this.lang = lang;
             this.code = code;
-            this.options = Collections.unmodifiableMap(new HashMap<>(options));
+            this.options = Collections.unmodifiableMap(options);
         }
 
         @Override
@@ -224,8 +224,8 @@ public final class Script {
             } else {
                 builder.startObject(ScriptField.SCRIPT.getPreferredName());
 
-                if (context != null) {
-                    builder.field(ScriptField.CONTEXT.getPreferredName(), context);
+                if (binding != null) {
+                    builder.field(ScriptField.BIND.getPreferredName(), binding);
                 }
 
                 builder.field(ScriptField.LANG.getPreferredName(), lang);
@@ -247,7 +247,7 @@ public final class Script {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(template);
-            out.writeOptionalString(context);
+            out.writeOptionalString(binding);
             out.writeString(lang);
             out.writeString(code);
             out.writeInt(options.size());
@@ -266,7 +266,7 @@ public final class Script {
             StoredScriptSource that = (StoredScriptSource)o;
 
             if (template != that.template) return false;
-            if (context != null ? !context.equals(that.context) : that.context != null) return false;
+            if (binding != null ? !binding.equals(that.binding) : that.binding != null) return false;
             if (!lang.equals(that.lang)) return false;
             if (!code.equals(that.code)) return false;
             return options.equals(that.options);
@@ -276,7 +276,7 @@ public final class Script {
         @Override
         public int hashCode() {
             int result = (template ? 1 : 0);
-            result = 31 * result + (context != null ? context.hashCode() : 0);
+            result = 31 * result + (binding != null ? binding.hashCode() : 0);
             result = 31 * result + lang.hashCode();
             result = 31 * result + code.hashCode();
             result = 31 * result + options.hashCode();
@@ -287,7 +287,7 @@ public final class Script {
         public String toString() {
             return "StoredScriptSource{" +
                 "template=" + template +
-                ", context='" + context + '\'' +
+                ", binding='" + binding + '\'' +
                 ", lang='" + lang + '\'' +
                 ", code='" + code + '\'' +
                 ", options=" + options +
@@ -297,6 +297,73 @@ public final class Script {
 
     public static final class ScriptInput implements ToXContent, Writeable {
 
+        public static ScriptInput create(ScriptType type, String lang, String idOrCode,
+                                         Map<String, Object> params, Map<String, String> options) {
+            if (type == FILE) {
+                if (lang != null) {
+                    throw new IllegalArgumentException("[" + ScriptField.LANG.getPreferredName() + "]" +
+                        " should not be used when specifiying a [" + FILE.name + "] script");
+                }
+
+                if (idOrCode == null) {
+                    throw new IllegalArgumentException("must specify [id] when using an [" + FILE.name + "] script");
+                }
+
+                if (options != null) {
+                    throw new IllegalArgumentException("[options] should not be used when specifiying a [" + FILE.name + "] script");
+                }
+
+                return new ScriptInput(new FileScriptLookup(idOrCode), params);
+            } else if (type == STORED) {
+                if (lang != null) {
+                    throw new IllegalArgumentException("[" + ScriptField.LANG.getPreferredName() + "]" +
+                        " should not be used when specifiying a [" + STORED.name + "] script");
+                }
+
+                if (idOrCode == null) {
+                    throw new IllegalArgumentException("must specify [id] when using an [" + STORED.name + "] script");
+                }
+
+                if (options != null) {
+                    throw new IllegalArgumentException("[options] should not be used when specifiying a [" + STORED.name + "] script");
+                }
+
+                return new ScriptInput(new StoredScriptLookup(idOrCode), params);
+            } else if (type == INLINE) {
+                if (lang == null) {
+                    lang = DEFAULT_SCRIPT_LANG;
+                }
+
+                if (idOrCode == null) {
+                    throw new IllegalArgumentException("must specify [code] when using an [" + INLINE.name + "] script");
+                }
+
+                if (options == null) {
+                    options = Collections.emptyMap();
+                }
+
+                return new ScriptInput(new InlineScriptLookup(lang, idOrCode, options), params);
+            } else {
+                throw new IllegalArgumentException("must specify [type] of script, " +
+                    "expected [" + FILE.name + ", " + STORED.name + "," + INLINE.name + "]");
+            }
+        }
+
+        public static ScriptInput update(ScriptInput copy, ScriptType type, String lang, String idOrCode,
+                                         Map<String, Object> params, Map<String, String> options) {
+            if (copy == null) {
+                return create(type, lang, idOrCode, params, options);
+            }
+
+            type = type == null ? copy.lookup.getType() : type;
+            lang = lang == null ? copy.lookup.getLang() : lang;
+            idOrCode = idOrCode == null ? copy.lookup.getIdOrCode() : idOrCode;
+            params = params == null ? copy.params : params;
+            options = options == null ? copy.lookup.getOptions() : options;
+
+            return create(type, lang, idOrCode, params, options);
+        }
+
         public static ScriptInput parse(XContentParser parser, ParseFieldMatcher matcher, String lang) throws IOException {
             Token token = parser.currentToken();
 
@@ -305,16 +372,15 @@ public final class Script {
             }
 
             if (token == Token.VALUE_STRING) {
-                return new ScriptInput(new InlineScriptLookup(lang == null ? DEFAULT_SCRIPT_LANG : lang, parser.text(), null));
+                return new ScriptInput(new InlineScriptLookup(lang == null ? DEFAULT_SCRIPT_LANG : lang, parser.text(), null), null);
             } else if (token != Token.START_OBJECT) {
                 throw new ParsingException(parser.getTokenLocation(),
                     "unexpected value [" + parser.text() + "], expected [{, <code>]");
             }
 
             ScriptType type = null;
-            String id = null;
-            String code = null;
-            Map<String, String> options = new HashMap<>();
+            String idOrCode = null;
+            Map<String, String> options = null;
             Map<String, Object> params = null;
 
             String name = null;
@@ -332,7 +398,7 @@ public final class Script {
                     type = FILE;
 
                     if (token == Token.VALUE_STRING) {
-                        id = parser.text();
+                        idOrCode = parser.text();
                     } else {
                         throw new ParsingException(parser.getTokenLocation(),
                             "unexpected value [" + parser.text() + "], expected [<id>]");
@@ -347,7 +413,7 @@ public final class Script {
                     type = STORED;
 
                     if (token == Token.VALUE_STRING) {
-                        id = parser.text();
+                        idOrCode = parser.text();
                     } else {
                         throw new ParsingException(parser.getTokenLocation(),
                             "unexpected value [" + parser.text() + "], expected [<id>]");
@@ -362,11 +428,12 @@ public final class Script {
                     type = INLINE;
 
                     if (parser.currentToken() == Token.START_OBJECT) {
+                        options = new HashMap<>();
                         options.put(CONTENT_TYPE_OPTION, parser.contentType().mediaType());
                         XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
-                        code = builder.copyCurrentStructure(parser).bytes().utf8ToString();
+                        idOrCode = builder.copyCurrentStructure(parser).bytes().utf8ToString();
                     } else {
-                        code = parser.text();
+                        idOrCode = parser.text();
                     }
                 } else if (matcher.match(name, ScriptField.LANG)) {
                     if (token == Token.VALUE_STRING) {
@@ -394,40 +461,7 @@ public final class Script {
                 }
             }
 
-            if (type == FILE) {
-                if (lang != null) {
-                    throw new IllegalArgumentException("[lang] should not be used when specifiying a [" + FILE.name + "] script");
-                }
-
-                if (id == null) {
-                    throw new IllegalArgumentException("must specify [id] when using an [" + FILE.name + "] script");
-                }
-
-                return new ScriptInput(new FileScriptLookup(id), params);
-            } else if (type == STORED) {
-                if (lang != null) {
-                    throw new IllegalArgumentException("[lang] should not be used when specifiying a [" + STORED.name + "] script");
-                }
-
-                if (id == null) {
-                    throw new IllegalArgumentException("must specify [id] when using an [" + STORED.name + "] script");
-                }
-
-                return new ScriptInput(new StoredScriptLookup(id), params);
-            } else if (type == INLINE) {
-                if (lang == null) {
-                    lang = DEFAULT_SCRIPT_LANG;
-                }
-
-                if (code == null) {
-                    throw new IllegalArgumentException("must specify [code] when using an [" + INLINE.name + "] script");
-                }
-
-                return new ScriptInput(new InlineScriptLookup(lang, code, options), params);
-            } else {
-                throw new IllegalArgumentException("must specify [type] of script, " +
-                    "expected [" + FILE.name + ", " + STORED.name + "," + INLINE.name + "]");
-            }
+            return create(type, lang, idOrCode, params, options);
         }
 
         public static ScriptInput readFrom(StreamInput in) throws IOException {
@@ -453,15 +487,9 @@ public final class Script {
         public final ScriptLookup lookup;
         public final Map<String, Object> params;
 
-        public ScriptInput(ScriptLookup lookup) {
-            this(lookup, null);
-        }
-
-        public ScriptInput(ScriptLookup lookup, Map<String, Object> params) {
+        private ScriptInput(ScriptLookup lookup, Map<String, Object> params) {
             this.lookup = lookup;
-
-            params = params == null ? new HashMap<>() : new HashMap<>(params);
-            this.params = Collections.unmodifiableMap(params);
+            this.params = params == null ? params : Collections.unmodifiableMap(params);
         }
 
         @Override
@@ -508,6 +536,15 @@ public final class Script {
         }
     }
 
+    public interface ScriptLookup extends ToXContent, Writeable {
+        ScriptType getType();
+        String getLang();
+        String getIdOrCode();
+        Map<String, String> getOptions();
+
+        CompiledScript getCompiled(ScriptService service, ScriptContext context, ScriptBinding binding);
+    }
+
     public static final class FileScriptLookup implements ScriptLookup {
 
         public static FileScriptLookup readFrom(StreamInput in) throws IOException {
@@ -516,7 +553,7 @@ public final class Script {
 
         public final String id;
 
-        public FileScriptLookup(String id) {
+        private FileScriptLookup(String id) {
             this.id = id;
         }
 
@@ -526,8 +563,23 @@ public final class Script {
         }
 
         @Override
-        public CompiledScript getCompiled(ScriptService service, ScriptContext context) {
-            return service.getFileScript(context, id);
+        public String getLang() {
+            return null;
+        }
+
+        @Override
+        public String getIdOrCode() {
+            return id;
+        }
+
+        @Override
+        public Map<String, String> getOptions() {
+            return null;
+        }
+
+        @Override
+        public CompiledScript getCompiled(ScriptService service, ScriptContext context, ScriptBinding binding) {
+            return service.getFileScript(context, binding, id);
         }
 
         @Override
@@ -574,7 +626,7 @@ public final class Script {
 
         public final String id;
 
-        public StoredScriptLookup(String id) {
+        private StoredScriptLookup(String id) {
             this.id = id;
         }
 
@@ -584,8 +636,23 @@ public final class Script {
         }
 
         @Override
-        public CompiledScript getCompiled(ScriptService service, ScriptContext context) {
-            return service.getStoredScript(context, id);
+        public String getLang() {
+            return null;
+        }
+
+        @Override
+        public String getIdOrCode() {
+            return id;
+        }
+
+        @Override
+        public Map<String, String> getOptions() {
+            return null;
+        }
+
+        @Override
+        public CompiledScript getCompiled(ScriptService service, ScriptContext context, ScriptBinding binding) {
+            return service.getStoredScript(context, binding, id);
         }
 
         @Override
@@ -642,7 +709,7 @@ public final class Script {
         public final String code;
         public final Map<String, String> options;
 
-        public InlineScriptLookup(String lang, String code, Map<String, String> options) {
+        private InlineScriptLookup(String lang, String code, Map<String, String> options) {
             this.lang = lang;
             this.code = code;
             this.options = Collections.unmodifiableMap(new HashMap<>(options));
@@ -654,8 +721,23 @@ public final class Script {
         }
 
         @Override
-        public CompiledScript getCompiled(ScriptService service, ScriptContext context) {
-            return service.getInlineScript(context, lang, code, options);
+        public String getLang() {
+            return lang;
+        }
+
+        @Override
+        public String getIdOrCode() {
+            return code;
+        }
+
+        @Override
+        public Map<String, String> getOptions() {
+            return options;
+        }
+
+        @Override
+        public CompiledScript getCompiled(ScriptService service, ScriptContext context, ScriptBinding binding) {
+            return service.getInlineScript(context, binding, lang, code, options);
         }
 
         @Override
@@ -716,9 +798,50 @@ public final class Script {
         }
     }
 
-    public interface ScriptLookup extends ToXContent, Writeable {
-        ScriptType getType();
-        CompiledScript getCompiled(ScriptService service, ScriptContext context);
+    public interface ScriptBinding {
+        Object compile(ScriptEngineService engine, String id, String code, Map<String, String> options);
+    }
+
+    public final static class UnknownScriptBinding implements ScriptBinding {
+        public final static UnknownScriptBinding BINDING = new UnknownScriptBinding();
+
+        private UnknownScriptBinding() {}
+
+        @Override
+        public Object compile(ScriptEngineService engine, String id, String code, Map<String, String> options) {
+            return engine.compile(id, code, options);
+        }
+    }
+
+    public final static class ExecutableScriptBinding implements ScriptBinding {
+        public final static ExecutableScriptBinding BINDING = new ExecutableScriptBinding();
+
+        public static ExecutableScript bind(ScriptEngineService engine, CompiledScript compiled, Map<String, Object> variables) {
+            return engine.executable(compiled, variables);
+        }
+
+        private ExecutableScriptBinding() {}
+
+        @Override
+        public Object compile(ScriptEngineService engine, String id, String code, Map<String, String> options) {
+            return engine.compile(id, code, options);
+        }
+    }
+
+    public final static class SearchScriptBinding implements ScriptBinding {
+        public final static SearchScriptBinding BINDING = new SearchScriptBinding();
+
+        public static SearchScript bind(
+            ScriptEngineService engine, CompiledScript compiled, SearchLookup lookup, Map<String, Object> variables) {
+            return engine.search(compiled, lookup, variables);
+        }
+
+        private SearchScriptBinding() {}
+
+        @Override
+        public Object compile(ScriptEngineService engine, String id, String code, Map<String, String> options) {
+            return engine.compile(id, code, options);
+        }
     }
 
     public static final String DEFAULT_SCRIPT_LANG = "painless";

@@ -59,6 +59,7 @@ import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.index.reindex.remote.RemoteScrollableHitSource;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -267,9 +268,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
         @Override
         protected BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
-            Script script = mainRequest.getScript();
+            ScriptInput script = mainRequest.getScript();
             if (script != null) {
-                return new ReindexScriptApplier(task, scriptService, script, script.getParams());
+                return new ReindexScriptApplier(task, scriptService, script, script.params);
             }
             return super.buildScriptApplier();
         }
@@ -347,7 +348,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
         class ReindexScriptApplier extends ScriptApplier {
 
-            ReindexScriptApplier(BulkByScrollTask task, ScriptService scriptService, Script script,
+            ReindexScriptApplier(BulkByScrollTask task, ScriptService scriptService, ScriptInput script,
                                  Map<String, Object> params) {
                 super(task, scriptService, script, params);
             }

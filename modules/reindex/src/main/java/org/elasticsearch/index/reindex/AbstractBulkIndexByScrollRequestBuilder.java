@@ -22,7 +22,7 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 
 public abstract class AbstractBulkIndexByScrollRequestBuilder<
                 Request extends AbstractBulkIndexByScrollRequest<Request>,
@@ -37,7 +37,7 @@ public abstract class AbstractBulkIndexByScrollRequestBuilder<
     /**
      * Script to modify the documents before they are processed.
      */
-    public Self script(Script script) {
+    public Self script(ScriptInput script) {
         request.setScript(script);
         return self();
     }

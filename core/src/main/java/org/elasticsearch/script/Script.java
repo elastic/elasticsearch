@@ -39,7 +39,9 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -471,6 +473,69 @@ public final class Script {
             }
 
             return create(type, lang, idOrCode, options, params);
+        }
+
+        @SuppressWarnings("unchecked")
+        public static ScriptInput parse(Map<String, Object> parser, ParseFieldMatcher matcher, String lang) {
+            ScriptType type = null;
+            String idOrCode = null;
+            Map<String, Object> params = null;
+
+            Iterator<Entry<String, Object>> itr = parser.entrySet().iterator();
+
+            while (itr.hasNext()) {
+                Map.Entry<String, Object> entry = itr.next();
+
+                String name = entry.getKey();
+                Object value = entry.getValue();
+
+                if (matcher.match(name, ScriptField.LANG)) {
+                    if (value instanceof String || value == null) {
+                        lang = (String)value;
+                    } else {
+                        throw new IllegalArgumentException("[" + name + "] must have value of type [String]");
+                    }
+                } else if (matcher.match(name, ScriptField.PARAMS)) {
+                    if (value instanceof Map || value == null) {
+                        params = (Map<String, Object>)value;
+                    } else {
+                        throw new IllegalArgumentException("[" + name + "] must have value of type [Map<String, Object>]");
+                    }
+                } else if (matcher.match(name, FILE.parse)) {
+                    if (value instanceof String || value == null) {
+                        type = Script.ScriptType.FILE;
+                        idOrCode = (String)value;
+                    } else {
+                        throw new IllegalArgumentException("[" + FILE.name + "] must have value of type [String]");
+                    }
+                } else if (matcher.match(name, STORED.parse)) {
+                    if (value instanceof String || value == null) {
+                        type = Script.ScriptType.INLINE;
+                        idOrCode = (String)value;
+                    } else {
+                        throw new IllegalArgumentException("[" + STORED.name + "] must have value of type [String]");
+                    }
+                } else if (matcher.match(name, INLINE.parse)) {
+                    if (value instanceof String || value == null) {
+                        type = Script.ScriptType.INLINE;
+                        idOrCode = (String)value;
+                    } else {
+                        throw new IllegalArgumentException("[" + INLINE.name + "] must have value of type [String]");
+                    }
+                }
+            }
+            if (idOrCode == null) {
+                throw new IllegalArgumentException(
+                    "unexpected type or no type specified, expected [" +
+                        FILE.parse.getPreferredName() + ", " +
+                        STORED.parse.getPreferredName() + ", " +
+                        INLINE.parse.getPreferredName() + ", " +
+                        ScriptField.LANG.getPreferredName() + ", " +
+                        ScriptField.PARAMS.getPreferredName() +
+                    "]");
+            }
+
+            return create(type, lang, idOrCode, Collections.emptyMap(), params);
         }
 
         public static ScriptInput readFrom(StreamInput in) throws IOException {

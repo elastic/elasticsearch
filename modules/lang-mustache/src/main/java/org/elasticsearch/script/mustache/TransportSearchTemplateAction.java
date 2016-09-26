@@ -34,11 +34,17 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ExecutableScriptBinding;
+import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.script.ScriptContext.Standard.SEARCH;
@@ -66,8 +72,10 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     protected void doExecute(SearchTemplateRequest request, ActionListener<SearchTemplateResponse> listener) {
         final SearchTemplateResponse response = new SearchTemplateResponse();
         try {
-            Script script = new Script(request.getScript(), request.getScriptType(), TEMPLATE_LANG, request.getScriptParams());
-            ExecutableScript executable = scriptService.executable(script, SEARCH, emptyMap());
+            ScriptInput script = ScriptInput.create(
+                request.getScriptType(), TEMPLATE_LANG, request.getScript(), Collections.emptyMap(), request.getScriptParams());
+            ExecutableScript executable = ExecutableScriptBinding.bind(
+                scriptService, ScriptContext.Standard.SEARCH, script.lookup, script.params);
 
             BytesReference source = (BytesReference) executable.run();
             response.setSource(source);

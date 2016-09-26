@@ -41,6 +41,8 @@ import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ExecutableScriptBinding;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -424,13 +426,13 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
 
         private final BulkByScrollTask task;
         private final ScriptService scriptService;
-        private final Script script;
+        private final ScriptInput script;
         private final Map<String, Object> params;
 
         private ExecutableScript executable;
         private Map<String, Object> context;
 
-        public ScriptApplier(BulkByScrollTask task, ScriptService scriptService, Script script,
+        public ScriptApplier(BulkByScrollTask task, ScriptService scriptService, ScriptInput script,
                              Map<String, Object> params) {
             this.task = task;
             this.scriptService = scriptService;
@@ -445,8 +447,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
                 return request;
             }
             if (executable == null) {
-                CompiledScript compiled = scriptService.compile(script, ScriptContext.Standard.UPDATE, emptyMap());
-                executable = scriptService.executable(compiled, params);
+                executable = ExecutableScriptBinding.bind(scriptService, ScriptContext.Standard.UPDATE, script.lookup, params);
             }
             if (context == null) {
                 context = new HashMap<>();

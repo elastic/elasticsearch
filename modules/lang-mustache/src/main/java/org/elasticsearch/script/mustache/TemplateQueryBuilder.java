@@ -37,11 +37,14 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ExecutableScriptBinding;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.script.ScriptContext;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -57,17 +60,22 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(TemplateQueryBuilder.class));
 
     /** Template to fill. */
-    private final Script template;
+    private final ScriptInput template;
 
     public TemplateQueryBuilder(String template, ScriptType scriptType, Map<String, Object> params) {
-        this(new Script(template, scriptType, "mustache", params));
+        this(ScriptInput.create(scriptType, "mustache", template, Collections.emptyMap(), params));
     }
 
     public TemplateQueryBuilder(String template, ScriptType scriptType, Map<String, Object> params, XContentType ct) {
-        this(new Script(template, scriptType, "mustache", params, ct));
+        DEPRECATION_LOGGER.deprecated("[{}] query is deprecated, use search template api instead", NAME);
+
+        Map<String, String> options = new HashMap<>();
+        options.put(Script.CONTENT_TYPE_OPTION, ct.mediaType());
+
+        this.template = ScriptInput.create(scriptType, "mustache", template, options, params);
     }
 
-    TemplateQueryBuilder(Script template) {
+    TemplateQueryBuilder(ScriptInput template) {
         DEPRECATION_LOGGER.deprecated("[{}] query is deprecated, use search template api instead", NAME);
         if (template == null) {
             throw new IllegalArgumentException("query template cannot be null");
@@ -75,7 +83,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
         this.template = template;
     }
 
-    public Script template() {
+    public ScriptInput template() {
         return template;
     }
 
@@ -84,7 +92,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
      */
     public TemplateQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        template = new Script(in);
+        template = ScriptInput.readFrom(in);
     }
 
     @Override
@@ -120,8 +128,8 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        ExecutableScript executable = queryRewriteContext.getScriptService().executable(template,
-            ScriptContext.Standard.SEARCH, Collections.emptyMap());
+        ExecutableScript executable = ExecutableScriptBinding.bind(
+            queryRewriteContext.getScriptService(), ScriptContext.Standard.SEARCH, template.lookup, template.params);
         BytesReference querySource = (BytesReference) executable.run();
         try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
             final QueryParseContext queryParseContext = queryRewriteContext.newParseContext(qSourceParser);
@@ -142,7 +150,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
      */
     public static Optional<TemplateQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-        Script template = Script.parse(parser, parseContext.getParseFieldMatcher(), "mustache");
+        ScriptInput template = ScriptInput.parse(parser, parseContext.getParseFieldMatcher(), "mustache");
         return Optional.of(new TemplateQueryBuilder(template));
     }
 }

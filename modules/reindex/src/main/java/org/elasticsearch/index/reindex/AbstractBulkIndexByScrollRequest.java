@@ -24,6 +24,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 
 import java.io.IOException;
 
@@ -32,7 +33,7 @@ public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulk
     /**
      * Script to modify the documents before they are processed.
      */
-    private Script script;
+    private ScriptInput script;
 
     public AbstractBulkIndexByScrollRequest() {
     }
@@ -44,14 +45,14 @@ public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulk
     /**
      * Script to modify the documents before they are processed.
      */
-    public Script getScript() {
+    public ScriptInput getScript() {
         return script;
     }
 
     /**
      * Script to modify the documents before they are processed.
      */
-    public Self setScript(@Nullable Script script) {
+    public Self setScript(@Nullable ScriptInput script) {
         this.script = script;
         return self();
     }
@@ -60,7 +61,7 @@ public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulk
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         if (in.readBoolean()) {
-            script = new Script(in);
+            script = ScriptInput.readFrom(in);
         }
     }
 

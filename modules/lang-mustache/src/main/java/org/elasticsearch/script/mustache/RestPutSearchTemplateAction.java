@@ -39,7 +39,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutSearchTemplateAction extends BaseRestHandler {
-    private static final ParseField parseTemplate = new ParseField("template");
 
     @Inject
     public RestPutSearchTemplateAction(Settings settings, RestController controller) {
@@ -54,7 +53,7 @@ public class RestPutSearchTemplateAction extends BaseRestHandler {
         StoredScriptSource source;
 
         try (XContentParser parser = XContentHelper.createParser(request.content())) {
-            source = StoredScriptSource.parseTemplate(parser);
+            source = StoredScriptSource.parse(parser);
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);
         }

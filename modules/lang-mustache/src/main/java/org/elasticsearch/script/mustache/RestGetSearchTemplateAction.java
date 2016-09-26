@@ -32,7 +32,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
+import org.elasticsearch.script.Script.StoredScriptSource;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 

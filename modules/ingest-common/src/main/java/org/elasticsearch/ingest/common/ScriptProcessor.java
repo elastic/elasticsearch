@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import java.util.Collections;
 import java.util.Map;
 
 import org.elasticsearch.common.Strings;
@@ -27,6 +28,8 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ExecutableScriptBinding;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 
@@ -48,10 +51,10 @@ public final class ScriptProcessor extends AbstractProcessor {
 
     public static final String TYPE = "script";
 
-    private final Script script;
+    private final ScriptInput script;
     private final ScriptService scriptService;
 
-    ScriptProcessor(String tag, Script script, ScriptService scriptService)  {
+    ScriptProcessor(String tag, ScriptInput script, ScriptService scriptService)  {
         super(tag);
         this.script = script;
         this.scriptService = scriptService;
@@ -59,7 +62,8 @@ public final class ScriptProcessor extends AbstractProcessor {
 
     @Override
     public void execute(IngestDocument document) {
-        ExecutableScript executableScript = scriptService.executable(script, ScriptContext.Standard.INGEST, emptyMap());
+        ExecutableScript executableScript = ExecutableScriptBinding.bind(
+            scriptService, ScriptContext.Standard.INGEST, script.lookup, script.params);
         executableScript.setNextVar("ctx",  document.getSourceAndMetadata());
         executableScript.run();
     }
@@ -84,7 +88,7 @@ public final class ScriptProcessor extends AbstractProcessor {
             String inline = readOptionalStringProperty(TYPE, processorTag, config, "inline");
             String file = readOptionalStringProperty(TYPE, processorTag, config, "file");
             String id = readOptionalStringProperty(TYPE, processorTag, config, "id");
-            Map<String, ?> params = readOptionalMap(TYPE, processorTag, config, "params");
+            Map<String, Object> params = readOptionalMap(TYPE, processorTag, config, "params");
 
             boolean containsNoScript = !hasLength(file) && !hasLength(id) && !hasLength(inline);
             if (containsNoScript) {
@@ -101,13 +105,13 @@ public final class ScriptProcessor extends AbstractProcessor {
                 params = emptyMap();
             }
 
-            final Script script;
+            final ScriptInput script;
             if (Strings.hasLength(file)) {
-                script = new Script(file, FILE, lang, params);
+                script = ScriptInput.create(FILE, lang, file, Collections.emptyMap(), params);
             } else if (Strings.hasLength(inline)) {
-                script = new Script(inline, INLINE, lang, params);
+                script = ScriptInput.create(INLINE, lang, inline, Collections.emptyMap(), params);
             } else if (Strings.hasLength(id)) {
-                script = new Script(id, STORED, lang, params);
+                script = ScriptInput.create(STORED, lang, id, Collections.emptyMap(), params);
             } else {
                 throw newConfigurationException(TYPE, processorTag, null, "Could not initialize script");
             }

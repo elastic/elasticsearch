@@ -194,7 +194,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             }
             return new GroovyScript(compiledScript, createScript(compiledScript.compiled(), allVars), this.logger);
         } catch (ReflectiveOperationException e) {
-            throw convertToScriptException("Failed to build executable script", compiledScript.name(), e);
+            throw convertToScriptException("Failed to build executable script", compiledScript.id(), e);
         }
     }
 
@@ -216,7 +216,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 try {
                     scriptObject = createScript(compiledScript.compiled(), allVars);
                 } catch (ReflectiveOperationException e) {
-                    throw convertToScriptException("Failed to build search script", compiledScript.name(), e);
+                    throw convertToScriptException("Failed to build search script", compiledScript.id(), e);
                 }
                 return new GroovyScript(compiledScript, scriptObject, leafLookup, logger);
             }
@@ -310,13 +310,13 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 final StackTraceElement[] elements = ae.getStackTrace();
                 if (elements.length > 0 && "org.codehaus.groovy.runtime.InvokerHelper".equals(elements[0].getClassName())) {
                     logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to run {}", compiledScript), ae);
-                    throw new ScriptException("Error evaluating " + compiledScript.name(),
+                    throw new ScriptException("Error evaluating " + compiledScript.id(),
                             ae, emptyList(), "", compiledScript.lang());
                 }
                 throw ae;
             } catch (Exception | NoClassDefFoundError e) {
                 logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to run {}", compiledScript), e);
-                throw new ScriptException("Error evaluating " + compiledScript.name(), e, emptyList(), "", compiledScript.lang());
+                throw new ScriptException("Error evaluating " + compiledScript.id(), e, emptyList(), "", compiledScript.lang());
             }
         }
 

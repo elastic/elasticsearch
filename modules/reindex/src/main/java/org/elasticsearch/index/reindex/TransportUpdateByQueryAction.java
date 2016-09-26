@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.TTLFieldMapper;
 import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -98,9 +99,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
         @Override
         protected BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
-            Script script = mainRequest.getScript();
+            ScriptInput script = mainRequest.getScript();
             if (script != null) {
-                return new UpdateByQueryScriptApplier(task, scriptService, script, script.getParams());
+                return new UpdateByQueryScriptApplier(task, scriptService, script, script.params);
             }
             return super.buildScriptApplier();
         }
@@ -120,7 +121,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
         class UpdateByQueryScriptApplier extends ScriptApplier {
 
-            UpdateByQueryScriptApplier(BulkByScrollTask task, ScriptService scriptService, Script script,
+            UpdateByQueryScriptApplier(BulkByScrollTask task, ScriptService scriptService, ScriptInput script,
                                  Map<String, Object> params) {
                 super(task, scriptService, script, params);
             }

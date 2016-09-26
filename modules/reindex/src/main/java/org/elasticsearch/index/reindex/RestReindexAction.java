@@ -46,6 +46,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
@@ -105,7 +106,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         PARSER.declareField((p, v, c) -> sourceParser.parse(p, v, c), new ParseField("source"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ValueType.OBJECT);
         PARSER.declareInt(ReindexRequest::setSize, new ParseField("size"));
-        PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p, c.getParseFieldMatcher())), new ParseField("script"),
+        PARSER.declareField((p, v, c) -> v.setScript(ScriptInput.parse(p, c.getParseFieldMatcher(), null)), new ParseField("script"),
                 ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
     }

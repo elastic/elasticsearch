@@ -19,7 +19,7 @@
 # Currently this script can only deal with versions >=2.0.0 and < 5.0. Needs more work for versions before or after.
 #
 # Run from x-plugins root directory like so:
-# python3 ./elasticsearch/x-dev-tools/create_bwc_indexes.py 2.3.4
+# python3 ./dev-tools/create_bwc_indexes.py 2.3.4
 # You can get any particular version of elasticsearch with:
 # python3 ../elasticsearch/dev-tools/get-bwc-version.py 2.3.4
 #

@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,7 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public final class ClusterAllocationExplainIT extends ESIntegTestCase {
+    @TestLogging("_root:DEBUG")
     public void testDelayShards() throws Exception {
         logger.info("--> starting 3 nodes");
         List<String> nodes = internalCluster().startNodesAsync(3).get();

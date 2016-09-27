@@ -390,7 +390,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 if (analyzer != null) {
                     return analyzer;
                 } else {
-                    return context.getAnalysisService().defaultIndexAnalyzer();
+                    return context.getIndexAnalyzers().getDefaultIndexAnalyzer();
                 }
             }
         };

@@ -48,7 +48,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.gateway.NoopGatewayAllocator;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -139,7 +139,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         listenerCalled.await();
 
         TransportClusterHealthAction action = new TransportClusterHealthAction(Settings.EMPTY, transportService,
-            clusterService, threadPool, new ActionFilters(new HashSet<>()), indexNameExpressionResolver, NoopGatewayAllocator.INSTANCE);
+            clusterService, threadPool, new ActionFilters(new HashSet<>()), indexNameExpressionResolver, new TestGatewayAllocator());
         PlainActionFuture<ClusterHealthResponse> listener = new PlainActionFuture<>();
         action.execute(new ClusterHealthRequest(), listener);
 
@@ -277,9 +277,9 @@ public class ClusterStateHealthTests extends ESTestCase {
             // if the inactive primaries are due solely to recovery (not failed allocation or previously being allocated)
             // then cluster health is YELLOW, otherwise RED
             if (primaryInactiveDueToRecovery(indexName, clusterState)) {
-                assertThat(health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
+                assertThat("clusterState is:\n" + clusterState.prettyPrint(), health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
             } else {
-                assertThat(health.getStatus(), equalTo(ClusterHealthStatus.RED));
+                assertThat("clusterState is:\n" + clusterState.prettyPrint(), health.getStatus(), equalTo(ClusterHealthStatus.RED));
             }
         }
     }
@@ -530,6 +530,12 @@ public class ClusterStateHealthTests extends ESTestCase {
                 }
                 if (primaryShard.recoverySource() != null &&
                     primaryShard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
+                    return false;
+                }
+                if (primaryShard.unassignedInfo().getNumFailedAllocations() > 0) {
+                    return false;
+                }
+                if (primaryShard.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
                     return false;
                 }
             }

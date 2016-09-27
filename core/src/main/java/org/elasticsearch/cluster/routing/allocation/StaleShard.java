@@ -17,20 +17,38 @@
  * under the License.
  */
 
-package org.elasticsearch.tribe;
+package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.plugins.Plugin;
-
-import java.util.Collection;
+import org.elasticsearch.index.shard.ShardId;
 
 /**
- * An internal node that connects to a remove cluster, as part of a tribe node.
+ * A class that represents a stale shard copy.
  */
-class TribeClientNode extends Node {
-    TribeClientNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
-        super(new Environment(settings), classpathPlugins);
+public class StaleShard {
+    private final ShardId shardId;
+    private final String allocationId;
+
+    public StaleShard(ShardId shardId, String allocationId) {
+        this.shardId = shardId;
+        this.allocationId = allocationId;
+    }
+
+    @Override
+    public String toString() {
+        return "stale shard, shard " + shardId + ", alloc. id [" + allocationId + "]";
+    }
+
+    /**
+     * The shard id of the stale shard.
+     */
+    public ShardId getShardId() {
+        return shardId;
+    }
+
+    /**
+     * The allocation id of the stale shard.
+     */
+    public String getAllocationId() {
+        return allocationId;
     }
 }

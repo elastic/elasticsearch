@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
@@ -63,7 +63,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", Integer.MAX_VALUE)
                 .build());
         this.numberOfShards = randomIntBetween(1, 5);
-        this.numberOfReplicas = randomIntBetween(1, 5);
+        this.numberOfReplicas = randomIntBetween(0, 5);
         logger.info("Setup test with {} shards and {} replicas.", this.numberOfShards, this.numberOfReplicas);
         this.primaryTermsPerIndex.clear();
         MetaData metaData = MetaData.builder()
@@ -142,9 +142,9 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
             shardIdsToFail.add(randomInt(numberOfShards - 1));
         }
         logger.info("failing primary shards {} for index [{}]", shardIdsToFail, index);
-        List<FailedRerouteAllocation.FailedShard> failedShards = new ArrayList<>();
+        List<FailedShard> failedShards = new ArrayList<>();
         for (int shard : shardIdsToFail) {
-            failedShards.add(new FailedRerouteAllocation.FailedShard(indexShardRoutingTable.shard(shard).primaryShard(), "test", null));
+            failedShards.add(new FailedShard(indexShardRoutingTable.shard(shard).primaryShard(), "test", null));
             incrementPrimaryTerm(index, shard); // the primary failure should increment the primary term;
         }
         applyRerouteResult(allocationService.applyFailedShards(this.clusterState, failedShards,Collections.emptyList()));

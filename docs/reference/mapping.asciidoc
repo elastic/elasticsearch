@@ -64,6 +64,29 @@ the <<analysis-standard-analyzer,`standard` analyzer>>, the
 This is the purpose of _multi-fields_.  Most datatypes support multi-fields
 via the <<multi-fields>> parameter.
 
+[[mapping-limit-settings]]
+[float]
+=== Settings to prevent mappings explosion
+
+The following settings allow you to limit the number of field mappings that
+can be created manually or dynamically, in order to prevent bad documents from
+causing a mapping explosion:
+
+`index.mapping.total_fields.limit`::
+    The maximum number of fields in an index. The default value is `1000`.
+
+`index.mapping.depth.limit`::
+    The maximum depth for a field, which is measured as the number of inner
+    objects. For instance, if all fields are defined at the root object level,
+    then the depth is `1`. If there is one object mapping, then the depth is
+    `2`, etc. The default is `20`.
+
+`index.mapping.nested_fields.limit`::
+    The maximum number of `nested` fields in an index, defaults to `50`.
+    Indexing 1 document with 100 nested fields actually indexes 101 documents
+    as each nested document is indexed as a separate hidden document.
+
+
 [float]
 == Dynamic mapping
 

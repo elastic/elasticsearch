@@ -171,7 +171,7 @@ If everything goes well, you should see a bunch of messages that look like below
 [2016-09-16T14:17:56,748][INFO ][o.e.n.Node               ] [6-bjhwl] started
 --------------------------------------------------
 
-Without going too much into detail, we can see that our node named "I8hydUG" (which will be a different Marvel character in your case) has started and elected itself as a master in a single cluster. Don't worry yet at the moment what master means. The main thing that is important here is that we have started one node within one cluster.
+Without going too much into detail, we can see that our node named "I8hydUG" (which will be a different set of characters in your case) has started and elected itself as a master in a single cluster. Don't worry yet at the moment what master means. The main thing that is important here is that we have started one node within one cluster.
 
 As mentioned previously, we can override either the cluster or node name. This can be done from the command line when starting Elasticsearch as follows:
 

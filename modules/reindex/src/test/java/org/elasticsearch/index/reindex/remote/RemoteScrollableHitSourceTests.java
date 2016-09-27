@@ -113,11 +113,42 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     }
 
     public void testLookupRemoteVersion() throws Exception {
-        sourceWithMockedRemoteCall(false, "main/0_20_5.json").lookupRemoteVersion(v -> assertEquals(Version.fromString("0.20.5"), v));
-        sourceWithMockedRemoteCall(false, "main/0_90_13.json").lookupRemoteVersion(v -> assertEquals(Version.fromString("0.90.13"), v));
-        sourceWithMockedRemoteCall(false, "main/1_7_5.json").lookupRemoteVersion(v -> assertEquals(Version.fromString("1.7.5"), v));
-        sourceWithMockedRemoteCall(false, "main/2_3_3.json").lookupRemoteVersion(v -> assertEquals(Version.V_2_3_3, v));
-        sourceWithMockedRemoteCall(false, "main/5_0_0_alpha_3.json").lookupRemoteVersion(v -> assertEquals(Version.V_5_0_0_alpha3, v));
+        AtomicBoolean called = new AtomicBoolean();
+        sourceWithMockedRemoteCall(false, "main/0_20_5.json").lookupRemoteVersion(v -> {
+            assertEquals(Version.fromString("0.20.5"), v);
+            called.set(true);
+        });
+        assertTrue(called.get());
+        called.set(false);
+        sourceWithMockedRemoteCall(false, "main/0_90_13.json").lookupRemoteVersion(v -> {
+            assertEquals(Version.fromString("0.90.13"), v);
+            called.set(true);
+        });
+        assertTrue(called.get());
+        called.set(false);
+        sourceWithMockedRemoteCall(false, "main/1_7_5.json").lookupRemoteVersion(v -> {
+            assertEquals(Version.fromString("1.7.5"), v);
+            called.set(true);
+        });
+        assertTrue(called.get());
+        called.set(false);
+        sourceWithMockedRemoteCall(false, "main/2_3_3.json").lookupRemoteVersion(v -> {
+            assertEquals(Version.V_2_3_3, v);
+            called.set(true);
+        });
+        assertTrue(called.get());
+        called.set(false);
+        sourceWithMockedRemoteCall(false, "main/5_0_0_alpha_3.json").lookupRemoteVersion(v -> {
+            assertEquals(Version.V_5_0_0_alpha3, v);
+            called.set(true);
+        });
+        assertTrue(called.get());
+        called.set(false);
+        sourceWithMockedRemoteCall(false, "main/with_unknown_fields.json").lookupRemoteVersion(v -> {
+            assertEquals(Version.V_5_0_0_alpha3, v);
+            called.set(true);
+        });
+        assertTrue(called.get());
     }
 
     public void testParseStartOk() throws Exception {

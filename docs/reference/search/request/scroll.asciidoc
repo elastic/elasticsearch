@@ -175,7 +175,7 @@ curl -XDELETE localhost:9200/_search/scroll \
      -d 'c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1,aGVuRmV0Y2g7NTsxOnkxaDZ'
 ---------------------------------------
 
-
+[[sliced-scroll]]
 ==== Sliced Scroll
 
 For scroll queries that return a lot of documents it is possible to split the scroll in multiple slices which
@@ -183,7 +183,7 @@ can be consumed independently:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
+GET /twitter/tweet/_search?scroll=1m
 {
     "slice": {
         "id": 0, <1>
@@ -195,9 +195,7 @@ curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
         }
     }
 }
-'
-
-curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
+GET /twitter/tweet/_search?scroll=1m
 {
     "slice": {
         "id": 1,
@@ -209,8 +207,9 @@ curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
         }
     }
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
 
 <1> The id of the slice
 <2> The maximum number of slices
@@ -247,10 +246,10 @@ slice gets deterministic results.
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
+GET /twitter/tweet/_search?scroll=1m
 {
     "slice": {
-        "field": "my_random_integer_field",
+        "field": "date",
         "id": 0,
         "max": 10
     },
@@ -260,8 +259,9 @@ curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
         }
     }
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
 
 For append only time-based indices, the `timestamp` field can be used safely.
 

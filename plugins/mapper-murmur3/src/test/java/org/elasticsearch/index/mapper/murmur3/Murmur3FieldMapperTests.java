@@ -59,7 +59,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
                 Collections.singletonMap(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser()),
                 Collections.emptyMap());
         parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-        indexService.analysisService(), indexService.similarityService(), mapperRegistry, indexService::newQueryShardContext);
+        indexService.getIndexAnalyzers(), indexService.similarityService(), mapperRegistry, indexService::newQueryShardContext);
     }
 
     @Override
@@ -152,7 +152,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
         Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, oldVersion).build();
         IndexService indexService2x = createIndex("test_old", oldIndexSettings);
 
-        DocumentMapperParser parser = new DocumentMapperParser(indexService2x.getIndexSettings(), indexService2x.mapperService(), indexService2x.analysisService(),
+        DocumentMapperParser parser = new DocumentMapperParser(indexService2x.getIndexSettings(), indexService2x.mapperService(), indexService2x.getIndexAnalyzers(),
             indexService2x.similarityService(), mapperRegistry, indexService2x::newQueryShardContext);
 
         DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));

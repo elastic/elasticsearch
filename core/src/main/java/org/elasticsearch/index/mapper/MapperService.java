@@ -36,7 +36,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -100,7 +100,7 @@ public class MapperService extends AbstractIndexComponent {
     @Deprecated
     public static final String PERCOLATOR_LEGACY_TYPE_NAME = ".percolator";
 
-    private final AnalysisService analysisService;
+    private final IndexAnalyzers indexAnalyzers;
 
     /**
      * Will create types automatically if they do not exists in the mapping definition yet
@@ -127,16 +127,16 @@ public class MapperService extends AbstractIndexComponent {
 
     final MapperRegistry mapperRegistry;
 
-    public MapperService(IndexSettings indexSettings, AnalysisService analysisService,
+    public MapperService(IndexSettings indexSettings, IndexAnalyzers indexAnalyzers,
                          SimilarityService similarityService, MapperRegistry mapperRegistry,
                          Supplier<QueryShardContext> queryShardContextSupplier) {
         super(indexSettings);
-        this.analysisService = analysisService;
+        this.indexAnalyzers = indexAnalyzers;
         this.fieldTypes = new FieldTypeLookup();
-        this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityService, mapperRegistry, queryShardContextSupplier);
-        this.indexAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultIndexAnalyzer(), p -> p.indexAnalyzer());
-        this.searchAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchAnalyzer(), p -> p.searchAnalyzer());
-        this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
+        this.documentParser = new DocumentMapperParser(indexSettings, this, indexAnalyzers, similarityService, mapperRegistry, queryShardContextSupplier);
+        this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), p -> p.indexAnalyzer());
+        this.searchAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchAnalyzer(), p -> p.searchAnalyzer());
+        this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
         this.mapperRegistry = mapperRegistry;
 
         this.dynamic = this.indexSettings.getValue(INDEX_MAPPER_DYNAMIC_SETTING);
@@ -171,8 +171,8 @@ public class MapperService extends AbstractIndexComponent {
         };
     }
 
-    public AnalysisService analysisService() {
-        return this.analysisService;
+    public IndexAnalyzers getIndexAnalyzers() {
+        return this.indexAnalyzers;
     }
 
     public DocumentMapperParser documentMapperParser() {

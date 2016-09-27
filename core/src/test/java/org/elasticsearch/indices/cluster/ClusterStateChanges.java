@@ -53,7 +53,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RandomAllocationDeciderTests;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -70,7 +70,7 @@ import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.gateway.NoopGatewayAllocator;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -116,7 +116,7 @@ public class ClusterStateChanges extends AbstractComponent {
             new HashSet<>(Arrays.asList(new SameShardAllocationDecider(settings),
                 new ReplicaAfterPrimaryActiveAllocationDecider(settings),
                 new RandomAllocationDeciderTests.RandomAllocationDecider(getRandom())))),
-            NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(settings),
+            new TestGatewayAllocator(), new BalancedShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE);
         shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger);
         shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, logger);
@@ -210,10 +210,10 @@ public class ClusterStateChanges extends AbstractComponent {
         return allocationService.deassociateDeadNodes(clusterState, reroute, reason);
     }
 
-    public ClusterState applyFailedShards(ClusterState clusterState, List<FailedRerouteAllocation.FailedShard> failedShards) {
+    public ClusterState applyFailedShards(ClusterState clusterState, List<FailedShard> failedShards) {
         List<ShardStateAction.ShardEntry> entries = failedShards.stream().map(failedShard ->
-            new ShardStateAction.ShardEntry(failedShard.routingEntry.shardId(), failedShard.routingEntry.allocationId().getId(),
-                0L, failedShard.message, failedShard.failure))
+            new ShardStateAction.ShardEntry(failedShard.getRoutingEntry().shardId(), failedShard.getRoutingEntry().allocationId().getId(),
+                0L, failedShard.getMessage(), failedShard.getFailure()))
             .collect(Collectors.toList());
         try {
             return shardFailedClusterStateTaskExecutor.execute(clusterState, entries).resultingState;

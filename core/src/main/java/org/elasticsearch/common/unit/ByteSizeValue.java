@@ -105,25 +105,6 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue> {
         return ((double) getBytes()) / ByteSizeUnit.C5;
     }
 
-    public long convert(ByteSizeUnit unit) {
-        switch (unit) {
-            case BYTES:
-                return getBytes();
-            case KB:
-                return getKb();
-            case MB:
-                return getMb();
-            case GB:
-                return getGb();
-            case TB:
-                return getTb();
-            case PB:
-                return getPb();
-            default:
-                throw new UnsupportedOperationException("Unsupported ByteSizeUnit: " + unit.toString());
-        }
-    }
-
     @Override
     public String toString() {
         long bytes = getBytes();
@@ -224,26 +205,15 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue> {
 
     @Override
     public int compareTo(ByteSizeValue other) {
-        long unitValue = unit.toBytes(1);
-        long otherUnitValue = other.unit.toBytes(1);
+        long bytes = getBytes();
+        long otherBytes = other.getBytes();
 
-        ByteSizeUnit minUnit = unitValue < otherUnitValue ? unit : other.unit;
-        long thisValue = this.convert(minUnit);
-        long otherValue = other.convert(minUnit);
-
-        if (thisValue == otherValue) {
-            if (thisValue == Long.MAX_VALUE || thisValue == Long.MIN_VALUE) {
-                if (unitValue > otherUnitValue) {
-                    return 1;
-                } else if (unitValue < otherUnitValue) {
-                    return -1;
-                }
-            }
-            return 0;
-        } else if (thisValue < otherValue) {
+        if (bytes < otherBytes) {
             return -1;
-        } else {
+        } else if (bytes > otherBytes) {
             return 1;
+        } else {
+            return 0;
         }
     }
 }

@@ -118,20 +118,26 @@ public class RestTable {
         String[] columnOrdering = request.paramAsStringArray("s", null);
 
         List<Integer> rowOrder = new ArrayList<>();
-        for(int i = 0; i < table.getRows().size(); i++) {
+        for (int i = 0; i < table.getRows().size(); i++) {
             rowOrder.add(i);
         }
 
-        if(columnOrdering != null) {
+        if (columnOrdering != null) {
             Map<String, String> headerAliasMap = table.getAliasMap();
             List<ColumnOrderElement> ordering = new ArrayList<>();
-            for(int i = 0; i < columnOrdering.length; i++) {
-                String[] orderingEntry = columnOrdering[i].split(":");
-                boolean reverse = (orderingEntry.length > 1 && orderingEntry[1].equals("desc"));
-                if(headerAliasMap.containsKey(orderingEntry[0])) {
-                        ordering.add(new ColumnOrderElement(headerAliasMap.get(orderingEntry[0]), reverse));
+            for (int i = 0; i < columnOrdering.length; i++) {
+                String columnHeader = columnOrdering[i];
+                boolean reverse = false;
+                if (columnHeader.length() > 5 && columnHeader.endsWith(":desc")) {
+                    columnHeader = columnHeader.substring(0, columnHeader.length() - 5);
+                    reverse = true;
+                } else if (columnHeader.length() > 4 && columnHeader.endsWith(":asc")) {
+                    columnHeader = columnHeader.substring(0, columnHeader.length() - 4);
+                }
+                if (headerAliasMap.containsKey(columnHeader)) {
+                        ordering.add(new ColumnOrderElement(headerAliasMap.get(columnHeader), reverse));
                 } else {
-                    ordering.add(new ColumnOrderElement(orderingEntry[0], reverse));
+                    throw new UnsupportedOperationException("Unable to sort by unknown sort key " + columnHeader);
                 }
             }
             Collections.sort(rowOrder, new TableIndexComparator(table, ordering));
@@ -415,9 +421,9 @@ public class RestTable {
         private int compareCell(Object o1, Object o2) {
             if (o1 == null && o2 == null) {
                 return 0;
-            } else if(o1 == null) {
+            } else if (o1 == null) {
                 return -1;
-            } else if(o2 == null) {
+            } else if (o2 == null) {
                 return 1;
             } else {
                 if (o1 instanceof Comparable && o1.getClass().equals(o2.getClass())) {
@@ -430,7 +436,7 @@ public class RestTable {
 
         @Override
         public int compare(Integer rowIndex1, Integer rowIndex2) {
-            if(rowIndex1 < maxIndex && rowIndex1 >= 0 && rowIndex2 < maxIndex && rowIndex2 >= 0) {
+            if (rowIndex1 < maxIndex && rowIndex1 >= 0 && rowIndex2 < maxIndex && rowIndex2 >= 0) {
                 Map<String, List<Table.Cell>> tableMap = table.getAsMap();
                 for (ColumnOrderElement orderingElement : ordering) {
                     String column = orderingElement.getColumn();

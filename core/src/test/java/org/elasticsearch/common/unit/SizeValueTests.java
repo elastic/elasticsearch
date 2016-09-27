@@ -68,7 +68,7 @@ public class SizeValueTests extends ESTestCase {
         }
     }
 
-    public void testCompareEquality(){
+    public void testCompareEquality() {
         long randomValue = randomPositiveLong();
         SizeUnit randomUnit = randomFrom(SizeUnit.values());
         SizeValue firstValue = new SizeValue(randomValue, randomUnit);
@@ -79,7 +79,7 @@ public class SizeValueTests extends ESTestCase {
     public void testCompareValue() {
         long firstRandom = randomPositiveLong();
         long secondRandom = randomValueOtherThan(firstRandom, ESTestCase::randomPositiveLong);
-        SizeUnit unit = randomFrom(SizeUnit.values());
+        SizeUnit unit = SizeUnit.SINGLE;
         SizeValue firstSizeValue = new SizeValue(firstRandom, unit);
         SizeValue secondSizeValue = new SizeValue(secondRandom, unit);
         assertEquals(firstRandom > secondRandom, firstSizeValue.compareTo(secondSizeValue) > 0);
@@ -87,7 +87,7 @@ public class SizeValueTests extends ESTestCase {
     }
 
     public void testCompareUnits() {
-        long number = randomPositiveLong();
+        long number = 1;
         SizeUnit randomUnit = randomValueOtherThan(SizeUnit.PETA, ()->randomFrom(SizeUnit.values()));
         SizeValue firstValue = new SizeValue(number, randomUnit);
         SizeValue secondValue = new SizeValue(number, SizeUnit.PETA);

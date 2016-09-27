@@ -167,7 +167,14 @@ order by column3.
 
 [source,sh]
 --------------------------------------------------
-% curl '192.168.56.10:9200/_cat/templates?v&s=order:desc,template'
+GET _cat/templates?v&s=order:desc,template
+--------------------------------------------------
+//CONSOLE
+
+returns:
+
+[source,sh]
+--------------------------------------------------
 name                  template     order version
 pizza_pepperoni       *pepperoni*  2
 sushi_california_roll *avocado*    1     1

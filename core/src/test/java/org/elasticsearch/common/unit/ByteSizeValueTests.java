@@ -181,7 +181,7 @@ public class ByteSizeValueTests extends ESTestCase {
     public void testCompareValue() {
         long firstRandom = randomPositiveLong();
         long secondRandom = randomValueOtherThan(firstRandom, ESTestCase::randomPositiveLong);
-        ByteSizeUnit unit = randomFrom(ByteSizeUnit.values());
+        ByteSizeUnit unit = ByteSizeUnit.BYTES;
         ByteSizeValue firstByteValue = new ByteSizeValue(firstRandom, unit);
         ByteSizeValue secondByteValue = new ByteSizeValue(secondRandom, unit);
         assertEquals(firstRandom > secondRandom, firstByteValue.compareTo(secondByteValue) > 0);
@@ -189,7 +189,7 @@ public class ByteSizeValueTests extends ESTestCase {
     }
 
     public void testCompareUnits() {
-        long number = randomPositiveLong();
+        long number = 1;
         ByteSizeUnit randomUnit = randomValueOtherThan(ByteSizeUnit.PB, ()->randomFrom(ByteSizeUnit.values()));
         ByteSizeValue firstByteValue = new ByteSizeValue(number, randomUnit);
         ByteSizeValue secondByteValue = new ByteSizeValue(number, ByteSizeUnit.PB);
@@ -200,7 +200,7 @@ public class ByteSizeValueTests extends ESTestCase {
     public void testEdgeCompare() {
         ByteSizeValue maxLongValuePB = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.PB);
         ByteSizeValue maxLongValueB = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
-        assertTrue(maxLongValuePB.compareTo(maxLongValueB) > 0);
+        assertEquals(0, maxLongValuePB.compareTo(maxLongValueB));
     }
 
     public void testSerialization() throws IOException {

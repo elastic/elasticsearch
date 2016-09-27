@@ -154,7 +154,7 @@ public class RestTableTests extends ESTestCase {
         table.addCell("compare");
         table.endHeaders();
 
-        for(Integer i : Arrays.asList(1,2,1)) {
+        for (Integer i : Arrays.asList(1,2,1)) {
             table.startRow();
             table.addCell(i);
             table.endRow();
@@ -186,13 +186,24 @@ public class RestTableTests extends ESTestCase {
         });
     }
 
+    public void testUnknownHeader() {
+        Table table = new Table();
+        table.startHeaders();
+        table.addCell("compare");
+        table.endHeaders();
+        restRequest.params().put("s", "notaheader");
+        expectThrows(UnsupportedOperationException.class, () -> {
+            RestTable.getRowOrder(table, restRequest);
+        });
+    }
+
     public void testAliasSort() {
         Table table = new Table();
         table.startHeaders();
         table.addCell("compare", "alias:c;");
         table.endHeaders();
         List<Integer> comparisonList = Arrays.asList(3,1,2);
-        for(int i = 0; i < comparisonList.size(); i++) {
+        for (int i = 0; i < comparisonList.size(); i++) {
             table.startRow();
             table.addCell(comparisonList.get(i));
             table.endRow();
@@ -208,7 +219,7 @@ public class RestTableTests extends ESTestCase {
         table.addCell("reversed");
         table.endHeaders();
         List<Integer> comparisonList = Arrays.asList(0, 1, 2);
-        for(int i = 0; i < comparisonList.size(); i++) {
+        for (int i = 0; i < comparisonList.size(); i++) {
             table.startRow();
             table.addCell(comparisonList.get(i));
             table.endRow();
@@ -226,7 +237,7 @@ public class RestTableTests extends ESTestCase {
         table.endHeaders();
         List<Integer> comparisonList = Arrays.asList(3, 3, 2);
         List<Integer> secondComparisonList = Arrays.asList(2, 1, 3);
-        for(int i = 0; i < comparisonList.size(); i++) {
+        for (int i = 0; i < comparisonList.size(); i++) {
             table.startRow();
             table.addCell(comparisonList.get(i));
             table.addCell(secondComparisonList.get(i));

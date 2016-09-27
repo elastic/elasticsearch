@@ -199,12 +199,14 @@ public class Table {
         Map<String, String> headerAliasMap = new HashMap<>();
         for (int i = 0; i < headers.size(); i++) {
             Cell headerCell = headers.get(i);
+            String headerName = headerCell.value.toString();
             if (headerCell.attr.containsKey("alias")) {
                 String[] aliases = Strings.splitStringByCommaToArray(headerCell.attr.get("alias"));
                 for (String alias : aliases) {
-                    headerAliasMap.put(alias, headerCell.value.toString());
+                    headerAliasMap.put(alias, headerName);
                 }
             }
+            headerAliasMap.put(headerName, headerName);
         }
         return headerAliasMap;
     }

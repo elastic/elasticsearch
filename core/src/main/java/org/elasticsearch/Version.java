@@ -313,10 +313,6 @@ public class Version {
         return sb.toString();
     }
 
-    public String displayVersion() {
-        return this + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) {

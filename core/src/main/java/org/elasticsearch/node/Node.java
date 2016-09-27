@@ -258,7 +258,7 @@ public class Node implements Closeable {
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
                 "version[{}], pid[{}], build[{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
-                Version.CURRENT.displayVersion(),
+                displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot()),
                 jvmInfo.pid(),
                 Build.CURRENT.shortHash(),
                 Build.CURRENT.date(),
@@ -449,8 +449,12 @@ public class Node implements Closeable {
         if (!version.isRelease() || isSnapshot) {
             logger.warn(
                 "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
-                version.displayVersion());
+                displayVersion(version, isSnapshot));
         }
+    }
+
+    private static String displayVersion(final Version version, final boolean isSnapshot) {
+        return version + (isSnapshot ? "-SNAPSHOT" : "");
     }
 
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,

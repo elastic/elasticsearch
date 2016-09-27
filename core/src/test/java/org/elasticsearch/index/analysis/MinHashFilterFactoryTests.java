@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
@@ -36,8 +37,8 @@ public class MinHashFilterFactoryTests extends ESTokenStreamTestCase {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
-        TokenFilterFactory tokenFilter = analysisService.tokenFilter("min_hash");
+        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("min_hash");
         String source = "the quick brown fox";
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));
@@ -57,8 +58,8 @@ public class MinHashFilterFactoryTests extends ESTokenStreamTestCase {
             .put("index.analysis.filter.test_min_hash.with_rotation", false)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
-        TokenFilterFactory tokenFilter = analysisService.tokenFilter("test_min_hash");
+        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("test_min_hash");
         String source = "sushi";
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));

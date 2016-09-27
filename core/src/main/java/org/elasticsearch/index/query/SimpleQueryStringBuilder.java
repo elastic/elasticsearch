@@ -355,7 +355,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         if (analyzer == null) {
             luceneAnalyzer = context.getMapperService().searchAnalyzer();
         } else {
-            luceneAnalyzer = context.getAnalysisService().analyzer(analyzer);
+            luceneAnalyzer = context.getIndexAnalyzers().get(analyzer);
             if (luceneAnalyzer == null) {
                 throw new QueryShardException(context, "[" + SimpleQueryStringBuilder.NAME + "] analyzer [" + analyzer
                         + "] not found");

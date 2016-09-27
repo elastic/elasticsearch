@@ -192,6 +192,9 @@ class InstallPluginCommand extends SettingCommand {
 
     // pkg private for testing
     void execute(Terminal terminal, String pluginId, boolean isBatch, Map<String, String> settings) throws Exception {
+        if (pluginId == null) {
+            throw new UserException(ExitCodes.USAGE, "plugin id is required");
+        }
         final Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
         // TODO: remove this leniency!! is it needed anymore?
         if (Files.exists(env.pluginsFile()) == false) {

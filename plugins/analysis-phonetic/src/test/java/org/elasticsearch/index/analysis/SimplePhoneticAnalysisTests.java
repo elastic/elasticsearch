@@ -39,8 +39,8 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
         Settings settings = Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings, new AnalysisPhoneticPlugin());
-        TokenFilterFactory filterFactory = analysisService.tokenFilter("phonetic");
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisPhoneticPlugin());
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("phonetic");
         MatcherAssert.assertThat(filterFactory, instanceOf(PhoneticTokenFilterFactory.class));
     }
 }

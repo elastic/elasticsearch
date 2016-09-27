@@ -29,15 +29,11 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.analysis.AnalysisService;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-/**
- *
- */
 public abstract class ParseContext {
 
     /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */
@@ -243,11 +239,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public AnalysisService analysisService() {
-            return in.analysisService();
-        }
-
-        @Override
         public MapperService mapperService() {
             return in.mapperService();
         }
@@ -386,11 +377,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public AnalysisService analysisService() {
-            return docMapperParser.analysisService;
-        }
-
-        @Override
         public MapperService mapperService() {
             return docMapperParser.mapperService;
         }
@@ -524,8 +510,6 @@ public abstract class ParseContext {
     public abstract RootObjectMapper root();
 
     public abstract DocumentMapper docMapper();
-
-    public abstract AnalysisService analysisService();
 
     public abstract MapperService mapperService();
 

@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.gateway.NoopGatewayAllocator;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -577,7 +577,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
     public void testRebalanceWithIgnoredUnassignedShards() {
         final AtomicBoolean allocateTest1 = new AtomicBoolean(false);
 
-        AllocationService strategy = createAllocationService(Settings.EMPTY, new NoopGatewayAllocator() {
+        AllocationService strategy = createAllocationService(Settings.EMPTY, new TestGatewayAllocator() {
             @Override
             public void allocateUnassigned(RoutingAllocation allocation) {
                 if (allocateTest1.get() == false) {
@@ -677,7 +677,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
     public void testRebalanceWhileShardFetching() {
         final AtomicBoolean hasFetches = new AtomicBoolean(true);
         AllocationService strategy = createAllocationService(Settings.builder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
-                ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build(), new NoopGatewayAllocator() {
+                ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build(), new TestGatewayAllocator() {
             @Override
             public void allocateUnassigned(RoutingAllocation allocation) {
                 if (hasFetches.get()) {

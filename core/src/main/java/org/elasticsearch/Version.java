@@ -313,6 +313,10 @@ public class Version {
         return sb.toString();
     }
 
+    public String displayVersion() {
+        return this + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -352,4 +356,9 @@ public class Version {
     public boolean isRC() {
         return build > 50 && build < 99;
     }
+
+    public boolean isRelease() {
+        return build == 99;
+    }
+
 }

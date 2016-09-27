@@ -38,22 +38,7 @@ import java.util.Collection;
 
 public abstract class AbstractAzureRepositoryServiceTestCase extends AbstractAzureTestCase {
 
-    public static class TestPlugin extends Plugin {
-        @Override
-        public String name() {
-            return "mock-stoarge-service";
-        }
-        @Override
-        public String description() {
-            return "plugs in a mock storage service for testing";
-        }
-        public void onModule(AzureModule azureModule) {
-            azureModule.storageServiceImpl = AzureStorageServiceMock.class;
-        }
-    }
-
     protected String basePath;
-    private Class<? extends AzureStorageService> mock;
 
     public AbstractAzureRepositoryServiceTestCase(String basePath) {
         this.basePath = basePath;
@@ -79,7 +64,6 @@ public abstract class AbstractAzureRepositoryServiceTestCase extends AbstractAzu
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.settingsBuilder()
-                .put(Storage.API_IMPLEMENTATION, mock)
                 .put(Storage.CONTAINER, "snapshots");
 
         // We use sometime deprecated settings in tests
@@ -87,11 +71,6 @@ public abstract class AbstractAzureRepositoryServiceTestCase extends AbstractAzu
                 .put(Storage.KEY_DEPRECATED, "mock_azure_key");
 
         return builder.build();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(CloudAzurePlugin.class, TestPlugin.class);
     }
 
     @Override

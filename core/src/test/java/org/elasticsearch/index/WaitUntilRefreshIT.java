@@ -35,6 +35,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
@@ -108,7 +109,8 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "cat")).get(), "2");
 
         // Update-becomes-delete with RefreshPolicy.WAIT_UNTIL
-        update = client().prepareUpdate("test", "test", "2").setScript(new Script("delete_plz", Script.ScriptType.INLINE, "native", emptyMap()))
+        update = client().prepareUpdate("test", "test", "2")
+            .setScript(ScriptInput.create(Script.ScriptType.INLINE, "native", "delete_plz", null, emptyMap()))
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
         assertEquals(2, update.getVersion());
         assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());

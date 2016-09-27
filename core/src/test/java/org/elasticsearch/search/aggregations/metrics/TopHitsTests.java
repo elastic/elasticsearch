@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
@@ -89,9 +90,9 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
             int scriptFieldsSize = randomInt(25);
             for (int i = 0; i < scriptFieldsSize; i++) {
                 if (randomBoolean()) {
-                    factory.scriptField(randomAsciiOfLengthBetween(5, 50), new Script("foo"), randomBoolean());
+                    factory.scriptField(randomAsciiOfLengthBetween(5, 50), ScriptInput.create("foo"), randomBoolean());
                 } else {
-                    factory.scriptField(randomAsciiOfLengthBetween(5, 50), new Script("foo"));
+                    factory.scriptField(randomAsciiOfLengthBetween(5, 50), ScriptInput.create("foo"));
                 }
             }
         }
@@ -146,7 +147,7 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
                     factory.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
                     break;
                 case 3:
-                    factory.sort(SortBuilders.scriptSort(new Script("foo"), ScriptSortType.NUMBER).order(randomFrom(SortOrder.values())));
+                    factory.sort(SortBuilders.scriptSort(ScriptInput.create("foo"), ScriptSortType.NUMBER).order(randomFrom(SortOrder.values())));
                     break;
                 case 4:
                     factory.sort(randomAsciiOfLengthBetween(5, 20));

@@ -37,6 +37,7 @@ import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -207,7 +208,8 @@ public class IpRangeIT extends ESIntegTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> client().prepareSearch("idx").addAggregation(
                         AggregationBuilders.ipRange("my_range")
-                        .script(new Script(DummyScript.NAME, Script.ScriptType.INLINE, "native", Collections.emptyMap())) ).get());
+                        .script(ScriptInput.create(Script.ScriptType.INLINE, "native", DummyScript.NAME, null, Collections.emptyMap())))
+                    .get());
         assertThat(e.getMessage(), containsString("[ip_range] does not support scripts"));
     }
 
@@ -216,7 +218,8 @@ public class IpRangeIT extends ESIntegTestCase {
                 () -> client().prepareSearch("idx").addAggregation(
                         AggregationBuilders.ipRange("my_range")
                         .field("ip")
-                        .script(new Script(DummyScript.NAME, Script.ScriptType.INLINE, "native", Collections.emptyMap())) ).get());
+                        .script(ScriptInput.create(Script.ScriptType.INLINE, "native", DummyScript.NAME, null, Collections.emptyMap())))
+                    .get());
         assertThat(e.getMessage(), containsString("[ip_range] does not support scripts"));
     }
 

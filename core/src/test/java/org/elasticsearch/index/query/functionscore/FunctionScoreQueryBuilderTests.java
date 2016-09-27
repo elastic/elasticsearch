@@ -48,6 +48,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
@@ -167,7 +168,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             String script = "1";
             Map<String, Object> params = Collections.emptyMap();
             functionBuilder = new ScriptScoreFunctionBuilder(
-                    new Script(script, Script.ScriptType.INLINE, MockScriptEngine.NAME, params));
+                    ScriptInput.create(Script.ScriptType.INLINE, MockScriptEngine.NAME, script, null, params));
             break;
         case 3:
             RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilderWithFixedSeed();

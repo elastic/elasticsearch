@@ -24,6 +24,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.test.ESBackcompatTestCase;
 
 import java.io.IOException;
@@ -112,7 +113,8 @@ public class FunctionScoreBackwardCompatibilityIT extends ESBackcompatTestCase {
                         searchSource().query(
                                 functionScoreQuery(termQuery("text", "value"), new FilterFunctionBuilder[] {
                                                 new FilterFunctionBuilder(gaussDecayFunction("loc", new GeoPoint(10, 20), "1000km")),
-                                                new FilterFunctionBuilder(scriptFunction(new Script("_index['text']['value'].tf()"))),
+                                                new FilterFunctionBuilder(scriptFunction(
+                                                    ScriptInput.create("_index['text']['value'].tf()"))),
                                                 new FilterFunctionBuilder(termQuery("text", "boosted"), weightFactorFunction(5))
                                         }
                                 )))).actionGet();

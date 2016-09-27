@@ -22,6 +22,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.bucket.DateScriptMocks.DateScriptsMockPlugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
@@ -120,7 +121,8 @@ public class DateRangeIT extends ESIntegTestCase {
         if (randomBoolean()) {
             rangeBuilder.field("date");
         } else {
-            rangeBuilder.script(new Script(DateScriptMocks.ExtractFieldScript.NAME, Script.ScriptType.INLINE, "native", params));
+            rangeBuilder.script(ScriptInput.create(
+                Script.ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME, null, params));
         }
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -542,7 +544,8 @@ public class DateRangeIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
                         .field("dates")
-                                .script(new Script(DateScriptMocks.PlusOneMonthScript.NAME, Script.ScriptType.INLINE, "native", params))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, "native", DateScriptMocks.PlusOneMonthScript.NAME, null, params))
                                 .addUnboundedTo(date(2, 15)).addRange(date(2, 15), date(3, 15)).addUnboundedFrom(date(3, 15))).execute()
                 .actionGet();
 
@@ -598,7 +601,8 @@ public class DateRangeIT extends ESIntegTestCase {
         params.put("fieldname", "date");
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
-                        .script(new Script(DateScriptMocks.ExtractFieldScript.NAME, Script.ScriptType.INLINE, "native", params))
+                        .script(ScriptInput.create(
+                            Script.ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME, null, params))
                         .addUnboundedTo(date(2, 15))
                         .addRange(date(2, 15), date(3, 15))
                         .addUnboundedFrom(date(3, 15)))
@@ -660,7 +664,8 @@ public class DateRangeIT extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        dateRange("range").script(new Script(DateScriptMocks.ExtractFieldScript.NAME, Script.ScriptType.INLINE, "native", params))
+                        dateRange("range").script(ScriptInput.create(
+                            Script.ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME, null, params))
                         .addUnboundedTo(date(2, 15)).addRange(date(2, 15), date(3, 15))
                         .addUnboundedFrom(date(3, 15))).execute().actionGet();
 

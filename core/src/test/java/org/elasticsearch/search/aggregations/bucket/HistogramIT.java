@@ -25,6 +25,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
@@ -560,7 +561,8 @@ public class HistogramIT extends ESIntegTestCase {
                 .addAggregation(
                         histogram("histo")
                                 .field(SINGLE_VALUED_FIELD_NAME)
-                                .script(new Script("_value + 1", Script.ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap()))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", null, emptyMap()))
                                 .interval(interval))
                 .execute().actionGet();
 
@@ -637,7 +639,8 @@ public class HistogramIT extends ESIntegTestCase {
                 .addAggregation(
                         histogram("histo")
                                 .field(MULTI_VALUED_FIELD_NAME)
-                                .script(new Script("_value + 1", Script.ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap()))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", null, emptyMap()))
                                 .interval(interval))
                 .execute().actionGet();
 
@@ -673,7 +676,8 @@ public class HistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
                         histogram("histo")
-                            .script(new Script("doc['l_value'].value", Script.ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap()))
+                            .script(ScriptInput.create(
+                                Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['l_value'].value", null, emptyMap()))
                             .interval(interval))
                 .execute().actionGet();
 
@@ -697,7 +701,8 @@ public class HistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
                         histogram("histo")
-                                .script(new Script("doc['l_values']", Script.ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap()))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['l_values']", null, emptyMap()))
                                 .interval(interval))
                 .execute().actionGet();
 

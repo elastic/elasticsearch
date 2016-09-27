@@ -29,6 +29,8 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -150,8 +152,8 @@ public class MinDocCountIT extends AbstractTermsTestCase {
         YES {
             @Override
             TermsAggregationBuilder apply(TermsAggregationBuilder builder, String field) {
-                return builder.script(new org.elasticsearch.script.Script("doc['" + field + "'].values", org.elasticsearch.script.Script.ScriptType.INLINE,
-                 CustomScriptPlugin.NAME, null));
+                return builder.script(ScriptInput.create(
+                    ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + field + "'].values", null, null));
             }
         };
         abstract TermsAggregationBuilder apply(TermsAggregationBuilder builder, String field);

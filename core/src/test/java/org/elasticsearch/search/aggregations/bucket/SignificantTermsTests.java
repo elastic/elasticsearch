@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
@@ -61,10 +62,10 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
             break;
         case 1:
             factory.field(field);
-            factory.script(new Script("_value + 1"));
+            factory.script(ScriptInput.create("_value + 1"));
             break;
         case 2:
-            factory.script(new Script("doc[" + field + "] + 1"));
+            factory.script(ScriptInput.create("doc[" + field + "] + 1"));
             break;
         default:
             fail();
@@ -179,7 +180,7 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
                 significanceHeuristic = new MutualInformation(randomBoolean(), randomBoolean());
                 break;
             case 4:
-                significanceHeuristic = new ScriptHeuristic(new Script("foo"));
+                significanceHeuristic = new ScriptHeuristic(ScriptInput.create("foo"));
                 break;
             case 5:
                 significanceHeuristic = new JLHScore();

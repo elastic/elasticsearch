@@ -34,6 +34,7 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -116,12 +117,12 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         checkWriteAction(
                 false, timeout,
                 client().prepareUpdate("test", "type1", "1")
-                        .setScript(new Script("test script", Script.ScriptType.INLINE, null, null)).setTimeout(timeout));
+                        .setScript(ScriptInput.create(Script.ScriptType.INLINE, null, "test script", null, null)).setTimeout(timeout));
 
         checkWriteAction(
                 autoCreateIndex, timeout,
                 client().prepareUpdate("no_index", "type1", "1")
-                        .setScript(new Script("test script", Script.ScriptType.INLINE, null, null)).setTimeout(timeout));
+                        .setScript(ScriptInput.create(Script.ScriptType.INLINE, null, "test script", null, null)).setTimeout(timeout));
 
 
         checkWriteAction(false, timeout,

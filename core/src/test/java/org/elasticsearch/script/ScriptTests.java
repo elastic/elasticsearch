@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 
@@ -35,6 +36,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -43,11 +45,11 @@ public class ScriptTests extends ESTestCase {
 
     public void testScriptParsing() throws IOException {
         XContent xContent = randomFrom(XContentType.JSON, XContentType.YAML).xContent();
-        Script expectedScript = createScript(xContent);
+        ScriptInput expectedScript = createScript(xContent);
         try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
             expectedScript.toXContent(builder, ToXContent.EMPTY_PARAMS);
             try (XContentParser parser = XContentHelper.createParser(builder.bytes())) {
-                Script actualScript = Script.parse(parser, ParseFieldMatcher.STRICT);
+                ScriptInput actualScript = ScriptInput.parse(parser, ParseFieldMatcher.STRICT, null);
                 assertThat(actualScript, equalTo(expectedScript));
             }
         }
@@ -55,17 +57,17 @@ public class ScriptTests extends ESTestCase {
 
     public void testScriptSerialization() throws IOException {
         XContent xContent = randomFrom(XContentType.JSON, XContentType.YAML).xContent();
-        Script expectedScript = createScript(xContent);
+        ScriptInput expectedScript = createScript(xContent);
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             expectedScript.writeTo(new OutputStreamStreamOutput(out));
             try (ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray())) {
-                Script actualScript = new Script(new InputStreamStreamInput(in));
+                ScriptInput actualScript = ScriptInput.readFrom(new InputStreamStreamInput(in));
                 assertThat(actualScript, equalTo(expectedScript));
             }
         }
     }
 
-    private Script createScript(XContent xContent) throws IOException {
+    private ScriptInput createScript(XContent xContent) throws IOException {
         final Map<String, Object> params = randomBoolean() ? null : Collections.singletonMap("key", "value");
         ScriptType scriptType = randomFrom(Script.ScriptType.values());
         String script;
@@ -79,13 +81,15 @@ public class ScriptTests extends ESTestCase {
         } else {
             script = randomAsciiOfLengthBetween(1, 5);
         }
-        return new Script(
-                script,
-                scriptType,
-                randomFrom("_lang1", "_lang2", null),
-                params,
-                scriptType == Script.ScriptType.INLINE ? xContent.type() : null
-        );
+
+        Map<String, String> options = new HashMap<>();
+
+        if (xContent != null) {
+            options.put(Script.CONTENT_TYPE_OPTION, xContent.type().mediaType());
+        }
+
+        return ScriptInput.create(
+            scriptType, scriptType == ScriptType.INLINE ? randomFrom("_lang1", "_lang2", null) : null, script, options, params);
     }
 
 

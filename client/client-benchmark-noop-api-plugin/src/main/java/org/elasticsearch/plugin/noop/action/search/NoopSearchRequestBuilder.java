@@ -28,6 +28,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -308,7 +309,7 @@ public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest
      * @param name   The name that will represent this value in the return hit
      * @param script The script to use
      */
-    public NoopSearchRequestBuilder addScriptField(String name, Script script) {
+    public NoopSearchRequestBuilder addScriptField(String name, ScriptInput script) {
         sourceBuilder().scriptField(name, script);
         return this;
     }

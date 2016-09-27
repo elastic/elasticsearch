@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -391,7 +392,7 @@ public class RangeIT extends ESIntegTestCase {
                 .addAggregation(
                         range("range")
                                 .field(SINGLE_VALUED_FIELD_NAME)
-                                .script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                                .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", null, null))
                                 .addUnboundedTo(3)
                                 .addRange(3, 6)
                                 .addUnboundedFrom(6))
@@ -511,7 +512,7 @@ public class RangeIT extends ESIntegTestCase {
                 .addAggregation(
                         range("range")
                                 .field(MULTI_VALUED_FIELD_NAME)
-                                .script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                                .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", null, null))
                                 .addUnboundedTo(3)
                                 .addRange(3, 6)
                                 .addUnboundedFrom(6))
@@ -572,7 +573,8 @@ public class RangeIT extends ESIntegTestCase {
      */
 
     public void testScriptSingleValue() throws Exception {
-        Script script = new Script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        ScriptInput script = ScriptInput.create(
+            ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", null, null);
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -657,7 +659,8 @@ public class RangeIT extends ESIntegTestCase {
     }
 
     public void testScriptMultiValued() throws Exception {
-        Script script = new Script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        ScriptInput script =
+            ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "'].values", null, null);
 
         SearchResponse response = client()
                 .prepareSearch("idx")

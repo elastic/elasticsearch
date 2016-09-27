@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -451,7 +452,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                                .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", null, null)))
                 .get();
 
         assertSearchResponse(response);
@@ -504,7 +505,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("_value + 1", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                                .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", null, null)))
                 .get();
 
         assertSearchResponse(response);
@@ -533,7 +534,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .script(new Script("(long) (_value / 1000 + 1)", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                        .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "(long) (_value / 1000 + 1)", null, null)))
                 .get();
 
         assertSearchResponse(response);
@@ -575,8 +576,8 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 .addAggregation(
                         terms("terms")
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("doc['" + MULTI_VALUED_FIELD_NAME + "'].value", ScriptType.INLINE,
-                                        CustomScriptPlugin.NAME, null)))
+                                .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME,
+                                    "doc['" + MULTI_VALUED_FIELD_NAME + "'].value", null, null)))
                 .get();
 
         assertSearchResponse(response);
@@ -602,8 +603,8 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
                 .addAggregation(
                         terms("terms")
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']", ScriptType.INLINE,
-                                        CustomScriptPlugin.NAME, null)))
+                                .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME,
+                                    "doc['" + MULTI_VALUED_FIELD_NAME + "']", null, null)))
                 .get();
 
         assertSearchResponse(response);
@@ -1077,10 +1078,11 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     }
 
     public void testScriptScore() {
-        Script scoringScript =
-                new Script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", ScriptType.INLINE, CustomScriptPlugin .NAME, null);
+        ScriptInput scoringScript = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin .NAME,
+            "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", null, null);
 
-        Script aggregationScript = new Script("ceil(_score.doubleValue()/3)", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        ScriptInput aggregationScript = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME,
+            "ceil(_score.doubleValue()/3)", null, null);
 
         SearchResponse response = client()
                 .prepareSearch("idx")

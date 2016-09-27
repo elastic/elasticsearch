@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.test.ESTestCase;
 
 public class ScoreFunctionBuilderTests extends ESTestCase {
 
     public void testIllegalArguments() {
         expectThrows(IllegalArgumentException.class, () -> new RandomScoreFunctionBuilder().seed(null));
-        expectThrows(IllegalArgumentException.class, () -> new ScriptScoreFunctionBuilder((Script) null));
+        expectThrows(IllegalArgumentException.class, () -> new ScriptScoreFunctionBuilder((ScriptInput) null));
         expectThrows(IllegalArgumentException.class, () -> new FieldValueFactorFunctionBuilder((String) null));
         expectThrows(IllegalArgumentException.class, () -> new FieldValueFactorFunctionBuilder("").modifier(null));
         expectThrows(IllegalArgumentException.class, () -> new GaussDecayFunctionBuilder(null, "", "", ""));

@@ -30,6 +30,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -93,8 +94,8 @@ public class FunctionScoreIT extends ESIntegTestCase {
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
 
-        Script scriptOne = new Script("1", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
-        Script scriptTwo = new Script("get score value", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        ScriptInput scriptOne = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "1", null, null);
+        ScriptInput scriptTwo = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", null, null);
 
         SearchResponse response = client().search(
                 searchRequest().source(
@@ -117,7 +118,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
 
-        Script script = new Script("get score value", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        ScriptInput script = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", null, null);
 
         SearchResponse response = client().search(
                 searchRequest().source(
@@ -145,7 +146,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
         refresh();
         ensureYellow();
 
-        Script script = new Script("doc['random_score']", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        ScriptInput script = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['random_score']", null, null);
         SearchResponse searchResponse = client().search(
                 searchRequest().source(searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore)))
         ).actionGet();
@@ -177,7 +178,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
             docs.add(client().prepareIndex(INDEX, TYPE, Integer.toString(i)).setSource("num", i + scoreOffset));
         }
         indexRandom(true, docs);
-        Script script = new Script("return (doc['num'].value)", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        ScriptInput script = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "return (doc['num'].value)", null, null);
         int numMatchingDocs = numDocs + scoreOffset - minScore;
         if (numMatchingDocs < 0) {
             numMatchingDocs = 0;

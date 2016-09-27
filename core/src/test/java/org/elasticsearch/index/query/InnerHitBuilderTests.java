@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -373,7 +374,8 @@ public class InnerHitBuilderTests extends ESTestCase {
                 randomMap.put(String.valueOf(i), randomAsciiOfLength(16));
             }
         }
-        Script script = new Script(randomAsciiOfLength(128), randomScriptType, randomAsciiOfLengthBetween(1, 4),randomMap);
+        ScriptInput script = ScriptInput.create(randomScriptType,
+            randomScriptType == ScriptType.INLINE ? randomAsciiOfLengthBetween(1, 4) : null, randomAsciiOfLength(128), null, randomMap);
         return new SearchSourceBuilder.ScriptField(randomAsciiOfLengthBetween(1, 32), script, randomBoolean());
     }
 

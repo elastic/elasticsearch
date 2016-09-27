@@ -30,6 +30,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.Script.ExecutableScriptBinding;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -53,9 +55,8 @@ public class NativeScriptTests extends ESTestCase {
         List<Setting<?>> scriptSettings = scriptModule.getSettings();
         scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
 
-        ExecutableScript executable = scriptModule.getScriptService().executable(
-                new Script("my", Script.ScriptType.INLINE, NativeScriptEngineService.NAME, null), ScriptContext.Standard.SEARCH,
-                Collections.emptyMap());
+        ExecutableScript executable = ExecutableScriptBinding.bind(scriptModule.getScriptService(), ScriptContext.Standard.SEARCH,
+            ScriptInput.create(ScriptType.INLINE, NativeScriptEngineService.NAME, "my", null, null).lookup, null);
         assertThat(executable.run().toString(), equalTo("test"));
     }
 
@@ -63,7 +64,7 @@ public class NativeScriptTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
             ScriptType scriptType = randomFrom(Script.ScriptType.values());
-            builder.put("script" + "." + scriptType.getScriptType(), randomBoolean());
+            builder.put("script" + "." + scriptType.name, randomBoolean());
         } else {
             ScriptContext scriptContext = randomFrom(ScriptContext.Standard.values());
             builder.put("script" + "." + scriptContext.getKey(), randomBoolean());
@@ -81,8 +82,8 @@ public class NativeScriptTests extends ESTestCase {
             scriptContextRegistry, scriptSettings);
 
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
-            assertThat(scriptService.compile(new Script("my", Script.ScriptType.INLINE, NativeScriptEngineService.NAME, null), scriptContext,
-                    Collections.emptyMap()), notNullValue());
+            assertThat(ScriptInput.create(ScriptType.INLINE, NativeScriptEngineService.NAME, "my", null, null)
+                .lookup.getCompiled(scriptService, scriptContext, ExecutableScriptBinding.BINDING), notNullValue());
         }
     }
 

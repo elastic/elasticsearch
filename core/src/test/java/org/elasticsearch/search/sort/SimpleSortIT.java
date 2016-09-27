@@ -29,6 +29,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -182,7 +183,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         // STRING script
         int size = 1 + random.nextInt(10);
 
-        Script script = new Script("doc['str_value'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        ScriptInput script = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['str_value'].value", null, null);
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -274,7 +275,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         // test the long values
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", new Script("get min long", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("min", ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "get min long", null, null))
                 .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long"))
                 .setSize(10)
                 .get();
@@ -290,7 +291,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         // test the double values
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", new Script("get min double", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("min", ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "get min double", null, null))
                 .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long"))
                 .setSize(10)
                 .get();
@@ -306,7 +307,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         // test the string values
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", new Script("get min string", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("min", ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "get min string", null, null))
                 .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long"))
                 .setSize(10)
                 .get();
@@ -322,7 +323,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         // test the geopoint values
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", new Script("get min geopoint lon", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("min", ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "get min geopoint lon", null, null))
                 .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long"))
                 .setSize(10)
                 .get();
@@ -380,7 +381,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         flush();
         refresh();
 
-        Script scripField = new Script("doc['id'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        ScriptInput scripField = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['id'].value", null, null);
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -397,7 +398,7 @@ public class SimpleSortIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("id", new Script("doc['id'].values[0]", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("id", ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['id'].values[0]", null, null))
                 .addSort("svalue", SortOrder.ASC)
                 .get();
 
@@ -465,7 +466,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         }
         refresh();
 
-        Script sortScript = new Script("\u0027\u0027", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        ScriptInput sortScript = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "\u0027\u0027", null, null);
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(scriptSort(sortScript, ScriptSortType.STRING))

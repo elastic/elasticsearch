@@ -31,6 +31,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;
@@ -87,11 +88,11 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).id(), equalTo("0"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).type(), equalTo("type1"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).index(), equalTo("index1"));
-        Script script = ((UpdateRequest) bulkRequest.requests().get(1)).script();
+        ScriptInput script = ((UpdateRequest) bulkRequest.requests().get(1)).script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("counter += param1"));
-        assertThat(script.getLang(), equalTo("javascript"));
-        Map<String, Object> scriptParams = script.getParams();
+        assertThat(script.lookup.getIdOrCode(), equalTo("counter += param1"));
+        assertThat(script.lookup.getLang(), equalTo("javascript"));
+        Map<String, Object> scriptParams = script.params;
         assertThat(scriptParams, notNullValue());
         assertThat(scriptParams.size(), equalTo(1));
         assertThat(((Integer) scriptParams.get("param1")), equalTo(1));

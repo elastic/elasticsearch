@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.lookup.IndexField;
 import org.elasticsearch.search.lookup.IndexFieldTerm;
@@ -549,8 +550,8 @@ public class IndexLookupIT extends ESIntegTestCase {
     public void testTwoScripts() throws Exception {
         initTestData();
 
-        Script scriptFieldScript = createScript("term = _index['int_payload_field']['c']; term.tf()");
-        Script scoreScript = createScript("term = _index['int_payload_field']['b']; term.tf()");
+        ScriptInput scriptFieldScript = createScript("term = _index['int_payload_field']['c']; term.tf()");
+        ScriptInput scoreScript = createScript("term = _index['int_payload_field']['b']; term.tf()");
         Map<String, Object> expectedResultsField = new HashMap<>();
         expectedResultsField.put("1", 1);
         expectedResultsField.put("2", 1);
@@ -573,7 +574,7 @@ public class IndexLookupIT extends ESIntegTestCase {
 
         // should throw an exception, we cannot call with different flags twice
         // if the flags of the second call were not included in the first call.
-        Script script = createScript("Call with different flags twice");
+        ScriptInput script = createScript("Call with different flags twice");
         try {
             SearchResponse response = client().prepareSearch("test")
                     .setQuery(QueryBuilders.matchAllQuery())
@@ -599,7 +600,7 @@ public class IndexLookupIT extends ESIntegTestCase {
                 .get().getHits().getTotalHits(), greaterThan(0L));
     }
 
-    private void checkOnlyFunctionScore(Script scoreScript, Map<String, Object> expectedScore, int numExpectedDocs) {
+    private void checkOnlyFunctionScore(ScriptInput scoreScript, Map<String, Object> expectedScore, int numExpectedDocs) {
         SearchResponse sr = client().prepareSearch("test")
                 .setQuery(QueryBuilders.functionScoreQuery(ScoreFunctionBuilders.scriptFunction(scoreScript))).execute()
                 .actionGet();
@@ -613,7 +614,7 @@ public class IndexLookupIT extends ESIntegTestCase {
     public void testDocumentationExample() throws Exception {
         initTestData();
 
-        Script script = createScript("Sum the payloads of [float_payload_field][b]");
+        ScriptInput script = createScript("Sum the payloads of [float_payload_field][b]");
 
         // non existing field: sum should be 0
         HashMap<String, Object> zeroArray = new HashMap<>();
@@ -635,7 +636,7 @@ public class IndexLookupIT extends ESIntegTestCase {
         initTestData();
 
         // call twice with record: should work as expected
-        Script script = createPositionsArrayScriptIterateTwice("b", INCLUDE_ALL, "position");
+        ScriptInput script = createPositionsArrayScriptIterateTwice("b", INCLUDE_ALL, "position");
         checkArrayValsInEachDoc(script, expectedPositionsArray, 3);
         script = createPositionsArrayScriptIterateTwice("b", INCLUDE_ALL, "startOffset");
         checkArrayValsInEachDoc(script, expectedStartOffsetsArray, 3);
@@ -666,31 +667,31 @@ public class IndexLookupIT extends ESIntegTestCase {
 
     }
 
-    private Script createPositionsArrayScriptGetInfoObjectTwice(String term, String flags, String what) {
+    private ScriptInput createPositionsArrayScriptGetInfoObjectTwice(String term, String flags, String what) {
         return createScript("createPositionsArrayScriptGetInfoObjectTwice[" + term + "," + flags + "," + what + "]");
     }
 
-    private Script createPositionsArrayScriptIterateTwice(String term, String flags, String what) {
+    private ScriptInput createPositionsArrayScriptIterateTwice(String term, String flags, String what) {
         return createScript("createPositionsArrayScriptIterateTwice[" + term + "," + flags + "," + what + "]");
     }
 
-    private Script createPositionsArrayScript(String field, String term, String flags, String what) {
+    private ScriptInput createPositionsArrayScript(String field, String term, String flags, String what) {
         return createScript("createPositionsArrayScript[" + field + ","  + term + "," + flags + "," + what + "]");
     }
 
-    private Script createPositionsArrayScriptDefaultGet(String field, String term, String what) {
+    private ScriptInput createPositionsArrayScriptDefaultGet(String field, String term, String what) {
         return createScript("createPositionsArrayScriptDefaultGet[" + field + ","  + term + "," + what + "]");
     }
 
-    private Script createScript(String script) {
-        return new Script(script, ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+    private ScriptInput createScript(String script) {
+        return ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, script, null, null);
     }
 
     public void testFlags() throws Exception {
         initTestData();
 
         // check default flag
-        Script script = createPositionsArrayScriptDefaultGet("int_payload_field", "b", "position");
+        ScriptInput script = createPositionsArrayScriptDefaultGet("int_payload_field", "b", "position");
         // there should be no positions
         /* TODO: the following tests fail with the new postings enum apis because of a bogus assert in BlockDocsEnum
         checkArrayValsInEachDoc(script, emptyArray, 3);
@@ -777,7 +778,7 @@ public class IndexLookupIT extends ESIntegTestCase {
 
     }
 
-    private void checkArrayValsInEachDoc(Script script, HashMap<String, List<Object>> expectedArray, int expectedHitSize) {
+    private void checkArrayValsInEachDoc(ScriptInput script, HashMap<String, List<Object>> expectedArray, int expectedHitSize) {
         SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
                 .execute().actionGet();
         assertHitCount(sr, expectedHitSize);
@@ -827,7 +828,7 @@ public class IndexLookupIT extends ESIntegTestCase {
                 client().prepareIndex("test", "type1", "6").setSource("int_payload_field", "c|1"));
 
         // get the number of all docs
-        Script script = createScript("_index.numDocs()");
+        ScriptInput script = createScript("_index.numDocs()");
         checkValueInEachDoc(6, script, 6);
 
         // get the number of docs with field float_payload_field
@@ -963,7 +964,7 @@ public class IndexLookupIT extends ESIntegTestCase {
 
     }
 
-    private void checkExceptions(Script script) {
+    private void checkExceptions(ScriptInput script) {
         try {
             SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
                     .execute().actionGet();
@@ -981,8 +982,8 @@ public class IndexLookupIT extends ESIntegTestCase {
         }
     }
 
-    private void checkValueInEachDocWithFunctionScore(Script fieldScript, Map<String, Object> expectedFieldVals, Script scoreScript,
-                                                      Map<String, Object> expectedScore, int numExpectedDocs) {
+    private void checkValueInEachDocWithFunctionScore(ScriptInput fieldScript, Map<String, Object> expectedFieldVals,
+                                                      ScriptInput scoreScript, Map<String, Object> expectedScore, int numExpectedDocs) {
         SearchResponse sr = client().prepareSearch("test")
                 .setQuery(QueryBuilders.functionScoreQuery(ScoreFunctionBuilders.scriptFunction(scoreScript)))
                 .addScriptField("tvtest", fieldScript).execute().actionGet();
@@ -996,7 +997,7 @@ public class IndexLookupIT extends ESIntegTestCase {
         }
     }
 
-    private void checkValueInEachDoc(Script script, Map<String, Object> expectedResults, int numExpectedDocs) {
+    private void checkValueInEachDoc(ScriptInput script, Map<String, Object> expectedResults, int numExpectedDocs) {
         SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
                 .execute().actionGet();
         assertHitCount(sr, numExpectedDocs);
@@ -1007,7 +1008,7 @@ public class IndexLookupIT extends ESIntegTestCase {
         }
     }
 
-    private void checkValueInEachDoc(int value, Script script, int numExpectedDocs) {
+    private void checkValueInEachDoc(int value, ScriptInput script, int numExpectedDocs) {
         SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
                 .execute().actionGet();
         assertHitCount(sr, numExpectedDocs);

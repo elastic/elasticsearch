@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     protected ScriptQueryBuilder doCreateTestQueryBuilder() {
         String script = "1";
         Map<String, Object> params = Collections.emptyMap();
-        return new ScriptQueryBuilder(new Script(script, Script.ScriptType.INLINE, MockScriptEngine.NAME, params));
+        return new ScriptQueryBuilder(ScriptInput.create(Script.ScriptType.INLINE, MockScriptEngine.NAME, script, null, params));
     }
 
     @Override
@@ -45,7 +46,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     }
 
     public void testIllegalConstructorArg() {
-        expectThrows(IllegalArgumentException.class, () -> new ScriptQueryBuilder((Script) null));
+        expectThrows(IllegalArgumentException.class, () -> new ScriptQueryBuilder((ScriptInput) null));
     }
 
     public void testFromJsonVerbose() throws IOException {
@@ -65,7 +66,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
         ScriptQueryBuilder parsed = (ScriptQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
 
-        assertEquals(json, "mockscript", parsed.script().getLang());
+        assertEquals(json, "mockscript", parsed.script().lookup.getLang());
     }
 
     public void testFromJson() throws IOException {
@@ -79,7 +80,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
                         "}";
 
         ScriptQueryBuilder parsed = (ScriptQueryBuilder) parseQuery(json);
-        assertEquals(json, "5", parsed.script().getScript());
+        assertEquals(json, "5", parsed.script().lookup.getIdOrCode());
     }
 
     @Override

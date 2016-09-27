@@ -23,6 +23,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -241,7 +242,8 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .method(PercentilesMethod.HDR)
                                 .field("value")
-                                .script(new Script("_value - 1", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", null, emptyMap()))
                                 .percentiles(pcts))
                 .execute().actionGet();
 
@@ -266,7 +268,8 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .method(PercentilesMethod.HDR)
                                 .field("value")
-                                .script(new Script("_value - dec", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", null, params))
                                 .percentiles(pcts))
                 .execute().actionGet();
 
@@ -306,7 +309,8 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .method(PercentilesMethod.HDR)
                                 .field("values")
-                                .script(new Script("_value - 1", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", null, emptyMap()))
                                 .percentiles(pcts))
                 .execute().actionGet();
 
@@ -327,7 +331,8 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .method(PercentilesMethod.HDR)
                                 .field("values")
-                                .script(new Script("20 - _value", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "20 - _value", null, emptyMap()))
                                 .percentiles(pcts))
                 .execute().actionGet();
 
@@ -352,7 +357,8 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .method(PercentilesMethod.HDR)
                                 .field("values")
-                                .script(new Script("_value - dec", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", null, params))
                                 .percentiles(pcts))
                 .execute().actionGet();
 
@@ -373,7 +379,8 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
                         percentiles("percentiles")
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .method(PercentilesMethod.HDR)
-                                .script(new Script("doc['value'].value", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value", null, emptyMap()))
                                 .percentiles(pcts))
                 .execute().actionGet();
 
@@ -388,7 +395,8 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
 
-        Script script = new Script("doc['value'].value - dec", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params);
+        ScriptInput script =
+            ScriptInput.create(Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value - dec", null, params);
 
         final double[] pcts = randomPercentiles();
         int sigDigits = randomSignificantDigits();
@@ -414,7 +422,8 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
         final double[] pcts = randomPercentiles();
         int sigDigits = randomSignificantDigits();
 
-        Script script = new Script("doc['values'].values", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap());
+        ScriptInput script =
+            ScriptInput.create(Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values'].values", null, emptyMap());
 
         SearchResponse searchResponse = client()
                 .prepareSearch("idx")
@@ -435,7 +444,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
 
     @Override
     public void testScriptMultiValuedWithParams() throws Exception {
-        Script script = AggregationTestScriptsPlugin.DECREMENT_ALL_VALUES;
+        ScriptInput script = AggregationTestScriptsPlugin.DECREMENT_ALL_VALUES;
 
         final double[] pcts = randomPercentiles();
         int sigDigits = randomSignificantDigits();

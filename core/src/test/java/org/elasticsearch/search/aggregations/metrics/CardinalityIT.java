@@ -26,6 +26,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -305,7 +306,8 @@ public class CardinalityIT extends ESIntegTestCase {
                 .addAggregation(
                         cardinality("cardinality")
                                 .precisionThreshold(precisionThreshold)
-                                .script(new Script("doc['str_value'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap())))
+                                .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME,
+                                    "doc['str_value'].value", null, emptyMap())))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -321,7 +323,8 @@ public class CardinalityIT extends ESIntegTestCase {
                 .addAggregation(
                         cardinality("cardinality")
                                 .precisionThreshold(precisionThreshold)
-                                .script(new Script("doc['str_values'].values", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap())))
+                                .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME,
+                                    "doc['str_values'].values", null, emptyMap())))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -333,7 +336,8 @@ public class CardinalityIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedNumericScript() throws Exception {
-        Script script = new Script("doc[' + singleNumericField() + '].value", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap());
+        ScriptInput script =
+            ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc[' + singleNumericField() + '].value", null, emptyMap());
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).script(script))
                 .execute().actionGet();
@@ -347,7 +351,8 @@ public class CardinalityIT extends ESIntegTestCase {
     }
 
     public void testMultiValuedNumericScript() throws Exception {
-        Script script = new Script("doc[' + multiNumericField(false) + '].values", ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        ScriptInput script =
+            ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc[' + multiNumericField(false) + '].values", null, null);
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).script(script))
                 .execute().actionGet();
@@ -366,7 +371,7 @@ public class CardinalityIT extends ESIntegTestCase {
                         cardinality("cardinality")
                                 .precisionThreshold(precisionThreshold)
                                 .field("str_value")
-                                .script(new Script("_value", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap())))
+                                .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value", null, emptyMap())))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -383,7 +388,7 @@ public class CardinalityIT extends ESIntegTestCase {
                         cardinality("cardinality")
                                 .precisionThreshold(precisionThreshold)
                                 .field("str_values")
-                                .script(new Script("_value", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap())))
+                                .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value", null, emptyMap())))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -400,7 +405,7 @@ public class CardinalityIT extends ESIntegTestCase {
                         cardinality("cardinality")
                                 .precisionThreshold(precisionThreshold)
                                 .field(singleNumericField())
-                                .script(new Script("_value", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap())))
+                                .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value", null, emptyMap())))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -417,7 +422,7 @@ public class CardinalityIT extends ESIntegTestCase {
                         cardinality("cardinality")
                                 .precisionThreshold(precisionThreshold)
                                 .field(multiNumericField(false))
-                                .script(new Script("_value", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap())))
+                                .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value", null, emptyMap())))
                 .execute().actionGet();
 
         assertSearchResponse(response);

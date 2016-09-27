@@ -22,6 +22,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -256,7 +257,8 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .method(PercentilesMethod.HDR)
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .field("value")
-                                .script(new Script("_value - 1", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", null, emptyMap()))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -280,7 +282,8 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .method(PercentilesMethod.HDR)
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .field("value")
-                                .script(new Script("_value - dec", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", null, params))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -320,7 +323,8 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .method(PercentilesMethod.HDR)
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .field("values")
-                                .script(new Script("_value - 1", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", null, emptyMap()))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -341,7 +345,8 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .method(PercentilesMethod.HDR)
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .field("values")
-                                .script(new Script("20 - _value", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "20 - _value", null, emptyMap()))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -365,7 +370,8 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .method(PercentilesMethod.HDR)
                                 .numberOfSignificantValueDigits(sigDigits)
                                 .field("values")
-                                .script(new Script("_value - dec", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", null, params))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -386,7 +392,8 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                         percentileRanks("percentile_ranks")
                                 .method(PercentilesMethod.HDR)
                                 .numberOfSignificantValueDigits(sigDigits)
-                                .script(new Script("doc['value'].value", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap()))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value", null, emptyMap()))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -402,7 +409,8 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
 
-        Script script = new Script("doc['value'].value - dec", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params);
+        ScriptInput script =
+            ScriptInput.create(Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value - dec", null, params);
 
         final double[] pcts = randomPercents(minValue - 1, maxValue - 1);
         SearchResponse searchResponse = client()
@@ -427,7 +435,8 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
         int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValues, maxValues);
 
-        Script script = new Script("doc['values'].values", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap());
+        ScriptInput script =
+            ScriptInput.create(Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values'].values", null, emptyMap());
 
         SearchResponse searchResponse = client()
                 .prepareSearch("idx")
@@ -449,7 +458,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
     @Override
     public void testScriptMultiValuedWithParams() throws Exception {
         int sigDigits = randomSignificantDigits();
-        Script script = AggregationTestScriptsPlugin.DECREMENT_ALL_VALUES;
+        ScriptInput script = AggregationTestScriptsPlugin.DECREMENT_ALL_VALUES;
 
         final double[] pcts = randomPercents(minValues - 1, maxValues - 1);
         SearchResponse searchResponse = client()

@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
@@ -50,12 +51,12 @@ public class UpdateRequestTests extends ESTestCase {
         request.fromXContent(XContentFactory.jsonBuilder().startObject()
                 .field("script", "script1")
                 .endObject());
-        Script script = request.script();
+        ScriptInput script = request.script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("script1"));
-        assertThat(script.getType(), equalTo(Script.ScriptType.INLINE));
-        assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
-        Map<String, Object> params = script.getParams();
+        assertThat(script.lookup.getIdOrCode(), equalTo("script1"));
+        assertThat(script.lookup.getType(), equalTo(Script.ScriptType.INLINE));
+        assertThat(script.lookup.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
+        Map<String, Object> params = script.params;
         assertThat(params, nullValue());
 
         // simple verbose script
@@ -64,10 +65,10 @@ public class UpdateRequestTests extends ESTestCase {
                 .endObject());
         script = request.script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("script1"));
-        assertThat(script.getType(), equalTo(Script.ScriptType.INLINE));
-        assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
-        params = script.getParams();
+        assertThat(script.lookup.getIdOrCode(), equalTo("script1"));
+        assertThat(script.lookup.getType(), equalTo(Script.ScriptType.INLINE));
+        assertThat(script.lookup.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
+        params = script.params;
         assertThat(params, nullValue());
 
         // script with params
@@ -81,10 +82,10 @@ public class UpdateRequestTests extends ESTestCase {
             .endObject().endObject());
         script = request.script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("script1"));
-        assertThat(script.getType(), equalTo(Script.ScriptType.INLINE));
-        assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
-        params = script.getParams();
+        assertThat(script.lookup.getIdOrCode(), equalTo("script1"));
+        assertThat(script.lookup.getType(), equalTo(Script.ScriptType.INLINE));
+        assertThat(script.lookup.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
+        params = script.params;
         assertThat(params, notNullValue());
         assertThat(params.size(), equalTo(1));
         assertThat(params.get("param1").toString(), equalTo("value1"));
@@ -95,10 +96,10 @@ public class UpdateRequestTests extends ESTestCase {
             .field("inline", "script1").endObject().endObject());
         script = request.script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("script1"));
-        assertThat(script.getType(), equalTo(Script.ScriptType.INLINE));
-        assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
-        params = script.getParams();
+        assertThat(script.lookup.getIdOrCode(), equalTo("script1"));
+        assertThat(script.lookup.getType(), equalTo(Script.ScriptType.INLINE));
+        assertThat(script.lookup.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
+        params = script.params;
         assertThat(params, notNullValue());
         assertThat(params.size(), equalTo(1));
         assertThat(params.get("param1").toString(), equalTo("value1"));
@@ -120,10 +121,10 @@ public class UpdateRequestTests extends ESTestCase {
             .endObject().endObject());
         script = request.script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("script1"));
-        assertThat(script.getType(), equalTo(Script.ScriptType.INLINE));
-        assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
-        params = script.getParams();
+        assertThat(script.lookup.getIdOrCode(), equalTo("script1"));
+        assertThat(script.lookup.getType(), equalTo(Script.ScriptType.INLINE));
+        assertThat(script.lookup.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
+        params = script.params;
         assertThat(params, notNullValue());
         assertThat(params.size(), equalTo(1));
         assertThat(params.get("param1").toString(), equalTo("value1"));
@@ -147,10 +148,10 @@ public class UpdateRequestTests extends ESTestCase {
             .endObject().endObject());
         script = request.script();
         assertThat(script, notNullValue());
-        assertThat(script.getScript(), equalTo("script1"));
-        assertThat(script.getType(), equalTo(Script.ScriptType.INLINE));
-        assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
-        params = script.getParams();
+        assertThat(script.lookup.getIdOrCode(), equalTo("script1"));
+        assertThat(script.lookup.getType(), equalTo(Script.ScriptType.INLINE));
+        assertThat(script.lookup.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
+        params = script.params;
         assertThat(params, notNullValue());
         assertThat(params.size(), equalTo(1));
         assertThat(params.get("param1").toString(), equalTo("value1"));
@@ -197,7 +198,7 @@ public class UpdateRequestTests extends ESTestCase {
                 .ttl(providedTTLValue);
         updateRequest = new UpdateRequest("test", "type1", "2")
                 .upsert(indexRequest)
-                .script(new Script(";"))
+                .script(ScriptInput.create(";"))
                 .scriptedUpsert(true);
 
         // We simulate that the document is not existing yet

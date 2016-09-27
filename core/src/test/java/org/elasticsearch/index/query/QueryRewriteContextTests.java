@@ -57,7 +57,7 @@ public class QueryRewriteContextTests extends ESTestCase {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{\"script\" : {\"script\": \"return true\"}}"));
         queryParseContext = queryRewriteContext.newParseContextWithLegacyScriptLanguage(parser);
         ScriptQueryBuilder queryBuilder = (ScriptQueryBuilder) queryParseContext.parseInnerQueryBuilder().get();
-        assertEquals(defaultLegacyScriptLanguage, queryBuilder.script().getLang());
+        assertEquals(defaultLegacyScriptLanguage, queryBuilder.script().lookup.getLang());
     }
 
 }

@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -382,7 +383,8 @@ public class EquivalenceIT extends ESIntegTestCase {
                         terms("terms")
                                 .field("values")
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(new Script("floor(_value / interval)", Script.ScriptType.INLINE, CustomScriptPlugin.NAME, params))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "floor(_value / interval)", null, params))
                                 .size(maxNumTerms))
                 .addAggregation(
                         histogram("histo")

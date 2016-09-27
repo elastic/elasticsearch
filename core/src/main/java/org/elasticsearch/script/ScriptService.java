@@ -524,7 +524,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return ScriptMetaData.getScript(state, request.id());
     }
 
-    CompiledScript getInlineScript(ScriptContext context, ScriptBinding binding, String lang, String code, Map<String, String> options) {
+    protected CompiledScript getInlineScript(
+        ScriptContext context, ScriptBinding binding, String lang, String code, Map<String, String> options) {
         canExecuteScriptInSpecificContext(context, INLINE, lang);
 
         InlineCacheKey key = new InlineCacheKey(lang, code, options);
@@ -544,7 +545,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return compiled;
     }
 
-    CompiledScript getStoredScript(ScriptContext context, ScriptBinding binding, String id) {
+    protected CompiledScript getStoredScript(ScriptContext context, ScriptBinding binding, String id) {
         StoredCacheKey key = new StoredCacheKey(id);
         CompiledScript compiled = storedCache.get(key);
         boolean check = true;
@@ -576,7 +577,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return compiled;
     }
 
-    CompiledScript getFileScript(ScriptContext context, ScriptBinding binding, String id) {
+    protected CompiledScript getFileScript(ScriptContext context, ScriptBinding binding, String id) {
         FileCacheKey key = new FileCacheKey(id);
         CompiledScript compiled = fileCache.get(key);
 

@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.sort.SortOrder;
@@ -114,7 +115,7 @@ public class TimestampTTLBWIT extends ESIntegTestCase {
 
         try {
             client().prepareUpdate(indexOrAlias(), "type1", "1")
-                    .setScript(new Script("field", Script.ScriptType.INLINE, "field_inc", null)).execute().actionGet();
+                    .setScript(ScriptInput.create(Script.ScriptType.INLINE, "field_inc", "field", null, null)).execute().actionGet();
             fail();
         } catch (DocumentMissingException e) {
             // all is well
@@ -126,14 +127,14 @@ public class TimestampTTLBWIT extends ESIntegTestCase {
         long ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl, greaterThan(0L));
         client().prepareUpdate(indexOrAlias(), "type1", "2")
-                .setScript(new Script("field", Script.ScriptType.INLINE, "field_inc", null)).execute().actionGet();
+                .setScript(ScriptInput.create(Script.ScriptType.INLINE, "field_inc", "field", null, null)).execute().actionGet();
         getResponse = client().prepareGet("test", "type1", "2").setStoredFields("_ttl").execute().actionGet();
         ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl, greaterThan(0L));
 
         // check TTL update
         client().prepareUpdate(indexOrAlias(), "type1", "2")
-                .setScript(new Script("", Script.ScriptType.INLINE, "put_values",
+                .setScript(ScriptInput.create(Script.ScriptType.INLINE, "put_values", "", null,
                         Collections.singletonMap("_ctx", Collections.singletonMap("_ttl", 3600000)))).execute().actionGet();
         getResponse = client().prepareGet("test", "type1", "2").setStoredFields("_ttl").execute().actionGet();
         ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
@@ -143,7 +144,7 @@ public class TimestampTTLBWIT extends ESIntegTestCase {
         // check timestamp update
         client().prepareIndex("test", "type1", "3").setSource("field", 1).setRefreshPolicy(IMMEDIATE).get();
         client().prepareUpdate(indexOrAlias(), "type1", "3")
-                .setScript(new Script("", Script.ScriptType.INLINE, "put_values",
+                .setScript(ScriptInput.create(Script.ScriptType.INLINE, "put_values", "", null,
                         Collections.singletonMap("_ctx", Collections.singletonMap("_timestamp", "2009-11-15T14:12:12")))).execute()
                 .actionGet();
         getResponse = client().prepareGet("test", "type1", "3").setStoredFields("_timestamp").execute().actionGet();
@@ -197,7 +198,7 @@ public class TimestampTTLBWIT extends ESIntegTestCase {
         // Update the first object and note context variables values
         UpdateResponse updateResponse = client().prepareUpdate("test", "subtype1", "id1")
                 .setRouting("routing1")
-                .setScript(new Script("", Script.ScriptType.INLINE, "extract_ctx", null))
+                .setScript(ScriptInput.create(Script.ScriptType.INLINE, "extract_ctx", "", null, null))
                 .execute().actionGet();
 
         assertEquals(2, updateResponse.getVersion());
@@ -214,7 +215,7 @@ public class TimestampTTLBWIT extends ESIntegTestCase {
 
         // Idem with the second object
         updateResponse = client().prepareUpdate("test", "type1", "parentId1")
-                .setScript(new Script("", Script.ScriptType.INLINE, "extract_ctx", null))
+                .setScript(ScriptInput.create(Script.ScriptType.INLINE, "extract_ctx", "", null, null))
                 .execute().actionGet();
 
         assertEquals(2, updateResponse.getVersion());

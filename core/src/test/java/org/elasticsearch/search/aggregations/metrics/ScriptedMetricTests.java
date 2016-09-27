@@ -20,6 +20,8 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricAggregationBuilder;
 
@@ -49,11 +51,12 @@ public class ScriptedMetricTests extends BaseAggregationTestCase<ScriptedMetricA
         return factory;
     }
 
-    private Script randomScript(String script) {
+    private ScriptInput randomScript(String script) {
         if (randomBoolean()) {
-            return new Script(script);
+            return ScriptInput.create(script);
         } else {
-            return new Script(script, randomFrom(Script.ScriptType.values()), randomFrom("my_lang", null), null);
+            ScriptType type = randomFrom(Script.ScriptType.values());
+            return ScriptInput.create(type, type == ScriptType.INLINE ? randomFrom("my_lang", null) : null, script, null, null);
         }
     }
 

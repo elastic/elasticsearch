@@ -30,10 +30,12 @@ import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -289,19 +291,12 @@ public class QueryDSLDocumentationTests extends ESTestCase {
 
     public void testScript() {
         scriptQuery(
-                new Script("doc['num1'].value > 1")
+                ScriptInput.create("doc['num1'].value > 1")
             );
 
-        Map<String, Integer> parameters = new HashMap<>();
+        Map<String, Object> parameters = new HashMap<>();
         parameters.put("param1", 5);
-        scriptQuery(
-                new Script(
-                    "mygroovyscript",
-                    Script.ScriptType.FILE,
-                    "groovy",
-                    parameters)
-            );
-
+        scriptQuery(ScriptInput.create(Script.ScriptType.FILE, "groovy", "mygroovyscript", null, parameters));
     }
 
     public void testSimpleQueryString() {

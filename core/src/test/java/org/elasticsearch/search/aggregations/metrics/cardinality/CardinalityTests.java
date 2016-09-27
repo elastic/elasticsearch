@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 
 public class CardinalityTests extends BaseAggregationTestCase<CardinalityAggregationBuilder> {
@@ -35,10 +36,10 @@ public class CardinalityTests extends BaseAggregationTestCase<CardinalityAggrega
             break;
         case 1:
             factory.field(field);
-            factory.script(new Script("_value + 1"));
+            factory.script(ScriptInput.create("_value + 1"));
             break;
         case 2:
-            factory.script(new Script("doc[" + field + "] + 1"));
+            factory.script(ScriptInput.create("doc[" + field + "] + 1"));
             break;
         }
         if (randomBoolean()) {

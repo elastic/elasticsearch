@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptPipelineAggregationBuilder;
@@ -37,16 +38,16 @@ public class BucketScriptTests extends BasePipelineAggregationTestCase<BucketScr
         for (int i = 0; i < numBucketPaths; i++) {
             bucketsPaths.put(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 40));
         }
-        Script script;
+        ScriptInput script;
         if (randomBoolean()) {
-            script = new Script("script");
+            script = ScriptInput.create("script");
         } else {
             Map<String, Object> params = null;
             if (randomBoolean()) {
                 params = new HashMap<String, Object>();
                 params.put("foo", "bar");
             }
-            script = new Script("script", randomFrom(Script.ScriptType.values()), randomFrom("my_lang", null), params);
+            script = ScriptInput.create(randomFrom(Script.ScriptType.values()), randomFrom("my_lang", null), "script", null, params);
         }
         BucketScriptPipelineAggregationBuilder factory = new BucketScriptPipelineAggregationBuilder(name, bucketsPaths, script);
         if (randomBoolean()) {

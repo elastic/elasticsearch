@@ -431,7 +431,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
     }
 
-    private void setMaxCompilationsPerMinute(Integer newMaxPerMinute) {
+    void setMaxCompilationsPerMinute(Integer newMaxPerMinute) {
         this.totalCompilesPerMinute = newMaxPerMinute;
         // Reset the counter to allow new compilations
         this.scriptsPerMinCounter = totalCompilesPerMinute;
@@ -447,7 +447,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
      * enough water the request is denied. Just like a normal bucket, if water is added that overflows the bucket, the extra water/capacity
      * is discarded - there can never be more water in the bucket than the size of the bucket.
      */
-    private void checkCompilationLimit() {
+    void checkCompilationLimit() {
         long now = System.nanoTime();
         long timePassed = now - lastInlineCompileTime;
         lastInlineCompileTime = now;
@@ -602,7 +602,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             Object compiled = binding.compile(engine, id, code, options);
             scriptMetrics.onCompilation();
 
-            return new CompiledScript(context, type, id, engine, compiled);
+            return new CompiledScript(binding, type, id, engine, compiled);
         } catch (ScriptException good) {
             // TODO: remove this try-catch completely, when all script engines have good exceptions!
             throw good; // its already good

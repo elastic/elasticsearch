@@ -32,6 +32,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -166,7 +167,8 @@ public class InnerHitsIT extends ESIntegTestCase {
                                 .setExplain(true)
                                 .addDocValueField("comments.message")
                                 .addScriptField("script",
-                                        new Script("5", Script.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap()))
+                                        ScriptInput.create(
+                                            Script.ScriptType.INLINE, MockScriptEngine.NAME, "5", null, Collections.emptyMap()))
                                 .setSize(1)
                 )).get();
         assertNoFailures(response);
@@ -300,8 +302,8 @@ public class InnerHitsIT extends ESIntegTestCase {
                                         .addDocValueField("message")
                                         .setHighlightBuilder(new HighlightBuilder().field("message"))
                                         .setExplain(true).setSize(1)
-                                        .addScriptField("script", new Script("5", Script.ScriptType.INLINE,
-                                                MockScriptEngine.NAME, Collections.emptyMap()))
+                                        .addScriptField("script", ScriptInput.create(
+                                            Script.ScriptType.INLINE, MockScriptEngine.NAME, "5", null, Collections.emptyMap()))
                         )
                 ).get();
         assertNoFailures(response);

@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -165,7 +166,8 @@ public class MinIT extends AbstractNumericTestCase {
                 .addAggregation(
                         min("min")
                                 .field("value")
-                                .script(new Script("_value - 1", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap())))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", null, null)))
                 .get();
 
         assertHitCount(searchResponse, 10);
@@ -181,7 +183,7 @@ public class MinIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
 
-        Script script = new Script("_value - dec", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params);
+        ScriptInput script = ScriptInput.create(Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", null, params);
 
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
@@ -218,7 +220,8 @@ public class MinIT extends AbstractNumericTestCase {
                 .addAggregation(
                         min("min")
                                 .field("values")
-                                .script(new Script("_value - 1", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap())))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", null, emptyMap())))
                 .get();
 
         assertHitCount(searchResponse, 10);
@@ -236,7 +239,8 @@ public class MinIT extends AbstractNumericTestCase {
                 .addAggregation(
                         min("min")
                                 .field("values")
-                                .script(new Script("_value * -1", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap())))
+                                .script(ScriptInput.create(
+                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value * -1", null, emptyMap())))
                 .get();
 
         assertHitCount(searchResponse, 10);
@@ -252,7 +256,7 @@ public class MinIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
 
-        Script script = new Script("_value - dec", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params);
+        ScriptInput script = ScriptInput.create(Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", null, params);
 
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(min("min").field("values").script(script))
@@ -268,7 +272,8 @@ public class MinIT extends AbstractNumericTestCase {
 
     @Override
     public void testScriptSingleValued() throws Exception {
-        Script script = new Script("doc['value'].value", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap());
+        ScriptInput script = ScriptInput.create(
+            Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value", null, emptyMap());
 
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(min("min").script(script))
@@ -287,7 +292,8 @@ public class MinIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
 
-        Script script = new Script("doc['value'].value - dec", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, params);
+        ScriptInput script = ScriptInput.create(
+            Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value - dec", null, params);
 
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(min("min").script(script))
@@ -303,7 +309,8 @@ public class MinIT extends AbstractNumericTestCase {
 
     @Override
     public void testScriptMultiValued() throws Exception {
-        Script script = new Script("doc['values'].values", Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, emptyMap());
+        ScriptInput script = ScriptInput.create(
+            Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values'].values", null, emptyMap());
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(min("min").script(script))
                 .get();

@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.SearchScriptBinding;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -42,23 +43,23 @@ public class NeedsScoreTests extends ESSingleNodeTestCase {
         SearchLookup lookup = new SearchLookup(index.mapperService(), index.fieldData(), null);
 
         Object compiled = service.compile(null, "1.2", Collections.emptyMap());
-        SearchScript ss = service.search(new CompiledScript(Script.ScriptType.INLINE, "randomName", "painless", compiled),
-                                         lookup, Collections.<String, Object>emptyMap());
+        SearchScript ss = service.search(new CompiledScript(SearchScriptBinding.BINDING, Script.ScriptType.INLINE,
+                "randomName", service, compiled), lookup, Collections.<String, Object>emptyMap());
         assertFalse(ss.needsScores());
 
         compiled = service.compile(null, "doc['d'].value", Collections.emptyMap());
-        ss = service.search(new CompiledScript(Script.ScriptType.INLINE, "randomName", "painless", compiled),
-                            lookup, Collections.<String, Object>emptyMap());
+        ss = service.search(new CompiledScript(SearchScriptBinding.BINDING, Script.ScriptType.INLINE,
+                "randomName", service, compiled), lookup, Collections.<String, Object>emptyMap());
         assertFalse(ss.needsScores());
 
         compiled = service.compile(null, "1/_score", Collections.emptyMap());
-        ss = service.search(new CompiledScript(Script.ScriptType.INLINE, "randomName", "painless", compiled),
-                            lookup, Collections.<String, Object>emptyMap());
+        ss = service.search(new CompiledScript(SearchScriptBinding.BINDING, Script.ScriptType.INLINE,
+                "randomName", service, compiled), lookup, Collections.<String, Object>emptyMap());
         assertTrue(ss.needsScores());
 
         compiled = service.compile(null, "doc['d'].value * _score", Collections.emptyMap());
-        ss = service.search(new CompiledScript(Script.ScriptType.INLINE, "randomName", "painless", compiled),
-                            lookup, Collections.<String, Object>emptyMap());
+        ss = service.search(new CompiledScript(SearchScriptBinding.BINDING, Script.ScriptType.INLINE,
+                "randomName", service, compiled), lookup, Collections.<String, Object>emptyMap());
         assertTrue(ss.needsScores());
         service.close();
     }

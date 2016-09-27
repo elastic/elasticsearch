@@ -36,6 +36,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.junit.Before;
 
@@ -103,7 +104,8 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
 
     @Override
     protected TemplateQueryBuilder doCreateTestQueryBuilder() {
-        return new TemplateQueryBuilder(new Script(templateBase.toString(), Script.ScriptType.INLINE, "mustache", null, null));
+        return new TemplateQueryBuilder(ScriptInput.create(
+            Script.ScriptType.INLINE, "mustache", templateBase.toString(), Collections.emptyMap(), null));
     }
 
     @Override
@@ -112,7 +114,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
     }
 
     public void testIllegalArgument() {
-        expectThrows(IllegalArgumentException.class, () -> new TemplateQueryBuilder((Script) null));
+        expectThrows(IllegalArgumentException.class, () -> new TemplateQueryBuilder((ScriptInput) null));
     }
 
     /**
@@ -166,8 +168,8 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
     @Override
     public void testMustRewrite() throws IOException {
         String query = "{ \"match_all\" : {}}";
-        QueryBuilder builder = new TemplateQueryBuilder(new Script(query, Script.ScriptType.INLINE, "mockscript",
-        Collections.emptyMap(), XContentType.JSON));
+        QueryBuilder builder = new TemplateQueryBuilder(ScriptInput.create(Script.ScriptType.INLINE, "mockscript", query,
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()), Collections.emptyMap()));
         try {
             builder.toQuery(createShardContext());
             fail();
@@ -179,24 +181,25 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
 
     public void testRewriteWithInnerName() throws IOException {
         final String query = "{ \"match_all\" : {\"_name\" : \"foobar\"}}";
-        QueryBuilder builder = new TemplateQueryBuilder(new Script(query, Script.ScriptType.INLINE, "mockscript",
-             Collections.emptyMap(), XContentType.JSON));
+        QueryBuilder builder = new TemplateQueryBuilder(ScriptInput.create(Script.ScriptType.INLINE, "mockscript", query,
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()), Collections.emptyMap()));
         assertEquals(new MatchAllQueryBuilder().queryName("foobar"), builder.rewrite(createShardContext()));
 
-        builder = new TemplateQueryBuilder(new Script(query, Script.ScriptType.INLINE, "mockscript",
-            Collections.emptyMap(), XContentType.JSON)).queryName("outer");
+        builder = new TemplateQueryBuilder(ScriptInput.create(Script.ScriptType.INLINE, "mockscript", query,
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()),
+            Collections.emptyMap())).queryName("outer");
         assertEquals(new BoolQueryBuilder().must(new MatchAllQueryBuilder().queryName("foobar")).queryName("outer"),
             builder.rewrite(createShardContext()));
     }
 
     public void testRewriteWithInnerBoost() throws IOException {
         final TermQueryBuilder query = new TermQueryBuilder("foo", "bar").boost(2);
-        QueryBuilder builder = new TemplateQueryBuilder(new Script(query.toString(), Script.ScriptType.INLINE, "mockscript",
-            Collections.emptyMap(), XContentType.JSON));
+        QueryBuilder builder = new TemplateQueryBuilder(ScriptInput.create(Script.ScriptType.INLINE, "mockscript", query.toString(),
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()), Collections.emptyMap()));
         assertEquals(query, builder.rewrite(createShardContext()));
 
-        builder = new TemplateQueryBuilder(new Script(query.toString(), Script.ScriptType.INLINE, "mockscript",
-            Collections.emptyMap(), XContentType.JSON)).boost(3);
+        builder = new TemplateQueryBuilder(ScriptInput.create(Script.ScriptType.INLINE, "mockscript", query.toString(),
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()), Collections.emptyMap())).boost(3);
         assertEquals(new BoolQueryBuilder().must(query).boost(3), builder.rewrite(createShardContext()));
     }
 

@@ -56,7 +56,7 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
                         Map<String, Object> vars = new HashMap<String, Object>();
                         vars.put("x", x);
                         vars.put("y", y);
-                        ExecutableScript script = se.executable(new CompiledScript(Script.ScriptType.INLINE, "testExecutableNoRuntimeParams", "js", compiled), vars);
+                        ExecutableScript script = se.executable(new CompiledScript(null, Script.ScriptType.INLINE, "testExecutableNoRuntimeParams", se, compiled), vars);
                         for (int i = 0; i < between(100, 1000); i++) {
                             long result = ((Number) script.run()).longValue();
                             assertThat(result, equalTo(addition));
@@ -95,7 +95,7 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
                         long x = Randomness.get().nextInt();
                         Map<String, Object> vars = new HashMap<String, Object>();
                         vars.put("x", x);
-                        ExecutableScript script = se.executable(new CompiledScript(Script.ScriptType.INLINE, "testExecutableNoRuntimeParams", "js", compiled), vars);
+                        ExecutableScript script = se.executable(new CompiledScript(null, Script.ScriptType.INLINE, "testExecutableNoRuntimeParams", se, compiled), vars);
                         for (int i = 0; i < between(100, 1000); i++) {
                             long y = Randomness.get().nextInt();
                             long addition = x + y;
@@ -141,7 +141,7 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
                             long addition = x + y;
                             runtimeVars.put("x", x);
                             runtimeVars.put("y", y);
-                            long result = ((Number) se.executable(new CompiledScript(Script.ScriptType.INLINE, "testExecutableNoRuntimeParams", "js", compiled), runtimeVars).run()).longValue();
+                            long result = ((Number) se.executable(new CompiledScript(null, Script.ScriptType.INLINE, "testExecutableNoRuntimeParams", se, compiled), runtimeVars).run()).longValue();
                             assertThat(result, equalTo(addition));
                         }
                     } catch (Exception e) {

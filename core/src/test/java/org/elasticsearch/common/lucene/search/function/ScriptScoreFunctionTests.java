@@ -24,6 +24,7 @@ import org.elasticsearch.script.AbstractDoubleSearchScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.GeneralScriptException;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.test.ESTestCase;
 
@@ -35,7 +36,7 @@ public class ScriptScoreFunctionTests extends ESTestCase {
      */
     public void testScriptScoresReturnsNaN() throws IOException {
         // script that always returns NaN
-        ScoreFunction scoreFunction = new ScriptScoreFunction(new Script("Double.NaN"), new SearchScript() {
+        ScoreFunction scoreFunction = new ScriptScoreFunction(ScriptInput.create("Double.NaN"), new SearchScript() {
             @Override
             public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
                 return new AbstractDoubleSearchScript() {
@@ -50,7 +51,7 @@ public class ScriptScoreFunctionTests extends ESTestCase {
                     }
                 };
             }
-            
+
             @Override
             public boolean needsScores() {
                 return false;

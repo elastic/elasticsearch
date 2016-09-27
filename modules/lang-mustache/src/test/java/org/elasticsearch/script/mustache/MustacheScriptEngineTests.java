@@ -27,6 +27,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ExecutableScriptBinding;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -58,8 +60,8 @@ public class MustacheScriptEngineTests extends ESTestCase {
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}" + "}}, \"negative_boost\": {{boost_val}} } }}";
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
-            BytesReference o = (BytesReference) qe.executable(new CompiledScript(Script.ScriptType.INLINE, "", "mustache",
-                    qe.compile(null, template, compileParams)), vars).run();
+            BytesReference o = (BytesReference) qe.executable(new CompiledScript(ExecutableScriptBinding.BINDING, Script.ScriptType.INLINE,
+                "", qe, qe.compile(null, template, compileParams)), vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.3 } }}",
                     o.utf8ToString());
@@ -70,8 +72,8 @@ public class MustacheScriptEngineTests extends ESTestCase {
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             vars.put("body_val", "\"quick brown\"");
-            BytesReference o = (BytesReference) qe.executable(new CompiledScript(Script.ScriptType.INLINE, "", "mustache",
-                    qe.compile(null, template, compileParams)), vars).run();
+            BytesReference o = (BytesReference) qe.executable(new CompiledScript(ExecutableScriptBinding.BINDING, Script.ScriptType.INLINE,
+                "", qe, qe.compile(null, template, compileParams)), vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"\\\"quick brown\\\"\"}}}, \"negative_boost\": 0.3 } }}",
                     o.utf8ToString());
@@ -81,10 +83,10 @@ public class MustacheScriptEngineTests extends ESTestCase {
     public void testSimple() throws IOException {
         String templateString = "{" + "\"inline\":{\"match_{{template}}\": {}}," + "\"params\":{\"template\":\"all\"}" + "}";
         XContentParser parser = XContentFactory.xContent(templateString).createParser(templateString);
-        Script script = Script.parse(parser, new ParseFieldMatcher(false));
-        CompiledScript compiledScript = new CompiledScript(Script.ScriptType.INLINE, null, "mustache",
-                qe.compile(null, script.getScript(), Collections.emptyMap()));
-        ExecutableScript executableScript = qe.executable(compiledScript, script.getParams());
+        ScriptInput script = ScriptInput.parse(parser, new ParseFieldMatcher(false), "mustache");
+        CompiledScript compiledScript = new CompiledScript(ExecutableScriptBinding.BINDING, Script.ScriptType.INLINE,
+            null, qe, qe.compile(null, script.lookup.getIdOrCode(), Collections.emptyMap()));
+        ExecutableScript executableScript = qe.executable(compiledScript, script.params);
         assertThat(((BytesReference) executableScript.run()).utf8ToString(), equalTo("{\"match_all\":{}}"));
     }
 
@@ -92,10 +94,10 @@ public class MustacheScriptEngineTests extends ESTestCase {
         String templateString = "{" + "  \"inline\" : \"{ \\\"match_{{#use_it}}{{template}}{{/use_it}}\\\":{} }\"," + "  \"params\":{"
                 + "    \"template\":\"all\"," + "    \"use_it\": true" + "  }" + "}";
         XContentParser parser = XContentFactory.xContent(templateString).createParser(templateString);
-        Script script = Script.parse(parser, new ParseFieldMatcher(false));
-        CompiledScript compiledScript = new CompiledScript(Script.ScriptType.INLINE, null, "mustache",
-                qe.compile(null, script.getScript(), Collections.emptyMap()));
-        ExecutableScript executableScript = qe.executable(compiledScript, script.getParams());
+        ScriptInput script = ScriptInput.parse(parser, new ParseFieldMatcher(false), "mustache");
+        CompiledScript compiledScript = new CompiledScript(ExecutableScriptBinding.BINDING, Script.ScriptType.INLINE,
+            null, qe, qe.compile(null, script.lookup.getIdOrCode(), Collections.emptyMap()));
+        ExecutableScript executableScript = qe.executable(compiledScript, script.params);
         assertThat(((BytesReference) executableScript.run()).utf8ToString(), equalTo("{ \"match_all\":{} }"));
     }
 

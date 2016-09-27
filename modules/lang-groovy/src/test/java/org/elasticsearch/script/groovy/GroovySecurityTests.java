@@ -25,6 +25,7 @@ import org.codehaus.groovy.control.MultipleCompilationErrorsException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.test.ESTestCase;
 
@@ -139,7 +140,8 @@ public class GroovySecurityTests extends ESTestCase {
         vars.put("myarray", Arrays.asList("foo"));
         vars.put("myobject", new MyObject());
 
-        se.executable(new CompiledScript(Script.ScriptType.INLINE, "test", "js", se.compile(null, script, Collections.emptyMap())), vars).run();
+        se.executable(new CompiledScript(null, Script.ScriptType.INLINE,
+            "test", se, se.compile(null, script, Collections.emptyMap())), vars).run();
     }
 
     public static class MyObject {

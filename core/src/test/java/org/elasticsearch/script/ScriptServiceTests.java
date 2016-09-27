@@ -18,12 +18,18 @@
  */
 package org.elasticsearch.script;
 
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
+import org.elasticsearch.script.Script.ExecutableScriptBinding;
+import org.elasticsearch.script.Script.ScriptBinding;
+import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.Script.SearchScriptBinding;
+import org.elasticsearch.script.Script.StoredScriptSource;
 import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -113,9 +119,9 @@ public class ScriptServiceTests extends ESTestCase {
         // TODO:
         scriptService = new ScriptService(finalSettings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
-            StoredScriptSource getScriptFromClusterState(String id) {
+            public StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
                 //mock the script that gets retrieved from an index
-                return new StoredScriptSource(null, null, "100");
+                return new StoredScriptSource(false, null, "test", "100", Collections.emptyMap());
             }
         };
     }
@@ -144,15 +150,6 @@ public class ScriptServiceTests extends ESTestCase {
         }
     }
 
-    public void testNotSupportedDisableDynamicSetting() throws IOException {
-        try {
-            buildScriptService(Settings.builder().put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, randomUnicodeOfLength(randomIntBetween(1, 10))).build());
-            fail("script service should have thrown exception due to non supported script.disable_dynamic setting");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with fine-grained script settings"));
-        }
-    }
-
     public void testScriptsWithoutExtensions() throws IOException {
         buildScriptService(Settings.EMPTY);
         Path testFileNoExt = scriptsFilePath.resolve("test_no_ext");
@@ -161,8 +158,8 @@ public class ScriptServiceTests extends ESTestCase {
         Streams.copy("test_file".getBytes("UTF-8"), Files.newOutputStream(testFileWithExt));
         resourceWatcherService.notifyNow();
 
-        CompiledScript compiledScript = scriptService.compile(new Script("test_script", Script.ScriptType.FILE, "test", null),
-                ScriptContext.Standard.SEARCH, Collections.emptyMap());
+        CompiledScript compiledScript = ScriptInput.create(ScriptType.FILE, "test", "test_script", Collections.emptyMap(), null).lookup
+            .getCompiled(scriptService, ScriptContext.Standard.SEARCH, ExecutableScriptBinding.BINDING);
         assertThat(compiledScript.compiled(), equalTo((Object) "compiled_test_file"));
 
         Files.delete(testFileNoExt);
@@ -170,8 +167,8 @@ public class ScriptServiceTests extends ESTestCase {
         resourceWatcherService.notifyNow();
 
         try {
-            scriptService.compile(new Script("test_script", Script.ScriptType.FILE, "test", null), ScriptContext.Standard.SEARCH,
-                    Collections.emptyMap());
+            ScriptInput.create(ScriptType.FILE, "test", "test_script", Collections.emptyMap(), null).lookup
+                .getCompiled(scriptService, ScriptContext.Standard.SEARCH, ExecutableScriptBinding.BINDING);
             fail("the script test_script should no longer exist");
         } catch (IllegalArgumentException ex) {
             assertThat(ex.getMessage(), containsString("Unable to find on disk file script [test_script] using lang [test]"));
@@ -188,8 +185,8 @@ public class ScriptServiceTests extends ESTestCase {
         Streams.copy("test_file_script".getBytes("UTF-8"), Files.newOutputStream(testFileScript));
         resourceWatcherService.notifyNow();
 
-        CompiledScript compiledScript = scriptService.compile(new Script("file_script", Script.ScriptType.FILE, "test", null),
-                ScriptContext.Standard.SEARCH, Collections.emptyMap());
+        CompiledScript compiledScript = ScriptInput.create(ScriptType.FILE, "test", "file_script", Collections.emptyMap(), null).lookup
+            .getCompiled(scriptService, ScriptContext.Standard.SEARCH, ExecutableScriptBinding.BINDING);
         assertThat(compiledScript.compiled(), equalTo((Object) "compiled_test_file_script"));
 
         Files.delete(testHiddenFile);
@@ -199,10 +196,10 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testInlineScriptCompiledOnceCache() throws IOException {
         buildScriptService(Settings.EMPTY);
-        CompiledScript compiledScript1 = scriptService.compile(new Script("1+1", Script.ScriptType.INLINE, "test", null),
-                randomFrom(scriptContexts), Collections.emptyMap());
-        CompiledScript compiledScript2 = scriptService.compile(new Script("1+1", Script.ScriptType.INLINE, "test", null),
-                randomFrom(scriptContexts), Collections.emptyMap());
+        CompiledScript compiledScript1 = ScriptInput.create(ScriptType.FILE, "test", "1+1", Collections.emptyMap(), null).lookup
+            .getCompiled(scriptService, ScriptContext.Standard.SEARCH, ExecutableScriptBinding.BINDING);
+        CompiledScript compiledScript2 = ScriptInput.create(ScriptType.FILE, "test", "1+1", Collections.emptyMap(), null).lookup
+            .getCompiled(scriptService, ScriptContext.Standard.SEARCH, ExecutableScriptBinding.BINDING);
         assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
     }
 
@@ -258,9 +255,9 @@ public class ScriptServiceTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         for (Map.Entry<ScriptType, Boolean> entry : scriptSourceSettings.entrySet()) {
             if (entry.getValue()) {
-                builder.put("script" + "." + entry.getKey().getScriptType(), "true");
+                builder.put("script" + "." + entry.getKey().name, "true");
             } else {
-                builder.put("script" + "." + entry.getKey().getScriptType(), "false");
+                builder.put("script" + "." + entry.getKey().name, "false");
             }
         }
         for (Map.Entry<ScriptContext, Boolean> entry : scriptContextSettings.entrySet()) {
@@ -324,8 +321,9 @@ public class ScriptServiceTests extends ESTestCase {
 
         String type = scriptEngineService.getType();
         try {
-            scriptService.compile(new Script("test", randomFrom(Script.ScriptType.values()), type, null), new ScriptContext.Plugin(
-                            pluginName, unknownContext), Collections.emptyMap());
+
+            ScriptInput.create(randomFrom(ScriptType.values()), "test", "1+1", Collections.emptyMap(), null)
+                .lookup.getCompiled(scriptService, new ScriptContext.Plugin(pluginName, unknownContext), ExecutableScriptBinding.BINDING);
             fail("script compilation should have been rejected");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("script context [" + pluginName + "_" + unknownContext + "] not supported"));
@@ -334,21 +332,22 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testCompileCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        scriptService.compile(new Script("1+1", Script.ScriptType.INLINE, "test", null), randomFrom(scriptContexts),
-                Collections.emptyMap());
+        ScriptInput.create(ScriptType.INLINE, "test", "1+1", Collections.emptyMap(), null)
+            .lookup.getCompiled(scriptService, randomFrom(scriptContexts), ExecutableScriptBinding.BINDING);
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
     public void testExecutableCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        scriptService.executable(new Script("1+1", Script.ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap());
+        ScriptInput scriptInput = ScriptInput.create(ScriptType.INLINE, "test", "1+1", Collections.emptyMap(), null);
+        ExecutableScriptBinding.bind(scriptService, randomFrom(scriptContexts), scriptInput.lookup, scriptInput.params);
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
     public void testSearchCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        scriptService.search(null, new Script("1+1", Script.ScriptType.INLINE, "test", null), randomFrom(scriptContexts),
-                Collections.emptyMap());
+        ScriptInput scriptInput = ScriptInput.create(ScriptType.INLINE, "test", "1+1", Collections.emptyMap(), null);
+        SearchScriptBinding.bind(scriptService, randomFrom(scriptContexts), null, scriptInput.lookup, scriptInput.params);
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
@@ -356,9 +355,8 @@ public class ScriptServiceTests extends ESTestCase {
         buildScriptService(Settings.EMPTY);
         int numberOfCompilations = randomIntBetween(1, 1024);
         for (int i = 0; i < numberOfCompilations; i++) {
-            scriptService
-                    .compile(new Script(i + " + " + i, Script.ScriptType.INLINE, "test", null), randomFrom(scriptContexts),
-                            Collections.emptyMap());
+            ScriptInput.create(ScriptType.INLINE, "test", i + " + " + i, Collections.emptyMap(), null)
+                .lookup.getCompiled(scriptService, randomFrom(scriptContexts), ExecutableScriptBinding.BINDING);
         }
         assertEquals(numberOfCompilations, scriptService.stats().getCompilations());
     }
@@ -368,23 +366,24 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), 1);
         builder.put("script.inline", "true");
         buildScriptService(builder.build());
-        scriptService.executable(new Script("1+1", Script.ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap());
-        scriptService.executable(new Script("1+1", Script.ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap());
+        ScriptInput scriptInput = ScriptInput.create(ScriptType.INLINE, "test", "1+1", Collections.emptyMap(), null);
+        ExecutableScriptBinding.bind(scriptService, randomFrom(scriptContexts), scriptInput.lookup, scriptInput.params);
+        ExecutableScriptBinding.bind(scriptService, randomFrom(scriptContexts), scriptInput.lookup, scriptInput.params);
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
     public void testFileScriptCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
         createFileScripts("test");
-        scriptService.compile(new Script("file_script", Script.ScriptType.FILE, "test", null), randomFrom(scriptContexts),
-                Collections.emptyMap());
+        ScriptInput.create(ScriptType.FILE, null, "file_script", Collections.emptyMap(), null)
+            .lookup.getCompiled(scriptService, randomFrom(scriptContexts), ExecutableScriptBinding.BINDING);
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
-    public void testIndexedScriptCountedInCompilationStats() throws IOException {
+    public void testStoredScriptCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        scriptService.compile(new Script("script", Script.ScriptType.STORED, "test", null), randomFrom(scriptContexts),
-                Collections.emptyMap());
+        ScriptInput.create(ScriptType.STORED, null, "stored_script", Collections.emptyMap(), null)
+            .lookup.getCompiled(scriptService, randomFrom(scriptContexts), ExecutableScriptBinding.BINDING);
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
@@ -393,8 +392,10 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), 1);
         builder.put("script.inline", "true");
         buildScriptService(builder.build());
-        scriptService.executable(new Script("1+1", Script.ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap());
-        scriptService.executable(new Script("2+2", Script.ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap());
+        ScriptInput scriptInput1 = ScriptInput.create(ScriptType.INLINE, "test", "1+1", Collections.emptyMap(), null);
+        ExecutableScriptBinding.bind(scriptService, randomFrom(scriptContexts), scriptInput1.lookup, scriptInput1.params);
+        ScriptInput scriptInput2 = ScriptInput.create(ScriptType.INLINE, "test", "2+2", Collections.emptyMap(), null);
+        ExecutableScriptBinding.bind(scriptService, randomFrom(scriptContexts), scriptInput2.lookup, scriptInput2.params);
         assertEquals(2L, scriptService.stats().getCompilations());
         assertEquals(1L, scriptService.stats().getCacheEvictions());
     }
@@ -403,24 +404,9 @@ public class ScriptServiceTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         builder.put("script.inline", "true");
         buildScriptService(builder.build());
-        CompiledScript script = scriptService.compile(new Script("1 + 1", Script.ScriptType.INLINE, null, null),
-                randomFrom(scriptContexts), Collections.emptyMap());
-        assertEquals(script.lang(), Script.DEFAULT_SCRIPT_LANG);
-    }
-
-    public void testValidateScriptSize() throws Exception {
-        int maxSize = 16384;
-        buildScriptService(Settings.EMPTY);
-        // allowed
-        scriptService.validateStoredScript("_id", "test", randomAsciiOfLength(maxSize));
-
-        // disallowed
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> {
-                    scriptService.validateStoredScript("_id", "test", randomAsciiOfLength(maxSize + 1));
-                });
-        assertThat(e.getMessage(), equalTo(
-                "Limit of script size in bytes [" + maxSize + "] has been exceeded for script [_id] with size [" + (maxSize + 1) + "]"));
+        CompiledScript compiled = ScriptInput.create(ScriptType.INLINE, null, "test", Collections.emptyMap(), null)
+            .lookup.getCompiled(scriptService, randomFrom(scriptContexts), ExecutableScriptBinding.BINDING);
+        assertEquals(compiled.lang(), Script.DEFAULT_SCRIPT_LANG);
     }
 
 
@@ -434,7 +420,8 @@ public class ScriptServiceTests extends ESTestCase {
 
     private void assertCompileRejected(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {
         try {
-            scriptService.compile(new Script(script, scriptType, lang, null), scriptContext, Collections.emptyMap());
+            lang = scriptType == ScriptType.INLINE ? lang : null;
+            ScriptInput.create(scriptType, lang, script, Collections.emptyMap(), null).lookup.getCompiled(scriptService, scriptContext, ExecutableScriptBinding.BINDING);
             fail("compile should have been rejected for lang [" + lang + "], script_type [" + scriptType + "], scripted_op [" + scriptContext + "]");
         } catch(IllegalStateException e) {
             //all good
@@ -442,8 +429,9 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     private void assertCompileAccepted(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {
+        lang = scriptType == ScriptType.INLINE ? lang : null;
         assertThat(
-                scriptService.compile(new Script(script, scriptType, lang, null), scriptContext, Collections.emptyMap()),
+            ScriptInput.create(scriptType, lang, script, Collections.emptyMap(), null).lookup.getCompiled(scriptService, scriptContext, ExecutableScriptBinding.BINDING),
                 notNullValue()
         );
     }

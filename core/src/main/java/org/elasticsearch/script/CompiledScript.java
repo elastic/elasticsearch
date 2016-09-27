@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.script.Script.ScriptBinding;
 import org.elasticsearch.script.Script.ScriptType;
 
 /**
@@ -26,7 +27,7 @@ import org.elasticsearch.script.Script.ScriptType;
  */
 public class CompiledScript {
 
-    private final ScriptContext context;
+    private final ScriptBinding binding;
     private final ScriptType type;
     private final String id;
     private final ScriptEngineService engine;
@@ -34,13 +35,14 @@ public class CompiledScript {
 
     /**
      * Constructor for CompiledScript.
-     * @param type The type of script to be executed.
+     * @param binding The {@link ScriptBinding} that determines the signature of the script.
+     * @param type The {@link ScriptType} of script to be executed.
      * @param id The id of the script to be executed.
      * @param engine The {@link ScriptEngineService} used to compile this script.
      * @param compiled The compiled script Object that is executable.
      */
-    public CompiledScript(ScriptContext context, ScriptType type, String id, ScriptEngineService engine, Object compiled) {
-        this.context = context;
+    public CompiledScript(ScriptBinding binding, ScriptType type, String id, ScriptEngineService engine, Object compiled) {
+        this.binding = binding;
         this.type = type;
         this.id = id;
         this.engine = engine;
@@ -48,16 +50,16 @@ public class CompiledScript {
     }
 
     /**
-     * Method to get the compilation context.
-     * @return The context the script was compiled in.
+     * Method to get the compilation binding.
+     * @return The {@link ScriptBinding} that determines the signature of the script.
      */
-    public ScriptContext context() {
-        return context;
+    public ScriptBinding binding() {
+        return binding;
     }
 
     /**
      * Method to get the type of language.
-     * @return The type of language the script was compiled in.
+     * @return The {@link ScriptType} of script to be executed.
      */
     public ScriptType type() {
         return type;
@@ -81,7 +83,7 @@ public class CompiledScript {
 
     /**
      * Method to get the {@link ScriptEngineService}.
-     * @return The {@link} ScriptEngineService used to compiled this script.
+     * @return The {@link ScriptEngineService} used to compiled this script.
      */
     ScriptEngineService engine() {
         return engine;

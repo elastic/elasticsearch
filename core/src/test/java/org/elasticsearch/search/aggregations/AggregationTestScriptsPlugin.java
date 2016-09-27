@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -43,7 +44,8 @@ public class AggregationTestScriptsPlugin extends MockScriptPlugin {
     //      res[i] = values.get(i) - dec;
     // };
     // return res;
-    public static final Script DECREMENT_ALL_VALUES = new Script("decrement all values", ScriptType.INLINE, NAME, singletonMap("dec", 1));
+    public static final ScriptInput DECREMENT_ALL_VALUES =
+        ScriptInput.create(ScriptType.INLINE, NAME, "decrement all values", null, singletonMap("dec", 1));
 
     @Override
     protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
@@ -90,7 +92,7 @@ public class AggregationTestScriptsPlugin extends MockScriptPlugin {
             return doc.get("values");
         });
 
-        scripts.put(DECREMENT_ALL_VALUES.getScript(), vars -> {
+        scripts.put(DECREMENT_ALL_VALUES.lookup.getIdOrCode(), vars -> {
             int dec = (int) vars.get("dec");
             Map<?, ?> doc = (Map) vars.get("doc");
             ScriptDocValues.Longs values = (ScriptDocValues.Longs) doc.get("values");

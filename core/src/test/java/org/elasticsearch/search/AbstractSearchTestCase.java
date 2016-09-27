@@ -38,6 +38,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -131,9 +132,9 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
             int scriptFieldsSize = randomInt(25);
             for (int i = 0; i < scriptFieldsSize; i++) {
                 if (randomBoolean()) {
-                    builder.scriptField(randomAsciiOfLengthBetween(5, 50), new Script("foo"), randomBoolean());
+                    builder.scriptField(randomAsciiOfLengthBetween(5, 50), ScriptInput.create("foo"), randomBoolean());
                 } else {
-                    builder.scriptField(randomAsciiOfLengthBetween(5, 50), new Script("foo"));
+                    builder.scriptField(randomAsciiOfLengthBetween(5, 50), ScriptInput.create("foo"));
                 }
             }
         }
@@ -208,7 +209,7 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
                         builder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
                         break;
                     case 3:
-                        builder.sort(SortBuilders.scriptSort(new Script("foo"),
+                        builder.sort(SortBuilders.scriptSort(ScriptInput.create("foo"),
                                 ScriptSortBuilder.ScriptSortType.NUMBER).order(randomFrom(SortOrder.values())));
                         break;
                     case 4:

@@ -27,7 +27,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
+import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.Script.StoredScriptSource;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -66,11 +67,11 @@ public class StoredGroovyScriptTests extends ESIntegTestCase {
     public void testFieldIndexedScript()  throws ExecutionException, InterruptedException {
         client().admin().cluster().preparePutStoredScript()
                 .setId("script1")
-                .setSource(new StoredScriptSource(null, GroovyScriptEngineService.NAME, "2"))
+                .setSource(new StoredScriptSource(false, null, GroovyScriptEngineService.NAME, "2", Collections.emptyMap()))
                 .get();
         client().admin().cluster().preparePutStoredScript()
                 .setId("script2")
-                .setSource(new StoredScriptSource(null, GroovyScriptEngineService.NAME, "factor * 2"))
+                .setSource(new StoredScriptSource(false, null, GroovyScriptEngineService.NAME, "factor * 2", Collections.emptyMap()))
                 .get();
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -87,9 +88,11 @@ public class StoredGroovyScriptTests extends ESIntegTestCase {
                 .prepareSearch()
                 .setSource(
                         new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(1)
-                                .scriptField("test1", new Script("script1", Script.ScriptType.STORED, GroovyScriptEngineService.NAME, null))
+                                .scriptField("test1", ScriptInput.create(Script.ScriptType.STORED, GroovyScriptEngineService.NAME,
+                                    "script1", Collections.emptyMap(), null))
                                 .scriptField("test2",
-                                    new Script("script2", Script.ScriptType.STORED, GroovyScriptEngineService.NAME, script2Params)))
+                                    ScriptInput.create(Script.ScriptType.STORED, GroovyScriptEngineService.NAME,
+                                        "script2", Collections.emptyMap(), script2Params)))
                 .setIndices("test").setTypes("scriptTest").get();
         assertHitCount(searchResponse, 5);
         assertTrue(searchResponse.getHits().hits().length == 1);
@@ -109,12 +112,13 @@ public class StoredGroovyScriptTests extends ESIntegTestCase {
         for (int i = 1; i < iterations; i++) {
             assertAcked(client().admin().cluster().preparePutStoredScript()
                     .setId("script1")
-                    .setSource(new StoredScriptSource(null, GroovyScriptEngineService.NAME, "" + i)));
+                    .setSource(new StoredScriptSource(false, null, GroovyScriptEngineService.NAME, "" + i, Collections.emptyMap())));
             SearchResponse searchResponse = client()
                     .prepareSearch()
                     .setSource(
                             new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).scriptField("test_field",
-                                    new Script("script1", Script.ScriptType.STORED, GroovyScriptEngineService.NAME, null)))
+                                    ScriptInput.create(Script.ScriptType.STORED, GroovyScriptEngineService.NAME,
+                                        "script1", Collections.emptyMap(), null)))
                                             .setIndices("test_index")
                     .setTypes("test_type").get();
             assertHitCount(searchResponse, 1);
@@ -126,11 +130,12 @@ public class StoredGroovyScriptTests extends ESIntegTestCase {
     public void testDisabledUpdateIndexedScriptsOnly() {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("script1")
-                .setSource(new StoredScriptSource(null, GroovyScriptEngineService.NAME, "2")));
+                .setSource(new StoredScriptSource(false, null, GroovyScriptEngineService.NAME, "2", Collections.emptyMap())));
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         try {
             client().prepareUpdate("test", "scriptTest", "1")
-                    .setScript(new Script("script1", Script.ScriptType.STORED, GroovyScriptEngineService.NAME, null)).get();
+                    .setScript(ScriptInput.create(Script.ScriptType.STORED, GroovyScriptEngineService.NAME,
+                        "script1", Collections.emptyMap(), null)).get();
             fail("update script should have been rejected");
         } catch (Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
@@ -143,14 +148,15 @@ public class StoredGroovyScriptTests extends ESIntegTestCase {
         //dynamic scripts don't need to be enabled for an indexed script to be indexed and later on executed
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("script1")
-                .setSource(new StoredScriptSource(null, GroovyScriptEngineService.NAME, "2")));
+                .setSource(new StoredScriptSource(false, null, GroovyScriptEngineService.NAME, "2", Collections.emptyMap())));
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         refresh();
         SearchResponse searchResponse = client()
                 .prepareSearch("test")
                 .setSource(
                         new SearchSourceBuilder().aggregation(AggregationBuilders.terms("test").script(
-                                new Script("script1", Script.ScriptType.STORED, GroovyScriptEngineService.NAME, null)))).get();
+                                ScriptInput.create(Script.ScriptType.STORED, GroovyScriptEngineService.NAME,
+                                    "script1", Collections.emptyMap(), null)))).get();
         assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getAggregations().get("test"), notNullValue());
     }

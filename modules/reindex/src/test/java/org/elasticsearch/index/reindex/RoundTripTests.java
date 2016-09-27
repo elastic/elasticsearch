@@ -32,6 +32,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -198,10 +200,16 @@ public class RoundTripTests extends ESTestCase {
         empty.readFrom(out.bytes().streamInput());
     }
 
-    private Script randomScript() {
-        return new Script(randomSimpleString(random()), // Name
-                randomFrom(Script.ScriptType.values()), // Type
-                random().nextBoolean() ? null : randomSimpleString(random()), // Language
+    private ScriptInput randomScript() {
+        ScriptType type = randomFrom(ScriptType.values());
+        String lang = type == ScriptType.INLINE ? randomSimpleString(random()) : null;
+        String idOrCode = randomSimpleString(random());
+
+        return ScriptInput.create(
+                type, // Type
+                lang, // Language
+                idOrCode, // Id or Code
+                emptyMap(), // Options
                 emptyMap()); // Params
     }
 

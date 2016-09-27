@@ -26,7 +26,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
+import org.elasticsearch.script.Script.StoredScriptSource;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
@@ -137,21 +137,21 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     public void testIndexedTemplateClient() throws Exception {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("testTemplate")
-                .setSource(new StoredScriptSource(null, MustacheScriptEngineService.NAME, "{" +
+                .setSource(new StoredScriptSource(true, null, MustacheScriptEngineService.NAME, "{\"template\": {" +
                         "                \"query\":{" +
                         "                   \"match\":{" +
                         "                    \"theField\" : \"{{fieldParam}}\"}" +
                         "       }" +
-                        "}")));
+                        "} }", Collections.emptyMap())));
 
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setId("testTemplate").setSource(new StoredScriptSource(null, MustacheScriptEngineService.NAME, "{" +
+                .setId("testTemplate").setSource(new StoredScriptSource(true, null, MustacheScriptEngineService.NAME, "{\"template\": {" +
                         "                \"query\":{" +
                         "                   \"match\":{" +
                         "                    \"theField\" : \"{{fieldParam}}\"}" +
                         "       }" +
-                        "}")));
+                        "} }", Collections.emptyMap())));
 
         GetStoredScriptResponse getResponse = client().admin().cluster()
                 .prepareGetStoredScript("testTemplate").get();
@@ -192,30 +192,30 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     public void testIndexedTemplate() throws Exception {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("1a")
-                .setSource(new StoredScriptSource(null, MustacheScriptEngineService.NAME, "{" +
+                .setSource(new StoredScriptSource(true, null, MustacheScriptEngineService.NAME, "{\"template\": {" +
                         "                \"query\":{" +
                         "                   \"match\":{" +
                         "                    \"theField\" : \"{{fieldParam}}\"}" +
                         "       }" +
-                        "}"
+                        "} }", Collections.emptyMap()
                 ))
         );
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("2")
-                .setSource(new StoredScriptSource(null, MustacheScriptEngineService.NAME, "{" +
+                .setSource(new StoredScriptSource(true, null, MustacheScriptEngineService.NAME, "{\"template\": {" +
                         "                \"query\":{" +
                         "                   \"match\":{" +
                         "                    \"theField\" : \"{{fieldParam}}\"}" +
                         "       }" +
-                        "}"
+                        "} }", Collections.emptyMap()
                 ))
         );
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("3")
-                .setSource(new StoredScriptSource(null, MustacheScriptEngineService.NAME, "{" +
+                .setSource(new StoredScriptSource(true, null, MustacheScriptEngineService.NAME, "{\"template\": {" +
                         "             \"match\":{" +
                         "                    \"theField\" : \"{{fieldParam}}\"}" +
-                        "       }"
+                        "       } }", Collections.emptyMap()
                 ))
         );
 
@@ -283,8 +283,9 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         for (int i = 1; i < iterations; i++) {
             assertAcked(client().admin().cluster().preparePutStoredScript()
                     .setId("git01")
-                    .setSource(new StoredScriptSource(null, MustacheScriptEngineService.NAME,
-                        "{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\", \"type\": \"ooophrase_prefix\"}}}}")));
+                    .setSource(new StoredScriptSource(true, null, MustacheScriptEngineService.NAME,
+                        "{\"template\": {\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
+                            " \"type\": \"ooophrase_prefix\"}}}}}", Collections.emptyMap())));
 
             GetStoredScriptResponse getResponse = client().admin().cluster()
                     .prepareGetStoredScript("git01").get();
@@ -301,9 +302,9 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
             assertAcked(client().admin().cluster().preparePutStoredScript()
                     .setId("git01")
-                    .setSource(new StoredScriptSource(null, MustacheScriptEngineService.NAME,
-                        "{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
-                            "\"type\": \"phrase_prefix\"}}}}")));
+                    .setSource(new StoredScriptSource(true, null, MustacheScriptEngineService.NAME,
+                        "{\"template\": {\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
+                            "\"type\": \"phrase_prefix\"}}}}}", Collections.emptyMap())));
 
             SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
                     .setRequest(new SearchRequest("testindex").types("test"))
@@ -314,11 +315,11 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     }
 
     public void testIndexedTemplateWithArray() throws Exception {
-        String multiQuery = "{\"query\":{\"terms\":{\"theField\":[\"{{#fieldParam}}\",\"{{.}}\",\"{{/fieldParam}}\"]}}}";
+        String multiQuery = "{\"template\": {\"query\":{\"terms\":{\"theField\":[\"{{#fieldParam}}\",\"{{.}}\",\"{{/fieldParam}}\"]}}}}";
         assertAcked(
                 client().admin().cluster().preparePutStoredScript()
                         .setId("4")
-                        .setSource(new StoredScriptSource(null, "mustache", multiQuery))
+                        .setSource(new StoredScriptSource(true, null, "mustache", multiQuery, Collections.emptyMap()))
         );
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}"));

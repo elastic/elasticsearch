@@ -102,7 +102,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         scriptService = new ScriptService(baseSettings, environment,
                 new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
-            public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params) {
+            public CompiledScript getInlineScript(Script script, ScriptContext scriptContext, Map<String, String> params) {
                 return new CompiledScript(Script.ScriptType.INLINE, "mockName", "test", script);
             }
         };

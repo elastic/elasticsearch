@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -45,7 +46,8 @@ public class ExpressionTests extends ESSingleNodeTestCase {
 
     private SearchScript compile(String expression) {
         Object compiled = service.compile(null, expression, Collections.emptyMap());
-        return service.search(new CompiledScript(Script.ScriptType.INLINE, "randomName", "expression", compiled), lookup, Collections.<String, Object>emptyMap());
+        return service.search(new CompiledScript(ExecutableScriptBinding.BINDING, Script.ScriptType.INLINE,
+            "randomName", service, compiled), lookup, Collections.<String, Object>emptyMap());
     }
 
     public void testNeedsScores() {

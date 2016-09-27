@@ -27,6 +27,8 @@ import org.elasticsearch.index.reindex.AbstractAsyncBulkIndexByScrollAction.Requ
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ExecutableScriptBinding;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptService;
 import org.junit.Before;
 import org.mockito.Matchers;
@@ -45,7 +47,7 @@ public abstract class AbstractAsyncBulkIndexByScrollActionScriptTestCase<
                 Response extends BulkIndexByScrollResponse>
         extends AbstractAsyncBulkIndexByScrollActionTestCase<Request, Response> {
 
-    private static final Script EMPTY_SCRIPT = new Script("");
+    private static final ScriptInput EMPTY_SCRIPT = ScriptInput.create("");
 
     protected ScriptService scriptService;
 
@@ -60,7 +62,7 @@ public abstract class AbstractAsyncBulkIndexByScrollActionScriptTestCase<
         ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "type", "id", 0);
         ExecutableScript executableScript = new SimpleExecutableScript(scriptBody);
 
-        when(scriptService.executable(any(CompiledScript.class), Matchers.<Map<String, Object>>any()))
+        when(ExecutableScriptBinding.bind(any(CompiledScript.class), Matchers.<Map<String, Object>>any()))
                 .thenReturn(executableScript);
         AbstractAsyncBulkIndexByScrollAction<Request> action = action(scriptService, request().setScript(EMPTY_SCRIPT));
         RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc);

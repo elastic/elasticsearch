@@ -22,7 +22,8 @@ package org.elasticsearch.script.expression;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
+import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.Script.StoredScriptSource;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -51,12 +52,13 @@ public class StoredExpressionTests extends ESIntegTestCase {
     public void testAllOpsDisabledIndexedScripts() throws IOException {
         client().admin().cluster().preparePutStoredScript()
                 .setId("script1")
-                .setSource(new StoredScriptSource(null, ExpressionScriptEngineService.NAME, "2"))
+                .setSource(new StoredScriptSource(false, null, ExpressionScriptEngineService.NAME, "2", Collections.emptyMap()))
                 .get();
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         try {
             client().prepareUpdate("test", "scriptTest", "1")
-                    .setScript(new Script("script1", Script.ScriptType.STORED, ExpressionScriptEngineService.NAME, null)).get();
+                    .setScript(ScriptInput.create(Script.ScriptType.STORED, ExpressionScriptEngineService.NAME,
+                        "script1", Collections.emptyMap(), null)).get();
             fail("update script should have been rejected");
         } catch(Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
@@ -65,7 +67,8 @@ public class StoredExpressionTests extends ESIntegTestCase {
         try {
             client().prepareSearch()
                     .setSource(
-                            new SearchSourceBuilder().scriptField("test1", new Script("script1", Script.ScriptType.STORED, "expression", null)))
+                            new SearchSourceBuilder().scriptField("test1",
+                                ScriptInput.create(Script.ScriptType.STORED, "expression", "script1", Collections.emptyMap(), null)))
                     .setIndices("test").setTypes("scriptTest").get();
             fail("search script should have been rejected");
         } catch(Exception e) {
@@ -75,7 +78,8 @@ public class StoredExpressionTests extends ESIntegTestCase {
             client().prepareSearch("test")
                     .setSource(
                             new SearchSourceBuilder().aggregation(AggregationBuilders.terms("test").script(
-                                    new Script("script1", Script.ScriptType.STORED, "expression", null)))).get();
+                                    ScriptInput.create(Script.ScriptType.STORED, "expression",
+                                        "script1", Collections.emptyMap(), null)))).get();
         } catch (Exception e) {
             assertThat(e.toString(), containsString("scripts of type [stored], operation [aggs] and lang [expression] are disabled"));
         }

@@ -126,7 +126,7 @@ public class ScriptModesTests extends ESTestCase {
         ScriptType[] randomScriptTypes = randomScriptTypesSet.toArray(new ScriptType[randomScriptTypesSet.size()]);
         Settings.Builder builder = Settings.builder();
         for (int i = 0; i < randomInt; i++) {
-            builder.put("script" + "." + randomScriptTypes[i].getScriptType(), randomScriptModes[i]);
+            builder.put("script" + "." + randomScriptTypes[i].name, randomScriptModes[i]);
         }
         this.scriptModes = new ScriptModes(scriptSettings, builder.build());
 

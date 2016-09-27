@@ -24,6 +24,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -60,10 +61,10 @@ public class ScriptFieldIT extends ESIntegTestCase {
 
         client().admin().indices().prepareFlush("test").execute().actionGet();
         SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
-                .addScriptField("int", new Script("int", Script.ScriptType.INLINE, "native", null))
-                .addScriptField("float", new Script("float", Script.ScriptType.INLINE, "native", null))
-                .addScriptField("double", new Script("double", Script.ScriptType.INLINE, "native", null))
-                .addScriptField("long", new Script("long", Script.ScriptType.INLINE, "native", null)).execute().actionGet();
+                .addScriptField("int", ScriptInput.create(Script.ScriptType.INLINE, "native", "int", null, null))
+                .addScriptField("float", ScriptInput.create(Script.ScriptType.INLINE, "native", "float", null, null))
+                .addScriptField("double", ScriptInput.create(Script.ScriptType.INLINE, "native","double", null, null))
+                .addScriptField("long", ScriptInput.create(Script.ScriptType.INLINE, "native","long", null, null)).execute().actionGet();
         assertThat(sr.getHits().hits().length, equalTo(6));
         for (SearchHit hit : sr.getHits().getHits()) {
             Object result = hit.getFields().get("int").getValues().get(0);

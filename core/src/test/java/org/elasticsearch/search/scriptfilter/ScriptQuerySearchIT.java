@@ -26,6 +26,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -103,9 +104,11 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
 
         logger.info("running doc['num1'].value > 1");
         SearchResponse response = client().prepareSearch()
-                .setQuery(scriptQuery(new Script("doc['num1'].value > 1", Script.ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                .setQuery(scriptQuery(ScriptInput.create(
+                    Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1", null, null)))
                 .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", new Script("doc['num1'].value", Script.ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("sNum1", ScriptInput.create(
+                    Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", null, null))
                 .get();
 
         assertThat(response.getHits().totalHits(), equalTo(2L));
@@ -120,9 +123,11 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
         logger.info("running doc['num1'].value > param1");
         response = client()
                 .prepareSearch()
-                .setQuery(scriptQuery(new Script("doc['num1'].value > param1", Script.ScriptType.INLINE, CustomScriptPlugin.NAME, params)))
+                .setQuery(scriptQuery(ScriptInput.create(
+                    Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > param1", null, params)))
                 .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", new Script("doc['num1'].value", Script.ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("sNum1", ScriptInput.create(
+                    Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", null, null))
                 .get();
 
         assertThat(response.getHits().totalHits(), equalTo(1L));
@@ -134,9 +139,11 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
         logger.info("running doc['num1'].value > param1");
         response = client()
                 .prepareSearch()
-                .setQuery(scriptQuery(new Script("doc['num1'].value > param1", Script.ScriptType.INLINE, CustomScriptPlugin.NAME, params)))
+                .setQuery(scriptQuery(ScriptInput.create(
+                    Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > param1", null, params)))
                 .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", new Script("doc['num1'].value", Script.ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .addScriptField("sNum1", ScriptInput.create(
+                    Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", null, null))
                 .get();
 
         assertThat(response.getHits().totalHits(), equalTo(3L));

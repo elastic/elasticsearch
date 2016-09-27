@@ -20,7 +20,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptMetaData.StoredScriptSource;
+import org.elasticsearch.script.Script.StoredScriptSource;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
@@ -51,7 +51,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
     public void testBasics() {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("foobar")
-                .setSource(new StoredScriptSource(null, LANG, "1")));
+                .setSource(new StoredScriptSource(false, null, LANG, "1", Collections.emptyMap())));
         StoredScriptSource source = client().admin().cluster().prepareGetStoredScript("foobar")
                 .get().getSource();
         assertNotNull(source);
@@ -67,7 +67,8 @@ public class StoredScriptsIT extends ESIntegTestCase {
     public void testMaxScriptSize() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
                 .setId("foobar")
-                .setSource(new StoredScriptSource(null, LANG, randomAsciiOfLength(SCRIPT_MAX_SIZE_IN_LENGTH + 1)))
+                .setSource(
+                    new StoredScriptSource(false, null, LANG, randomAsciiOfLength(SCRIPT_MAX_SIZE_IN_LENGTH + 1), Collections.emptyMap()))
                 .get()
         );
         assertEquals("Limit of script size in bytes [64] has been exceeded for script [foobar] with size [65]", e.getMessage());

@@ -67,12 +67,8 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     }
 
     public TemplateQueryBuilder(String template, ScriptType scriptType, Map<String, Object> params, XContentType ct) {
-        DEPRECATION_LOGGER.deprecated("[{}] query is deprecated, use search template api instead", NAME);
-
-        Map<String, String> options = new HashMap<>();
-        options.put(Script.CONTENT_TYPE_OPTION, ct.mediaType());
-
-        this.template = ScriptInput.create(scriptType, "mustache", template, options, params);
+        this(ScriptInput.create(
+            scriptType, "mustache", template, Collections.singletonMap(Script.CONTENT_TYPE_OPTION, ct.mediaType()), params));
     }
 
     TemplateQueryBuilder(ScriptInput template) {

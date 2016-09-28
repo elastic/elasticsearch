@@ -128,7 +128,7 @@ public class NumberFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testNoDocValues() throws Exception {
         for (String type : TYPES) {
-            doTestNotIndexed(type);
+            doTestNoDocValues(type);
         }
     }
 

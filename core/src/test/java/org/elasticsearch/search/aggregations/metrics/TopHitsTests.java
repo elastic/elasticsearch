@@ -147,7 +147,8 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
                     factory.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
                     break;
                 case 3:
-                    factory.sort(SortBuilders.scriptSort(ScriptInput.create("foo"), ScriptSortType.NUMBER).order(randomFrom(SortOrder.values())));
+                    factory.sort(SortBuilders.scriptSort(ScriptInput.create("foo"),
+                        ScriptSortType.NUMBER).order(randomFrom(SortOrder.values())));
                     break;
                 case 4:
                     factory.sort(randomAsciiOfLengthBetween(5, 20));

@@ -193,6 +193,9 @@ public final class ScriptMetaData implements MetaData.Custom {
                     throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "], expected one of [id, }]");
             }
         }
+
+        parser.nextToken();
+
         return new ScriptMetaData(scripts);
     }
 

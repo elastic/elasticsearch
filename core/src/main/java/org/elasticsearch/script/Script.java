@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -128,8 +129,9 @@ public final class Script {
         }
 
         private static final ConstructingObjectParser<StoredScriptSource, StoredScriptSourceParserContext> CONSTRUCTOR =
-            new ConstructingObjectParser<>("StoredScriptSource", source -> new StoredScriptSource(
-                false, (String)source[0], source[1] == null ? Script.DEFAULT_SCRIPT_LANG : (String)source[1], (String)source[2], null));
+            new ConstructingObjectParser<>("StoredScriptSource", source -> new StoredScriptSource(false,
+                (String)source[0], source[1] == null ? Script.DEFAULT_SCRIPT_LANG : (String)source[1],
+                (String)source[2], Collections.emptyMap()));
 
         static {
                 CONSTRUCTOR.declareString(optionalConstructorArg(), ScriptField.BIND);
@@ -152,11 +154,13 @@ public final class Script {
                     "unexpected token [" + parser.currentToken() + "], expected [<code>]");
             }
 
+            StoredScriptSource source;
+
             if (parser.currentToken() == Token.FIELD_NAME && ScriptField.SCRIPT.getPreferredName().equals(parser.currentName())) {
                 if (parser.nextToken() == Token.VALUE_STRING) {
                     return new StoredScriptSource(false, null, Script.DEFAULT_SCRIPT_LANG, parser.text(), Collections.emptyMap());
                 } else if (parser.currentToken() == Token.START_OBJECT) {
-                    return CONSTRUCTOR.apply(parser, new StoredScriptSourceParserContext());
+                    source = CONSTRUCTOR.apply(parser, new StoredScriptSourceParserContext());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                         "unexpected token [" + parser.currentToken() + "], expected [<code>]");
@@ -171,7 +175,7 @@ public final class Script {
                     Map<String, String> options = new HashMap<>();
                     options.put(CONTENT_TYPE_OPTION, parser.contentType().mediaType());
 
-                    return new StoredScriptSource(true, null, "mustache", builder.bytes().utf8ToString(), options);
+                    source = new StoredScriptSource(true, null, "mustache", builder.bytes().utf8ToString(), options);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                         "unexpected token [" + parser.currentToken() + "], expected [<template>]");
@@ -181,6 +185,12 @@ public final class Script {
                     "unexpected token [" + parser.currentToken() + "], " +
                         "expected [" + ScriptField.SCRIPT.getPreferredName() + ", " + ScriptField.TEMPLATE.getPreferredName() + "]");
             }
+
+            if (parser.currentToken() == Token.END_OBJECT) {
+                parser.nextToken();
+            }
+
+            return source;
         }
 
         public static StoredScriptSource staticReadFrom(StreamInput in) throws IOException {
@@ -206,9 +216,9 @@ public final class Script {
         public StoredScriptSource(boolean template, String binding, String lang, String code, Map<String, String> options) {
             this.template = template;
             this.binding = binding;
-            this.lang = lang;
-            this.code = code;
-            this.options = Collections.unmodifiableMap(options);
+            this.lang = Objects.requireNonNull(lang);
+            this.code = Objects.requireNonNull(code);
+            this.options = Collections.unmodifiableMap(Objects.requireNonNull(options));
         }
 
         @Override
@@ -383,7 +393,8 @@ public final class Script {
             }
 
             if (token == Token.VALUE_STRING) {
-                return new ScriptInput(new InlineScriptLookup(lang == null ? DEFAULT_SCRIPT_LANG : lang, parser.text(), null), null);
+                return new ScriptInput(
+                    new InlineScriptLookup(lang == null ? DEFAULT_SCRIPT_LANG : lang, parser.text(), Collections.emptyMap()), null);
             } else if (token != Token.START_OBJECT) {
                 throw new ParsingException(parser.getTokenLocation(),
                     "unexpected value [" + parser.text() + "], expected [{, <code>]");
@@ -547,7 +558,7 @@ public final class Script {
             } else if (type == STORED) {
                 lookup = StoredScriptLookup.readFrom(in);
             } else if (type == INLINE) {
-                lookup = StoredScriptLookup.readFrom(in);
+                lookup = InlineScriptLookup.readFrom(in);
             } else {
                 throw new IllegalArgumentException("unexpected script type [" + type.name + "], " +
                     "expected [" + FILE.name + ", " + STORED.name + "," + INLINE.name + "]");
@@ -562,15 +573,15 @@ public final class Script {
         public final Map<String, Object> params;
 
         private ScriptInput(ScriptLookup lookup, Map<String, Object> params) {
-            this.lookup = lookup;
-            this.params = params == null ? params : Collections.unmodifiableMap(params);
+            this.lookup = Objects.requireNonNull(lookup);
+            this.params = params == null ? null : Collections.unmodifiableMap(params);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             lookup.toXContent(builder, params);
-            builder.field(ScriptField.PARAMS.getPreferredName(), params);
+            builder.field(ScriptField.PARAMS.getPreferredName(), this.params);
             builder.endObject();
 
             return builder;
@@ -628,7 +639,7 @@ public final class Script {
         public final String id;
 
         private FileScriptLookup(String id) {
-            this.id = id;
+            this.id = Objects.requireNonNull(id);
         }
 
         @Override
@@ -701,7 +712,7 @@ public final class Script {
         public final String id;
 
         private StoredScriptLookup(String id) {
-            this.id = id;
+            this.id = Objects.requireNonNull(id);
         }
 
         @Override
@@ -784,9 +795,9 @@ public final class Script {
         public final Map<String, String> options;
 
         private InlineScriptLookup(String lang, String code, Map<String, String> options) {
-            this.lang = lang;
-            this.code = code;
-            this.options = Collections.unmodifiableMap(new HashMap<>(options));
+            this.lang = Objects.requireNonNull(lang);
+            this.code = Objects.requireNonNull(code);
+            this.options = Collections.unmodifiableMap(new HashMap<>(Objects.requireNonNull(options)));
         }
 
         @Override
@@ -876,8 +887,8 @@ public final class Script {
         Object compile(ScriptEngineService engine, String id, String code, Map<String, String> options);
     }
 
-    public final static class UnknownScriptBinding implements ScriptBinding {
-        public final static UnknownScriptBinding BINDING = new UnknownScriptBinding();
+    public static final class UnknownScriptBinding implements ScriptBinding {
+        public static final UnknownScriptBinding BINDING = new UnknownScriptBinding();
 
         private UnknownScriptBinding() {}
 
@@ -887,8 +898,8 @@ public final class Script {
         }
     }
 
-    public final static class ExecutableScriptBinding implements ScriptBinding {
-        public final static ExecutableScriptBinding BINDING = new ExecutableScriptBinding();
+    public static final class ExecutableScriptBinding implements ScriptBinding {
+        public static final ExecutableScriptBinding BINDING = new ExecutableScriptBinding();
 
         public static ExecutableScript bind(ScriptService service, ScriptContext context,
                                             ScriptLookup lookup, Map<String, Object> variables) {
@@ -909,8 +920,8 @@ public final class Script {
         }
     }
 
-    public final static class SearchScriptBinding implements ScriptBinding {
-        public final static SearchScriptBinding BINDING = new SearchScriptBinding();
+    public static final class SearchScriptBinding implements ScriptBinding {
+        public static final SearchScriptBinding BINDING = new SearchScriptBinding();
 
         public static SearchScript bind(ScriptService service, ScriptContext context, SearchLookup search,
                                         ScriptLookup lookup, Map<String, Object> variables) {

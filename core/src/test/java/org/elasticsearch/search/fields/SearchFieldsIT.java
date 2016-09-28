@@ -285,9 +285,12 @@ public class SearchFieldsIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", null, null))
-                .addScriptField("sNum1_field", ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields['num1'].value", null, null))
-                .addScriptField("date1", ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['date'].date.millis", null, null))
+                .addScriptField("sNum1",
+                    ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", null, null))
+                .addScriptField("sNum1_field",
+                    ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields['num1'].value", null, null))
+                .addScriptField("date1",
+                    ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['date'].date.millis", null, null))
                 .execute().actionGet();
 
         assertNoFailures(response);
@@ -321,7 +324,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
         response = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value * factor", null, params))
+                .addScriptField("sNum1",
+                    ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value * factor", null, params))
                 .get();
 
         assertThat(response.getHits().totalHits(), equalTo(3L));
@@ -357,7 +361,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
                 .setSize(numDocs)
-                .addScriptField("uid", ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._uid.value", null, null))
+                .addScriptField("uid",
+                    ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._uid.value", null, null))
                 .get();
 
         assertNoFailures(response);
@@ -375,7 +380,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
                 .setSize(numDocs)
-                .addScriptField("id", ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._id.value", null, null))
+                .addScriptField("id",
+                    ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._id.value", null, null))
                 .get();
 
         assertNoFailures(response);
@@ -393,7 +399,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
                 .setSize(numDocs)
-                .addScriptField("type", ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._type.value", null, null))
+                .addScriptField("type",
+                    ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._type.value", null, null))
                 .get();
 
         assertNoFailures(response);
@@ -411,9 +418,12 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
                 .setSize(numDocs)
-                .addScriptField("id", ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._id.value", null, null))
-                .addScriptField("uid", ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._uid.value", null, null))
-                .addScriptField("type", ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._type.value", null, null))
+                .addScriptField("id",
+                    ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._id.value", null, null))
+                .addScriptField("uid",
+                    ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._uid.value", null, null))
+                .addScriptField("type",
+                    ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._type.value", null, null))
                 .get();
 
         assertNoFailures(response);
@@ -444,11 +454,16 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("s_obj1", ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.obj1", null, null))
-                .addScriptField("s_obj1_test", ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.obj1.test", null, null))
-                .addScriptField("s_obj2", ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.obj2", null, null))
-                .addScriptField("s_obj2_arr2", ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.obj2.arr2", null, null))
-                .addScriptField("s_arr3", ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.arr3", null, null))
+                .addScriptField("s_obj1",
+                    ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.obj1", null, null))
+                .addScriptField("s_obj1_test",
+                    ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.obj1.test", null, null))
+                .addScriptField("s_obj2",
+                    ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.obj2", null, null))
+                .addScriptField("s_obj2_arr2",
+                    ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.obj2.arr2", null, null))
+                .addScriptField("s_arr3",
+                    ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.arr3", null, null))
                 .get();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -481,7 +496,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("test_script_1", ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "return null", null, null))
+                .addScriptField("test_script_1",
+                    ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "return null", null, null))
                 .get();
 
         assertNoFailures(response);
@@ -847,7 +863,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
         ensureSearchable();
         SearchRequestBuilder req = client().prepareSearch("index");
         for (String field : Arrays.asList("s", "ms", "l", "ml", "d", "md")) {
-            req.addScriptField(field, ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + field + "'].values", null, null));
+            req.addScriptField(field,
+                ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + field + "'].values", null, null));
         }
         SearchResponse resp = req.get();
         assertSearchResponse(resp);

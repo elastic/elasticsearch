@@ -160,7 +160,7 @@ public class ScriptMetaDataTests extends ESTestCase {
         for (int i = 0; i < numScripts; i++) {
             String id = randomAsciiOfLength(i + 1);
             String lang = randomAsciiOfLength(4);
-            String code = randomAsciiOfLength(between(50, 4000));
+            String code = randomAsciiOfLength(between(10, 30));
 
             scripts.put(id, new StoredScriptSource(false, null, lang, code, Collections.emptyMap()));
         }

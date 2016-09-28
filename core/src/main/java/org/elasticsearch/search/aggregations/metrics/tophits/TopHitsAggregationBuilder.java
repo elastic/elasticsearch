@@ -623,7 +623,8 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                                     currentFieldName = parser.currentName();
                                 } else if (token.isValue()) {
                                     if (context.getParseFieldMatcher().match(currentFieldName, SearchSourceBuilder.SCRIPT_FIELD)) {
-                                        script = ScriptInput.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                                        script =
+                                            ScriptInput.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                                     } else if (context.getParseFieldMatcher().match(currentFieldName,
                                             SearchSourceBuilder.IGNORE_FAILURE_FIELD)) {
                                         ignoreFailure = parser.booleanValue();
@@ -634,7 +635,8 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                                     }
                                 } else if (token == XContentParser.Token.START_OBJECT) {
                                     if (context.getParseFieldMatcher().match(currentFieldName, SearchSourceBuilder.SCRIPT_FIELD)) {
-                                        script = ScriptInput.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                                        script =
+                                            ScriptInput.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                                     } else {
                                         throw new ParsingException(parser.getTokenLocation(),
                                                 "Unknown key for a " + token + " in [" + currentFieldName + "].",

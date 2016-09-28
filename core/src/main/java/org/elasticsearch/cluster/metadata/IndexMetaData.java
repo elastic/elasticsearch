@@ -157,12 +157,20 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         }
     }
 
+    static {
+        final int maxNumShards = Integer.parseInt(System.getProperty("index.max_number_of_shards", "1024"));
+        if (maxNumShards < 1) {
+            throw new IllegalArgumentException("index.max_number_of_shards must be > 0");
+        }
+        MAX_NUMBER_OF_SHARDS = maxNumShards;
+    }
     /* This is a safety limit that should only be exceeded in very rare and special cases. The assumption is that
      * 99% of the users have less than 1024 shards per index. We also make it a hard check that requires restart of nodes
      * if a cluster should allow to create more than 1024 shards per index. NOTE: this does not limit the number of shards per cluster.
      * this also prevents creating stuff like a new index with millions of shards by accident which essentially kills the entire cluster
      * with OOM on the spot.*/
-    private static final int MAX_NUMBER_OF_SHARDS = Integer.parseInt(System.getProperty("index.max_number_of_shards", "1024"));
+    private static final int MAX_NUMBER_OF_SHARDS;
+
     public static final String INDEX_SETTING_PREFIX = "index.";
     public static final String SETTING_NUMBER_OF_SHARDS = "index.number_of_shards";
     public static final Setting<Integer> INDEX_NUMBER_OF_SHARDS_SETTING =

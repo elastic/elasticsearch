@@ -375,6 +375,11 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 builder.put(setting.getKey(), setting.getRaw(defaultSettings));
             }
         }
+        for (Setting<?> setting : complexMatchers.values()) {
+            if (setting.exists(source) == false) {
+                builder.put(setting.getKey(), setting.getRaw(defaultSettings));
+            }
+        }
         return builder.build();
     }
 

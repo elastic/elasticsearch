@@ -1377,7 +1377,6 @@ caching see <<modules-scripting-using-caching, Script Caching>>.
 [options="header"]
 |======
 | Name                   | Required  | Default | Description
-| `field`                | yes       | -       | The field to set
 | `lang`                 | no        | -       | The scripting language
 | `file`                 | no        | -       | The script file to refer to
 | `id`                   | no        | -       | The stored script id to refer to

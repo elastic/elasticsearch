@@ -102,8 +102,8 @@ import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.MetaDataUpgrader;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -122,6 +122,8 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -249,11 +251,10 @@ public class Node implements Closeable {
                     NODE_NAME_SETTING.get(tmpSettings), NODE_NAME_SETTING.getKey());
             }
 
-            final String displayVersion = Version.CURRENT + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
                 "version[{}], pid[{}], build[{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
-                displayVersion,
+                displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot()),
                 jvmInfo.pid(),
                 Build.CURRENT.shortHash(),
                 Build.CURRENT.date(),
@@ -264,7 +265,7 @@ public class Node implements Closeable {
                 Constants.JVM_NAME,
                 Constants.JAVA_VERSION,
                 Constants.JVM_VERSION);
-
+            warnIfPreRelease(Version.CURRENT, Build.CURRENT.isSnapshot(), logger);
 
             if (logger.isDebugEnabled()) {
                 logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
@@ -423,8 +424,26 @@ public class Node implements Closeable {
         }
     }
 
+    // visible for testing
+    static void warnIfPreRelease(final Version version, final boolean isSnapshot, final Logger logger) {
+        if (!version.isRelease() || isSnapshot) {
+            logger.warn(
+                "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
+                displayVersion(version, isSnapshot));
+        }
+    }
+
+    private static String displayVersion(final Version version, final boolean isSnapshot) {
+        return version + (isSnapshot ? "-SNAPSHOT" : "");
+    }
+
     protected NetworkModule createNetworkModule(Settings settings, NetworkService networkService) {
         return new NetworkModule(networkService, settings, false);
+    }
+
+    protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,
+                                                   TransportInterceptor interceptor) {
+        return new TransportService(settings, transport, threadPool, interceptor);
     }
 
     /**

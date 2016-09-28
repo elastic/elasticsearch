@@ -352,4 +352,9 @@ public class Version {
     public boolean isRC() {
         return build > 50 && build < 99;
     }
+
+    public boolean isRelease() {
+        return build == 99;
+    }
+
 }

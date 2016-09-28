@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 @TestLogging("index.shard:TRACE,index.seqno:TRACE")
 public class CheckpointsIT extends ESIntegTestCase {
 
+    @AwaitsFix(bugUrl = "boaz working om this.")
     public void testCheckpointsAdvance() throws Exception {
         prepareCreate("test").setSettings(
             "index.seq_no.checkpoint_sync_interval", "100ms", // update global point frequently

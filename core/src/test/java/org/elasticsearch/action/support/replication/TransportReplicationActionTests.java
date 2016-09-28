@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -656,12 +657,12 @@ public class TransportReplicationActionTests extends ESTestCase {
         setState(clusterService,
             state(index, true, ShardRoutingState.STARTED, randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED)));
         logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
+        final ShardRouting routingEntry = clusterService.state().getRoutingTable().index("test").shard(0).primaryShard();
         Request request = new Request(shardId);
         TransportReplicationAction.ConcreteShardRequest<Request> concreteShardRequest =
-            new TransportReplicationAction.ConcreteShardRequest<>(request, null);
+            new TransportReplicationAction.ConcreteShardRequest<>(request, routingEntry.allocationId().getId());
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        final ShardRouting routingEntry = clusterService.state().getRoutingTable().index("test").shard(0).primaryShard();
 
         final IndexShard shard = mock(IndexShard.class);
         long primaryTerm = clusterService.state().getMetaData().index(index).primaryTerm(0);
@@ -691,7 +692,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         primaryPhase.messageReceived(concreteShardRequest, createTransportChannel(listener), null);
         CapturingTransport.CapturedRequest[] requestsToReplicas = transport.capturedRequests();
         assertThat(requestsToReplicas, arrayWithSize(1));
-        assertThat(((Request) requestsToReplicas[0].request).primaryTerm(), equalTo(primaryTerm));
+        assertThat(((TransportReplicationAction.ConcreteShardRequest<Request>) requestsToReplicas[0].request).getRequest().primaryTerm(),
+            equalTo(primaryTerm));
     }
 
     public void testCounterOnPrimary() throws Exception {
@@ -916,9 +918,15 @@ public class TransportReplicationActionTests extends ESTestCase {
         final CapturingTransport.CapturedRequest capturedRequest = capturedRequests.get(0);
         assertThat(capturedRequest.action, equalTo("testActionWithExceptions[r]"));
         assertThat(capturedRequest.request, instanceOf(TransportReplicationAction.ConcreteShardRequest.class));
-        assertThat(((TransportReplicationAction.ConcreteShardRequest<?>) capturedRequest.request).getRequest(), equalTo(request));
-        assertThat(((TransportReplicationAction.ConcreteShardRequest<?>) capturedRequest.request).getTargetAllocationID(),
-            equalTo(replica.allocationId().getId()));
+        assertConcreteShardRequest(capturedRequest.request, request, replica.allocationId());
+    }
+
+    private void assertConcreteShardRequest(TransportRequest capturedRequest, Request expectedRequest, AllocationId expectedAllocationId) {
+        final TransportReplicationAction.ConcreteShardRequest<?> concreteShardRequest =
+            (TransportReplicationAction.ConcreteShardRequest<?>) capturedRequest;
+        assertThat(concreteShardRequest.getRequest(), equalTo(expectedRequest));
+        assertThat(concreteShardRequest.getTargetAllocationID(), equalTo(expectedAllocationId.getId()));
+
     }
 
 

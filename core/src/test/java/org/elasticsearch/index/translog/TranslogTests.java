@@ -298,8 +298,7 @@ public class TranslogTests extends ESTestCase {
         assertThat(stats.estimatedNumberOfOperations(), equalTo(0L));
         assertThat(stats.getTranslogSizeInBytes(), equalTo(firstOperationPosition));
         assertEquals(6, total.estimatedNumberOfOperations());
-        assertEquals(437, total.getTranslogSizeInBytes());
-        assertEquals(455, total.getTranslogSizeInBytes());
+        assertEquals(461, total.getTranslogSizeInBytes());
 
         BytesStreamOutput out = new BytesStreamOutput();
         total.writeTo(out);
@@ -307,13 +306,13 @@ public class TranslogTests extends ESTestCase {
         copy.readFrom(out.bytes().streamInput());
 
         assertEquals(6, copy.estimatedNumberOfOperations());
-        assertEquals(455, copy.getTranslogSizeInBytes());
+        assertEquals(461, copy.getTranslogSizeInBytes());
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
             copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            assertEquals("{\"translog\":{\"operations\":6,\"size_in_bytes\":455}}", builder.string());
+            assertEquals("{\"translog\":{\"operations\":6,\"size_in_bytes\":461}}", builder.string());
         }
 
         try {
@@ -1129,7 +1128,7 @@ public class TranslogTests extends ESTestCase {
         try (Translog translog = new Translog(config, translogGeneration)) {
             fail("corrupted");
         } catch (IllegalStateException ex) {
-            assertEquals(ex.getMessage(), "Checkpoint file translog-2.ckp already exists but has corrupted content expected: Checkpoint{offset=3123, numOps=55, translogFileGeneration= 2} but got: Checkpoint{offset=0, numOps=0, translogFileGeneration= 0}");
+            assertEquals(ex.getMessage(), "Checkpoint file translog-2.ckp already exists but has corrupted content expected: Checkpoint{offset=3178, numOps=55, translogFileGeneration= 2} but got: Checkpoint{offset=0, numOps=0, translogFileGeneration= 0}");
         }
         Checkpoint.write(FileChannel::open, config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)), read, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
         try (Translog translog = new Translog(config, translogGeneration)) {

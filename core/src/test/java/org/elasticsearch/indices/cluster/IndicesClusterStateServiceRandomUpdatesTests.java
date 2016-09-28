@@ -363,7 +363,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             null,
             null,
             null,
-            null);
+            shardId -> {});
     }
 
     private class RecordingIndicesService extends MockIndicesService {

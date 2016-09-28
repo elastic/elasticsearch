@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.SnapshotStatus;
 
 import java.util.LinkedList;
 
@@ -157,11 +156,14 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
     private FixedBitSet getBitSetForSeqNo(long seqNo) {
         assert Thread.holdsLock(this);
         assert seqNo >= firstProcessedSeqNo : "seqNo: " + seqNo + " firstProcessedSeqNo: " + firstProcessedSeqNo;
-        int bitSetOffset = ((int) (seqNo - firstProcessedSeqNo)) / bitArraysSize;
+        final long bitSetOffset = (seqNo - firstProcessedSeqNo) / bitArraysSize;
+        if (bitSetOffset > Integer.MAX_VALUE) {
+            throw new IndexOutOfBoundsException("seqNo too high. got [" + seqNo + "], firstProcessedSeqNo [" + firstProcessedSeqNo + "]");
+        }
         while (bitSetOffset >= processedSeqNo.size()) {
             processedSeqNo.add(new FixedBitSet(bitArraysSize));
         }
-        return processedSeqNo.get(bitSetOffset);
+        return processedSeqNo.get((int)bitSetOffset);
     }
 
     /** maps the given seqNo to a position in the bit set returned by {@link #getBitSetForSeqNo} */

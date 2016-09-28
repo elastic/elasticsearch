@@ -57,7 +57,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
@@ -447,7 +446,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
         if (shard.routingEntry().primary()) {
             index = shard.prepareIndexOnPrimary(
                 SourceToParse.source(SourceToParse.Origin.PRIMARY, shard.shardId().getIndexName(), type, id, new BytesArray(source)),
-                SequenceNumbersService.UNASSIGNED_SEQ_NO,
                 Versions.MATCH_ANY,
                 VersionType.INTERNAL,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
@@ -455,7 +453,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         } else {
             index = shard.prepareIndexOnReplica(
                 SourceToParse.source(SourceToParse.Origin.PRIMARY, shard.shardId().getIndexName(), type, id, new BytesArray(source)),
-                SequenceNumbersService.UNASSIGNED_SEQ_NO, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+                randomInt(1 << 10), 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         }
         shard.index(index);
         return index;

@@ -128,11 +128,11 @@ public class RestTable {
             for (int i = 0; i < columnOrdering.length; i++) {
                 String columnHeader = columnOrdering[i];
                 boolean reverse = false;
-                if (columnHeader.length() > 5 && columnHeader.endsWith(":desc")) {
-                    columnHeader = columnHeader.substring(0, columnHeader.length() - 5);
+                if (columnHeader.endsWith(":desc")) {
+                    columnHeader = columnHeader.substring(0, columnHeader.length() - ":desc".length());
                     reverse = true;
-                } else if (columnHeader.length() > 4 && columnHeader.endsWith(":asc")) {
-                    columnHeader = columnHeader.substring(0, columnHeader.length() - 4);
+                } else if (columnHeader.endsWith(":asc")) {
+                    columnHeader = columnHeader.substring(0, columnHeader.length() - ":asc".length());
                 }
                 if (headerAliasMap.containsKey(columnHeader)) {
                         ordering.add(new ColumnOrderElement(headerAliasMap.get(columnHeader), reverse));

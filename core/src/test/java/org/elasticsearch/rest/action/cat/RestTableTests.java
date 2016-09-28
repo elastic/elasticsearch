@@ -181,9 +181,10 @@ public class RestTableTests extends ESTestCase {
         table.endHeaders();
         RestTable.TableIndexComparator comparator = new RestTable.TableIndexComparator(table,
             Collections.singletonList(new RestTable.ColumnOrderElement("compare", false)));
-        expectThrows(AssertionError.class, () -> {
+        Error e = expectThrows(AssertionError.class, () -> {
             comparator.compare(0,1);
         });
+        assertEquals("Invalid comparison of indices (0, 1): Table has 0 rows.", e.getMessage());
     }
 
     public void testUnknownHeader() {
@@ -192,9 +193,8 @@ public class RestTableTests extends ESTestCase {
         table.addCell("compare");
         table.endHeaders();
         restRequest.params().put("s", "notaheader");
-        expectThrows(UnsupportedOperationException.class, () -> {
-            RestTable.getRowOrder(table, restRequest);
-        });
+        Exception e = expectThrows(UnsupportedOperationException.class, () -> RestTable.getRowOrder(table, restRequest));
+        assertEquals("Unable to sort by unknown sort key notaheader", e.getMessage());
     }
 
     public void testAliasSort() {

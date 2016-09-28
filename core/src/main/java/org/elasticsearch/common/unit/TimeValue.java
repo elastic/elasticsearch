@@ -375,8 +375,7 @@ public class TimeValue implements Writeable, Comparable<TimeValue> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        TimeValue timeValue = (TimeValue) o;
-        return nanos() == timeValue.nanos();
+        return this.compareTo(((TimeValue)o)) == 0;
     }
 
     @Override
@@ -391,14 +390,25 @@ public class TimeValue implements Writeable, Comparable<TimeValue> {
 
     @Override
     public int compareTo(TimeValue timeValue) {
-        long thisNanos = nanos();
-        long otherNanos = timeValue.nanos();
-        if (thisNanos < otherNanos) {
-            return -1;
-        } else if (thisNanos > otherNanos) {
-            return 1;
-        } else {
+        Byte thisByte = TIME_UNIT_BYTE_MAP.get(timeUnit);
+        Byte otherByte = TIME_UNIT_BYTE_MAP.get(timeValue.timeUnit);
+        TimeUnit minUnit = BYTE_TIME_UNIT_MAP.get(thisByte > otherByte ? thisByte : otherByte);
+        long thisDuration = minUnit.convert(duration, timeUnit);
+        long otherDuration = minUnit.convert(timeValue.duration, timeValue.timeUnit);
+
+        if (thisDuration == otherDuration) {
+            if (thisDuration == Long.MAX_VALUE || thisDuration == Long.MIN_VALUE) {
+                if (thisByte > otherByte) {
+                    return 1;
+                } else if (thisByte < otherByte) {
+                    return -1;
+                }
+            }
             return 0;
+        } else if (thisDuration < otherDuration) {
+            return -1;
+        } else {
+            return 1;
         }
     }
 }

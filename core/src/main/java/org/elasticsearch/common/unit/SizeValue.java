@@ -142,6 +142,25 @@ public class SizeValue implements Writeable, Comparable<SizeValue> {
         return petaFrac();
     }
 
+    public long convert(SizeUnit unit) {
+        switch (unit) {
+            case SINGLE:
+                return singles();
+            case KILO:
+                return kilo();
+            case MEGA:
+                return mega();
+            case GIGA:
+                return giga();
+            case TERA:
+                return tera();
+            case PETA:
+                return peta();
+            default:
+                throw new UnsupportedOperationException("Unsupported SizeUnit: " + unit.toString());
+        }
+    }
+
     @Override
     public String toString() {
         long singles = singles();
@@ -201,9 +220,7 @@ public class SizeValue implements Writeable, Comparable<SizeValue> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        SizeValue sizeValue = (SizeValue) o;
-
-        return singles() == sizeValue.singles();
+        return compareTo((SizeValue)o) == 0;
     }
 
     @Override
@@ -215,15 +232,26 @@ public class SizeValue implements Writeable, Comparable<SizeValue> {
 
     @Override
     public int compareTo(SizeValue other) {
-        long thisSingles = singles();
-        long otherSingles = other.singles();
+        long unitSize = sizeUnit.toSingles(1);
+        long otherUnitSize = other.sizeUnit.toSingles(1);
 
-        if (thisSingles < otherSingles) {
-            return -1;
-        } else if (thisSingles > otherSingles) {
-            return 1;
-        } else {
+        SizeUnit minUnit = unitSize < otherUnitSize ? sizeUnit : other.sizeUnit;
+        long thisSize = this.convert(minUnit);
+        long otherSize = other.convert(minUnit);
+
+        if (thisSize == otherSize) {
+            if (thisSize == Long.MAX_VALUE || thisSize == Long.MIN_VALUE) {
+                if (unitSize < otherUnitSize) {
+                    return -1;
+                } else if (unitSize > otherUnitSize) {
+                    return 1;
+                }
+            }
             return 0;
+        } else if (thisSize < otherSize) {
+            return -1;
+        } else {
+            return 1;
         }
     }
 }

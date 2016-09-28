@@ -104,9 +104,9 @@ import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -255,11 +255,10 @@ public class Node implements Closeable {
                     NODE_NAME_SETTING.get(tmpSettings), NODE_NAME_SETTING.getKey());
             }
 
-            final String displayVersion = Version.CURRENT + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
                 "version[{}], pid[{}], build[{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
-                displayVersion,
+                displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot()),
                 jvmInfo.pid(),
                 Build.CURRENT.shortHash(),
                 Build.CURRENT.date(),
@@ -270,7 +269,7 @@ public class Node implements Closeable {
                 Constants.JVM_NAME,
                 Constants.JAVA_VERSION,
                 Constants.JVM_VERSION);
-
+            warnIfPreRelease(Version.CURRENT, Build.CURRENT.isSnapshot(), logger);
 
             if (logger.isDebugEnabled()) {
                 logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
@@ -443,6 +442,19 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
+    }
+
+    // visible for testing
+    static void warnIfPreRelease(final Version version, final boolean isSnapshot, final Logger logger) {
+        if (!version.isRelease() || isSnapshot) {
+            logger.warn(
+                "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
+                displayVersion(version, isSnapshot));
+        }
+    }
+
+    private static String displayVersion(final Version version, final boolean isSnapshot) {
+        return version + (isSnapshot ? "-SNAPSHOT" : "");
     }
 
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,

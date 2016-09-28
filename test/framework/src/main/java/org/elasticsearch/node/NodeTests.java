@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.node;
 
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +32,10 @@ import java.nio.file.Path;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class NodeTests extends ESTestCase {
 
@@ -55,4 +61,29 @@ public class NodeTests extends ESTestCase {
             }
         }
     }
+
+    public void testWarnIfPreRelease() {
+        final Logger logger = mock(Logger.class);
+
+        final int id = randomIntBetween(1, 9) * 1000000;
+        final Version releaseVersion = Version.fromId(id + 99);
+        final Version preReleaseVersion = Version.fromId(id + randomIntBetween(0, 98));
+
+        Node.warnIfPreRelease(releaseVersion, false, logger);
+        verifyNoMoreInteractions(logger);
+
+        reset(logger);
+        Node.warnIfPreRelease(releaseVersion, true, logger);
+        verify(logger).warn(
+            "version [{}] is a pre-release version of Elasticsearch and is not suitable for production", releaseVersion + "-SNAPSHOT");
+
+        reset(logger);
+        final boolean isSnapshot = randomBoolean();
+        Node.warnIfPreRelease(preReleaseVersion, isSnapshot, logger);
+        verify(logger).warn(
+            "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
+            preReleaseVersion + (isSnapshot ? "-SNAPSHOT" : ""));
+
+    }
+
 }

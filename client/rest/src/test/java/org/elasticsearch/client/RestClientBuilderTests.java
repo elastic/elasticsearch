@@ -19,16 +19,18 @@
 
 package org.elasticsearch.client;
 
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
-import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.message.BasicHeader;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 public class RestClientBuilderTests extends RestClientTestCase {
@@ -37,8 +39,8 @@ public class RestClientBuilderTests extends RestClientTestCase {
         try {
             RestClient.builder((HttpHost[])null);
             fail("should have failed");
-        } catch(IllegalArgumentException e) {
-            assertEquals("no hosts provided", e.getMessage());
+        } catch(NullPointerException e) {
+            assertEquals("hosts must not be null", e.getMessage());
         }
 
         try {
@@ -49,15 +51,19 @@ public class RestClientBuilderTests extends RestClientTestCase {
         }
 
         try {
-            RestClient.builder(new HttpHost[]{new HttpHost("localhost", 9200), null}).build();
+            RestClient.builder(new HttpHost("localhost", 9200), null);
             fail("should have failed");
         } catch(NullPointerException e) {
             assertEquals("host cannot be null", e.getMessage());
         }
 
+        try (RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
+            assertNotNull(restClient);
+        }
+
         try {
             RestClient.builder(new HttpHost("localhost", 9200))
-                    .setMaxRetryTimeoutMillis(RandomInts.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0));
+                    .setMaxRetryTimeoutMillis(randomIntBetween(Integer.MIN_VALUE, 0));
             fail("should have failed");
         } catch(IllegalArgumentException e) {
             assertEquals("maxRetryTimeoutMillis must be greater than 0", e.getMessage());
@@ -67,7 +73,7 @@ public class RestClientBuilderTests extends RestClientTestCase {
             RestClient.builder(new HttpHost("localhost", 9200)).setDefaultHeaders(null);
             fail("should have failed");
         } catch(NullPointerException e) {
-            assertEquals("default headers must not be null", e.getMessage());
+            assertEquals("defaultHeaders must not be null", e.getMessage());
         }
 
         try {
@@ -81,31 +87,94 @@ public class RestClientBuilderTests extends RestClientTestCase {
             RestClient.builder(new HttpHost("localhost", 9200)).setFailureListener(null);
             fail("should have failed");
         } catch(NullPointerException e) {
-            assertEquals("failure listener must not be null", e.getMessage());
+            assertEquals("failureListener must not be null", e.getMessage());
         }
 
-        int numNodes = RandomInts.randomIntBetween(getRandom(), 1, 5);
+        try {
+            RestClient.builder(new HttpHost("localhost", 9200)).setHttpClientConfigCallback(null);
+            fail("should have failed");
+        } catch(NullPointerException e) {
+            assertEquals("httpClientConfigCallback must not be null", e.getMessage());
+        }
+
+        try {
+            RestClient.builder(new HttpHost("localhost", 9200)).setRequestConfigCallback(null);
+            fail("should have failed");
+        } catch(NullPointerException e) {
+            assertEquals("requestConfigCallback must not be null", e.getMessage());
+        }
+
+        int numNodes = randomIntBetween(1, 5);
         HttpHost[] hosts = new HttpHost[numNodes];
         for (int i = 0; i < numNodes; i++) {
             hosts[i] = new HttpHost("localhost", 9200 + i);
         }
-        RestClient.Builder builder = RestClient.builder(hosts);
-        if (getRandom().nextBoolean()) {
-            builder.setHttpClient(HttpClientBuilder.create().build());
+        RestClientBuilder builder = RestClient.builder(hosts);
+        if (randomBoolean()) {
+            builder.setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
+                @Override
+                public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+                    return httpClientBuilder;
+                }
+            });
         }
-        if (getRandom().nextBoolean()) {
-            int numHeaders = RandomInts.randomIntBetween(getRandom(), 1, 5);
+        if (randomBoolean()) {
+            builder.setRequestConfigCallback(new RestClientBuilder.RequestConfigCallback() {
+                @Override
+                public RequestConfig.Builder customizeRequestConfig(RequestConfig.Builder requestConfigBuilder) {
+                    return requestConfigBuilder;
+                }
+            });
+        }
+        if (randomBoolean()) {
+            int numHeaders = randomIntBetween(1, 5);
             Header[] headers = new Header[numHeaders];
             for (int i = 0; i < numHeaders; i++) {
                 headers[i] = new BasicHeader("header" + i, "value");
             }
             builder.setDefaultHeaders(headers);
         }
-        if (getRandom().nextBoolean()) {
-            builder.setMaxRetryTimeoutMillis(RandomInts.randomIntBetween(getRandom(), 1, Integer.MAX_VALUE));
+        if (randomBoolean()) {
+            builder.setMaxRetryTimeoutMillis(randomIntBetween(1, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            String pathPrefix = (randomBoolean() ? "/" : "") + randomAsciiOfLengthBetween(2, 5);
+            while (pathPrefix.length() < 20 && randomBoolean()) {
+                pathPrefix += "/" + randomAsciiOfLengthBetween(3, 6);
+            }
+            builder.setPathPrefix(pathPrefix + (randomBoolean() ? "/" : ""));
         }
         try (RestClient restClient = builder.build()) {
             assertNotNull(restClient);
         }
     }
+
+    public void testSetPathPrefixNull() {
+        try {
+            RestClient.builder(new HttpHost("localhost", 9200)).setPathPrefix(null);
+            fail("pathPrefix set to null should fail!");
+        } catch (final NullPointerException e) {
+            assertEquals("pathPrefix must not be null", e.getMessage());
+        }
+    }
+
+    public void testSetPathPrefixEmpty() {
+        assertSetPathPrefixThrows("/");
+        assertSetPathPrefixThrows("");
+    }
+
+    public void testSetPathPrefixMalformed() {
+        assertSetPathPrefixThrows("//");
+        assertSetPathPrefixThrows("base/path//");
+    }
+
+    private static void assertSetPathPrefixThrows(final String pathPrefix) {
+        try {
+            RestClient.builder(new HttpHost("localhost", 9200)).setPathPrefix(pathPrefix);
+            fail("path prefix [" + pathPrefix + "] should have failed");
+        } catch (final IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString(pathPrefix));
+        }
+    }
+
 }

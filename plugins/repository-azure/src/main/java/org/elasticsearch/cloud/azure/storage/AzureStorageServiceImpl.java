@@ -27,14 +27,14 @@ import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
 import com.microsoft.azure.storage.blob.CloudBlockBlob;
 import com.microsoft.azure.storage.blob.ListBlobItem;
-import org.elasticsearch.ElasticsearchException;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryException;
 
@@ -45,15 +45,13 @@ import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class AzureStorageServiceImpl extends AbstractLifecycleComponent
-    implements AzureStorageService {
+public class AzureStorageServiceImpl extends AbstractComponent implements AzureStorageService {
 
     final AzureStorageSettings primaryStorageSettings;
     final Map<String, AzureStorageSettings> secondariesStorageSettings;
 
     final Map<String, CloudBlobClient> clients;
 
-    @Inject
     public AzureStorageServiceImpl(Settings settings) {
         super(settings);
 
@@ -62,6 +60,20 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent
         this.secondariesStorageSettings = storageSettings.v2();
 
         this.clients = new HashMap<>();
+
+        logger.debug("starting azure storage client instance");
+
+        // We register the primary client if any
+        if (primaryStorageSettings != null) {
+            logger.debug("registering primary client for account [{}]", primaryStorageSettings.getAccount());
+            createClient(primaryStorageSettings);
+        }
+
+        // We register all secondary clients
+        for (Map.Entry<String, AzureStorageSettings> azureStorageSettingsEntry : secondariesStorageSettings.entrySet()) {
+            logger.debug("registering secondary client for account [{}]", azureStorageSettingsEntry.getKey());
+            createClient(azureStorageSettingsEntry.getValue());
+        }
     }
 
     void createClient(AzureStorageSettings azureStorageSettings) {
@@ -150,13 +162,6 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent
     public void removeContainer(String account, LocationMode mode, String container) throws URISyntaxException, StorageException {
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-        // TODO Should we set some timeout and retry options?
-        /*
-        BlobRequestOptions options = new BlobRequestOptions();
-        options.setTimeoutIntervalInMs(1000);
-        options.setRetryPolicyFactory(new RetryNoRetry());
-        blobContainer.deleteIfExists(options, null);
-        */
         logger.trace("removing container [{}]", container);
         blobContainer.deleteIfExists();
     }
@@ -169,7 +174,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent
             logger.trace("creating container [{}]", container);
             blobContainer.createIfNotExists();
         } catch (IllegalArgumentException e) {
-            logger.trace("fails creating container [{}]", e, container);
+            logger.trace((Supplier<?>) () -> new ParameterizedMessage("fails creating container [{}]", container), e);
             throw new RepositoryException(container, e.getMessage());
         }
     }
@@ -301,33 +306,5 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent
             blobSource.delete();
             logger.debug("moveBlob container [{}], sourceBlob [{}], targetBlob [{}] -> done", container, sourceBlob, targetBlob);
         }
-    }
-
-    @Override
-    protected void doStart() throws ElasticsearchException {
-        logger.debug("starting azure storage client instance");
-
-        // We register the primary client if any
-        if (primaryStorageSettings != null) {
-            logger.debug("registering primary client for account [{}]", primaryStorageSettings.getAccount());
-            createClient(primaryStorageSettings);
-        }
-
-        // We register all secondary clients
-        for (Map.Entry<String, AzureStorageSettings> azureStorageSettingsEntry : secondariesStorageSettings.entrySet()) {
-            logger.debug("registering secondary client for account [{}]", azureStorageSettingsEntry.getKey());
-            createClient(azureStorageSettingsEntry.getValue());
-        }
-    }
-
-    @Override
-    protected void doStop() throws ElasticsearchException {
-        logger.debug("stopping azure storage client instance");
-        // We should stop all clients but it does sound like CloudBlobClient has
-        // any shutdown method...
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
     }
 }

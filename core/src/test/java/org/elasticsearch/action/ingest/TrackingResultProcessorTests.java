@@ -39,6 +39,7 @@ import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_PROCESSOR_TY
 import static org.elasticsearch.action.ingest.TrackingResultProcessor.decorate;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class TrackingResultProcessorTests extends ESTestCase {
 
@@ -110,7 +111,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         assertThat(resultList.get(0).getFailure(), equalTo(exception));
         assertThat(resultList.get(0).getProcessorTag(), equalTo(expectedFailResult.getProcessorTag()));
 
-        Map<String, String> metadata = resultList.get(1).getIngestDocument().getIngestMetadata();
+        Map<String, Object> metadata = resultList.get(1).getIngestDocument().getIngestMetadata();
         assertThat(metadata.get(ON_FAILURE_MESSAGE_FIELD), equalTo("fail"));
         assertThat(metadata.get(ON_FAILURE_PROCESSOR_TYPE_FIELD), equalTo("test"));
         assertThat(metadata.get(ON_FAILURE_PROCESSOR_TAG_FIELD), equalTo("fail"));
@@ -142,7 +143,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         assertThat(testProcessor.getInvokedCounter(), equalTo(1));
         assertThat(resultList.size(), equalTo(1));
         assertThat(resultList.get(0).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
-        assertThat(resultList.get(0).getFailure(), nullValue());
+        assertThat(resultList.get(0).getFailure(), sameInstance(exception));
         assertThat(resultList.get(0).getProcessorTag(), equalTo(expectedResult.getProcessorTag()));
     }
 }

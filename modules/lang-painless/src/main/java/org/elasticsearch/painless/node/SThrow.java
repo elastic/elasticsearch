@@ -21,8 +21,8 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Objects;
@@ -33,14 +33,14 @@ import java.util.Set;
  */
 public final class SThrow extends AStatement {
 
-    AExpression expression;
+    private AExpression expression;
 
     public SThrow(Location location, AExpression expression) {
         super(location);
 
         this.expression = Objects.requireNonNull(expression);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         expression.extractVariables(variables);

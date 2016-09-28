@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.reindex.RestReindexAction.ReindexParseContext;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -41,10 +42,16 @@ public class RestReindexActionTests extends ESTestCase {
     }
 
     public void testBuildRemoteInfoFullyLoaded() throws IOException {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("first", "a");
+        headers.put("second", "b");
+        headers.put("third", "");
+
         Map<String, Object> remote = new HashMap<>();
         remote.put("host", "https://example.com:9200");
         remote.put("username", "testuser");
         remote.put("password", "testpass");
+        remote.put("headers", headers);
 
         Map<String, Object> query = new HashMap<>();
         query.put("a", "b");
@@ -60,6 +67,7 @@ public class RestReindexActionTests extends ESTestCase {
         assertEquals("{\n  \"a\" : \"b\"\n}", remoteInfo.getQuery().utf8ToString());
         assertEquals("testuser", remoteInfo.getUsername());
         assertEquals("testpass", remoteInfo.getPassword());
+        assertEquals(headers, remoteInfo.getHeaders());
     }
 
     public void testBuildRemoteInfoWithoutAllParts() throws IOException {
@@ -102,8 +110,8 @@ public class RestReindexActionTests extends ESTestCase {
         }
         try (XContentParser p = JsonXContent.jsonXContent.createParser(request)) {
             ReindexRequest r = new ReindexRequest(new SearchRequest(), new IndexRequest());
-            RestReindexAction.PARSER.parse(p, r,
-                    new ReindexParseContext(new IndicesQueriesRegistry(), null, null, ParseFieldMatcher.STRICT));
+            SearchRequestParsers searchParsers = new SearchRequestParsers(new IndicesQueriesRegistry(), null, null, null);
+            RestReindexAction.PARSER.parse(p, r, new ReindexParseContext(searchParsers, ParseFieldMatcher.STRICT));
             assertEquals("localhost", r.getRemoteInfo().getHost());
             assertArrayEquals(new String[] {"source"}, r.getSearchRequest().indices());
         }

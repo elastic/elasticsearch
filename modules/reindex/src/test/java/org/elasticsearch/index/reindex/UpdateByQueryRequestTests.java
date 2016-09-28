@@ -19,31 +19,43 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.List;
-
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
-import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class UpdateByQueryRequestTests extends ESTestCase {
-    public void testUpdateByQueryRequestImplementsCompositeIndicesRequestWithDummies() {
+    public void testUpdateByQueryRequestImplementsIndicesRequestReplaceable() {
         int numIndices = between(1, 100);
         String[] indices = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {
             indices[i] = randomSimpleString(random(), 1, 30);
         }
-        UpdateByQueryRequest request = new UpdateByQueryRequest(new SearchRequest(indices));
-        List<? extends IndicesRequest> subRequests = request.subRequests();
-        assertThat(subRequests, hasSize(numIndices + 1));
+
+        SearchRequest searchRequest = new SearchRequest(indices);
+        IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+        searchRequest.indicesOptions(indicesOptions);
+
+        UpdateByQueryRequest request = new UpdateByQueryRequest(searchRequest);
         for (int i = 0; i < numIndices; i++) {
-            assertThat(subRequests.get(i).indices(), arrayWithSize(1));
-            assertEquals(indices[i], subRequests.get(i).indices()[0]);
+            assertEquals(indices[i], request.indices()[i]);
         }
-        assertThat(subRequests.get(numIndices), sameInstance(request.getSearchRequest()));
+
+        assertSame(indicesOptions, request.indicesOptions());
+        assertSame(request.indicesOptions(), request.getSearchRequest().indicesOptions());
+
+        int numNewIndices = between(1, 100);
+        String[] newIndices = new String[numNewIndices];
+        for (int i = 0; i < numNewIndices; i++) {
+            newIndices[i] = randomSimpleString(random(), 1, 30);
+        }
+        request.indices(newIndices);
+        for (int i = 0; i < numNewIndices; i++) {;
+            assertEquals(newIndices[i], request.indices()[i]);
+        }
+        for (int i = 0; i < numNewIndices; i++) {;
+            assertEquals(newIndices[i], request.getSearchRequest().indices()[i]);
+        }
     }
 }

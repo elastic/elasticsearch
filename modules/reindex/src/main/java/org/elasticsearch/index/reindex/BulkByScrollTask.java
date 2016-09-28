@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -49,7 +49,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
  * Task storing information about a currently running BulkByScroll request.
  */
 public class BulkByScrollTask extends CancellableTask {
-    private static final ESLogger logger = ESLoggerFactory.getLogger(BulkByScrollTask.class.getPackage().getName());
+    private static final Logger logger = ESLoggerFactory.getLogger(BulkByScrollTask.class.getPackage().getName());
 
     /**
      * The total number of documents this request will process. 0 means we don't yet know or, possibly, there are actually 0 documents
@@ -217,7 +217,7 @@ public class BulkByScrollTask extends CancellableTask {
             }
             builder.endObject();
             builder.timeValueField("throttled_millis", "throttled", throttled);
-            builder.field("requests_per_second", requestsPerSecond == Float.POSITIVE_INFINITY ? "unlimited" : requestsPerSecond);
+            builder.field("requests_per_second", requestsPerSecond == Float.POSITIVE_INFINITY ? -1 : requestsPerSecond);
             if (reasonCancelled != null) {
                 builder.field("canceled", reasonCancelled);
             }
@@ -324,7 +324,7 @@ public class BulkByScrollTask extends CancellableTask {
         }
 
         /**
-         * The number of requests per second to which to throttle the request. 0 means unlimited.
+         * The number of requests per second to which to throttle the request. Float.POSITIVE_INFINITY means unlimited.
          */
         public float getRequestsPerSecond() {
             return requestsPerSecond;

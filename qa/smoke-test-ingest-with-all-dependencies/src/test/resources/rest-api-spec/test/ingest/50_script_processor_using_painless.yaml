@@ -1,5 +1,5 @@
 ---
-"Test script processor with inline script":
+"Test script processor with inline script and params":
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -9,9 +9,11 @@
             "processors": [
               {
                 "script" : {
-                  "field" : "bytes_total",
                   "lang" : "painless",
-                  "inline": "return ctx.bytes_in + ctx.bytes_out"
+                  "inline": "ctx.bytes_total = (ctx.bytes_in + ctx.bytes_out) * params.factor",
+                  "params": {
+                     "factor": 10
+                  }
                 }
               }
             ]
@@ -33,7 +35,7 @@
         id: 1
   - match: { _source.bytes_in: 1234 }
   - match: { _source.bytes_out: 4321 }
-  - match: { _source.bytes_total: 5555 }
+  - match: { _source.bytes_total: 55550 }
 
 ---
 "Test script processor with file script":
@@ -46,7 +48,6 @@
             "processors": [
               {
                 "script" : {
-                  "field" : "bytes_total",
                   "lang" : "painless",
                   "file": "master"
                 }
@@ -80,7 +81,7 @@
         lang: "painless"
         body: >
           {
-            "script" : "return ctx.bytes_in + ctx.bytes_out"
+            "script" : "ctx.bytes_total = ctx.bytes_in + ctx.bytes_out"
           }
   - match: { acknowledged: true }
 
@@ -93,7 +94,6 @@
             "processors": [
               {
                 "script" : {
-                  "field" : "bytes_total",
                   "lang" : "painless",
                   "id" : "sum_bytes"
                 }

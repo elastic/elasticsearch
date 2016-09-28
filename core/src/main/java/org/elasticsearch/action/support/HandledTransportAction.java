@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.support;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -59,7 +60,7 @@ public abstract class HandledTransportAction<Request extends ActionRequest<Reque
 
         @Override
         public final void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
-            // We already got the task created on the netty layer - no need to create it again on the transport layer
+            // We already got the task created on the network layer - no need to create it again on the transport layer
             execute(task, request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {
@@ -75,8 +76,13 @@ public abstract class HandledTransportAction<Request extends ActionRequest<Reque
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [{}] and request [{}]", e1,
-                                actionName, request);
+                        logger.warn(
+                            (org.apache.logging.log4j.util.Supplier<?>)
+                                () -> new ParameterizedMessage(
+                                    "Failed to send error response for action [{}] and request [{}]",
+                                    actionName,
+                                    request),
+                            e1);
                     }
                 }
             });

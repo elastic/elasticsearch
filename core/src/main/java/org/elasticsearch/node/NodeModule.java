@@ -19,29 +19,19 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.ingest.ProcessorsRegistry;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.service.NodeService;
 
-import java.util.function.Function;
-
-/**
- *
- */
 public class NodeModule extends AbstractModule {
 
     private final Node node;
     private final MonitorService monitorService;
-    private final ProcessorsRegistry.Builder processorsRegistryBuilder;
 
     public NodeModule(Node node, MonitorService monitorService) {
         this.node = node;
         this.monitorService = monitorService;
-        this.processorsRegistryBuilder = new ProcessorsRegistry.Builder();
     }
 
     @Override
@@ -49,20 +39,6 @@ public class NodeModule extends AbstractModule {
         bind(Node.class).toInstance(node);
         bind(MonitorService.class).toInstance(monitorService);
         bind(NodeService.class).asEagerSingleton();
-        bind(ProcessorsRegistry.Builder.class).toInstance(processorsRegistryBuilder);
-    }
-
-    /**
-     * Returns the node
-     */
-    public Node getNode() {
-        return node;
-    }
-
-    /**
-     * Adds a processor factory under a specific type name.
-     */
-    public void registerProcessor(String type, Function<ProcessorsRegistry, Processor.Factory> provider) {
-        processorsRegistryBuilder.registerProcessor(type, provider);
+        bind(DiskThresholdMonitor.class).asEagerSingleton();
     }
 }

@@ -20,7 +20,10 @@
 package org.elasticsearch.cluster.health;
 
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -43,16 +46,12 @@ public final class ClusterShardHealth implements Writeable {
         int computeRelocatingShards = 0;
         int computeInitializingShards = 0;
         int computeUnassignedShards = 0;
-        boolean computePrimaryActive = false;
         for (ShardRouting shardRouting : shardRoutingTable) {
             if (shardRouting.active()) {
                 computeActiveShards++;
                 if (shardRouting.relocating()) {
                     // the shard is relocating, the one it is relocating to will be in initializing state, so we don't count it
                     computeRelocatingShards++;
-                }
-                if (shardRouting.primary()) {
-                    computePrimaryActive = true;
                 }
             } else if (shardRouting.initializing()) {
                 computeInitializingShards++;
@@ -61,21 +60,22 @@ public final class ClusterShardHealth implements Writeable {
             }
         }
         ClusterHealthStatus computeStatus;
-        if (computePrimaryActive) {
+        final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
+        if (primaryRouting.active()) {
             if (computeActiveShards == shardRoutingTable.size()) {
                 computeStatus = ClusterHealthStatus.GREEN;
             } else {
                 computeStatus = ClusterHealthStatus.YELLOW;
             }
         } else {
-            computeStatus = ClusterHealthStatus.RED;
+            computeStatus = getInactivePrimaryHealth(primaryRouting);
         }
         this.status = computeStatus;
         this.activeShards = computeActiveShards;
         this.relocatingShards = computeRelocatingShards;
         this.initializingShards = computeInitializingShards;
         this.unassignedShards = computeUnassignedShards;
-        this.primaryActive = computePrimaryActive;
+        this.primaryActive = primaryRouting.active();
     }
 
     public ClusterShardHealth(final StreamInput in) throws IOException {
@@ -126,4 +126,33 @@ public final class ClusterShardHealth implements Writeable {
         out.writeVInt(unassignedShards);
         out.writeBoolean(primaryActive);
     }
+
+    /**
+     * Checks if an inactive primary shard should cause the cluster health to go RED.
+     *
+     * An inactive primary shard in an index should cause the cluster health to be RED to make it visible that some of the existing data is
+     * unavailable. In case of index creation, snapshot restore or index shrinking, which are unexceptional events in the cluster lifecycle,
+     * cluster health should not turn RED for the time where primaries are still in the initializing state but go to YELLOW instead.
+     * However, in case of exceptional events, for example when the primary shard cannot be assigned to a node or initialization fails at
+     * some point, cluster health should still turn RED.
+     *
+     * NB: this method should *not* be called on active shards nor on non-primary shards.
+     */
+    public static ClusterHealthStatus getInactivePrimaryHealth(final ShardRouting shardRouting) {
+        assert shardRouting.primary() : "cannot invoke on a replica shard: " + shardRouting;
+        assert shardRouting.active() == false : "cannot invoke on an active shard: " + shardRouting;
+        assert shardRouting.unassignedInfo() != null : "cannot invoke on a shard with no UnassignedInfo: " + shardRouting;
+        assert shardRouting.recoverySource() != null : "cannot invoke on a shard that has no recovery source" + shardRouting;
+        final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
+        RecoverySource.Type recoveryType = shardRouting.recoverySource().getType();
+        if (unassignedInfo.getLastAllocationStatus() != AllocationStatus.DECIDERS_NO && unassignedInfo.getNumFailedAllocations() == 0
+                && (recoveryType == RecoverySource.Type.EMPTY_STORE
+                    || recoveryType == RecoverySource.Type.LOCAL_SHARDS
+                    || recoveryType == RecoverySource.Type.SNAPSHOT)) {
+            return ClusterHealthStatus.YELLOW;
+        } else {
+            return ClusterHealthStatus.RED;
+        }
+    }
+
 }

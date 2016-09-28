@@ -22,15 +22,13 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.mapper.object.RootObjectMapper;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
@@ -45,7 +43,7 @@ import static java.util.Collections.unmodifiableMap;
 public class DocumentMapperParser {
 
     final MapperService mapperService;
-    final AnalysisService analysisService;
+    final IndexAnalyzers indexAnalyzers;
     private final SimilarityService similarityService;
     private final Supplier<QueryShardContext> queryShardContextSupplier;
 
@@ -57,12 +55,12 @@ public class DocumentMapperParser {
     private final Map<String, Mapper.TypeParser> typeParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> rootTypeParsers;
 
-    public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, AnalysisService analysisService,
+    public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, IndexAnalyzers indexAnalyzers,
                                 SimilarityService similarityService, MapperRegistry mapperRegistry,
                                 Supplier<QueryShardContext> queryShardContextSupplier) {
         this.parseFieldMatcher = new ParseFieldMatcher(indexSettings.getSettings());
         this.mapperService = mapperService;
-        this.analysisService = analysisService;
+        this.indexAnalyzers = indexAnalyzers;
         this.similarityService = similarityService;
         this.queryShardContextSupplier = queryShardContextSupplier;
         this.typeParsers = mapperRegistry.getMapperParsers();
@@ -71,7 +69,7 @@ public class DocumentMapperParser {
     }
 
     public Mapper.TypeParser.ParserContext parserContext(String type) {
-        return new Mapper.TypeParser.ParserContext(type, analysisService, similarityService::getSimilarity, mapperService, typeParsers::get, indexVersionCreated, parseFieldMatcher, queryShardContextSupplier.get());
+        return new Mapper.TypeParser.ParserContext(type, indexAnalyzers, similarityService::getSimilarity, mapperService, typeParsers::get, indexVersionCreated, parseFieldMatcher, queryShardContextSupplier.get());
     }
 
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {

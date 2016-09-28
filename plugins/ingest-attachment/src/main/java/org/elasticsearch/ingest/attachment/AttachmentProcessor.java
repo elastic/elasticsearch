@@ -119,7 +119,12 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
             if (properties.contains(Property.CONTENT_LENGTH)) {
                 String contentLength = metadata.get(Metadata.CONTENT_LENGTH);
-                String length = Strings.hasLength(contentLength) ? contentLength : String.valueOf(parsedContent.length());
+                long length;
+                if (Strings.hasLength(contentLength)) {
+                    length = Long.parseLong(contentLength);
+                } else {
+                    length = parsedContent.length();
+                }
                 additionalFields.put(Property.CONTENT_LENGTH.toLowerCase(), length);
             }
         } catch (Exception e) {
@@ -155,7 +160,8 @@ public final class AttachmentProcessor extends AbstractProcessor {
         static final Set<Property> DEFAULT_PROPERTIES = EnumSet.allOf(Property.class);
 
         @Override
-        public AttachmentProcessor create(String processorTag, Map<String, Object> config) throws Exception {
+        public AttachmentProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+                                          Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "attachment");
             List<String> properyNames = readOptionalList(TYPE, processorTag, config, "properties");

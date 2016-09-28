@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -44,75 +45,6 @@ import static java.util.Collections.unmodifiableSet;
  *  for the current routing state.
  */
 public class RoutingAllocation {
-
-    /**
-     * this class is used to describe results of a {@link RoutingAllocation}
-     */
-    public static class Result {
-
-        private final boolean changed;
-
-        private final RoutingTable routingTable;
-
-        private final MetaData metaData;
-
-        private final RoutingExplanations explanations;
-
-        /**
-         * Creates a new {@link RoutingAllocation.Result}
-         * @param changed a flag to determine whether the actual {@link RoutingTable} has been changed
-         * @param routingTable the {@link RoutingTable} this Result references
-         * @param metaData the {@link MetaData} this Result references
-         */
-        public Result(boolean changed, RoutingTable routingTable, MetaData metaData) {
-            this(changed, routingTable, metaData, new RoutingExplanations());
-        }
-
-        /**
-         * Creates a new {@link RoutingAllocation.Result}
-         * @param changed a flag to determine whether the actual {@link RoutingTable} has been changed
-         * @param routingTable the {@link RoutingTable} this Result references
-         * @param metaData the {@link MetaData} this Result references
-         * @param explanations Explanation for the reroute actions
-         */
-        public Result(boolean changed, RoutingTable routingTable, MetaData metaData, RoutingExplanations explanations) {
-            this.changed = changed;
-            this.routingTable = routingTable;
-            this.metaData = metaData;
-            this.explanations = explanations;
-        }
-
-        /** determine whether the actual {@link RoutingTable} has been changed
-         * @return <code>true</code> if the {@link RoutingTable} has been changed by allocation. Otherwise <code>false</code>
-         */
-        public boolean changed() {
-            return this.changed;
-        }
-
-        /**
-         * Get the {@link MetaData} referenced by this result
-         * @return referenced {@link MetaData}
-         */
-        public MetaData metaData() {
-            return metaData;
-        }
-
-        /**
-         * Get the {@link RoutingTable} referenced by this result
-         * @return referenced {@link RoutingTable}
-         */
-        public RoutingTable routingTable() {
-            return routingTable;
-        }
-
-        /**
-         * Get the explanation of this result
-         * @return explanation
-         */
-        public RoutingExplanations explanations() {
-            return explanations;
-        }
-    }
 
     private final AllocationDeciders deciders;
 
@@ -142,6 +74,12 @@ public class RoutingAllocation {
 
     private final long currentNanoTime;
 
+    private final IndexMetaDataUpdater indexMetaDataUpdater = new IndexMetaDataUpdater();
+    private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
+    private final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
+        nodesChangedObserver, indexMetaDataUpdater
+    );
+
 
     /**
      * Creates a new {@link RoutingAllocation}
@@ -150,7 +88,8 @@ public class RoutingAllocation {
      * @param clusterState cluster state before rerouting
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      */
-    public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, ClusterState clusterState, ClusterInfo clusterInfo, long currentNanoTime, boolean retryFailed) {
+    public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, ClusterState clusterState, ClusterInfo clusterInfo,
+                             long currentNanoTime, boolean retryFailed) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
         this.metaData = clusterState.metaData();
@@ -251,6 +190,17 @@ public class RoutingAllocation {
         nodes.add(nodeId);
     }
 
+    /**
+     * Returns whether the given node id should be ignored from consideration when {@link AllocationDeciders}
+     * is deciding whether to allocate the specified shard id to that node.  The node will be ignored if
+     * the specified shard failed on that node, triggering the current round of allocation.  Since the shard
+     * just failed on that node, we don't want to try to reassign it there, if the node is still a part
+     * of the cluster.
+     *
+     * @param shardId the shard id to be allocated
+     * @param nodeId the node id to check against
+     * @return true if the node id should be ignored in allocation decisions, false otherwise
+     */
     public boolean shouldIgnoreShardForNode(ShardId shardId, String nodeId) {
         if (ignoredShardToNodes == null) {
             return false;
@@ -268,6 +218,27 @@ public class RoutingAllocation {
             return emptySet();
         }
         return unmodifiableSet(new HashSet<>(ignore));
+    }
+
+    /**
+     * Returns observer to use for changes made to the routing nodes
+     */
+    public RoutingChangesObserver changes() {
+        return routingChangesObserver;
+    }
+
+    /**
+     * Returns updated {@link MetaData} based on the changes that were made to the routing nodes
+     */
+    public MetaData updateMetaDataWithRoutingChanges(RoutingTable newRoutingTable) {
+        return indexMetaDataUpdater.applyChanges(metaData, newRoutingTable);
+    }
+
+    /**
+     * Returns true iff changes were made to the routing nodes
+     */
+    public boolean routingNodesChanged() {
+        return nodesChangedObserver.isChanged();
     }
 
     /**

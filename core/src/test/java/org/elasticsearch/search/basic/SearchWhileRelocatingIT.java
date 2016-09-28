@@ -23,12 +23,10 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,13 +36,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.formatShardStatus;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SearchWhileRelocatingIT extends ESIntegTestCase {
 
-    public void testSearchAndRelocateConcurrentlyRanodmReplicas() throws Exception {
+    public void testSearchAndRelocateConcurrentlyRandomReplicas() throws Exception {
         testSearchAndRelocateConcurrently(randomIntBetween(0, 1));
     }
 
@@ -67,25 +65,28 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
         final int numIters = scaledRandomIntBetween(5, 20);
         for (int i = 0; i < numIters; i++) {
             final AtomicBoolean stop = new AtomicBoolean(false);
-            final List<Throwable> thrownExceptions = new CopyOnWriteArrayList<>();
-            final List<Throwable> nonCriticalExceptions = new CopyOnWriteArrayList<>();
+            final List<String> nonCriticalExceptions = new CopyOnWriteArrayList<>();
 
             Thread[] threads = new Thread[scaledRandomIntBetween(1, 3)];
             for (int j = 0; j < threads.length; j++) {
                 threads[j] = new Thread() {
                     @Override
                     public void run() {
-                        boolean criticalException = true;
                         try {
                             while (!stop.get()) {
                                 SearchResponse sr = client().prepareSearch().setSize(numDocs).get();
-                                // if we did not search all shards but had no failures that is potentially fine
-                                // if only the hit-count is wrong. this can happen if the cluster-state is behind when the
-                                // request comes in. It's a small window but a known limitation.
-                                //
-                                criticalException = sr.getTotalShards() == sr.getSuccessfulShards() || sr.getFailedShards() > 0;
-                                assertHitCount(sr, (numDocs));
-                                criticalException = true;
+                                if (sr.getHits().totalHits() != numDocs) {
+                                    // if we did not search all shards but had no failures that is potentially fine
+                                    // if only the hit-count is wrong. this can happen if the cluster-state is behind when the
+                                    // request comes in. It's a small window but a known limitation.
+                                    if (sr.getTotalShards() != sr.getSuccessfulShards() && sr.getFailedShards() == 0) {
+                                        nonCriticalExceptions.add("Count is " + sr.getHits().totalHits() + " but " + numDocs +
+                                            " was expected. " + formatShardStatus(sr));
+                                    } else {
+                                        assertHitCount(sr, numDocs);
+                                    }
+                                }
+
                                 final SearchHits sh = sr.getHits();
                                 assertThat("Expected hits to be the same size the actual hits array", sh.getTotalHits(),
                                         equalTo((long) (sh.getHits().length)));
@@ -96,13 +97,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                             // it's possible that all shards fail if we have a small number of shards.
                             // with replicas this should not happen
                             if (numberOfReplicas == 1 || !ex.getMessage().contains("all shards failed")) {
-                                thrownExceptions.add(ex);
-                            }
-                        } catch (Exception ex) {
-                            if (!criticalException) {
-                                nonCriticalExceptions.add(ex);
-                            } else {
-                                thrownExceptions.add(ex);
+                                throw ex;
                             }
                         }
                     }
@@ -118,23 +113,14 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                 threads[j].join();
             }
             // this might time out on some machines if they are really busy and you hit lots of throttling
-            ClusterHealthResponse resp = client().admin().cluster().prepareHealth().setWaitForYellowStatus().setWaitForRelocatingShards(0).setWaitForEvents(Priority.LANGUID).setTimeout("5m").get();
+            ClusterHealthResponse resp = client().admin().cluster().prepareHealth().setWaitForYellowStatus().setWaitForNoRelocatingShards(true).setWaitForEvents(Priority.LANGUID).setTimeout("5m").get();
             assertNoTimeout(resp);
-            if (!thrownExceptions.isEmpty() || !nonCriticalExceptions.isEmpty()) {
-                Client client = client();
-                boolean postSearchOK = true;
-                String verified = "POST SEARCH OK";
+            // if we hit only non-critical exceptions we make sure that the post search works
+            if (!nonCriticalExceptions.isEmpty()) {
+                logger.info("non-critical exceptions: {}", nonCriticalExceptions);
                 for (int j = 0; j < 10; j++) {
-                    if (client.prepareSearch().get().getHits().getTotalHits() != numDocs) {
-                        verified = "POST SEARCH FAIL";
-                        postSearchOK = false;
-                        break;
-                    }
+                    assertHitCount(client().prepareSearch().get(), numDocs);
                 }
-                assertThat("numberOfReplicas: " + numberOfReplicas + " failed in iteration " + i + ", verification: " + verified, thrownExceptions, Matchers.emptyIterable());
-                // if we hit only non-critical exceptions we only make sure that the post search works
-                logger.info("Non-CriticalExceptions: {}", nonCriticalExceptions);
-                assertThat("numberOfReplicas: " + numberOfReplicas + " failed in iteration " + i + ", verification: " + verified, postSearchOK, is(true));
             }
         }
     }

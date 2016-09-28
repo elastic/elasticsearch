@@ -49,7 +49,7 @@ ext.dependencyFiles = project(':core').configurations.runtime.copyRecursive()
 
 task buildModules(type: Sync) {
   into 'build/modules'
-} 
+}
 
 ext.restTestExpansions = [
   'expected.modules.count': 0,
@@ -72,7 +72,8 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each
   // See https://discuss.gradle.org/t/cross-project-task-dependencies-ordering-screws-up-finalizers/13190
   project.configure(project.subprojects.findAll { it.name != 'integ-test-zip' }) { Project distribution ->
     distribution.afterEvaluate({
-      distribution.integTest.mustRunAfter("${module.path}:integTest#stop")
+      // some integTest tasks will have multiple finalizers
+      distribution.integTest.mustRunAfter module.tasks.find { t -> t.name.matches(".*integTest\$") }.getFinalizedBy()
     })
   }
   // also want to make sure the module's integration tests run after the integ-test-zip (ie rest tests)
@@ -80,6 +81,21 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each
     module.integTest.mustRunAfter(':distribution:integ-test-zip:integTest#stop')
   })
   restTestExpansions['expected.modules.count'] += 1
+}
+
+// Integ tests work over the rest http layer, so we need a transport included with the integ test zip. 
+// All transport modules are included so that they may be randomized for testing
+task buildTransportModules(type: Sync) {
+  into 'build/transport-modules'
+}
+
+project.rootProject.subprojects.findAll { it.path.startsWith(':modules:transport-') }.each { Project transport ->
+  buildTransportModules {
+    dependsOn({ project(transport.path).bundlePlugin })
+    into(transport.name) {
+      from { zipTree(project(transport.path).bundlePlugin.outputs.files.singleFile) }
+    }
+  }
 }
 
 // make sure we have a clean task since we aren't a java project, but we have tasks that
@@ -116,13 +132,6 @@ subprojects {
   // note: the group must be correct before applying the nexus plugin, or it will capture the wrong value...
   project.group = "org.elasticsearch.distribution.${project.name}"
   project.archivesBaseName = 'elasticsearch'
-  apply plugin: 'com.bmuschko.nexus'
-  // we must create our own install task, because it is only added when the java plugin is added
-  task install(type: Upload, description: "Installs the 'archives' artifacts into the local Maven repository.", group: 'Upload') {
-    configuration = configurations.archives
-    MavenRepositoryHandlerConvention repositoriesHandler = (MavenRepositoryHandlerConvention)getRepositories().getConvention().getPlugin(MavenRepositoryHandlerConvention)
-    repositoriesHandler.mavenInstaller()
-  }
 
   // TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
   /*****************************************************************************
@@ -143,6 +152,11 @@ subprojects {
     modulesFiles = copySpec {
       into 'modules'
       from project(':distribution').buildModules
+    }
+
+    transportModulesFiles = copySpec {
+      into "modules"
+      from project(':distribution').buildTransportModules
     }
 
     configFiles = copySpec {
@@ -170,16 +184,11 @@ subprojects {
    /*****************************************************************************
    *                           Publishing setup                                *
    *****************************************************************************/
-  BuildPlugin.configurePomGeneration(project)
-  apply plugin: 'nebula.info-scm'
-  apply plugin: 'nebula.maven-base-publish'
-  apply plugin: 'nebula.maven-scm'
-  publishing {
-    publications {
-      nebula {
-        artifactId 'elasticsearch'
-      }
-    }
+  if (['zip', 'integ-test-zip'].contains(it.name)) {
+    BuildPlugin.configurePomGeneration(project)
+    apply plugin: 'nebula.info-scm'
+    apply plugin: 'nebula.maven-base-publish'
+    apply plugin: 'nebula.maven-scm'
   }
 }
 
@@ -209,6 +218,8 @@ configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.nam
       }
       if (project.name != 'integ-test-zip') {
         with modulesFiles
+      } else {
+        with transportModulesFiles
       }
     }
   }
@@ -272,7 +283,7 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
       that'll happen when createEtc runs. */
     outputs.file "${packagingFiles}/etc/elasticsearch/elasticsearch.yml"
     outputs.file "${packagingFiles}/etc/elasticsearch/jvm.options"
-    outputs.file "${packagingFiles}/etc/elasticsearch/logging.yml"
+    outputs.file "${packagingFiles}/etc/elasticsearch/log4j2.properties"
   }
 
   task createPidDir(type: EmptyDirTask) {
@@ -352,7 +363,7 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
 
     configurationFile '/etc/elasticsearch/elasticsearch.yml'
     configurationFile '/etc/elasticsearch/jvm.options'
-    configurationFile '/etc/elasticsearch/logging.yml'
+    configurationFile '/etc/elasticsearch/log4j2.properties'
     into('/etc/elasticsearch') {
       fileMode 0750
       permissionGroup 'elasticsearch'
@@ -456,6 +467,8 @@ task run(type: RunTask) {
  * </dl>
  */
 Map<String, String> expansionsForDistribution(distributionType) {
+  final String defaultHeapSize = "2g"
+
   String footer = "# Built for ${project.name}-${project.version} " +
       "(${distributionType})"
   Map<String, Object> expansions = [
@@ -465,6 +478,7 @@ Map<String, String> expansionsForDistribution(distributionType) {
     'path.conf': [
       'tar': '$ES_HOME/config',
       'zip': '$ES_HOME/config',
+      'integ-test-zip': '$ES_HOME/config',
       'def': '/etc/elasticsearch',
     ],
     'path.env': [
@@ -475,8 +489,8 @@ Map<String, String> expansionsForDistribution(distributionType) {
       'def': '',
     ],
 
-    'heap.min': "256m",
-    'heap.max': "2g",
+    'heap.min': defaultHeapSize,
+    'heap.max': defaultHeapSize,
 
     'stopping.timeout': [
       'rpm': 86400,

@@ -19,6 +19,7 @@
 
 package org.elasticsearch;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,7 +34,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -102,16 +102,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public ElasticsearchException(StreamInput in) throws IOException {
         super(in.readOptionalString(), in.readException());
         readStackTrace(this, in);
-        int numKeys = in.readVInt();
-        for (int i = 0; i < numKeys; i++) {
-            final String key = in.readString();
-            final int numValues = in.readVInt();
-            final ArrayList<String> values = new ArrayList<>(numValues);
-            for (int j = 0; j < numValues; j++) {
-                values.add(in.readString());
-            }
-            headers.put(key, values);
-        }
+        headers.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
     }
 
     /**
@@ -206,14 +197,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         out.writeOptionalString(this.getMessage());
         out.writeException(this.getCause());
         writeStackTraces(this, out);
-        out.writeVInt(headers.size());
-        for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeVInt(entry.getValue().size());
-            for (String v : entry.getValue()) {
-                out.writeString(v);
-            }
-        }
+        out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
     }
 
     public static ElasticsearchException readException(StreamInput input, int id) throws IOException {
@@ -649,14 +633,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.repositories.RepositoryMissingException::new, 107),
         DOCUMENT_SOURCE_MISSING_EXCEPTION(org.elasticsearch.index.engine.DocumentSourceMissingException.class,
                 org.elasticsearch.index.engine.DocumentSourceMissingException::new, 109),
-        FLUSH_NOT_ALLOWED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.FlushNotAllowedEngineException.class,
-                org.elasticsearch.index.engine.FlushNotAllowedEngineException::new, 110),
+        // 110 used to be FlushNotAllowedEngineException
         NO_CLASS_SETTINGS_EXCEPTION(org.elasticsearch.common.settings.NoClassSettingsException.class,
                 org.elasticsearch.common.settings.NoClassSettingsException::new, 111),
         BIND_TRANSPORT_EXCEPTION(org.elasticsearch.transport.BindTransportException.class,
                 org.elasticsearch.transport.BindTransportException::new, 112),
-        ALIASES_NOT_FOUND_EXCEPTION(org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesNotFoundException.class,
-                org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesNotFoundException::new, 113),
+        ALIASES_NOT_FOUND_EXCEPTION(org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException.class,
+                org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException::new, 113),
         INDEX_SHARD_RECOVERING_EXCEPTION(org.elasticsearch.index.shard.IndexShardRecoveringException.class,
                 org.elasticsearch.index.shard.IndexShardRecoveringException::new, 114),
         TRANSLOG_EXCEPTION(org.elasticsearch.index.translog.TranslogException.class,
@@ -675,8 +658,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.search.aggregations.InvalidAggregationPathException::new, 121),
         INDEX_ALREADY_EXISTS_EXCEPTION(org.elasticsearch.indices.IndexAlreadyExistsException.class,
                 org.elasticsearch.indices.IndexAlreadyExistsException::new, 123),
-        SCRIPT_PARSE_EXCEPTION(org.elasticsearch.script.Script.ScriptParseException.class,
-                org.elasticsearch.script.Script.ScriptParseException::new, 124),
+        // 124 used to be Script.ScriptParseException
         HTTP_ON_TRANSPORT_EXCEPTION(TcpTransport.HttpOnTransportException.class,
                 TcpTransport.HttpOnTransportException::new, 125),
         MAPPER_PARSING_EXCEPTION(org.elasticsearch.index.mapper.MapperParsingException.class,
@@ -709,8 +691,9 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.index.query.QueryShardException::new, 141),
         NO_LONGER_PRIMARY_SHARD_EXCEPTION(ShardStateAction.NoLongerPrimaryShardException.class,
                 ShardStateAction.NoLongerPrimaryShardException::new, 142),
-        SCRIPT_EXCEPTION(org.elasticsearch.script.ScriptException.class, org.elasticsearch.script.ScriptException::new, 143);
-
+        SCRIPT_EXCEPTION(org.elasticsearch.script.ScriptException.class, org.elasticsearch.script.ScriptException::new, 143),
+        NOT_MASTER_EXCEPTION(org.elasticsearch.cluster.NotMasterException.class, org.elasticsearch.cluster.NotMasterException::new, 144),
+        STATUS_EXCEPTION(org.elasticsearch.ElasticsearchStatusException.class, org.elasticsearch.ElasticsearchStatusException::new, 145);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final FunctionThatThrowsIOException<StreamInput, ? extends ElasticsearchException> constructor;

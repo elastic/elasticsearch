@@ -28,6 +28,10 @@ are tests even if they don't have `// CONSOLE`.
   * `// TEST[setup:name]`: Run some setup code before running the snippet. This
   is useful for creating and populating indexes used in the snippet. The setup
   code is defined in `docs/build.gradle`.
+  * `// TEST[warning:some warning]`: Expect the response to include a `Warning`
+  header. If the response doesn't include a `Warning` header with the exact
+  text then the test fails. If the response includes `Warning` headers that
+  aren't expected then the test fails.
 * `// TESTRESPONSE`: Matches this snippet against the body of the response of
   the last test. If the response is JSON then order is ignored. With
   `// TEST[continued]` you can make tests that contain multiple command snippets

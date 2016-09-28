@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.shrink;
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
@@ -41,7 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.gateway.NoopGatewayAllocator;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -92,11 +93,11 @@ public class TransportShrinkActionTests extends ESTestCase {
 
         // create one that won't fail
         ClusterState clusterState = ClusterState.builder(createClusterState("source", randomIntBetween(2, 10), 0,
-            Settings.builder().put("index.blocks.write", true).build())).nodes(DiscoveryNodes.builder().put(newNode("node1")))
+            Settings.builder().put("index.blocks.write", true).build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
         AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
             Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
-            NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
+            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -115,11 +116,11 @@ public class TransportShrinkActionTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(createClusterState(indexName, randomIntBetween(2, 10), 0,
             Settings.builder()
                 .put("index.blocks.write", true)
-                .build())).nodes(DiscoveryNodes.builder().put(newNode("node1")))
+                .build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
         AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
             Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
-            NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
+            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -130,6 +131,8 @@ public class TransportShrinkActionTests extends ESTestCase {
         int numSourceShards = clusterState.metaData().index(indexName).getNumberOfShards();
         DocsStats stats = new DocsStats(randomIntBetween(0, (IndexWriter.MAX_DOCS) / numSourceShards), randomIntBetween(1, 1000));
         ShrinkRequest target = new ShrinkRequest("target", indexName);
+        final ActiveShardCount activeShardCount = randomBoolean() ? ActiveShardCount.ALL : ActiveShardCount.ONE;
+        target.setWaitForActiveShards(activeShardCount);
         CreateIndexClusterStateUpdateRequest request = TransportShrinkAction.prepareCreateIndexRequest(
             target, clusterState, (i) -> stats,
             new IndexNameExpressionResolver(Settings.EMPTY));
@@ -137,6 +140,7 @@ public class TransportShrinkActionTests extends ESTestCase {
         assertEquals(indexName, request.shrinkFrom().getName());
         assertEquals("1", request.settings().get("index.number_of_shards"));
         assertEquals("shrink_index", request.cause());
+        assertEquals(request.waitForActiveShards(), activeShardCount);
     }
 
     private DiscoveryNode newNode(String nodeId) {

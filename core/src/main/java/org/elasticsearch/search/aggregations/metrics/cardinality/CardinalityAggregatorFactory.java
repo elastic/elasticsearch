@@ -23,7 +23,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
-import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -48,36 +47,19 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        return new CardinalityAggregator(name, null, precision(parent), context, parent, pipelineAggregators, metaData);
+        return new CardinalityAggregator(name, null, precision(), context, parent, pipelineAggregators, metaData);
     }
 
     @Override
     protected Aggregator doCreateInternal(ValuesSource valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new CardinalityAggregator(name, valuesSource, precision(parent), context, parent, pipelineAggregators,
+        return new CardinalityAggregator(name, valuesSource, precision(), context, parent, pipelineAggregators,
                 metaData);
     }
 
-    private int precision(Aggregator parent) {
-        return precisionThreshold == null ? defaultPrecision(parent) : HyperLogLogPlusPlus.precisionFromThreshold(precisionThreshold);
-    }
-
-    /*
-     * If one of the parent aggregators is a MULTI_BUCKET one, we might want to lower the precision
-     * because otherwise it might be memory-intensive. On the other hand, for top-level aggregators
-     * we try to focus on accuracy.
-     */
-    private static int defaultPrecision(Aggregator parent) {
-        int precision = HyperLogLogPlusPlus.DEFAULT_PRECISION;
-        while (parent != null) {
-            if (parent instanceof SingleBucketAggregator == false) {
-                // if the parent creates buckets, we subtract 5 to the precision,
-                // which will effectively divide the memory usage of each counter by 32
-                precision -= 5;
-            }
-            parent = parent.parent();
-        }
-
-        return Math.max(precision, HyperLogLogPlusPlus.MIN_PRECISION);
+    private int precision() {
+        return precisionThreshold == null
+                ? HyperLogLogPlusPlus.DEFAULT_PRECISION
+                : HyperLogLogPlusPlus.precisionFromThreshold(precisionThreshold);
     }
 }

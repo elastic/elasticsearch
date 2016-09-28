@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.shard.ShardId;
 
+import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
+
 public class RoutingTableGenerator {
     private static int node_id = 1;
 
@@ -43,25 +45,26 @@ public class RoutingTableGenerator {
         switch (state) {
             case STARTED:
                 return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++),
-                                                        null, null, primary, ShardRoutingState.STARTED);
+                                                        null, primary, ShardRoutingState.STARTED);
             case INITIALIZING:
                 return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++),
-                                                        null, null, primary, ShardRoutingState.INITIALIZING);
+                                                        null, primary, ShardRoutingState.INITIALIZING);
             case RELOCATING:
                 return TestShardRouting.newShardRouting(index, shardId, "node_" + Integer.toString(node_id++),
-                                                        "node_" + Integer.toString(node_id++), null, primary, ShardRoutingState.RELOCATING);
+                                                        "node_" + Integer.toString(node_id++), primary, ShardRoutingState.RELOCATING);
             default:
                 throw new ElasticsearchException("Unknown state: " + state.name());
         }
 
     }
 
-    public IndexShardRoutingTable genShardRoutingTable(String index, int shardId, int replicas, ShardCounter counter) {
+    public IndexShardRoutingTable genShardRoutingTable(IndexMetaData indexMetaData, int shardId, ShardCounter counter) {
+        final String index = indexMetaData.getIndex().getName();
         IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(new ShardId(index, "_na_", shardId));
         ShardRouting shardRouting = genShardRouting(index, shardId, true);
         counter.update(shardRouting);
         builder.addShard(shardRouting);
-        for (; replicas > 0; replicas--) {
+        for (int replicas = indexMetaData.getNumberOfReplicas(); replicas > 0; replicas--) {
             shardRouting = genShardRouting(index, shardId, false);
             counter.update(shardRouting);
             builder.addShard(shardRouting);
@@ -73,8 +76,7 @@ public class RoutingTableGenerator {
     public IndexRoutingTable genIndexRoutingTable(IndexMetaData indexMetaData, ShardCounter counter) {
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(indexMetaData.getIndex());
         for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
-            builder.addIndexShard(genShardRoutingTable(indexMetaData.getIndex().getName(), shard,
-                                  indexMetaData.getNumberOfReplicas(), counter));
+            builder.addIndexShard(genShardRoutingTable(indexMetaData, shard, counter));
         }
         return builder.build();
     }
@@ -86,10 +88,15 @@ public class RoutingTableGenerator {
         public int unassigned;
         public int primaryActive;
         public int primaryInactive;
+        private boolean inactivePrimaryCausesRed = false;
 
         public ClusterHealthStatus status() {
             if (primaryInactive > 0) {
-                return ClusterHealthStatus.RED;
+                if (inactivePrimaryCausesRed) {
+                    return ClusterHealthStatus.RED;
+                } else {
+                    return ClusterHealthStatus.YELLOW;
+                }
             }
             if (unassigned > 0 || initializing > 0) {
                 return ClusterHealthStatus.YELLOW;
@@ -111,6 +118,9 @@ public class RoutingTableGenerator {
 
             if (shardRouting.primary()) {
                 primaryInactive++;
+                if (inactivePrimaryCausesRed == false) {
+                    inactivePrimaryCausesRed = getInactivePrimaryHealth(shardRouting) == ClusterHealthStatus.RED;
+                }
             }
             if (shardRouting.initializing()) {
                 initializing++;

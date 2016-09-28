@@ -19,22 +19,22 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.monitor.jvm.JvmStats.GarbageCollector;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 
@@ -48,7 +48,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
     private final Map<String, GcThreshold> gcThresholds;
     private final GcOverheadThreshold gcOverheadThreshold;
 
-    private volatile ScheduledFuture scheduledFuture;
+    private volatile Cancellable scheduledFuture;
 
     public static final Setting<Boolean> ENABLED_SETTING =
         Setting.boolSetting("monitor.jvm.gc.enabled", true, Property.NodeScope);
@@ -198,14 +198,14 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
             void onGcOverhead(final Threshold threshold, final long current, final long elapsed, final long seq) {
                 logGcOverhead(logger, threshold, current, elapsed, seq);
             }
-        }, interval);
+        }, interval, Names.SAME);
     }
 
     private static final String SLOW_GC_LOG_MESSAGE =
         "[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}], all_pools {}";
 
     static void logSlowGc(
-        final ESLogger logger,
+        final Logger logger,
         final JvmMonitor.Threshold threshold,
         final long seq,
         final JvmMonitor.SlowGcEvent slowGcEvent,
@@ -305,7 +305,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
     private static final String OVERHEAD_LOG_MESSAGE = "[gc][{}] overhead, spent [{}] collecting in the last [{}]";
 
     static void logGcOverhead(
-        final ESLogger logger,
+        final Logger logger,
         final JvmMonitor.Threshold threshold,
         final long current,
         final long elapsed,
@@ -334,7 +334,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
         if (!enabled) {
             return;
         }
-        FutureUtils.cancel(scheduledFuture);
+        scheduledFuture.cancel();
     }
 
     @Override

@@ -31,7 +31,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -39,12 +39,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
-
-    /**
-     * The queries name used while parsing
-     */
     public static final String NAME = "nested";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
     /**
      * The default value for ignore_unmapped.
      */
@@ -263,9 +258,10 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        QueryBuilder rewrite = query.rewrite(queryRewriteContext);
-        if (rewrite != query) {
-            return new NestedQueryBuilder(path, rewrite, scoreMode, innerHitBuilder);
+        QueryBuilder rewrittenQuery = query.rewrite(queryRewriteContext);
+        if (rewrittenQuery != query) {
+            InnerHitBuilder rewrittenInnerHit = InnerHitBuilder.rewrite(innerHitBuilder, rewrittenQuery);
+            return new NestedQueryBuilder(path, rewrittenQuery, scoreMode, rewrittenInnerHit);
         }
         return this;
     }

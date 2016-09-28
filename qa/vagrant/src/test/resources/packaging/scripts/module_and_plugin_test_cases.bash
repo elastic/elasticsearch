@@ -217,6 +217,10 @@ fi
     install_and_check_plugin discovery ec2 aws-java-sdk-core-*.jar
 }
 
+@test "[$GROUP] install discovery-file plugin" {
+    install_and_check_plugin discovery file
+}
+
 @test "[$GROUP] install ingest-attachment plugin" {
     # we specify the version on the poi-3.15-beta1.jar so that the test does
     # not spuriously pass if the jar is missing but the other poi jars
@@ -228,8 +232,8 @@ fi
     install_and_check_plugin ingest geoip geoip2-*.jar jackson-annotations-*.jar jackson-databind-*.jar maxmind-db-*.jar
 }
 
-@test "[$GROUP] install ingest-useragent plugin" {
-    install_and_check_plugin ingest useragent
+@test "[$GROUP] install ingest-user-agent plugin" {
+    install_and_check_plugin ingest user-agent
 }
 
 @test "[$GROUP] check ingest-common module" {
@@ -261,10 +265,6 @@ fi
 
 @test "[$GROUP] install python plugin" {
     install_and_check_plugin lang python jython-standalone-*.jar
-}
-
-@test "[$GROUP] install mapper-attachments plugin" {
-    install_and_check_plugin mapper attachments
 }
 
 @test "[$GROUP] install murmur3 mapper plugin" {
@@ -300,7 +300,7 @@ fi
 }
 
 @test "[$GROUP] check the installed plugins can be listed with 'plugins list' and result matches the list of plugins in plugins pom" {
-    "$ESHOME/bin/elasticsearch-plugin" list > /tmp/installed
+    "$ESHOME/bin/elasticsearch-plugin" list | cut -d'@' -f1 > /tmp/installed
     compare_plugins_list "/tmp/installed" "'plugins list'"
 }
 
@@ -353,6 +353,10 @@ fi
     remove_plugin discovery-ec2
 }
 
+@test "[$GROUP] remove discovery-file plugin" {
+    remove_plugin discovery-file
+}
+
 @test "[$GROUP] remove ingest-attachment plugin" {
     remove_plugin ingest-attachment
 }
@@ -361,8 +365,8 @@ fi
     remove_plugin ingest-geoip
 }
 
-@test "[$GROUP] remove ingest-useragent plugin" {
-    remove_plugin ingest-useragent
+@test "[$GROUP] remove ingest-user-agent plugin" {
+    remove_plugin ingest-user-agent
 }
 
 @test "[$GROUP] remove javascript plugin" {
@@ -371,10 +375,6 @@ fi
 
 @test "[$GROUP] remove python plugin" {
     remove_plugin lang-python
-}
-
-@test "[$GROUP] remove mapper-attachments plugin" {
-    remove_plugin mapper-attachments
 }
 
 @test "[$GROUP] remove murmur3 mapper plugin" {

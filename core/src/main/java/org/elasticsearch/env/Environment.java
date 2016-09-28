@@ -36,6 +36,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.Strings.cleanPath;
@@ -107,7 +108,6 @@ public class Environment {
     }
 
     public Environment(Settings settings) {
-        this.settings = settings;
         final Path homeFile;
         if (PATH_HOME_SETTING.exists(settings)) {
             homeFile = PathUtils.get(cleanPath(PATH_HOME_SETTING.get(settings)));
@@ -171,6 +171,13 @@ public class Environment {
         binFile = homeFile.resolve("bin");
         libFile = homeFile.resolve("lib");
         modulesFile = homeFile.resolve("modules");
+
+        Settings.Builder finalSettings = Settings.builder().put(settings);
+        finalSettings.put(PATH_HOME_SETTING.getKey(), homeFile);
+        finalSettings.putArray(PATH_DATA_SETTING.getKey(), dataPaths);
+        finalSettings.put(PATH_LOGS_SETTING.getKey(), logsFile);
+        this.settings = finalSettings.build();
+
     }
 
     /**
@@ -331,5 +338,27 @@ public class Environment {
      */
     public static FileStore getFileStore(Path path) throws IOException {
         return ESFileStore.getMatchingFileStore(path, fileStores);
+    }
+
+    /**
+     * asserts that the two environments are equivalent for all things the environment cares about (i.e., all but the setting
+     * object which may contain different setting)
+     */
+    public static void assertEquivalent(Environment actual, Environment expected) {
+        assertEquals(actual.dataWithClusterFiles(), expected.dataWithClusterFiles(), "dataWithClusterFiles");
+        assertEquals(actual.repoFiles(), expected.repoFiles(), "repoFiles");
+        assertEquals(actual.configFile(), expected.configFile(), "configFile");
+        assertEquals(actual.scriptsFile(), expected.scriptsFile(), "scriptsFile");
+        assertEquals(actual.pluginsFile(), expected.pluginsFile(), "pluginsFile");
+        assertEquals(actual.binFile(), expected.binFile(), "binFile");
+        assertEquals(actual.libFile(), expected.libFile(), "libFile");
+        assertEquals(actual.modulesFile(), expected.modulesFile(), "modulesFile");
+        assertEquals(actual.logsFile(), expected.logsFile(), "logsFile");
+        assertEquals(actual.pidFile(), expected.pidFile(), "pidFile");
+        assertEquals(actual.tmpFile(), expected.tmpFile(), "tmpFile");
+    }
+
+    private static void assertEquals(Object actual, Object expected, String name) {
+        assert Objects.deepEquals(actual, expected) : "actual " + name + " [" + actual + "] is different than [ " + expected + "]";
     }
 }

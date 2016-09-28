@@ -80,9 +80,4 @@ public class MultiGetRequestBuilder extends ActionRequestBuilder<MultiGetRequest
         request.realtime(realtime);
         return this;
     }
-
-    public MultiGetRequestBuilder setIgnoreErrorsOnGeneratedFields(boolean ignoreErrorsOnGeneratedFields) {
-        request.ignoreErrorsOnGeneratedFields(ignoreErrorsOnGeneratedFields);
-        return this;
-    }
 }

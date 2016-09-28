@@ -36,8 +36,6 @@ import java.util.regex.Pattern;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
-/**
- */
 public class RecoveryStatusTests extends ESSingleNodeTestCase {
 
     public void testRenameTempFiles() throws IOException {
@@ -45,7 +43,7 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
 
         IndexShard indexShard = service.getShardOrNull(0);
         DiscoveryNode node = new DiscoveryNode("foo", new LocalTransportAddress("bar"), emptyMap(), emptySet(), Version.CURRENT);
-        RecoveryTarget status = new RecoveryTarget(indexShard, node, new RecoveryTargetService.RecoveryListener() {
+        RecoveryTarget status = new RecoveryTarget(indexShard, node, new PeerRecoveryTargetService.RecoveryListener() {
             @Override
             public void onRecoveryDone(RecoveryState state) {
             }
@@ -53,7 +51,7 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
             @Override
             public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
             }
-        });
+        }, version -> {});
         try (IndexOutput indexOutput = status.openAndPutIndexOutput("foo.bar", new StoreFileMetaData("foo.bar", 8 + CodecUtil.footerLength(), "9z51nw"), status.store())) {
             indexOutput.writeInt(1);
             IndexOutput openIndexOutput = status.getOpenIndexOutput("foo.bar");
@@ -73,7 +71,7 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
         Set<String> strings = Sets.newHashSet(status.store().directory().listAll());
         String expectedFile = null;
         for (String file : strings) {
-            if (Pattern.compile("recovery[.]\\d+[.]foo[.]bar").matcher(file).matches()) {
+            if (Pattern.compile("recovery[.][\\w-]+[.]foo[.]bar").matcher(file).matches()) {
                 expectedFile = file;
                 break;
             }

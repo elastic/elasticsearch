@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.cluster;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -91,7 +93,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 try {
                     transportService.disconnectFromNode(node);
                 } catch (Exception e) {
-                    logger.warn("failed to disconnect to node [{}]", e, node);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to disconnect to node [{}]", node), e);
                 }
             }
         }
@@ -113,7 +115,11 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 nodeFailureCount = nodeFailureCount + 1;
                 // log every 6th failure
                 if ((nodeFailureCount % 6) == 1) {
-                    logger.warn("failed to connect to node {} (tried [{}] times)", e, node, nodeFailureCount);
+                    final int finalNodeFailureCount = nodeFailureCount;
+                    logger.warn(
+                        (Supplier<?>)
+                            () -> new ParameterizedMessage(
+                                "failed to connect to node {} (tried [{}] times)", node, finalNodeFailureCount), e);
                 }
                 nodes.put(node, nodeFailureCount);
             }

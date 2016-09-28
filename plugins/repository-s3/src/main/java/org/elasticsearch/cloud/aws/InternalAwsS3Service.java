@@ -22,24 +22,25 @@ package org.elasticsearch.cloud.aws;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSCredentialsProviderChain;
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
-import com.amazonaws.auth.InstanceProfileCredentialsProvider;
-import com.amazonaws.auth.SystemPropertiesCredentialsProvider;
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.S3ClientOptions;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.repositories.s3.S3Repository;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.elasticsearch.repositories.s3.S3Repository.getValue;
 
 /**
  *
@@ -51,36 +52,41 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
      */
     private Map<Tuple<String, String>, AmazonS3Client> clients = new HashMap<>();
 
-    @Inject
     public InternalAwsS3Service(Settings settings) {
         super(settings);
     }
 
     @Override
-    public synchronized AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries,
-                                        boolean useThrottleRetries) {
-        if (Strings.isNullOrEmpty(endpoint)) {
-            // We need to set the endpoint based on the region
-            if (region != null) {
-                endpoint = getEndpoint(region);
-                logger.debug("using s3 region [{}], with endpoint [{}]", region, endpoint);
-            } else {
-                // No region has been set so we will use the default endpoint
-                endpoint = getDefaultEndpoint();
-            }
-        }
+    public synchronized AmazonS3 client(Settings repositorySettings, String endpoint, Protocol protocol, String region, Integer maxRetries,
+                                        boolean useThrottleRetries, Boolean pathStyleAccess) {
+        String foundEndpoint = findEndpoint(logger, settings, endpoint, region);
 
-        return getClient(endpoint, protocol, account, key, maxRetries, useThrottleRetries);
-    }
+        AWSCredentialsProvider credentials = buildCredentials(logger, settings, repositorySettings);
 
-    private synchronized AmazonS3 getClient(String endpoint, Protocol protocol, String account, String key, Integer maxRetries,
-                                            boolean useThrottleRetries) {
-        Tuple<String, String> clientDescriptor = new Tuple<>(endpoint, account);
+        Tuple<String, String> clientDescriptor = new Tuple<>(foundEndpoint, credentials.getCredentials().getAWSAccessKeyId());
         AmazonS3Client client = clients.get(clientDescriptor);
         if (client != null) {
             return client;
         }
 
+        client = new AmazonS3Client(
+            credentials,
+            buildConfiguration(logger, settings, protocol, maxRetries, foundEndpoint, useThrottleRetries));
+
+        if (pathStyleAccess != null) {
+            client.setS3ClientOptions(new S3ClientOptions().withPathStyleAccess(pathStyleAccess));
+        }
+
+        if (!foundEndpoint.isEmpty()) {
+            client.setEndpoint(foundEndpoint);
+        }
+
+        clients.put(clientDescriptor, client);
+        return client;
+    }
+
+    public static ClientConfiguration buildConfiguration(Logger logger, Settings settings, Protocol protocol, Integer maxRetries,
+                                                         String endpoint, boolean useThrottleRetries) {
         ClientConfiguration clientConfiguration = new ClientConfiguration();
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.
@@ -113,38 +119,48 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
             AwsSigner.configureSigner(awsSigner, clientConfiguration, endpoint);
         }
 
-        AWSCredentialsProvider credentials;
-
-        if (account == null && key == null) {
-            credentials = new AWSCredentialsProviderChain(
-                    new EnvironmentVariableCredentialsProvider(),
-                    new SystemPropertiesCredentialsProvider(),
-                    new InstanceProfileCredentialsProvider()
-            );
-        } else {
-            credentials = new AWSCredentialsProviderChain(
-                    new StaticCredentialsProvider(new BasicAWSCredentials(account, key))
-            );
-        }
-        client = new AmazonS3Client(credentials, clientConfiguration);
-
-        if (endpoint != null) {
-            client.setEndpoint(endpoint);
-        }
-        clients.put(clientDescriptor, client);
-        return client;
+        return clientConfiguration;
     }
 
-    private String getDefaultEndpoint() {
-        String endpoint = null;
-        if (CLOUD_S3.ENDPOINT_SETTING.exists(settings)) {
-            endpoint = CLOUD_S3.ENDPOINT_SETTING.get(settings);
-            logger.debug("using explicit s3 endpoint [{}]", endpoint);
-        } else if (CLOUD_S3.REGION_SETTING.exists(settings)) {
-            String region = CLOUD_S3.REGION_SETTING.get(settings);
-            endpoint = getEndpoint(region);
-            logger.debug("using s3 region [{}], with endpoint [{}]", region, endpoint);
+    public static AWSCredentialsProvider buildCredentials(Logger logger, Settings settings, Settings repositorySettings) {
+        AWSCredentialsProvider credentials;
+        String key = getValue(repositorySettings, settings,
+            S3Repository.Repository.KEY_SETTING, S3Repository.Repositories.KEY_SETTING);
+        String secret = getValue(repositorySettings, settings,
+            S3Repository.Repository.SECRET_SETTING, S3Repository.Repositories.SECRET_SETTING);
+
+        if (key.isEmpty() && secret.isEmpty()) {
+            logger.debug("Using either environment variables, system properties or instance profile credentials");
+            credentials = new DefaultAWSCredentialsProviderChain();
+        } else {
+            logger.debug("Using basic key/secret credentials");
+            credentials = new StaticCredentialsProvider(new BasicAWSCredentials(key, secret));
         }
+
+        return credentials;
+    }
+
+    protected static String findEndpoint(Logger logger, Settings settings, String endpoint, String region) {
+        if (Strings.isNullOrEmpty(endpoint)) {
+            logger.debug("no repository level endpoint has been defined. Trying to guess from repository region [{}]", region);
+            if (!region.isEmpty()) {
+                endpoint = getEndpoint(region);
+                logger.debug("using s3 region [{}], with endpoint [{}]", region, endpoint);
+            } else {
+                // No region has been set so we will use the default endpoint
+                if (CLOUD_S3.ENDPOINT_SETTING.exists(settings)) {
+                    endpoint = CLOUD_S3.ENDPOINT_SETTING.get(settings);
+                    logger.debug("using explicit s3 endpoint [{}]", endpoint);
+                } else if (REGION_SETTING.exists(settings) || CLOUD_S3.REGION_SETTING.exists(settings)) {
+                    region = CLOUD_S3.REGION_SETTING.get(settings);
+                    endpoint = getEndpoint(region);
+                    logger.debug("using s3 region [{}], with endpoint [{}]", region, endpoint);
+                }
+            }
+        } else {
+            logger.debug("using repository level endpoint [{}]", endpoint);
+        }
+
         return endpoint;
     }
 

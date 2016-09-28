@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.index.seqno;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -89,7 +91,7 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<Globa
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug("{} failed to update global checkpoint", e, shardId);
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} failed to update global checkpoint", shardId), e);
             }
         });
     }

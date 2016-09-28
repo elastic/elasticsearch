@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 
 import com.carrotsearch.hppc.DoubleArrayList;
+
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,15 +41,14 @@ import java.util.Objects;
 
 public class PercentilesBucketPipelineAggregationBuilder
         extends BucketMetricsPipelineAggregationBuilder<PercentilesBucketPipelineAggregationBuilder> {
-    public static final String NAME = PercentilesBucketPipelineAggregator.TYPE.name();
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
+    public static final String NAME = "percentiles_bucket";
 
     private static final ParseField PERCENTS_FIELD = new ParseField("percents");
 
     private double[] percents = new double[] { 1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0 };
 
     public PercentilesBucketPipelineAggregationBuilder(String name, String bucketsPath) {
-        super(name, PercentilesBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
+        super(name, NAME, new String[] { bucketsPath });
     }
 
     /**
@@ -113,7 +113,7 @@ public class PercentilesBucketPipelineAggregationBuilder
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (percents != null) {
-            builder.field(PERCENTS_FIELD.getPreferredName(), percents);
+            builder.array(PERCENTS_FIELD.getPreferredName(), percents);
         }
         return builder;
     }

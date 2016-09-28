@@ -111,7 +111,8 @@ public final class DateProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory {
 
         @SuppressWarnings("unchecked")
-        public DateProcessor create(String processorTag, Map<String, Object> config) throws Exception {
+        public DateProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+                                    Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", DEFAULT_TARGET_FIELD);
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "timezone");

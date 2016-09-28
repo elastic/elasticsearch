@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
@@ -30,11 +31,10 @@ import java.util.List;
  */
 public class ParsedDocument {
 
-    private final String uid;
-    private final String id;
-    private final String type;
-
     private final Field version;
+
+    private final String id, type;
+    private final BytesRef uid;
     private final Field seqNo;
 
     private final String routing;
@@ -51,12 +51,22 @@ public class ParsedDocument {
 
     private String parent;
 
-    public ParsedDocument(Field version, Field seqNo, String id, String type, String routing, long timestamp, long ttl, List<Document> documents, BytesReference source, Mapping dynamicMappingsUpdate) {
+    public ParsedDocument(
+        Field version,
+        Field seqNo,
+        String id,
+        String type,
+        String routing,
+        long timestamp,
+        long ttl,
+        List<Document> documents,
+        BytesReference source,
+        Mapping dynamicMappingsUpdate) {
         this.version = version;
         this.seqNo = seqNo;
         this.id = id;
         this.type = type;
-        this.uid = Uid.createUid(type, id);
+        this.uid = Uid.createUidAsBytes(type, id);
         this.routing = routing;
         this.timestamp = timestamp;
         this.ttl = ttl;
@@ -65,7 +75,7 @@ public class ParsedDocument {
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
     }
 
-    public String uid() {
+    public BytesRef uid() {
         return uid;
     }
 
@@ -144,4 +154,5 @@ public class ParsedDocument {
         sb.append("Document ").append("uid[").append(uid).append("] doc [").append(documents).append("]");
         return sb.toString();
     }
+
 }

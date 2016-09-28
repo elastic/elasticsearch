@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.Settings;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -145,7 +144,7 @@ public class AllocationBenchmark {
         RoutingTable routingTable = rb.build();
         DiscoveryNodes.Builder nb = DiscoveryNodes.builder();
         for (int i = 1; i <= numNodes; i++) {
-            nb.put(Allocators.newNode("node" + i, Collections.singletonMap("tag", "tag_" + (i % numTags))));
+            nb.add(Allocators.newNode("node" + i, Collections.singletonMap("tag", "tag_" + (i % numTags))));
         }
         initialClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metaData(metaData).routingTable(routingTable).nodes
@@ -160,11 +159,9 @@ public class AllocationBenchmark {
     public ClusterState measureAllocation() {
         ClusterState clusterState = initialClusterState;
         while (clusterState.getRoutingNodes().hasUnassignedShards()) {
-            RoutingAllocation.Result result = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes()
+            clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes()
                     .shardsWithState(ShardRoutingState.INITIALIZING));
-            clusterState = ClusterState.builder(clusterState).routingResult(result).build();
-            result = strategy.reroute(clusterState, "reroute");
-            clusterState = ClusterState.builder(clusterState).routingResult(result).build();
+            clusterState = strategy.reroute(clusterState, "reroute");
         }
         return clusterState;
     }

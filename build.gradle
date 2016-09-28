@@ -17,7 +17,6 @@
  * under the License.
  */
 
-import com.bmuschko.gradle.nexus.NexusPlugin
 import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.lib.RepositoryBuilder
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
@@ -47,68 +46,6 @@ subprojects {
             Node developer = node.appendNode('developers').appendNode('developer')
             developer.appendNode('name', 'Elastic')
             developer.appendNode('url', 'http://www.elastic.co')
-          }
-        }
-      }
-    }
-  }
-
-  plugins.withType(NexusPlugin).whenPluginAdded {
-    modifyPom {
-      project {
-        url 'https://github.com/elastic/elasticsearch'
-        inceptionYear '2009'
-
-        scm {
-          url 'https://github.com/elastic/elasticsearch'
-          connection 'scm:https://elastic@github.com/elastic/elasticsearch'
-          developerConnection 'scm:git://github.com/elastic/elasticsearch.git'
-        }
-
-        licenses {
-          license {
-            name 'The Apache Software License, Version 2.0'
-            url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-            distribution 'repo'
-          }
-        }
-      }
-    }
-    extraArchive {
-      javadoc = true
-      tests = false
-    }
-    nexus {
-      String buildSnapshot = System.getProperty('build.snapshot', 'true')
-      if (buildSnapshot == 'false') {
-        Repository repo = new RepositoryBuilder().findGitDir(project.rootDir).build()
-        String shortHash = repo.resolve('HEAD')?.name?.substring(0,7)
-        repositoryUrl = project.hasProperty('build.repository') ? project.property('build.repository') : "file://${System.getenv('HOME')}/elasticsearch-releases/${version}-${shortHash}/"
-      }
-    }
-    // we have our own username/password prompts so that they only happen once
-    // TODO: add gpg signing prompts, which is tricky, as the buildDeb/buildRpm tasks are executed before this code block
-    project.gradle.taskGraph.whenReady { taskGraph ->
-      if (taskGraph.allTasks.any { it.name == 'uploadArchives' }) {
-        Console console = System.console()
-        // no need for username/password on local deploy
-        if (project.nexus.repositoryUrl.startsWith('file://')) {
-          project.rootProject.allprojects.each {
-            it.ext.nexusUsername = 'foo'
-            it.ext.nexusPassword = 'bar'
-          }
-        } else {
-          if (project.hasProperty('nexusUsername') == false) {
-            String nexusUsername = console.readLine('\nNexus username: ')
-            project.rootProject.allprojects.each {
-              it.ext.nexusUsername = nexusUsername
-            }
-          }
-          if (project.hasProperty('nexusPassword') == false) {
-            String nexusPassword = new String(console.readPassword('\nNexus password: '))
-            project.rootProject.allprojects.each {
-              it.ext.nexusPassword = nexusPassword
-            }
           }
         }
       }
@@ -166,6 +103,7 @@ subprojects {
     "org.elasticsearch.client:rest:${version}": ':client:rest',
     "org.elasticsearch.client:sniffer:${version}": ':client:sniffer',
     "org.elasticsearch.client:test:${version}": ':client:test',
+    "org.elasticsearch.client:transport:${version}": ':client:transport',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
     "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:integ-test-zip',
     "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:zip',
@@ -173,6 +111,12 @@ subprojects {
     "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:rpm',
     "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:deb',
     "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
+    // for transport client
+    "org.elasticsearch.plugin:transport-netty3-client:${version}": ':modules:transport-netty3',
+    "org.elasticsearch.plugin:transport-netty4-client:${version}": ':modules:transport-netty4',
+    "org.elasticsearch.plugin:reindex-client:${version}": ':modules:reindex',
+    "org.elasticsearch.plugin:lang-mustache-client:${version}": ':modules:lang-mustache',
+    "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
   ]
   configurations.all {
     resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->

@@ -6,6 +6,7 @@
   - do:
       indices.create:
         index: source
+        wait_for_active_shards: 1
         body:
           settings:
             number_of_replicas: "0"
@@ -46,13 +47,15 @@
       cluster.health:
         wait_for_status: green
         index: source
-        wait_for_relocating_shards: 0
+        wait_for_no_relocating_shards: true
+        wait_for_events: "languid"
 
   # now we do the actual shrink
   - do:
       indices.shrink:
         index: "source"
         target: "target"
+        wait_for_active_shards: 1
         body:
           settings:
             index.number_of_replicas: 0

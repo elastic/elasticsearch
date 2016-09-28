@@ -30,12 +30,13 @@ import org.elasticsearch.common.util.ByteArray;
  */
 public final class ReleasablePagedBytesReference extends PagedBytesReference implements Releasable {
 
-    public ReleasablePagedBytesReference(BigArrays bigarrays, ByteArray bytearray, int length) {
-        super(bigarrays, bytearray, length);
+    public ReleasablePagedBytesReference(BigArrays bigarrays, ByteArray byteArray, int length) {
+        super(bigarrays, byteArray, length);
     }
 
     @Override
     public void close() {
-        Releasables.close(bytearray);
+        Releasables.close(byteArray);
     }
+
 }

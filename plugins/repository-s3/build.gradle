@@ -48,9 +48,15 @@ dependencyLicenses {
   mapping from: /jaxb-.*/, to: 'jaxb'
 }
 
+bundlePlugin {
+  from('config/repository-s3') {
+    into 'config'
+  }
+}
+
 test {
   // this is needed for insecure plugins, remove if possible!
-  systemProperty 'tests.artifact', project.name 
+  systemProperty 'tests.artifact', project.name
 }
 
 thirdPartyAudit.excludes = [

@@ -36,9 +36,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.CompletionFieldMapper2x;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.core.CompletionFieldMapper2x;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -86,7 +86,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class);
     }
 
     public void testSimple() throws Exception {
@@ -99,7 +99,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
             client().prepareIndex(INDEX, TYPE, "" + i)
                 .setSource(jsonBuilder()
                     .startObject().startObject(FIELD)
-                    .field("input", input[i])
+                    .array("input", input[i])
                     .endObject()
                     .endObject()
                 )
@@ -923,7 +923,6 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
                 .endObject().endObject()
                 .endObject())
             .get());
-        ensureYellow();
     }
 
     private void createIndexAndMapping(CompletionMappingBuilder completionMappingBuilder) throws IOException {
@@ -942,7 +941,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
             builders[i] = client().prepareIndex(INDEX, TYPE, "" + i)
                 .setSource(jsonBuilder()
                     .startObject().startObject(FIELD)
-                    .field("input", input[i])
+                    .array("input", input[i])
                     .field("output", surface[i])
                     .startObject("payload").field("id", i).endObject()
                     .field("weight", 1) // WE FORCEFULLY INDEX A BOGUS WEIGHT
@@ -956,7 +955,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
             builders[i] = client().prepareIndex(INDEX, TYPE, "n" + i)
                 .setSource(jsonBuilder()
                     .startObject().startObject(FIELD)
-                    .field("input", input[i])
+                    .array("input", input[i])
                     .field("output", surface[i])
                     .startObject("payload").field("id", i).endObject()
                     .field("weight", weight[i])
@@ -1067,7 +1066,6 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().endObject()
                 .endObject()).get());
-        ensureYellow();
         // can cause stack overflow without the default max_input_length
         String longString = replaceReservedChars(randomRealisticUnicodeOfLength(randomIntBetween(5000, 10000)), (char) 0x01);
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
@@ -1088,7 +1086,6 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
             .endObject()
             .endObject().endObject()
             .endObject()).get());
-        ensureYellow();
         // can cause stack overflow without the default max_input_length
         String string = "foo" + (char) 0x00 + "bar";
         try {
@@ -1111,7 +1108,6 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
             .endObject()
             .endObject().endObject()
             .endObject()).get());
-        ensureYellow();
         String string = "foo bar";
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
             .startObject()

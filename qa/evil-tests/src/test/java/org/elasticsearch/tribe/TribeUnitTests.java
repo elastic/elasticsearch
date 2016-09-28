@@ -24,10 +24,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -36,6 +39,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -51,14 +55,16 @@ public class TribeUnitTests extends ESTestCase {
     private static Node tribe1;
     private static Node tribe2;
 
-    private static final String NODE_MODE = InternalTestCluster.configuredNodeMode();
 
     @BeforeClass
-    public static void createTribes() {
+    public static void createTribes() throws NodeValidationException {
         Settings baseSettings = Settings.builder()
-            .put("http.enabled", false)
-            .put(Node.NODE_MODE_SETTING.getKey(), NODE_MODE)
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+            .put(NetworkModule.HTTP_ENABLED.getKey(), false)
+            .put("transport.type", "local")
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
+            .build();
 
         tribe1 = new TribeClientNode(
             Settings.builder()
@@ -66,14 +72,14 @@ public class TribeUnitTests extends ESTestCase {
                 .put("cluster.name", "tribe1")
                 .put("node.name", "tribe1_node")
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
-                .build()).start();
+                .build(), Collections.emptyList()).start();
         tribe2 = new TribeClientNode(
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe2")
                 .put("node.name", "tribe2_node")
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
-                .build()).start();
+                .build(), Collections.emptyList()).start();
     }
 
     @AfterClass
@@ -93,26 +99,23 @@ public class TribeUnitTests extends ESTestCase {
     }
 
     private static void assertTribeNodeSuccessfullyCreated(Settings extraSettings) throws Exception {
-        //tribe node doesn't need the node.mode setting, as it's forced local internally anyways. The tribe clients do need it to make sure
-        //they can find their corresponding tribes using the proper transport
-        Settings settings = Settings.builder().put("http.enabled", false).put("node.name", "tribe_node")
-                .put("tribe.t1.node.mode", NODE_MODE).put("tribe.t2.node.mode", NODE_MODE)
+        //The tribe clients do need it to make sure they can find their corresponding tribes using the proper transport
+        Settings settings = Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).put("node.name", "tribe_node")
+                .put("transport.type", "local").put("discovery.type", "local")
+                .put("tribe.t1.transport.type", "local").put("tribe.t2.transport.type", "local")
+                .put("tribe.t1.discovery.type", "local").put("tribe.t2.discovery.type", "local")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(Node.NODE_MODE_SETTING.getKey(), NODE_MODE)
                 .put(extraSettings).build();
 
         try (Node node = new Node(settings).start()) {
             try (Client client = node.client()) {
-                assertBusy(new Runnable() {
-                    @Override
-                    public void run() {
-                        ClusterState state = client.admin().cluster().prepareState().clear().setNodes(true).get().getState();
-                        assertThat(state.getClusterName().value(), equalTo("tribe_node_cluster"));
-                        assertThat(state.getNodes().getSize(), equalTo(5));
-                        for (DiscoveryNode discoveryNode : state.getNodes()) {
-                            assertThat(discoveryNode.getName(), either(equalTo("tribe1_node")).or(equalTo("tribe2_node"))
-                                    .or(equalTo("tribe_node")).or(equalTo("tribe_node/t1")).or(equalTo("tribe_node/t2")));
-                        }
+                assertBusy(() -> {
+                    ClusterState state = client.admin().cluster().prepareState().clear().setNodes(true).get().getState();
+                    assertThat(state.getClusterName().value(), equalTo("tribe_node_cluster"));
+                    assertThat(state.getNodes().getSize(), equalTo(5));
+                    for (DiscoveryNode discoveryNode : state.getNodes()) {
+                        assertThat(discoveryNode.getName(), either(equalTo("tribe1_node")).or(equalTo("tribe2_node"))
+                                .or(equalTo("tribe_node")).or(equalTo("tribe_node/t1")).or(equalTo("tribe_node/t2")));
                     }
                 });
             }

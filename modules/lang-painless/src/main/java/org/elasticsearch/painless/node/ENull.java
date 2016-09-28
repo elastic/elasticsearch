@@ -37,12 +37,18 @@ public final class ENull extends AExpression {
     public ENull(Location location) {
         super(location);
     }
-    
+
     @Override
-    void extractVariables(Set<String> variables) {}
+    void extractVariables(Set<String> variables) {
+        // Do nothing.
+    }
 
     @Override
     void analyze(Locals locals) {
+        if (!read) {
+            throw createError(new IllegalArgumentException("Must read from null constant."));
+        }
+
         isNull = true;
 
         if (expected != null) {

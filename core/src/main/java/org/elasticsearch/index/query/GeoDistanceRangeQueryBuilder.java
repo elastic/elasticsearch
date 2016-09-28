@@ -36,10 +36,11 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper.LegacyGeoPointFieldType;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapperLegacy;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 
 import java.io.IOException;
@@ -48,14 +49,13 @@ import java.util.Objects;
 import java.util.Optional;
 
 public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistanceRangeQueryBuilder> {
-
     public static final String NAME = "geo_distance_range";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final GeoDistance DEFAULT_GEO_DISTANCE = GeoDistance.DEFAULT;
     public static final DistanceUnit DEFAULT_UNIT = DistanceUnit.DEFAULT;
+    @Deprecated
     public static final String DEFAULT_OPTIMIZE_BBOX = "memory";
 
     /**
@@ -75,7 +75,9 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
     private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
     private static final ParseField NAME_FIELD = new ParseField("_name");
     private static final ParseField BOOST_FIELD = new ParseField("boost");
-    private static final ParseField OPTIMIZE_BBOX_FIELD = new ParseField("optimize_bbox");
+    @Deprecated
+    private static final ParseField OPTIMIZE_BBOX_FIELD = new ParseField("optimize_bbox")
+            .withAllDeprecated("no replacement: `optimize_bbox` is no longer supported due to recent improvements");
     private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize")
             .withAllDeprecated("use validation_method instead");
     private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed")
@@ -98,7 +100,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
 
     private DistanceUnit unit = DEFAULT_UNIT;
 
-    private String optimizeBbox = DEFAULT_OPTIMIZE_BBOX;
+    private String optimizeBbox = null;
 
     private GeoValidationMethod validationMethod = GeoValidationMethod.DEFAULT;
 
@@ -134,7 +136,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         includeUpper = in.readBoolean();
         unit = DistanceUnit.valueOf(in.readString());
         geoDistance = GeoDistance.readFromStream(in);
-        optimizeBbox = in.readString();
+        optimizeBbox = in.readOptionalString();
         validationMethod = GeoValidationMethod.readFromStream(in);
         ignoreUnmapped = in.readBoolean();
     }
@@ -149,7 +151,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         out.writeBoolean(includeUpper);
         out.writeString(unit.name());
         geoDistance.writeTo(out);;
-        out.writeString(optimizeBbox);
+        out.writeOptionalString(optimizeBbox);
         validationMethod.writeTo(out);
         out.writeBoolean(ignoreUnmapped);
     }
@@ -244,22 +246,13 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         return unit;
     }
 
+    @Deprecated
     public GeoDistanceRangeQueryBuilder optimizeBbox(String optimizeBbox) {
-        if (optimizeBbox == null) {
-            throw new IllegalArgumentException("optimizeBbox must not be null");
-        }
-        switch (optimizeBbox) {
-            case "none":
-            case "memory":
-            case "indexed":
-                break;
-            default:
-                throw new IllegalArgumentException("optimizeBbox must be one of [none, memory, indexed]");
-        }
         this.optimizeBbox = optimizeBbox;
         return this;
     }
 
+    @Deprecated
     public String optimizeBbox() {
         return optimizeBbox;
     }
@@ -355,11 +348,15 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         }
 
         final Version indexVersionCreated = context.indexVersionCreated();
-        if (indexVersionCreated.before(Version.V_2_2_0)) {
-            GeoPointFieldMapperLegacy.GeoPointFieldType geoFieldType = ((GeoPointFieldMapperLegacy.GeoPointFieldType) fieldType);
+        if (indexVersionCreated.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            throw new QueryShardException(context, "[{}] queries are no longer supported for geo_point field types. "
+                + "Use geo_distance sort or aggregations", NAME);
+        } else if (indexVersionCreated.before(Version.V_2_2_0)) {
+            LegacyGeoPointFieldType geoFieldType = (LegacyGeoPointFieldType) fieldType;
             IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
+            String bboxOptimization = Strings.isEmpty(optimizeBbox) ? DEFAULT_OPTIMIZE_BBOX : optimizeBbox;
             return new GeoDistanceRangeQuery(point, fromValue, toValue, includeLower, includeUpper, geoDistance, geoFieldType,
-                indexFieldData, optimizeBbox);
+                indexFieldData, bboxOptimization);
         }
 
         // if index created V_2_2 use (soon to be legacy) numeric encoding postings format
@@ -382,7 +379,9 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         builder.field(INCLUDE_UPPER_FIELD.getPreferredName(), includeUpper);
         builder.field(UNIT_FIELD.getPreferredName(), unit);
         builder.field(DISTANCE_TYPE_FIELD.getPreferredName(), geoDistance.name().toLowerCase(Locale.ROOT));
-        builder.field(OPTIMIZE_BBOX_FIELD.getPreferredName(), optimizeBbox);
+        if (Strings.isEmpty(optimizeBbox) == false) {
+            builder.field(OPTIMIZE_BBOX_FIELD.getPreferredName(), optimizeBbox);
+        }
         builder.field(VALIDATION_METHOD.getPreferredName(), validationMethod);
         builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
         printBoostAndQueryName(builder);

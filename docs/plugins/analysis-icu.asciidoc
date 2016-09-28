@@ -21,6 +21,9 @@ sudo bin/elasticsearch-plugin install analysis-icu
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/analysis-icu/{version}/analysis-icu-{version}.zip.
+
 [[analysis-icu-remove]]
 [float]
 ==== Removal
@@ -160,8 +163,6 @@ PUT icu_sample
         }
     }
 }
-
-GET _cluster/health?wait_for_status=yellow
 
 POST icu_sample/_analyze?analyzer=my_analyzer&text=Elasticsearch. Wow!
 --------------------------------------------------
@@ -360,8 +361,6 @@ PUT /my_index
   }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 GET _search <3>
 {
   "query": {
@@ -480,8 +479,6 @@ PUT icu_sample
     }
   }
 }
-
-GET _cluster/health?wait_for_status=yellow
 
 GET icu_sample/_analyze?analyzer=latin
 {

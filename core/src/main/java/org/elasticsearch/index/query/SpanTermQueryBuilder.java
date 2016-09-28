@@ -38,9 +38,7 @@ import java.util.Optional;
  * @see SpanTermQuery
  */
 public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuilder> implements SpanQueryBuilder {
-
     public static final String NAME = "span_term";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField TERM_FIELD = new ParseField("term");
 
@@ -96,49 +94,41 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
 
     public static Optional<SpanTermQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
-
-        XContentParser.Token token = parser.currentToken();
-        if (token == XContentParser.Token.START_OBJECT) {
-            token = parser.nextToken();
-        }
-
-        assert token == XContentParser.Token.FIELD_NAME;
-        String fieldName = parser.currentName();
-
-
+        String fieldName = null;
         Object value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
-        token = parser.nextToken();
-        if (token == XContentParser.Token.START_OBJECT) {
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else {
-                    if (parseContext.getParseFieldMatcher().match(currentFieldName, TERM_FIELD)) {
-                        value = parser.objectBytes();
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, BaseTermQueryBuilder.VALUE_FIELD)) {
-                        value = parser.objectBytes();
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
-                        boost = parser.floatValue();
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
-                        queryName = parser.text();
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
+                fieldName = currentFieldName;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(),
-                                "[span_term] query does not support [" + currentFieldName + "]");
+                        if (parseContext.getParseFieldMatcher().match(currentFieldName, TERM_FIELD)) {
+                            value = parser.objectBytes();
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, BaseTermQueryBuilder.VALUE_FIELD)) {
+                            value = parser.objectBytes();
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                            boost = parser.floatValue();
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                            queryName = parser.text();
+                        } else {
+                            throw new ParsingException(parser.getTokenLocation(),
+                                    "[span_term] query does not support [" + currentFieldName + "]");
+                        }
                     }
                 }
+            } else {
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
+                fieldName = parser.currentName();
+                value = parser.objectBytes();
             }
-            parser.nextToken();
-        } else {
-            value = parser.objectBytes();
-            // move to the next token
-            parser.nextToken();
-        }
-
-        if (value == null) {
-            throw new ParsingException(parser.getTokenLocation(), "No value specified for term query");
         }
 
         SpanTermQueryBuilder result = new SpanTermQueryBuilder(fieldName, value);

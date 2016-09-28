@@ -60,7 +60,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     public static final boolean DEFAULT_LENIENCY = MatchQuery.DEFAULT_LENIENCY;
     public static final MatchQuery.ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
 
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
     private static final ParseField SLOP_FIELD = new ParseField("slop", "phrase_slop");
     private static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
@@ -709,7 +708,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     protected Query doToQuery(QueryShardContext context) throws IOException {
         MultiMatchQuery multiMatchQuery = new MultiMatchQuery(context);
         if (analyzer != null) {
-            if (context.getAnalysisService().analyzer(analyzer) == null) {
+            if (context.getIndexAnalyzers().get(analyzer) == null) {
                 throw new QueryShardException(context, "[" + NAME + "] analyzer [" + analyzer + "] not found");
             }
             multiMatchQuery.setAnalyzer(analyzer);
@@ -746,11 +745,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
 
         Map<String, Float> newFieldsBoosts = handleFieldsMatchPattern(context.getMapperService(), fieldsBoosts);
 
-        Query query = multiMatchQuery.parse(type, newFieldsBoosts, value, minimumShouldMatch);
-        if (query == null) {
-            return null;
-        }
-        return query;
+        return multiMatchQuery.parse(type, newFieldsBoosts, value, minimumShouldMatch);
     }
 
     private static Map<String, Float> handleFieldsMatchPattern(MapperService mapperService, Map<String, Float> fieldsBoosts) {

@@ -19,17 +19,26 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.common.settings.Settings;
+
 import java.nio.CharBuffer;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 
 public class RegexTests extends ScriptTestCase {
+    @Override
+    protected Settings scriptEngineSettings() {
+        // Enable regexes just for this test. They are disabled by default.
+        return Settings.builder()
+                .put(CompilerSettings.REGEX_ENABLED.getKey(), true)
+                .build();
+    }
+
     public void testPatternAfterReturn() {
         assertEquals(true, exec("return 'foo' ==~ /foo/"));
         assertEquals(false, exec("return 'bar' ==~ /foo/"));
@@ -114,8 +123,8 @@ public class RegexTests extends ScriptTestCase {
     }
 
     public void testFindOnInput() {
-        assertEquals(true, exec("return params.s =~ /foo/", singletonMap("s", "fooasdfdf")));
-        assertEquals(false, exec("return params.s =~ /foo/", singletonMap("s", "11f2ooasdfdf")));
+        assertEquals(true, exec("return params.s =~ /foo/", singletonMap("s", "fooasdfdf"), true));
+        assertEquals(false, exec("return params.s =~ /foo/", singletonMap("s", "11f2ooasdfdf"), true));
     }
 
     public void testGroup() {
@@ -183,7 +192,7 @@ public class RegexTests extends ScriptTestCase {
     public void testReplaceAllMatchesCharSequence() {
         CharSequence charSequence = CharBuffer.wrap("the quick brown fox");
         assertEquals("thE qUIck brOwn fOx",
-                exec("params.a.replaceAll(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence)));
+                exec("params.a.replaceAll(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence), true));
     }
 
     public void testReplaceAllNoMatchString() {
@@ -193,7 +202,7 @@ public class RegexTests extends ScriptTestCase {
     public void testReplaceAllNoMatchCharSequence() {
         CharSequence charSequence = CharBuffer.wrap("i am cat");
         assertEquals("i am cat",
-                exec("params.a.replaceAll(/dolphin/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence)));
+                exec("params.a.replaceAll(/dolphin/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence), true));
     }
 
     public void testReplaceAllQuoteReplacement() {
@@ -211,7 +220,7 @@ public class RegexTests extends ScriptTestCase {
     public void testReplaceFirstMatchesCharSequence() {
         CharSequence charSequence = CharBuffer.wrap("the quick brown fox");
         assertEquals("thE quick brown fox",
-                exec("params.a.replaceFirst(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence)));
+                exec("params.a.replaceFirst(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence), true));
     }
 
     public void testReplaceFirstNoMatchString() {
@@ -221,7 +230,7 @@ public class RegexTests extends ScriptTestCase {
     public void testReplaceFirstNoMatchCharSequence() {
         CharSequence charSequence = CharBuffer.wrap("i am cat");
         assertEquals("i am cat",
-                exec("params.a.replaceFirst(/dolphin/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence)));
+                exec("params.a.replaceFirst(/dolphin/, m -> m.group().toUpperCase(Locale.ROOT))", singletonMap("a", charSequence), true));
     }
 
     public void testReplaceFirstQuoteReplacement() {
@@ -255,7 +264,7 @@ public class RegexTests extends ScriptTestCase {
 
     public void testBogusRegexFlag() {
         IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> {
-            exec("/asdf/b", emptyMap(), emptyMap(), null); // Not picky so we get a non-assertion error
+            exec("/asdf/b", false); // Not picky so we get a non-assertion error
         });
         assertEquals("unexpected token ['b'] was expecting one of [{<EOF>, ';'}].", e.getMessage());
     }

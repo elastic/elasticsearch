@@ -20,14 +20,13 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.bytes.BytesReference;
+
 import java.io.Closeable;
+import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
 
-/**
- *
- */
-public interface XContentGenerator extends Closeable {
+public interface XContentGenerator extends Closeable, Flushable {
 
     XContentType contentType();
 
@@ -37,68 +36,62 @@ public interface XContentGenerator extends Closeable {
 
     void usePrintLineFeedAtEnd();
 
-    void writeStartArray() throws IOException;
-
-    void writeEndArray() throws IOException;
-
     void writeStartObject() throws IOException;
 
     void writeEndObject() throws IOException;
 
+    void writeStartArray() throws IOException;
+
+    void writeEndArray() throws IOException;
+
     void writeFieldName(String name) throws IOException;
-
-    void writeString(String text) throws IOException;
-
-    void writeString(char[] text, int offset, int len) throws IOException;
-
-    void writeUTF8String(byte[] text, int offset, int length) throws IOException;
-
-    void writeBinary(byte[] data, int offset, int len) throws IOException;
-
-    void writeBinary(byte[] data) throws IOException;
-
-    void writeNumber(int v) throws IOException;
-
-    void writeNumber(long v) throws IOException;
-
-    void writeNumber(double d) throws IOException;
-
-    void writeNumber(float f) throws IOException;
-
-    void writeBoolean(boolean state) throws IOException;
 
     void writeNull() throws IOException;
 
-    void writeStringField(String fieldName, String value) throws IOException;
+    void writeNullField(String name) throws IOException;
 
-    void writeBooleanField(String fieldName, boolean value) throws IOException;
+    void writeBooleanField(String name, boolean value) throws IOException;
 
-    void writeNullField(String fieldName) throws IOException;
+    void writeBoolean(boolean value) throws IOException;
 
-    void writeNumberField(String fieldName, int value) throws IOException;
+    void writeNumberField(String name, double value) throws IOException;
 
-    void writeNumberField(String fieldName, long value) throws IOException;
+    void writeNumber(double value) throws IOException;
 
-    void writeNumberField(String fieldName, double value) throws IOException;
+    void writeNumberField(String name, float value) throws IOException;
 
-    void writeNumberField(String fieldName, float value) throws IOException;
+    void writeNumber(float value) throws IOException;
 
-    void writeBinaryField(String fieldName, byte[] data) throws IOException;
+    void writeNumberField(String name, int value) throws IOException;
 
-    void writeArrayFieldStart(String fieldName) throws IOException;
+    void writeNumber(int value) throws IOException;
 
-    void writeObjectFieldStart(String fieldName) throws IOException;
+    void writeNumberField(String name, long value) throws IOException;
 
-    void writeRawField(String fieldName, InputStream content) throws IOException;
+    void writeNumber(long value) throws IOException;
 
-    void writeRawField(String fieldName, BytesReference content) throws IOException;
+    void writeNumber(short value) throws IOException;
 
-    void writeRawValue(BytesReference content) throws IOException;
+    void writeStringField(String name, String value) throws IOException;
+
+    void writeString(String value) throws IOException;
+
+    void writeString(char[] text, int offset, int len) throws IOException;
+
+    void writeUTF8String(byte[] value, int offset, int length) throws IOException;
+
+    void writeBinaryField(String name, byte[] value) throws IOException;
+
+    void writeBinary(byte[] value) throws IOException;
+
+    void writeBinary(byte[] value, int offset, int length) throws IOException;
+
+    void writeRawField(String name, InputStream value) throws IOException;
+
+    void writeRawField(String name, BytesReference value) throws IOException;
+
+    void writeRawValue(BytesReference value) throws IOException;
 
     void copyCurrentStructure(XContentParser parser) throws IOException;
 
-    void flush() throws IOException;
-
-    @Override
-    void close() throws IOException;
 }

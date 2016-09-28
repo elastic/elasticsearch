@@ -21,14 +21,18 @@ package org.elasticsearch.bootstrap;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+import joptsimple.OptionSpecBuilder;
+import joptsimple.util.PathConverter;
 import org.elasticsearch.Build;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.SettingCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.node.NodeValidationException;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -37,22 +41,28 @@ import java.util.Map;
  */
 class Elasticsearch extends SettingCommand {
 
-    private final OptionSpec<Void> versionOption;
-    private final OptionSpec<Void> daemonizeOption;
-    private final OptionSpec<String> pidfileOption;
+    private final OptionSpecBuilder versionOption;
+    private final OptionSpecBuilder daemonizeOption;
+    private final OptionSpec<Path> pidfileOption;
+    private final OptionSpecBuilder quietOption;
 
     // visible for testing
     Elasticsearch() {
         super("starts elasticsearch");
-        // TODO: in jopt-simple 5.0, make this mutually exclusive with all other options
         versionOption = parser.acceptsAll(Arrays.asList("V", "version"),
             "Prints elasticsearch version information and exits");
         daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"),
-            "Starts Elasticsearch in the background");
-        // TODO: in jopt-simple 5.0 this option type can be a Path
+            "Starts Elasticsearch in the background")
+            .availableUnless(versionOption);
         pidfileOption = parser.acceptsAll(Arrays.asList("p", "pidfile"),
             "Creates a pid file in the specified path on start")
-            .withRequiredArg();
+            .availableUnless(versionOption)
+            .withRequiredArg()
+            .withValuesConvertedBy(new PathConverter());
+        quietOption = parser.acceptsAll(Arrays.asList("q", "quiet"),
+            "Turns off standard ouput/error streams logging in console")
+            .availableUnless(versionOption)
+            .availableUnless(daemonizeOption);
     }
 
     /**
@@ -71,7 +81,7 @@ class Elasticsearch extends SettingCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws UserException {
         if (options.nonOptionArguments().isEmpty() == false) {
             throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
         }
@@ -86,18 +96,24 @@ class Elasticsearch extends SettingCommand {
         }
 
         final boolean daemonize = options.has(daemonizeOption);
-        final String pidFile = pidfileOption.value(options);
+        final Path pidFile = pidfileOption.value(options);
+        final boolean quiet = options.has(quietOption);
 
-        init(daemonize, pidFile, settings);
+        try {
+            init(daemonize, pidFile, quiet, settings);
+        } catch (NodeValidationException e) {
+            throw new UserException(ExitCodes.CONFIG, e.getMessage());
+        }
     }
 
-    void init(final boolean daemonize, final String pidFile, final Map<String, String> esSettings) {
+    void init(final boolean daemonize, final Path pidFile, final boolean quiet, final Map<String, String> esSettings)
+        throws NodeValidationException, UserException {
         try {
-            Bootstrap.init(!daemonize, pidFile, esSettings);
-        } catch (final Throwable t) {
+            Bootstrap.init(!daemonize, pidFile, quiet, esSettings);
+        } catch (BootstrapException | RuntimeException e) {
             // format exceptions to the console in a special way
             // to avoid 2MB stacktraces from guice, etc.
-            throw new StartupError(t);
+            throw new StartupException(e);
         }
     }
 
@@ -107,9 +123,11 @@ class Elasticsearch extends SettingCommand {
      *
      * http://commons.apache.org/proper/commons-daemon/procrun.html
      *
-     * NOTE: If this method is renamed and/or moved, make sure to update service.bat!
+     * NOTE: If this method is renamed and/or moved, make sure to
+     * update elasticsearch-service.bat!
      */
     static void close(String[] args) throws IOException {
         Bootstrap.stop();
     }
+
 }

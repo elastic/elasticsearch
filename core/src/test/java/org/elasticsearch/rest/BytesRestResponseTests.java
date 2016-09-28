@@ -24,8 +24,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -33,11 +33,15 @@ import org.elasticsearch.transport.RemoteTransportException;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -157,8 +161,37 @@ public class BytesRestResponseTests extends ESTestCase {
 
     public void testResponseWhenPathContainsEncodingError() throws IOException {
         final String path = "%a";
-        final RestRequest request = mock(RestRequest.class);
-        when(request.rawPath()).thenReturn(path);
+        final RestRequest request = new RestRequest(Collections.emptyMap(), path) {
+            @Override
+            public Method method() {
+                return null;
+            }
+
+            @Override
+            public String uri() {
+                return null;
+            }
+
+            @Override
+            public boolean hasContent() {
+                return false;
+            }
+
+            @Override
+            public BytesReference content() {
+                return null;
+            }
+
+            @Override
+            public String header(String name) {
+                return null;
+            }
+
+            @Override
+            public Iterable<Map.Entry<String, String>> headers() {
+                return null;
+            }
+        };
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> RestUtils.decodeComponent(request.rawPath()));
         final RestChannel channel = new DetailedExceptionRestChannel(request);
         // if we try to decode the path, this will throw an IllegalArgumentException again

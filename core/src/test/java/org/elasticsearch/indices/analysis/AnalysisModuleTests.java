@@ -23,7 +23,10 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.analysis.de.GermanAnalyzer;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.miscellaneous.KeywordRepeatFilter;
@@ -38,9 +41,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.MappingCharFilterFactory;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.PatternReplaceCharFilterFactory;
@@ -51,6 +54,7 @@ import org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
 
 import java.io.BufferedWriter;
@@ -75,11 +79,11 @@ import static org.hamcrest.Matchers.is;
  */
 public class AnalysisModuleTests extends ModuleTestCase {
 
-    public AnalysisService getAnalysisService(Settings settings) throws IOException {
-        return getAnalysisService(getNewRegistry(settings), settings);
+    public IndexAnalyzers getIndexAnalyzers(Settings settings) throws IOException {
+        return getIndexAnalyzers(getNewRegistry(settings), settings);
     }
 
-    public AnalysisService getAnalysisService(AnalysisRegistry registry, Settings settings) throws IOException {
+    public IndexAnalyzers getIndexAnalyzers(AnalysisRegistry registry, Settings settings) throws IOException {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
         return registry.build(idxSettings);
     }
@@ -96,7 +100,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
             throw new RuntimeException(e);
         }
     }
-    
+
     private Settings loadFromClasspath(String path) throws IOException {
         return Settings.builder().loadFromStream(path, getClass().getResourceAsStream(path))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -121,6 +125,82 @@ public class AnalysisModuleTests extends ModuleTestCase {
         assertTokenFilter("arabic_normalization", ArabicNormalizationFilter.class);
     }
 
+    public void testAnalyzerAlias() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.foobar.alias","default")
+            .put("index.analysis.analyzer.foobar.type", "keyword")
+            .put("index.analysis.analyzer.foobar_search.alias","default_search")
+            .put("index.analysis.analyzer.foobar_search.type","english")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            // analyzer aliases are only allowed in 2.x indices
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_3_5))
+            .build();
+        AnalysisRegistry newRegistry = getNewRegistry(settings);
+        IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings);
+        assertThat(indexAnalyzers.get("default").analyzer(), is(instanceOf(KeywordAnalyzer.class)));
+        assertThat(indexAnalyzers.get("default_search").analyzer(), is(instanceOf(EnglishAnalyzer.class)));
+    }
+
+    public void testAnalyzerAliasReferencesAlias() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.foobar.alias","default")
+            .put("index.analysis.analyzer.foobar.type", "german")
+            .put("index.analysis.analyzer.foobar_search.alias","default_search")
+            .put("index.analysis.analyzer.foobar_search.type", "default")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            // analyzer aliases are only allowed in 2.x indices
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_3_5))
+            .build();
+        AnalysisRegistry newRegistry = getNewRegistry(settings);
+        IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings);
+
+        assertThat(indexAnalyzers.get("default").analyzer(), is(instanceOf(GermanAnalyzer.class)));
+        // analyzer types are bound early before we resolve aliases
+        assertThat(indexAnalyzers.get("default_search").analyzer(), is(instanceOf(StandardAnalyzer.class)));
+    }
+
+    public void testAnalyzerAliasDefault() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.foobar.alias","default")
+            .put("index.analysis.analyzer.foobar.type", "keyword")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            // analyzer aliases are only allowed in 2.x indices
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_3_5))
+            .build();
+        AnalysisRegistry newRegistry = getNewRegistry(settings);
+        IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings);
+        assertThat(indexAnalyzers.get("default").analyzer(), is(instanceOf(KeywordAnalyzer.class)));
+        assertThat(indexAnalyzers.get("default_search").analyzer(), is(instanceOf(KeywordAnalyzer.class)));
+    }
+
+    public void testAnalyzerAliasMoreThanOnce() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.foobar.alias","default")
+            .put("index.analysis.analyzer.foobar.type", "keyword")
+            .put("index.analysis.analyzer.foobar1.alias","default")
+            .put("index.analysis.analyzer.foobar1.type", "english")
+            // analyzer aliases are only allowed in 2.x indices
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_3_5))
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+        AnalysisRegistry newRegistry = getNewRegistry(settings);
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> getIndexAnalyzers(newRegistry, settings));
+        assertEquals("alias [default] is already used by [foobar]", ise.getMessage());
+    }
+
+    public void testAnalyzerAliasNotAllowedPost5x() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.foobar.type", "standard")
+            .put("index.analysis.analyzer.foobar.alias","foobaz")
+            // analyzer aliases were removed in v5.0.0 alpha6
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_5_0_0_alpha6, null))
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+        AnalysisRegistry registry = getNewRegistry(settings);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> getIndexAnalyzers(registry, settings));
+        assertEquals("setting [index.analysis.analyzer.foobar.alias] is not supported", e.getMessage());
+    }
+
     public void testVersionedAnalyzers() throws Exception {
         String yaml = "/org/elasticsearch/index/analysis/test1.yml";
         Settings settings2 = Settings.builder()
@@ -129,7 +209,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0)
                 .build();
         AnalysisRegistry newRegistry = getNewRegistry(settings2);
-        AnalysisService analysisService2 = getAnalysisService(newRegistry, settings2);
+        IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings2);
 
         // registry always has the current version
         assertThat(newRegistry.getAnalyzer("default"), is(instanceOf(NamedAnalyzer.class)));
@@ -138,20 +218,20 @@ public class AnalysisModuleTests extends ModuleTestCase {
         assertEquals(Version.CURRENT.luceneVersion, defaultNamedAnalyzer.analyzer().getVersion());
 
         // analysis service has the expected version
-        assertThat(analysisService2.analyzer("standard").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(Version.V_2_0_0.luceneVersion, analysisService2.analyzer("standard").analyzer().getVersion());
-        assertEquals(Version.V_2_0_0.luceneVersion, analysisService2.analyzer("thai").analyzer().getVersion());
+        assertThat(indexAnalyzers.get("standard").analyzer(), is(instanceOf(StandardAnalyzer.class)));
+        assertEquals(Version.V_2_0_0.luceneVersion, indexAnalyzers.get("standard").analyzer().getVersion());
+        assertEquals(Version.V_2_0_0.luceneVersion, indexAnalyzers.get("thai").analyzer().getVersion());
 
-        assertThat(analysisService2.analyzer("custom7").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(org.apache.lucene.util.Version.fromBits(3,6,0), analysisService2.analyzer("custom7").analyzer().getVersion());
+        assertThat(indexAnalyzers.get("custom7").analyzer(), is(instanceOf(StandardAnalyzer.class)));
+        assertEquals(org.apache.lucene.util.Version.fromBits(3,6,0), indexAnalyzers.get("custom7").analyzer().getVersion());
     }
 
     private void assertTokenFilter(String name, Class<?> clazz) throws IOException {
         Settings settings = Settings.builder()
                                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
-        TokenFilterFactory tokenFilter = analysisService.tokenFilter(name);
+        TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get(name);
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader("foo bar"));
         TokenStream stream = tokenFilter.create(tokenizer);
@@ -159,8 +239,8 @@ public class AnalysisModuleTests extends ModuleTestCase {
     }
 
     private void testSimpleConfiguration(Settings settings) throws IOException {
-        AnalysisService analysisService = getAnalysisService(settings);
-        Analyzer analyzer = analysisService.analyzer("custom1").analyzer();
+        IndexAnalyzers indexAnalyzers = getIndexAnalyzers(settings);
+        Analyzer analyzer = indexAnalyzers.get("custom1").analyzer();
 
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));
         CustomAnalyzer custom1 = (CustomAnalyzer) analyzer;
@@ -170,27 +250,23 @@ public class AnalysisModuleTests extends ModuleTestCase {
         StopTokenFilterFactory stop1 = (StopTokenFilterFactory) custom1.tokenFilters()[0];
         assertThat(stop1.stopWords().size(), equalTo(1));
 
-        analyzer = analysisService.analyzer("custom2").analyzer();
+        analyzer = indexAnalyzers.get("custom2").analyzer();
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));
 
         // verify position increment gap
-        analyzer = analysisService.analyzer("custom6").analyzer();
+        analyzer = indexAnalyzers.get("custom6").analyzer();
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));
         CustomAnalyzer custom6 = (CustomAnalyzer) analyzer;
         assertThat(custom6.getPositionIncrementGap("any_string"), equalTo(256));
 
         // verify characters  mapping
-        analyzer = analysisService.analyzer("custom5").analyzer();
+        analyzer = indexAnalyzers.get("custom5").analyzer();
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));
         CustomAnalyzer custom5 = (CustomAnalyzer) analyzer;
         assertThat(custom5.charFilters()[0], instanceOf(MappingCharFilterFactory.class));
 
-        // verify aliases
-        analyzer = analysisService.analyzer("alias1").analyzer();
-        assertThat(analyzer, instanceOf(StandardAnalyzer.class));
-
         // check custom pattern replace filter
-        analyzer = analysisService.analyzer("custom3").analyzer();
+        analyzer = indexAnalyzers.get("custom3").analyzer();
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));
         CustomAnalyzer custom3 = (CustomAnalyzer) analyzer;
         PatternReplaceCharFilterFactory patternReplaceCharFilterFactory = (PatternReplaceCharFilterFactory) custom3.charFilters()[0];
@@ -198,7 +274,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
         assertThat(patternReplaceCharFilterFactory.getReplacement(), equalTo("replacedSample $1"));
 
         // check custom class name (my)
-        analyzer = analysisService.analyzer("custom4").analyzer();
+        analyzer = indexAnalyzers.get("custom4").analyzer();
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));
         CustomAnalyzer custom4 = (CustomAnalyzer) analyzer;
         assertThat(custom4.tokenFilters()[0], instanceOf(MyFilterTokenFilterFactory.class));
@@ -258,7 +334,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, "1")
                 .build();
         try {
-            getAnalysisService(settings);
+            getIndexAnalyzers(settings);
             fail("This should fail with IllegalArgumentException because the analyzers name starts with _");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), either(equalTo("analyzer name must not start with '_'. got \"_invalid_name\""))
@@ -271,10 +347,11 @@ public class AnalysisModuleTests extends ModuleTestCase {
                 .put("index.analysis.analyzer.valid_name.tokenizer", "keyword")
                 .put("index.analysis.analyzer.valid_name.alias", "_invalid_name")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, "1")
+                // analyzer aliases are only allowed for 2.x indices
+                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_3_5))
                 .build();
         try {
-            getAnalysisService(settings);
+            getIndexAnalyzers(settings);
             fail("This should fail with IllegalArgumentException because the analyzers alias starts with _");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("analyzer name must not start with '_'. got \"_invalid_name\""));
@@ -289,7 +366,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
         try {
-            getAnalysisService(settings);
+            getIndexAnalyzers(settings);
             fail("Analyzer should fail if it has position_offset_gap");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Option [position_offset_gap] in Custom Analyzer [custom] " +

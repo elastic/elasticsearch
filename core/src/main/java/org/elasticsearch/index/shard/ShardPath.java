@@ -18,14 +18,15 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -107,7 +108,7 @@ public final class ShardPath {
      * directories with a valid shard state exist the one with the highest version will be used.
      * <b>Note:</b> this method resolves custom data locations for the shard.
      */
-    public static ShardPath loadShardPath(ESLogger logger, NodeEnvironment env, ShardId shardId, IndexSettings indexSettings) throws IOException {
+    public static ShardPath loadShardPath(Logger logger, NodeEnvironment env, ShardId shardId, IndexSettings indexSettings) throws IOException {
         final String indexUUID = indexSettings.getUUID();
         final Path[] paths = env.availableShardPaths(shardId);
         Path loadedPath = null;
@@ -145,7 +146,7 @@ public final class ShardPath {
      * This method tries to delete left-over shards where the index name has been reused but the UUID is different
      * to allow the new shard to be allocated.
      */
-    public static void deleteLeftoverShardDirectory(ESLogger logger, NodeEnvironment env, ShardLock lock, IndexSettings indexSettings) throws IOException {
+    public static void deleteLeftoverShardDirectory(Logger logger, NodeEnvironment env, ShardLock lock, IndexSettings indexSettings) throws IOException {
         final String indexUUID = indexSettings.getUUID();
         final Path[] paths = env.availableShardPaths(lock.getShardId());
         for (Path path : paths) {
@@ -171,9 +172,9 @@ public final class ShardPath {
             dataPath = env.resolveCustomLocation(indexSettings, shardId);
             statePath = env.nodePaths()[0].resolve(shardId);
         } else {
-            long totFreeSpace = 0;
+            BigInteger totFreeSpace = BigInteger.ZERO;
             for (NodeEnvironment.NodePath nodePath : env.nodePaths()) {
-                totFreeSpace += nodePath.fileStore.getUsableSpace();
+                totFreeSpace = totFreeSpace.add(BigInteger.valueOf(nodePath.fileStore.getUsableSpace()));
             }
 
             // TODO: this is a hack!!  We should instead keep track of incoming (relocated) shards since we know
@@ -181,22 +182,24 @@ public final class ShardPath {
 
             // Very rough heuristic of how much disk space we expect the shard will use over its lifetime, the max of current average
             // shard size across the cluster and 5% of the total available free space on this node:
-            long estShardSizeInBytes = Math.max(avgShardSizeInBytes, (long) (totFreeSpace/20.0));
+            BigInteger estShardSizeInBytes = BigInteger.valueOf(avgShardSizeInBytes).max(totFreeSpace.divide(BigInteger.valueOf(20)));
 
             // TODO - do we need something more extensible? Yet, this does the job for now...
             final NodeEnvironment.NodePath[] paths = env.nodePaths();
             NodeEnvironment.NodePath bestPath = null;
-            long maxUsableBytes = Long.MIN_VALUE;
+            BigInteger maxUsableBytes = BigInteger.valueOf(Long.MIN_VALUE);
             for (NodeEnvironment.NodePath nodePath : paths) {
                 FileStore fileStore = nodePath.fileStore;
-                long usableBytes = fileStore.getUsableSpace();
+
+                BigInteger usableBytes = BigInteger.valueOf(fileStore.getUsableSpace());
+                assert usableBytes.compareTo(BigInteger.ZERO) >= 0;
 
                 // Deduct estimated reserved bytes from usable space:
                 Integer count = dataPathToShardCount.get(nodePath.path);
                 if (count != null) {
-                    usableBytes -= estShardSizeInBytes * count;
+                    usableBytes = usableBytes.subtract(estShardSizeInBytes.multiply(BigInteger.valueOf(count)));
                 }
-                if (usableBytes > maxUsableBytes) {
+                if (bestPath == null || usableBytes.compareTo(maxUsableBytes) > 0) {
                     maxUsableBytes = usableBytes;
                     bestPath = nodePath;
                 }

@@ -46,7 +46,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
@@ -328,15 +327,14 @@ public class StoreTests extends ESTestCase {
         Store.MetadataSnapshot metadata;
         // check before we committed
         try {
-            store.getMetadata();
+            store.getMetadata(null);
             fail("no index present - expected exception");
         } catch (IndexNotFoundException ex) {
             // expected
         }
-        assertThat(store.getMetadataOrEmpty(), is(Store.MetadataSnapshot.EMPTY)); // nothing committed
         writer.commit();
         writer.close();
-        metadata = store.getMetadata();
+        metadata = store.getMetadata(null);
         assertThat(metadata.asMap().isEmpty(), is(false));
         for (StoreFileMetaData meta : metadata) {
             try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
@@ -351,49 +349,6 @@ public class StoreTests extends ESTestCase {
         assertConsistent(store, metadata);
 
         TestUtil.checkIndex(store.directory());
-        assertDeleteContent(store, directoryService);
-        IOUtils.close(store);
-    }
-
-    public void testRenameFile() throws IOException {
-        final ShardId shardId = new ShardId("index", "_na_", 1);
-        DirectoryService directoryService = new LuceneManagedDirectoryService(random(), false);
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
-        {
-            IndexOutput output = store.directory().createOutput("foo.bar", IOContext.DEFAULT);
-            int iters = scaledRandomIntBetween(10, 100);
-            for (int i = 0; i < iters; i++) {
-                BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
-                output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-            }
-            CodecUtil.writeFooter(output);
-            output.close();
-        }
-        store.renameFile("foo.bar", "bar.foo");
-        assertThat(numNonExtraFiles(store), is(1));
-        final long lastChecksum;
-        try (IndexInput input = store.directory().openInput("bar.foo", IOContext.DEFAULT)) {
-            lastChecksum = CodecUtil.checksumEntireFile(input);
-        }
-
-        try {
-            store.directory().openInput("foo.bar", IOContext.DEFAULT);
-            fail("file was renamed");
-        } catch (FileNotFoundException | NoSuchFileException ex) {
-            // expected
-        }
-        {
-            IndexOutput output = store.directory().createOutput("foo.bar", IOContext.DEFAULT);
-            int iters = scaledRandomIntBetween(10, 100);
-            for (int i = 0; i < iters; i++) {
-                BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
-                output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-            }
-            CodecUtil.writeFooter(output);
-            output.close();
-        }
-        store.renameFile("foo.bar", "bar.foo");
-        assertThat(numNonExtraFiles(store), is(1));
         assertDeleteContent(store, directoryService);
         IOUtils.close(store);
     }
@@ -520,9 +475,6 @@ public class StoreTests extends ESTestCase {
         public LuceneManagedDirectoryService(Random random, boolean preventDoubleWrite) {
             super(new ShardId(INDEX_SETTINGS.getIndex(), 1), INDEX_SETTINGS);
             dir = StoreTests.newDirectory(random);
-            if (dir instanceof MockDirectoryWrapper) {
-                ((MockDirectoryWrapper) dir).setPreventDoubleWrite(preventDoubleWrite);
-            }
             this.random = random;
         }
 
@@ -579,7 +531,7 @@ public class StoreTests extends ESTestCase {
             }
             writer.commit();
             writer.close();
-            first = store.getMetadata();
+            first = store.getMetadata(null);
             assertDeleteContent(store, directoryService);
             store.close();
         }
@@ -609,7 +561,7 @@ public class StoreTests extends ESTestCase {
             }
             writer.commit();
             writer.close();
-            second = store.getMetadata();
+            second = store.getMetadata(null);
         }
         Store.RecoveryDiff diff = first.recoveryDiff(second);
         assertThat(first.size(), equalTo(second.size()));
@@ -639,7 +591,7 @@ public class StoreTests extends ESTestCase {
         writer.deleteDocuments(new Term("id", Integer.toString(random().nextInt(numDocs))));
         writer.commit();
         writer.close();
-        Store.MetadataSnapshot metadata = store.getMetadata();
+        Store.MetadataSnapshot metadata = store.getMetadata(null);
         StoreFileMetaData delFile = null;
         for (StoreFileMetaData md : metadata) {
             if (md.name().endsWith(".liv")) {
@@ -674,7 +626,7 @@ public class StoreTests extends ESTestCase {
         writer.addDocument(docs.get(0));
         writer.close();
 
-        Store.MetadataSnapshot newCommitMetaData = store.getMetadata();
+        Store.MetadataSnapshot newCommitMetaData = store.getMetadata(null);
         Store.RecoveryDiff newCommitDiff = newCommitMetaData.recoveryDiff(metadata);
         if (delFile != null) {
             assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetaData.size() - 5)); // segments_N, del file, cfs, cfe, si for the new segment
@@ -723,7 +675,7 @@ public class StoreTests extends ESTestCase {
             writer.addDocument(doc);
         }
 
-        Store.MetadataSnapshot firstMeta = store.getMetadata();
+        Store.MetadataSnapshot firstMeta = store.getMetadata(null);
 
         if (random().nextBoolean()) {
             for (int i = 0; i < docs; i++) {
@@ -738,7 +690,7 @@ public class StoreTests extends ESTestCase {
         writer.commit();
         writer.close();
 
-        Store.MetadataSnapshot secondMeta = store.getMetadata();
+        Store.MetadataSnapshot secondMeta = store.getMetadata(null);
 
 
         if (randomBoolean()) {
@@ -785,13 +737,10 @@ public class StoreTests extends ESTestCase {
         final AtomicInteger count = new AtomicInteger(0);
         final ShardLock lock = new DummyShardLock(shardId);
 
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, lock, new Store.OnClose() {
-            @Override
-            public void handle(ShardLock theLock) {
-                assertEquals(shardId, theLock.getShardId());
-                assertEquals(lock, theLock);
-                count.incrementAndGet();
-            }
+        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, lock, theLock -> {
+            assertEquals(shardId, theLock.getShardId());
+            assertEquals(lock, theLock);
+            count.incrementAndGet();
         });
         assertEquals(count.get(), 0);
 
@@ -816,7 +765,7 @@ public class StoreTests extends ESTestCase {
             initialStoreSize += store.directory().fileLength(extraFiles);
         }
         StoreStats stats = store.stats();
-        assertEquals(stats.getSize().bytes(), initialStoreSize);
+        assertEquals(stats.getSize().getBytes(), initialStoreSize);
 
         Directory dir = store.directory();
         final long length;
@@ -917,11 +866,7 @@ public class StoreTests extends ESTestCase {
         writer.commit();
         writer.close();
         Store.MetadataSnapshot metadata;
-        if (randomBoolean()) {
-            metadata = store.getMetadata();
-        } else {
-            metadata = store.getMetadata(deletionPolicy.snapshot());
-        }
+        metadata = store.getMetadata(randomBoolean() ? null : deletionPolicy.snapshot());
         assertFalse(metadata.asMap().isEmpty());
         // do not check for correct files, we have enough tests for that above
         assertThat(metadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
@@ -971,18 +916,15 @@ public class StoreTests extends ESTestCase {
         }
         writer.commit();
         writer.close();
-        MockDirectoryWrapper leaf = DirectoryUtils.getLeaf(store.directory(), MockDirectoryWrapper.class);
-        if (leaf != null) {
-            leaf.setPreventDoubleWrite(false); // I do this on purpose
-        }
         SegmentInfos segmentCommitInfos = store.readLastCommittedSegmentsInfo();
+        store.directory().deleteFile(segmentCommitInfos.getSegmentsFileName());
         try (IndexOutput out = store.directory().createOutput(segmentCommitInfos.getSegmentsFileName(), IOContext.DEFAULT)) {
             // empty file
         }
 
         try {
             if (randomBoolean()) {
-                store.getMetadata();
+                store.getMetadata(null);
             } else {
                 store.readLastCommittedSegmentsInfo();
             }
@@ -1000,14 +942,14 @@ public class StoreTests extends ESTestCase {
         IndexWriterConfig iwc = newIndexWriterConfig();
         Path tempDir = createTempDir();
         final BaseDirectoryWrapper dir = newFSDirectory(tempDir);
-        assertFalse(Store.canOpenIndex(logger, tempDir,shardId));
+        assertFalse(Store.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
         IndexWriter writer = new IndexWriter(dir, iwc);
         Document doc = new Document();
         doc.add(new StringField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         writer.addDocument(doc);
         writer.commit();
         writer.close();
-        assertTrue(Store.canOpenIndex(logger, tempDir, shardId));
+        assertTrue(Store.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
 
         DirectoryService directoryService = new DirectoryService(shardId, INDEX_SETTINGS) {
             @Override
@@ -1022,7 +964,7 @@ public class StoreTests extends ESTestCase {
         };
         Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
         store.markStoreCorrupted(new CorruptIndexException("foo", "bar"));
-        assertFalse(Store.canOpenIndex(logger, tempDir, shardId));
+        assertFalse(Store.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
         store.close();
     }
 

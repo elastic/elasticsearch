@@ -26,8 +26,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 
 import java.io.IOException;
 
@@ -476,6 +475,21 @@ public class GeoUtils {
         return SloppyMath.haversinMeters(centerLat, centerLon, 0, centerLon);
       }
       return SloppyMath.haversinMeters(centerLat, centerLon, centerLat, (MAX_LON + centerLon) % 360);
+    }
+
+    /** Return the distance (in meters) between 2 lat,lon geo points using the haversine method implemented by lucene */
+    public static double arcDistance(double lat1, double lon1, double lat2, double lon2) {
+        return SloppyMath.haversinMeters(lat1, lon1, lat2, lon2);
+    }
+
+    /**
+     * Return the distance (in meters) between 2 lat,lon geo points using a simple tangential plane
+     * this provides a faster alternative to {@link GeoUtils#arcDistance} when points are within 5 km
+     */
+    public static double planeDistance(double lat1, double lon1, double lat2, double lon2) {
+        double x = (lon2 - lon1) * SloppyMath.TO_RADIANS * Math.cos((lat2 + lat1) / 2.0 * SloppyMath.TO_RADIANS);
+        double y = (lat2 - lat1) * SloppyMath.TO_RADIANS;
+        return Math.sqrt(x * x + y * y) * EARTH_MEAN_RADIUS;
     }
 
     private GeoUtils() {

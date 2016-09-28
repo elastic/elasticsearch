@@ -93,6 +93,7 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
 
     @Override
     protected void resolveRequest(final MetaData metaData, IndexMetaData indexMetaData, DeleteRequest request) {
+        super.resolveRequest(metaData, indexMetaData, request);
         resolveAndValidateRouting(metaData, indexMetaData.getIndex().getName(), request);
         ShardId shardId = clusterService.operationRouting().shardId(clusterService.state(),
             indexMetaData.getIndex().getName(), request.id(), request.routing());

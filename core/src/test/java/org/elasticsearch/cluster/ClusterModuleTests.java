@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.ModuleTestCase;
@@ -37,13 +38,18 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.plugins.ClusterPlugin;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
+
 public class ClusterModuleTests extends ModuleTestCase {
     private ClusterService clusterService = new ClusterService(Settings.EMPTY,
         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null);
-    public static class FakeAllocationDecider extends AllocationDecider {
+    static class FakeAllocationDecider extends AllocationDecider {
         protected FakeAllocationDecider(Settings settings) {
             super(settings);
         }
@@ -51,20 +57,13 @@ public class ClusterModuleTests extends ModuleTestCase {
 
     static class FakeShardsAllocator implements ShardsAllocator {
         @Override
-        public boolean allocate(RoutingAllocation allocation) {
-            return false;
+        public void allocate(RoutingAllocation allocation) {
+            // noop
         }
 
         @Override
         public Map<DiscoveryNode, Float> weighShard(RoutingAllocation allocation, ShardRouting shard) {
             return new HashMap<>();
-        }
-    }
-
-    static class FakeIndexTemplateFilter implements IndexTemplateFilter {
-        @Override
-        public boolean apply(CreateIndexClusterStateUpdateRequest request, IndexTemplateMetaData template) {
-            return false;
         }
     }
 
@@ -99,64 +98,62 @@ public class ClusterModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterAllocationDeciderDuplicate() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY, clusterService);
-        try {
-            module.registerAllocationDecider(EnableAllocationDecider.class);
-        } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(),
-                "Can't register the same [allocation_decider] more than once for [" + EnableAllocationDecider.class.getName() + "]");
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            new ClusterModule(Settings.EMPTY, clusterService,
+                Collections.<ClusterPlugin>singletonList(new ClusterPlugin() {
+                    @Override
+                    public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+                        return Collections.singletonList(new EnableAllocationDecider(settings, clusterSettings));
+                    }
+                })));
+        assertEquals(e.getMessage(),
+            "Cannot specify allocation decider [" + EnableAllocationDecider.class.getName() + "] twice");
     }
 
     public void testRegisterAllocationDecider() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY, clusterService);
-        module.registerAllocationDecider(FakeAllocationDecider.class);
-        assertSetMultiBinding(module, AllocationDecider.class, FakeAllocationDecider.class);
+        ClusterModule module = new ClusterModule(Settings.EMPTY, clusterService,
+            Collections.singletonList(new ClusterPlugin() {
+                @Override
+                public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+                    return Collections.singletonList(new FakeAllocationDecider(settings));
+                }
+            }));
+        assertTrue(module.allocationDeciders.stream().anyMatch(d -> d.getClass().equals(FakeAllocationDecider.class)));
+    }
+
+    private ClusterModule newClusterModuleWithShardsAllocator(Settings settings, String name, Supplier<ShardsAllocator> supplier) {
+        return new ClusterModule(settings, clusterService, Collections.singletonList(
+            new ClusterPlugin() {
+                @Override
+                public Map<String, Supplier<ShardsAllocator>> getShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
+                    return Collections.singletonMap(name, supplier);
+                }
+            }
+        ));
     }
 
     public void testRegisterShardsAllocator() {
         Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "custom").build();
-        ClusterModule module = new ClusterModule(settings, clusterService);
-        module.registerShardsAllocator("custom", FakeShardsAllocator.class);
-        assertBinding(module, ShardsAllocator.class, FakeShardsAllocator.class);
+        ClusterModule module = newClusterModuleWithShardsAllocator(settings, "custom", FakeShardsAllocator::new);
+        assertEquals(FakeShardsAllocator.class, module.shardsAllocator.getClass());
     }
 
     public void testRegisterShardsAllocatorAlreadyRegistered() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY, clusterService);
-        try {
-            module.registerShardsAllocator(ClusterModule.BALANCED_ALLOCATOR, FakeShardsAllocator.class);
-        } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Can't register the same [shards_allocator] more than once for [balanced]");
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            newClusterModuleWithShardsAllocator(Settings.EMPTY, ClusterModule.BALANCED_ALLOCATOR, FakeShardsAllocator::new));
+        assertEquals("ShardsAllocator [" + ClusterModule.BALANCED_ALLOCATOR + "] already defined", e.getMessage());
     }
 
     public void testUnknownShardsAllocator() {
         Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "dne").build();
-        ClusterModule module = new ClusterModule(settings, clusterService);
-        assertBindingFailure(module, "Unknown [shards_allocator]");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            new ClusterModule(settings, clusterService, Collections.emptyList()));
+        assertEquals("Unknown ShardsAllocator [dne]", e.getMessage());
     }
 
-    public void testEvenShardsAllocatorBackcompat() {
-        Settings settings = Settings.builder()
-            .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR).build();
-        ClusterModule module = new ClusterModule(settings, clusterService);
-        assertBinding(module, ShardsAllocator.class, BalancedShardsAllocator.class);
-    }
-
-    public void testRegisterIndexTemplateFilterDuplicate() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY, clusterService);
-        try {
-            module.registerIndexTemplateFilter(FakeIndexTemplateFilter.class);
-            module.registerIndexTemplateFilter(FakeIndexTemplateFilter.class);
-        } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(),
-                "Can't register the same [index_template_filter] more than once for [" + FakeIndexTemplateFilter.class.getName() + "]");
-        }
-    }
-
-    public void testRegisterIndexTemplateFilter() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY, clusterService);
-        module.registerIndexTemplateFilter(FakeIndexTemplateFilter.class);
-        assertSetMultiBinding(module, IndexTemplateFilter.class, FakeIndexTemplateFilter.class);
+    public void testShardsAllocatorFactoryNull() {
+        Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "bad").build();
+        NullPointerException e = expectThrows(NullPointerException.class, () ->
+            newClusterModuleWithShardsAllocator(settings, "bad", () -> null));
     }
 }

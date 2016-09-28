@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -198,41 +197,15 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        if (size == 0) {
-            aggregations = Collections.emptyList();
+        aggregations = in.readList(stream -> in.readNamedWriteable(InternalAggregation.class));
+        if (aggregations.isEmpty()) {
             aggregationsAsMap = emptyMap();
-        } else {
-            aggregations = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                // NORELEASE temporary hack to support old style streams and new style NamedWriteable at the same time
-                if (in.readBoolean()) {
-                    aggregations.add(in.readNamedWriteable(InternalAggregation.class));
-                } else {
-                    BytesReference type = in.readBytesReference();
-                    InternalAggregation aggregation = AggregationStreams.stream(type).readResult(in);
-                    aggregations.add(aggregation);
-                }
-            }
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(aggregations.size());
-        for (Aggregation aggregation : aggregations) {
-            InternalAggregation internal = (InternalAggregation) aggregation;
-            // NORELEASE Temporary hack to support old style streams and new style NamedWriteable at the same time
-            try {
-                internal.getWriteableName(); // Throws UnsupportedOperationException if we should use old style streams.
-                out.writeBoolean(true);
-                out.writeNamedWriteable(internal);
-            } catch (UnsupportedOperationException e) {
-                out.writeBoolean(false);
-                out.writeBytesReference(internal.type().stream());
-                internal.writeTo(out);
-            }
-        }
+        out.writeNamedWriteableList(aggregations);
     }
 
 }

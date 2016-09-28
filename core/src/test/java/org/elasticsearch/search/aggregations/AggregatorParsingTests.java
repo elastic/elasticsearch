@@ -38,6 +38,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.search.SearchExtRegistry;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.IndicesModule;
@@ -56,85 +58,50 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
 
 public class AggregatorParsingTests extends ESTestCase {
 
-    private static Injector injector;
-    private static Index index;
+    private String[] currentTypes;
 
-    private static String[] currentTypes;
-
-    protected static String[] getCurrentTypes() {
+    protected String[] getCurrentTypes() {
         return currentTypes;
     }
 
-    private static NamedWriteableRegistry namedWriteableRegistry;
-
-    protected static AggregatorParsers aggParsers;
-    protected static IndicesQueriesRegistry queriesRegistry;
-    protected static ParseFieldMatcher parseFieldMatcher;
+    protected AggregatorParsers aggParsers;
+    protected IndicesQueriesRegistry queriesRegistry;
+    protected ParseFieldMatcher parseFieldMatcher;
 
     /**
      * Setup for the whole base test class.
      */
-    @BeforeClass
-    public static void init() throws IOException {
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
         // we have to prefer CURRENT since with the range of versions we support
         // it's rather unlikely to get the current actually.
-        Version version = randomBoolean() ? Version.CURRENT
-                : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
         Settings settings = Settings.builder().put("node.name", AbstractQueryTestCase.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false).build();
-
-        namedWriteableRegistry = new NamedWriteableRegistry();
-        index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        final ThreadPool threadPool = new ThreadPool(settings);
-        final ClusterService clusterService = createClusterService(threadPool);
-        setState(clusterService, new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder()
-                .put(new IndexMetaData.Builder(index.getName()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
-        ScriptModule scriptModule = newTestScriptModule();
-        List<Setting<?>> scriptSettings = scriptModule.getSettings();
-        scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
-        SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, Collections.emptyList());
-        injector = new ModulesBuilder().add(
-            (b) -> {
-                b.bind(Environment.class).toInstance(new Environment(settings));
-                b.bind(ThreadPool.class).toInstance(threadPool);
-                b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
-            },
-            settingsModule,
-            new IndicesModule(namedWriteableRegistry, Collections.emptyList()) {
-                @Override
-                protected void configure() {
-                    bindMapperExtension();
-                }
-            }, new SearchModule(settings, namedWriteableRegistry, false) {
-                @Override
-                protected void configureSearch() {
-                    // Skip me
-                }
-            }, new IndexSettingsModule(index, settings),
-
-            new AbstractModule() {
-                @Override
-                protected void configure() {
-                    bind(ClusterService.class).toInstance(clusterService);
-                    bind(CircuitBreakerService.class).toInstance(new NoneCircuitBreakerService());
-                    bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
-                }
-            }).createInjector();
-        aggParsers = injector.getInstance(AggregatorParsers.class);
+        IndicesModule indicesModule = new IndicesModule(Collections.emptyList()) ;
+        SearchModule searchModule = new SearchModule(settings, false, emptyList());
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.addAll(indicesModule.getNamedWriteables());
+        entries.addAll(searchModule.getNamedWriteables());
+        aggParsers = searchModule.getSearchRequestParsers().aggParsers;
         // create some random type with some default field, those types will
         // stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
@@ -142,19 +109,8 @@ public class AggregatorParsingTests extends ESTestCase {
             String type = randomAsciiOfLengthBetween(1, 10);
             currentTypes[i] = type;
         }
-        queriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
+        queriesRegistry = searchModule.getQueryParserRegistry();
         parseFieldMatcher = ParseFieldMatcher.STRICT;
-    }
-
-    @AfterClass
-    public static void afterClass() throws Exception {
-        injector.getInstance(ClusterService.class).close();
-        terminate(injector.getInstance(ThreadPool.class));
-        injector = null;
-        index = null;
-        aggParsers = null;
-        currentTypes = null;
-        namedWriteableRegistry = null;
     }
 
     public void testTwoTypes() throws Exception {

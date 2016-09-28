@@ -204,7 +204,7 @@ public class MatchQuery {
             }
             return context.getMapperService().searchAnalyzer();
         } else {
-            Analyzer analyzer = context.getMapperService().analysisService().analyzer(this.analyzer);
+            Analyzer analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
             if (analyzer == null) {
                 throw new IllegalArgumentException("No analyzer found for [" + this.analyzer + "]");
             }
@@ -280,7 +280,6 @@ public class MatchQuery {
         if (zeroTermsQuery == DEFAULT_ZERO_TERMS_QUERY) {
             return Queries.newMatchNoDocsQuery("Matching no documents because no terms present.");
         }
-
         return Queries.newMatchAllQuery();
     }
 

@@ -66,7 +66,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                                       TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver
                                           indexNameExpressionResolver) {
         super(settings, CancelTasksAction.NAME, threadPool, clusterService, transportService, actionFilters,
-            indexNameExpressionResolver, CancelTasksRequest::new, CancelTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+            indexNameExpressionResolver, CancelTasksRequest::new, CancelTasksResponse::new,
+            ThreadPool.Names.MANAGEMENT);
         transportService.registerRequestHandler(BAN_PARENT_ACTION_NAME, BanParentTaskRequest::new, ThreadPool.Names.SAME, new
             BanParentRequestHandler());
     }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cli;
 
+import joptsimple.OptionException;
 import joptsimple.OptionSet;
 import org.elasticsearch.test.ESTestCase;
 
@@ -87,10 +88,11 @@ public class CommandTests extends ESTestCase {
         MockTerminal terminal = new MockTerminal();
         NoopCommand command = new NoopCommand();
         String[] args = {"-v", "-s"};
-        UserException e = expectThrows(UserException.class, () -> {
+        OptionException e = expectThrows(OptionException.class, () -> {
             command.mainWithoutErrorHandling(args, terminal);
         });
-        assertTrue(e.getMessage(), e.getMessage().contains("Cannot specify -s and -v together"));
+        assertTrue(e.getMessage(),
+                e.getMessage().contains("Option(s) [v/verbose] are unavailable given other options on the command line"));
     }
 
     public void testSilentVerbosity() throws Exception {

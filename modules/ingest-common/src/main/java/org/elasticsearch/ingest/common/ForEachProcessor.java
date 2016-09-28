@@ -23,15 +23,14 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.ProcessorsRegistry;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
-import static org.elasticsearch.ingest.ConfigurationUtils.readList;
+import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.elasticsearch.ingest.ConfigurationUtils.readMap;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 /**
@@ -45,26 +44,25 @@ public final class ForEachProcessor extends AbstractProcessor {
     public static final String TYPE = "foreach";
 
     private final String field;
-    private final List<Processor> processors;
+    private final Processor processor;
 
-    ForEachProcessor(String tag, String field, List<Processor> processors) {
+    ForEachProcessor(String tag, String field, Processor processor) {
         super(tag);
         this.field = field;
-        this.processors = processors;
+        this.processor = processor;
     }
 
     @Override
     public void execute(IngestDocument ingestDocument) throws Exception {
-        List<Object> values = ingestDocument.getFieldValue(field, List.class);
+        List values = ingestDocument.getFieldValue(field, List.class);
         List<Object> newValues = new ArrayList<>(values.size());
         for (Object value : values) {
-            Map<String, Object> innerSource = new HashMap<>(ingestDocument.getSourceAndMetadata());
-            innerSource.put("_value", value); // scalar value to access the list item being evaluated
-            IngestDocument innerIngestDocument = new IngestDocument(innerSource, ingestDocument.getIngestMetadata());
-            for (Processor processor : processors) {
-                processor.execute(innerIngestDocument);
+            Object previousValue = ingestDocument.getIngestMetadata().put("_value", value);
+            try {
+                processor.execute(ingestDocument);
+            } finally {
+                newValues.add(ingestDocument.getIngestMetadata().put("_value", previousValue));
             }
-            newValues.add(innerSource.get("_value"));
         }
         ingestDocument.setFieldValue(field, newValues);
     }
@@ -78,24 +76,23 @@ public final class ForEachProcessor extends AbstractProcessor {
         return field;
     }
 
-    List<Processor> getProcessors() {
-        return processors;
+    Processor getProcessor() {
+        return processor;
     }
 
     public static final class Factory implements Processor.Factory {
-
-        private final ProcessorsRegistry processorRegistry;
-
-        public Factory(ProcessorsRegistry processorRegistry) {
-            this.processorRegistry = processorRegistry;
-        }
-
         @Override
-        public ForEachProcessor create(String tag, Map<String, Object> config) throws Exception {
+        public ForEachProcessor create(Map<String, Processor.Factory> factories, String tag,
+                                       Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, tag, config, "field");
-            List<Map<String, Map<String, Object>>> processorConfigs = readList(TYPE, tag, config, "processors");
-            List<Processor> processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, processorRegistry);
-            return new ForEachProcessor(tag, field, Collections.unmodifiableList(processors));
+            Map<String, Map<String, Object>> processorConfig = readMap(TYPE, tag, config, "processor");
+            Set<Map.Entry<String, Map<String, Object>>> entries = processorConfig.entrySet();
+            if (entries.size() != 1) {
+                throw newConfigurationException(TYPE, tag, "processor", "Must specify exactly one processor type");
+            }
+            Map.Entry<String, Map<String, Object>> entry = entries.iterator().next();
+            Processor processor = ConfigurationUtils.readProcessor(factories, entry.getKey(), entry.getValue());
+            return new ForEachProcessor(tag, field, processor);
         }
     }
 }

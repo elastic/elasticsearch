@@ -19,22 +19,28 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequestBuilder;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.script.Script;
 
 import java.util.Map;
 
 public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<UpdateRequest, UpdateResponse, UpdateRequestBuilder>
         implements WriteRequestBuilder<UpdateRequestBuilder> {
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(RestUpdateAction.class));
 
     public UpdateRequestBuilder(ElasticsearchClient client, UpdateAction action) {
         super(client, action, new UpdateRequest());
@@ -89,9 +95,54 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
 
     /**
      * Explicitly specify the fields that will be returned. By default, nothing is returned.
+     * @deprecated Use {@link UpdateRequestBuilder#setFetchSource(String[], String[])} instead
      */
+    @Deprecated
     public UpdateRequestBuilder setFields(String... fields) {
+        DEPRECATION_LOGGER.deprecated("Deprecated field [fields] used, expected [_source] instead");
         request.fields(fields);
+        return this;
+    }
+
+    /**
+     * Indicate that _source should be returned with every hit, with an
+     * "include" and/or "exclude" set which can include simple wildcard
+     * elements.
+     *
+     * @param include
+     *            An optional include (optionally wildcarded) pattern to filter
+     *            the returned _source
+     * @param exclude
+     *            An optional exclude (optionally wildcarded) pattern to filter
+     *            the returned _source
+     */
+    public UpdateRequestBuilder setFetchSource(@Nullable String include, @Nullable String exclude) {
+        request.fetchSource(include, exclude);
+        return this;
+    }
+
+    /**
+     * Indicate that _source should be returned, with an
+     * "include" and/or "exclude" set which can include simple wildcard
+     * elements.
+     *
+     * @param includes
+     *            An optional list of include (optionally wildcarded) pattern to
+     *            filter the returned _source
+     * @param excludes
+     *            An optional list of exclude (optionally wildcarded) pattern to
+     *            filter the returned _source
+     */
+    public UpdateRequestBuilder setFetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
+        request.fetchSource(includes, excludes);
+        return this;
+    }
+
+    /**
+     * Indicates whether the response should contain the updated _source.
+     */
+    public UpdateRequestBuilder setFetchSource(boolean fetchSource) {
+        request.fetchSource(fetchSource);
         return this;
     }
 
@@ -122,11 +173,21 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     }
 
     /**
-     * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
+     * Sets the number of shard copies that must be active before proceeding with the write.
+     * See {@link ReplicationRequest#waitForActiveShards(ActiveShardCount)} for details.
      */
-    public UpdateRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        request.consistencyLevel(consistencyLevel);
+    public UpdateRequestBuilder setWaitForActiveShards(ActiveShardCount waitForActiveShards) {
+        request.waitForActiveShards(waitForActiveShards);
         return this;
+    }
+
+    /**
+     * A shortcut for {@link #setWaitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    public UpdateRequestBuilder setWaitForActiveShards(final int waitForActiveShards) {
+        return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 
     /**
@@ -265,26 +326,6 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      */
     public UpdateRequestBuilder setUpsert(Object... source) {
         request.upsert(source);
-        return this;
-    }
-
-    public UpdateRequestBuilder setSource(XContentBuilder source) throws Exception {
-        request.source(source);
-        return this;
-    }
-
-    public UpdateRequestBuilder setSource(byte[] source) throws Exception {
-        request.source(source);
-        return this;
-    }
-
-    public UpdateRequestBuilder setSource(byte[] source, int offset, int length) throws Exception {
-        request.source(source, offset, length);
-        return this;
-    }
-
-    public UpdateRequestBuilder setSource(BytesReference source) throws Exception {
-        request.source(source);
         return this;
     }
 

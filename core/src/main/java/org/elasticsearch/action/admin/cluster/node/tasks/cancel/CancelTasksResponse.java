@@ -38,5 +38,4 @@ public class CancelTasksResponse extends ListTasksResponse {
         nodeFailures) {
         super(tasks, taskFailures, nodeFailures);
     }
-
 }

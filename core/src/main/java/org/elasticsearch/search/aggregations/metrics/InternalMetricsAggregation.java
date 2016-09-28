@@ -28,9 +28,6 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class InternalMetricsAggregation extends InternalAggregation {
-
-    protected InternalMetricsAggregation() {} // for serialization
-
     protected InternalMetricsAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
     }

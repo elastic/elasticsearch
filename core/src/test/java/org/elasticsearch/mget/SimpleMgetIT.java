@@ -27,7 +27,7 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -44,7 +44,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class SimpleMgetIT extends ESIntegTestCase {
     public void testThatMgetShouldWorkWithOneIndexMissing() throws IOException {
         createIndex("test");
-        ensureYellow();
 
         client().prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
                 .setRefreshPolicy(IMMEDIATE).get();
@@ -86,7 +85,6 @@ public class SimpleMgetIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()
                         .endObject()));
-        ensureYellow();
 
         client().prepareIndex("test", "test", "1").setParent("4").setRefreshPolicy(IMMEDIATE)
                 .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
@@ -109,9 +107,8 @@ public class SimpleMgetIT extends ESIntegTestCase {
     @SuppressWarnings("unchecked")
     public void testThatSourceFilteringIsSupported() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
-        ensureYellow();
         BytesReference sourceBytesRef = jsonBuilder().startObject()
-                .field("field", "1", "2")
+                .array("field", "1", "2")
                 .startObject("included").field("field", "should be seen").field("hidden_field", "should not be seen").endObject()
                 .field("excluded", "should not be seen")
                 .endObject().bytes();
@@ -151,7 +148,6 @@ public class SimpleMgetIT extends ESIntegTestCase {
                 .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS))));
-        ensureYellow();
 
         final String id = routingKeyForShard("test", 0);
         final String routingOtherShard = routingKeyForShard("test", 1);

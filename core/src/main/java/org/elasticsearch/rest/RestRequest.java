@@ -26,18 +26,36 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.rest.support.RestUtils;
 
 import java.net.SocketAddress;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 
-/**
- *
- */
 public abstract class RestRequest implements ToXContent.Params {
+
+    private final Map<String, String> params;
+    private final String rawPath;
+
+    public RestRequest(String uri) {
+        final Map<String, String> params = new HashMap<>();
+        int pathEndPos = uri.indexOf('?');
+        if (pathEndPos < 0) {
+            this.rawPath = uri;
+        } else {
+            this.rawPath = uri.substring(0, pathEndPos);
+            RestUtils.decodeQueryString(uri, pathEndPos + 1, params);
+        }
+        this.params = params;
+    }
+
+    public RestRequest(Map<String, String> params, String path) {
+        this.params = params;
+        this.rawPath = path;
+    }
 
     public enum Method {
         GET, POST, PUT, DELETE, OPTIONS, HEAD
@@ -53,7 +71,9 @@ public abstract class RestRequest implements ToXContent.Params {
     /**
      * The non decoded, raw path provided.
      */
-    public abstract String rawPath();
+    public String rawPath() {
+        return rawPath;
+    }
 
     /**
      * The path part of the URI (without the query string), decoded.
@@ -80,12 +100,27 @@ public abstract class RestRequest implements ToXContent.Params {
         return null;
     }
 
-    public abstract boolean hasParam(String key);
+    public final boolean hasParam(String key) {
+        return params.containsKey(key);
+    }
 
     @Override
-    public abstract String param(String key);
+    public final String param(String key) {
+        return params.get(key);
+    }
 
-    public abstract Map<String, String> params();
+    @Override
+    public final String param(String key, String defaultValue) {
+        String value = params.get(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        return value;
+    }
+
+    public Map<String, String> params() {
+        return params;
+    }
 
     public float paramAsFloat(String key, float defaultValue) {
         String sValue = param(key);

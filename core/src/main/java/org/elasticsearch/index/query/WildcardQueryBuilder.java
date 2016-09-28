@@ -46,11 +46,8 @@ import java.util.Optional;
  * a Wildcard term should not start with one of the wildcards <tt>*</tt> or
  * <tt>?</tt>.
  */
-public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuilder>
-        implements MultiTermQueryBuilder {
-
+public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "wildcard";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField WILDCARD_FIELD = new ParseField("wildcard");
     private static final ParseField VALUE_FIELD = new ParseField("value");
@@ -78,7 +75,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
             throw new IllegalArgumentException("field name is null or empty");
         }
         if (value == null) {
-            throw new IllegalArgumentException("value cannot be null.");
+            throw new IllegalArgumentException("value cannot be null");
         }
         this.fieldName = fieldName;
         this.value = value;
@@ -138,49 +135,48 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
     public static Optional<WildcardQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-
-        XContentParser.Token token = parser.nextToken();
-        if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ParsingException(parser.getTokenLocation(), "[wildcard] query malformed, no field");
-        }
-        String fieldName = parser.currentName();
+        String fieldName = null;
         String rewrite = null;
-
         String value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
-        token = parser.nextToken();
-        if (token == XContentParser.Token.START_OBJECT) {
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else {
-                    if (parseContext.getParseFieldMatcher().match(currentFieldName, WILDCARD_FIELD)) {
-                        value = parser.text();
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
-                        value = parser.text();
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
-                        boost = parser.floatValue();
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
-                        rewrite = parser.textOrNull();
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
-                        queryName = parser.text();
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
+                fieldName = currentFieldName;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(),
-                                "[wildcard] query does not support [" + currentFieldName + "]");
+                        if (parseContext.getParseFieldMatcher().match(currentFieldName, WILDCARD_FIELD)) {
+                            value = parser.text();
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
+                            value = parser.text();
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                            boost = parser.floatValue();
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
+                            rewrite = parser.textOrNull();
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                            queryName = parser.text();
+                        } else {
+                            throw new ParsingException(parser.getTokenLocation(),
+                                    "[wildcard] query does not support [" + currentFieldName + "]");
+                        }
                     }
                 }
+            } else {
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
+                fieldName = parser.currentName();
+                value = parser.text();
             }
-            parser.nextToken();
-        } else {
-            value = parser.text();
-            parser.nextToken();
         }
 
-        if (value == null) {
-            throw new ParsingException(parser.getTokenLocation(), "No value specified for wildcard query");
-        }
         return Optional.of(new WildcardQueryBuilder(fieldName, value)
                 .rewrite(rewrite)
                 .boost(boost)

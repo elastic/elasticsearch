@@ -34,12 +34,14 @@ will be included in the final output.
 Most pipeline aggregations require another aggregation as their input.  The input aggregation is defined via the `buckets_path`
 parameter, which follows a specific format:
 
+// https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
+[source,ebnf]
 --------------------------------------------------
-AGG_SEPARATOR       :=  '>'
-METRIC_SEPARATOR    :=  '.'
-AGG_NAME            :=  <the name of the aggregation>
-METRIC              :=  <the name of the metric (in case of multi-value metrics aggregation)>
-PATH                :=  <AGG_NAME>[<AGG_SEPARATOR><AGG_NAME>]*[<METRIC_SEPARATOR><METRIC>]
+AGG_SEPARATOR       =  '>' ;
+METRIC_SEPARATOR    =  '.' ;
+AGG_NAME            =  <the name of the aggregation> ;
+METRIC              =  <the name of the metric (in case of multi-value metrics aggregation)> ;
+PATH                =  <AGG_NAME> [ <AGG_SEPARATOR>, <AGG_NAME> ]* [ <METRIC_SEPARATOR>, <METRIC> ] ;
 --------------------------------------------------
 
 For example, the path `"my_bucket>my_stats.avg"` will path to the `avg` value in the `"my_stats"` metric, which is
@@ -51,23 +53,27 @@ metric `"the_sum"`:
 
 [source,js]
 --------------------------------------------------
+POST /_search
 {
-    "my_date_histo":{
-        "date_histogram":{
-            "field":"timestamp",
-            "interval":"day"
-        },
-        "aggs":{
-            "the_sum":{
-                "sum":{ "field": "lemmings" } <1>
+    "aggs": {
+        "my_date_histo":{
+            "date_histogram":{
+                "field":"timestamp",
+                "interval":"day"
             },
-            "the_movavg":{
-                "moving_avg":{ "buckets_path": "the_sum" } <2>
+            "aggs":{
+                "the_sum":{
+                    "sum":{ "field": "lemmings" } <1>
+                },
+                "the_movavg":{
+                    "moving_avg":{ "buckets_path": "the_sum" } <2>
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 <1> The metric is called `"the_sum"`
 <2> The `buckets_path` refers to the metric via a relative path `"the_sum"`
 
@@ -77,6 +83,7 @@ a metric embedded inside a sibling aggregation:
 
 [source,js]
 --------------------------------------------------
+POST /_search
 {
     "aggs" : {
         "sales_per_month" : {
@@ -100,6 +107,8 @@ a metric embedded inside a sibling aggregation:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 <1> `buckets_path` instructs this max_bucket aggregation that we want the maximum value of the `sales` aggregation in the
 `sales_per_month` date histogram.
 
@@ -107,26 +116,70 @@ a metric embedded inside a sibling aggregation:
 === Special Paths
 
 Instead of pathing to a metric, `buckets_path` can use a special `"_count"` path.  This instructs
-the pipeline aggregation to use the document count as it's input.  For example, a moving average can be calculated on the document
-count of each bucket, instead of a specific metric:
+the pipeline aggregation to use the document count as it's input.  For example, a moving average can be calculated on the document count of each bucket, instead of a specific metric:
 
 [source,js]
 --------------------------------------------------
+POST /_search
 {
-    "my_date_histo":{
-        "date_histogram":{
-            "field":"timestamp",
-            "interval":"day"
-        },
-        "aggs":{
-            "the_movavg":{
-                "moving_avg":{ "buckets_path": "_count" } <1>
+    "aggs": {
+        "my_date_histo": {
+            "date_histogram": {
+                "field":"timestamp",
+                "interval":"day"
+            },
+            "aggs": {
+                "the_movavg": {
+                    "moving_avg": { "buckets_path": "_count" } <1>
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 <1> By using `_count` instead of a metric name, we can calculate the moving average of document counts in the histogram
+
+The `buckets_path` can also use `"_bucket_count"` and path to a multi-bucket aggregation to use the number of buckets
+returned by that aggregation in the pipeline aggregation instead of a metric. for example a `bucket_selector` can be
+used here to filter out buckets which contain no buckets for an inner terms aggregation:
+
+[source,js]
+--------------------------------------------------
+POST /sales/_search
+{
+  "size": 0,
+  "aggs": {
+    "histo": {
+      "date_histogram": {
+        "field": "date",
+        "interval": "day"
+      },
+      "aggs": {
+        "categories": {
+          "terms": {
+            "field": "category"
+          }
+        },
+        "min_bucket_selector": {
+          "bucket_selector": {
+            "buckets_path": {
+              "count": "categories._bucket_count" <1>
+            },
+            "script": {
+              "inline": "params.count != 0"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+<1> By using `_bucket_count` instead of a metric name, we can filter out `histo` buckets where they contain no buckets
+for the `categories` aggregation
 
 [[dots-in-agg-names]]
 [float]

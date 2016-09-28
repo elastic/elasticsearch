@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.cluster.service;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -57,16 +59,13 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 @ESIntegTestCase.SuppressLocalMode
 public class ClusterServiceIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(TestPlugin.class);
+        return Arrays.asList(TestPlugin.class);
     }
 
     public void testAckedUpdateTask() throws Exception {
@@ -128,7 +127,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error("failed to execute callback in test {}", e, source);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
                 onFailure.set(true);
                 latch.countDown();
             }
@@ -199,7 +198,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error("failed to execute callback in test {}", e, source);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
                 onFailure.set(true);
                 latch.countDown();
             }
@@ -273,7 +272,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error("failed to execute callback in test {}", e, source);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
                 onFailure.set(true);
                 latch.countDown();
             }
@@ -347,7 +346,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error("failed to execute callback in test {}", e, source);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute callback in test {}", source), e);
                 onFailure.set(true);
                 latch.countDown();
             }
@@ -364,7 +363,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(processedLatch.await(1, TimeUnit.SECONDS), equalTo(true));
     }
 
-    @TestLogging("_root:debug,action.admin.cluster.tasks:trace")
+    @TestLogging("_root:debug,org.elasticsearch.action.admin.cluster.tasks:trace")
     public void testPendingUpdateTask() throws Exception {
         Settings settings = Settings.builder()
                 .put("discovery.type", "local")
@@ -520,7 +519,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(clusterService.state().nodes().getMasterNode(), notNullValue());
         assertThat(clusterService.state().nodes().isLocalNodeElectedMaster(), is(true));
         assertThat(testService.master(), is(true));
-
         String node_1 = internalCluster().startNode(settings);
         final ClusterService clusterService1 = internalCluster().getInstance(ClusterService.class, node_1);
         MasterAwareService testService1 = internalCluster().getInstance(MasterAwareService.class, node_1);
@@ -583,7 +581,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
     public static class TestPlugin extends Plugin {
 
         @Override
-        public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+        public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
             List<Class<? extends LifecycleComponent>> services = new ArrayList<>(1);
             services.add(MasterAwareService.class);
             return services;

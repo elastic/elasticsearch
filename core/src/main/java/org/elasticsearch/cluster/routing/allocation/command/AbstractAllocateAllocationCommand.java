@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -39,8 +40,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 /**
  * Abstract base class for allocating an unassigned shard to a node
@@ -189,7 +188,7 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
      * @param shardRouting the shard routing that is to be matched in unassigned shards
      */
     protected void initializeUnassignedShard(RoutingAllocation allocation, RoutingNodes routingNodes, RoutingNode routingNode, ShardRouting shardRouting) {
-        initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, null);
+        initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, null, null);
     }
 
     /**
@@ -200,18 +199,21 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
      * @param routingNode the node to initialize it to
      * @param shardRouting the shard routing that is to be matched in unassigned shards
      * @param unassignedInfo unassigned info to override
+     * @param recoverySource recovery source to override
      */
     protected void initializeUnassignedShard(RoutingAllocation allocation, RoutingNodes routingNodes, RoutingNode routingNode,
-                                             ShardRouting shardRouting, @Nullable UnassignedInfo unassignedInfo) {
+                                             ShardRouting shardRouting, @Nullable UnassignedInfo unassignedInfo,
+                                             @Nullable RecoverySource recoverySource) {
         for (RoutingNodes.UnassignedShards.UnassignedIterator it = routingNodes.unassigned().iterator(); it.hasNext(); ) {
             ShardRouting unassigned = it.next();
             if (!unassigned.equalsIgnoringMetaData(shardRouting)) {
                 continue;
             }
-            if (unassignedInfo != null) {
-                unassigned = it.updateUnassignedInfo(unassignedInfo);
+            if (unassignedInfo != null || recoverySource != null) {
+                unassigned = it.updateUnassigned(unassignedInfo != null ? unassignedInfo : unassigned.unassignedInfo(),
+                    recoverySource != null ? recoverySource : unassigned.recoverySource(), allocation.changes());
             }
-            it.initialize(routingNode.nodeId(), null, allocation.clusterInfo().getShardSize(unassigned, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
+            it.initialize(routingNode.nodeId(), null, allocation.clusterInfo().getShardSize(unassigned, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
             return;
         }
         assert false : "shard to initialize not found in list of unassigned shards";

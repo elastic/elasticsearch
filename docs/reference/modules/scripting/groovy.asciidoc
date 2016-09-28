@@ -1,6 +1,8 @@
 [[modules-scripting-groovy]]
 === Groovy Scripting Language
 
+deprecated[5.0.0,Groovy will be replaced by the new scripting language <<modules-scripting-painless, `Painless`>>]
+
 Groovy is the default scripting language available in Elasticsearch.  Although
 limited by the <<java-security-manager,Java Security Manager>>, it is not a
 sandboxed language and only `file` scripts may be used by default.
@@ -43,56 +45,26 @@ on the underlying field type):
 `doc['field_name'].lons`::
     The longitudes of a geo point type, or an empty array.
 
-`doc['field_name'].distance(lat, lon)`::
-    The `plane` distance (in meters) of this geo point field from the provided lat/lon.
-
-`doc['field_name'].distanceWithDefault(lat, lon, default)`::
-    The `plane` distance (in meters) of this geo point field from the provided lat/lon with a default value.
-
-`doc['field_name'].distanceInMiles(lat, lon)`::
-    The `plane` distance (in miles) of this geo point field from the provided lat/lon.
-
-`doc['field_name'].distanceInMilesWithDefault(lat, lon, default)`::
-    The `plane` distance (in miles) of this geo point field from the provided lat/lon with a default value.
-
-`doc['field_name'].distanceInKm(lat, lon)`::
-    The `plane` distance (in km) of this geo point field from the provided lat/lon.
-
-`doc['field_name'].distanceInKmWithDefault(lat, lon, default)`::
-    The `plane` distance (in km) of this geo point field from the provided lat/lon with a default value.
-
 `doc['field_name'].arcDistance(lat, lon)`::
     The `arc` distance (in meters) of this geo point field from the provided lat/lon.
 
 `doc['field_name'].arcDistanceWithDefault(lat, lon, default)`::
-    The `arc` distance (in meters) of this geo point field from the provided lat/lon with a default value.
+    The `arc` distance (in meters) of this geo point field from the provided lat/lon with a default value
+    for empty fields.
 
-`doc['field_name'].arcDistanceInMiles(lat, lon)`::
-    The `arc` distance (in miles) of this geo point field from the provided lat/lon.
+`doc['field_name'].planeDistance(lat, lon)`::
+    The `plane` distance (in meters) of this geo point field from the provided lat/lon.
 
-`doc['field_name'].arcDistanceInMilesWithDefault(lat, lon, default)`::
-    The `arc` distance (in miles) of this geo point field from the provided lat/lon with a default value.
-
-`doc['field_name'].arcDistanceInKm(lat, lon)`::
-    The `arc` distance (in km) of this geo point field from the provided lat/lon.
-
-`doc['field_name'].arcDistanceInKmWithDefault(lat, lon, default)`::
-    The `arc` distance (in km) of this geo point field from the provided lat/lon with a default value.
-
-`doc['field_name'].factorDistance(lat, lon)`::
-    The distance factor of this geo point field from the provided lat/lon.
-
-`doc['field_name'].factorDistance(lat, lon, default)`::
-    The distance factor of this geo point field from the provided lat/lon with a default value.
+`doc['field_name'].planeDistanceWithDefault(lat, lon, default)`::
+    The `plane` distance (in meters) of this geo point field from the provided lat/lon with a default value
+    for empty fields.
 
 `doc['field_name'].geohashDistance(geohash)`::
     The `arc` distance (in meters) of this geo point field from the provided geohash.
 
-`doc['field_name'].geohashDistanceInKm(geohash)`::
-    The `arc` distance (in km) of this geo point field from the provided geohash.
-
-`doc['field_name'].geohashDistanceInMiles(geohash)`::
-    The `arc` distance (in miles) of this geo point field from the provided geohash.
+`doc['field_name'].geohashDistanceWithDefault(geohash, default)`::
+    The `arc` distance (in meters) of this geo point field from the provided geohash with a default value
+    for empty fields.
 
 
 [float]

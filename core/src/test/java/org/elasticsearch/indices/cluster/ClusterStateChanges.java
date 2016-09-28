@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.cluster;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
@@ -41,6 +42,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeActionUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -51,15 +53,15 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RandomAllocationDeciderTests;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -70,7 +72,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.gateway.NoopGatewayAllocator;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -81,6 +83,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
@@ -94,10 +97,12 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class ClusterStateChanges {
+public class ClusterStateChanges extends AbstractComponent {
 
-    private final ClusterService clusterService;
     private final AllocationService allocationService;
+    private final ClusterService clusterService;
+    private final ShardStateAction.ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
+    private final ShardStateAction.ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
 
     // transport actions
     private final TransportCloseIndexAction transportCloseIndexAction;
@@ -108,14 +113,16 @@ class ClusterStateChanges {
     private final TransportCreateIndexAction transportCreateIndexAction;
 
     public ClusterStateChanges() {
-        Settings settings = Settings.builder().put(PATH_HOME_SETTING.getKey(), "dummy").build();
+        super(Settings.builder().put(PATH_HOME_SETTING.getKey(), "dummy").build());
 
         allocationService = new AllocationService(settings, new AllocationDeciders(settings,
             new HashSet<>(Arrays.asList(new SameShardAllocationDecider(settings),
                 new ReplicaAfterPrimaryActiveAllocationDecider(settings),
                 new RandomAllocationDeciderTests.RandomAllocationDecider(getRandom())))),
-            NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(settings),
+            new TestGatewayAllocator(), new BalancedShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE);
+        shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger);
+        shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, logger);
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
@@ -147,7 +154,8 @@ class ClusterStateChanges {
         }
 
         // services
-        TransportService transportService = new TransportService(settings, transport, threadPool);
+        TransportService transportService = new TransportService(settings, transport, threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR);
         MetaDataIndexUpgradeService metaDataIndexUpgradeService = new MetaDataIndexUpgradeService(settings, null, null) {
             // metaData upgrader should do nothing
             @Override
@@ -162,8 +170,8 @@ class ClusterStateChanges {
         MetaDataUpdateSettingsService metaDataUpdateSettingsService = new MetaDataUpdateSettingsService(settings, clusterService,
             allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService, nodeServicesProvider);
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(settings, clusterService, indicesService,
-            allocationService, new AliasValidator(settings), Collections.emptySet(), environment,
-            nodeServicesProvider, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+            allocationService, new AliasValidator(settings), environment,
+            nodeServicesProvider, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, threadPool);
 
         transportCloseIndexAction = new TransportCloseIndexAction(settings, transportService, clusterService, threadPool,
             indexStateService, clusterSettings, actionFilters, indexNameExpressionResolver, destructiveOperations);
@@ -203,14 +211,31 @@ class ClusterStateChanges {
         return execute(transportClusterRerouteAction, request, state);
     }
 
-    public ClusterState applyFailedShards(ClusterState clusterState, List<FailedRerouteAllocation.FailedShard> failedShards) {
-        RoutingAllocation.Result rerouteResult = allocationService.applyFailedShards(clusterState, failedShards);
-        return ClusterState.builder(clusterState).routingResult(rerouteResult).build();
+    public ClusterState deassociateDeadNodes(ClusterState clusterState, boolean reroute, String reason) {
+        return allocationService.deassociateDeadNodes(clusterState, reroute, reason);
+    }
+
+    public ClusterState applyFailedShards(ClusterState clusterState, List<FailedShard> failedShards) {
+        List<ShardStateAction.ShardEntry> entries = failedShards.stream().map(failedShard ->
+            new ShardStateAction.ShardEntry(failedShard.getRoutingEntry().shardId(), failedShard.getRoutingEntry().allocationId().getId(),
+                0L, failedShard.getMessage(), failedShard.getFailure()))
+            .collect(Collectors.toList());
+        try {
+            return shardFailedClusterStateTaskExecutor.execute(clusterState, entries).resultingState;
+        } catch (Exception e) {
+            throw ExceptionsHelper.convertToRuntime(e);
+        }
     }
 
     public ClusterState applyStartedShards(ClusterState clusterState, List<ShardRouting> startedShards) {
-        RoutingAllocation.Result rerouteResult = allocationService.applyStartedShards(clusterState, startedShards);
-        return ClusterState.builder(clusterState).routingResult(rerouteResult).build();
+        List<ShardStateAction.ShardEntry> entries = startedShards.stream().map(startedShard ->
+            new ShardStateAction.ShardEntry(startedShard.shardId(), startedShard.allocationId().getId(), 0L, "shard started", null))
+            .collect(Collectors.toList());
+        try {
+            return shardStartedClusterStateTaskExecutor.execute(clusterState, entries).resultingState;
+        } catch (Exception e) {
+            throw ExceptionsHelper.convertToRuntime(e);
+        }
     }
 
     private <Request extends MasterNodeRequest<Request>, Response extends ActionResponse> ClusterState execute(

@@ -19,20 +19,19 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * This {@link AllocationDecider} controls shard allocation based on
@@ -50,7 +49,7 @@ import java.util.Map;
  * To enable allocation awareness in this example nodes should contain a value
  * for the <tt>rack_id</tt> key like:
  * <pre>
- * node.rack_id:1
+ * node.attr.rack_id:1
  * </pre>
  * <p>
  * Awareness can also be used to prevent over-allocation in the case of node or
@@ -104,7 +103,6 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
 
-    @Inject
     public AwarenessAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         this.awarenessAttributes = CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);

@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -43,8 +44,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
@@ -54,8 +55,8 @@ import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.admin.cluster.repositories.get.RestGetRepositoriesAction;
-import org.elasticsearch.rest.action.admin.cluster.state.RestClusterStateAction;
+import org.elasticsearch.rest.action.admin.cluster.RestClusterStateAction;
+import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -66,6 +67,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
@@ -94,7 +96,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockRepository.Plugin.class);
+        return Arrays.asList(MockRepository.Plugin.class);
     }
 
     public void testRestorePersistentSettings() throws Exception {
@@ -167,7 +169,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         internalCluster().startNode();
         Client client = client();
         createIndex("test-idx");
-        ensureYellow();
         logger.info("--> add custom persistent metadata");
         updateClusterState(new ClusterStateUpdater() {
             @Override
@@ -443,9 +444,9 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> create an index that will have no allocated shards");
         assertAcked(prepareCreate("test-idx-none", 1, Settings.builder().put("number_of_shards", 6)
                 .put("index.routing.allocation.include.tag", "nowhere")
-                .put("number_of_replicas", 0)));
+                .put("number_of_replicas", 0)).setWaitForActiveShards(ActiveShardCount.NONE).get());
+        assertTrue(client().admin().indices().prepareExists("test-idx-none").get().isExists());
 
-        logger.info("--> create repository");
         logger.info("--> creating repository");
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).execute().actionGet();
@@ -688,11 +689,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12621")
     public void testChaosSnapshot() throws Exception {
         final List<String> indices = new CopyOnWriteArrayList<>();
-        Settings settings = Settings.builder().put("action.write_consistency", "one").build();
         int initialNodes = between(1, 3);
         logger.info("--> start {} nodes", initialNodes);
         for (int i = 0; i < initialNodes; i++) {
-            internalCluster().startNode(settings);
+            internalCluster().startNode();
         }
 
         logger.info("-->  creating repository");
@@ -711,7 +711,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         int asyncNodes = between(0, 5);
         logger.info("--> start {} additional nodes asynchronously", asyncNodes);
-        InternalTestCluster.Async<List<String>> asyncNodesFuture = internalCluster().startNodesAsync(asyncNodes, settings);
+        InternalTestCluster.Async<List<String>> asyncNodesFuture = internalCluster().startNodesAsync(asyncNodes);
 
         int asyncIndices = between(0, 10);
         logger.info("--> create {} additional indices asynchronously", asyncIndices);
@@ -884,8 +884,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     private void createTestIndex(String name) {
         assertAcked(prepareCreate(name, 0, Settings.builder().put("number_of_shards", between(1, 6))
                 .put("number_of_replicas", between(1, 6))));
-
-        ensureYellow(name);
 
         logger.info("--> indexing some data into {}", name);
         for (int i = 0; i < between(10, 500); i++) {

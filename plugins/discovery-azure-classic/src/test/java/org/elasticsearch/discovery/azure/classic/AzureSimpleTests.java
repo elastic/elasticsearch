@@ -29,10 +29,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST,
-        numDataNodes = 0,
-        transportClientRatio = 0.0,
-        numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0, numClientNodes = 0)
 public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
     public AzureSimpleTests() {
         super(AzureComputeServiceSimpleMock.TestPlugin.class);

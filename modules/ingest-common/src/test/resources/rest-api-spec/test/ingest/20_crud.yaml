@@ -1,4 +1,19 @@
 ---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "first_pipeline"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "second_pipeline"
+        ignore: 404
+
+---
 "Test basic pipeline crud":
   - do:
       ingest.put_pipeline:
@@ -20,8 +35,11 @@
   - do:
       ingest.get_pipeline:
         id: "my_pipeline"
-  - match: { pipelines.0.id: "my_pipeline" }
-  - match: { pipelines.0.config.description: "_description" }
+  - match: { my_pipeline.description: "_description" }
+
+  - do:
+      ingest.get_pipeline: {}
+  - match: { my_pipeline.description: "_description" }
 
   - do:
       ingest.delete_pipeline:
@@ -32,6 +50,37 @@
       catch: missing
       ingest.get_pipeline:
         id: "my_pipeline"
+
+---
+"Test Get All Pipelines":
+  - do:
+      ingest.put_pipeline:
+        id: "first_pipeline"
+        body:  >
+          {
+            "description": "first",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field1",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+  - do:
+      ingest.put_pipeline:
+        id: "second_pipeline"
+        body:  >
+          {
+            "description": "second",
+            "processors": []
+          }
+
+  - do:
+      ingest.get_pipeline: {}
+  - match: { first_pipeline.description: "first" }
+  - match: { second_pipeline.description: "second" }
 
 ---
 "Test invalid config":
@@ -103,8 +152,7 @@
   - do:
       ingest.get_pipeline:
         id: "my_pipeline"
-  - match: { pipelines.0.id: "my_pipeline" }
-  - match: { pipelines.0.config.description: "_description" }
+  - match: { my_pipeline.description: "_description" }
 
   - do:
       ingest.delete_pipeline:

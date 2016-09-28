@@ -19,10 +19,13 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShard;
@@ -30,6 +33,7 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -44,12 +48,14 @@ public class RecoveriesCollection {
     /** This is the single source of truth for ongoing recoveries. If it's not here, it was canceled or done */
     private final ConcurrentMap<Long, RecoveryTarget> onGoingRecoveries = ConcurrentCollections.newConcurrentMap();
 
-    private final ESLogger logger;
+    private final Logger logger;
     private final ThreadPool threadPool;
+    private final Callback<Long> ensureClusterStateVersionCallback;
 
-    public RecoveriesCollection(ESLogger logger, ThreadPool threadPool) {
+    public RecoveriesCollection(Logger logger, ThreadPool threadPool, Callback<Long> ensureClusterStateVersionCallback) {
         this.logger = logger;
         this.threadPool = threadPool;
+        this.ensureClusterStateVersionCallback = ensureClusterStateVersionCallback;
     }
 
     /**
@@ -58,14 +64,35 @@ public class RecoveriesCollection {
      * @return the id of the new recovery.
      */
     public long startRecovery(IndexShard indexShard, DiscoveryNode sourceNode,
-                              RecoveryTargetService.RecoveryListener listener, TimeValue activityTimeout) {
-        RecoveryTarget status = new RecoveryTarget(indexShard, sourceNode, listener);
+                              PeerRecoveryTargetService.RecoveryListener listener, TimeValue activityTimeout) {
+        RecoveryTarget status = new RecoveryTarget(indexShard, sourceNode, listener, ensureClusterStateVersionCallback);
         RecoveryTarget existingStatus = onGoingRecoveries.putIfAbsent(status.recoveryId(), status);
         assert existingStatus == null : "found two RecoveryStatus instances with the same id";
         logger.trace("{} started recovery from {}, id [{}]", indexShard.shardId(), sourceNode, status.recoveryId());
         threadPool.schedule(activityTimeout, ThreadPool.Names.GENERIC,
                 new RecoveryMonitor(status.recoveryId(), status.lastAccessTime(), activityTimeout));
         return status.recoveryId();
+    }
+
+
+    /**
+     * Resets the recovery and performs a recovery restart on the currently recovering index shard
+     *
+     * @see IndexShard#performRecoveryRestart()
+     */
+    public void resetRecovery(long id, ShardId shardId) throws IOException {
+        try (RecoveryRef ref = getRecoverySafe(id, shardId)) {
+            // instead of adding complicated state to RecoveryTarget we just flip the
+            // target instance when we reset a recovery, that way we have only one cleanup
+            // path on the RecoveryTarget and are always within the bounds of ref-counting
+            // which is important since we verify files are on disk etc. after we have written them etc.
+            RecoveryTarget status = ref.status();
+            RecoveryTarget resetRecovery = status.resetRecovery();
+            if (onGoingRecoveries.replace(id, status, resetRecovery) == false) {
+                resetRecovery.cancel("replace failed"); // this is important otherwise we leak a reference to the store
+                throw new IllegalStateException("failed to replace recovery target");
+            }
+        }
     }
 
     /**
@@ -152,7 +179,6 @@ public class RecoveriesCollection {
         return cancelled;
     }
 
-
     /**
      * a reference to {@link RecoveryTarget}, which implements {@link AutoCloseable}. closing the reference
      * causes {@link RecoveryTarget#decRef()} to be called. This makes sure that the underlying resources
@@ -198,7 +224,7 @@ public class RecoveriesCollection {
 
         @Override
         public void onFailure(Exception e) {
-            logger.error("unexpected error while monitoring recovery [{}]", e, recoveryId);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected error while monitoring recovery [{}]", recoveryId), e);
         }
 
         @Override

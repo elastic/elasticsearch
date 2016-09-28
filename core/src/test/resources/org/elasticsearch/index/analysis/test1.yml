@@ -29,11 +29,9 @@ index :
         word_list : [donau, dampf, schiff, spargel, creme, suppe]
     analyzer :
       standard :
-        alias: alias1,alias2
         type : standard
         stopwords : [test1, test2, test3]
       custom1 :
-        alias : [alias4, alias5]
         tokenizer : standard
         filter : [stop, stop2]
       custom2 :

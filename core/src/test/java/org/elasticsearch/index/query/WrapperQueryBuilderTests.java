@@ -61,38 +61,12 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
     }
 
     public void testIllegalArgument() {
-        try {
-            if (randomBoolean()) {
-                new WrapperQueryBuilder((byte[]) null);
-            } else {
-                new WrapperQueryBuilder(new byte[0]);
-            }
-            fail("cannot be null or empty");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            if (randomBoolean()) {
-                new WrapperQueryBuilder((String) null);
-            } else {
-                new WrapperQueryBuilder("");
-            }
-            fail("cannot be null or empty");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            if (randomBoolean()) {
-                new WrapperQueryBuilder((BytesReference) null);
-            } else {
-                new WrapperQueryBuilder(new BytesArray(new byte[0]));
-            }
-            fail("cannot be null or empty");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new WrapperQueryBuilder((byte[]) null));
+        expectThrows(IllegalArgumentException.class, () -> new WrapperQueryBuilder(new byte[0]));
+        expectThrows(IllegalArgumentException.class, () -> new WrapperQueryBuilder((String) null));
+        expectThrows(IllegalArgumentException.class, () -> new WrapperQueryBuilder(""));
+        expectThrows(IllegalArgumentException.class, () -> new WrapperQueryBuilder((BytesReference) null));
+        expectThrows(IllegalArgumentException.class, () -> new WrapperQueryBuilder(new BytesArray(new byte[0])));
     }
 
     /**
@@ -102,12 +76,9 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
      */
     @Override
     public void testUnknownField() throws IOException {
-        try {
-            parseQuery("{ \"" + WrapperQueryBuilder.NAME + "\" : {\"bogusField\" : \"someValue\"} }");
-            fail("ParsingException expected.");
-        } catch (ParsingException e) {
-            assertTrue(e.getMessage().contains("bogusField"));
-        }
+        String json = "{ \"" + WrapperQueryBuilder.NAME + "\" : {\"bogusField\" : \"someValue\"} }";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().contains("bogusField"));
     }
 
     public void testFromJson() throws IOException {
@@ -133,12 +104,8 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
     public void testMustRewrite() throws IOException {
         TermQueryBuilder tqb = new TermQueryBuilder("foo", "bar");
         WrapperQueryBuilder qb = new WrapperQueryBuilder(tqb.toString());
-        try {
-            qb.toQuery(createShardContext());
-            fail();
-        } catch (UnsupportedOperationException e) {
-            assertEquals("this query must be rewritten first", e.getMessage());
-        }
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> qb.toQuery(createShardContext()));
+        assertEquals("this query must be rewritten first", e.getMessage());
         QueryBuilder rewrite = qb.rewrite(createShardContext());
         assertEquals(tqb, rewrite);
     }

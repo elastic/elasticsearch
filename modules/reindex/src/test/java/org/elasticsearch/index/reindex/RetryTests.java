@@ -35,6 +35,8 @@ import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Netty3Plugin;
+import org.elasticsearch.transport.Netty4Plugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -43,6 +45,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.reindex.ReindexTestCase.matcher;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
@@ -53,36 +56,17 @@ import static org.hamcrest.Matchers.hasSize;
  * tests won't verify that.
  */
 public class RetryTests extends ESSingleNodeTestCase {
+
     private static final int DOC_COUNT = 20;
 
     private List<CyclicBarrier> blockedExecutors = new ArrayList<>();
 
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(ReindexPlugin.class);
-    }
-
-    /**
-     * Lower the queue sizes to be small enough that both bulk and searches will time out and have to be retried.
-     */
-    @Override
-    protected Settings nodeSettings() {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings());
-        // Use pools of size 1 so we can block them
-        settings.put("thread_pool.bulk.size", 1);
-        settings.put("thread_pool.search.size", 1);
-        // Use queues of size 1 because size 0 is broken and because search requests need the queue to function
-        settings.put("thread_pool.bulk.queue_size", 1);
-        settings.put("thread_pool.search.queue_size", 1);
-        // Enable http so we can test retries on reindex from remote. In this case the "remote" cluster is just this cluster.
-        settings.put(NetworkModule.HTTP_ENABLED.getKey(), true);
-        // Whitelist reindexing from the http host we're going to use
-        settings.put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "myself");
-        return settings.build();
-    }
+    private boolean useNetty3;
 
     @Before
-    public void setupSourceIndex() throws Exception {
+    public void setUp() throws Exception {
+        super.setUp();
+        useNetty3 = randomBoolean();
         createIndex("source");
         // Build the test data. Don't use indexRandom because that won't work consistently with such small thread pools.
         BulkRequestBuilder bulk = client().prepareBulk();
@@ -102,6 +86,37 @@ public class RetryTests extends ESSingleNodeTestCase {
         }
     }
 
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(
+                ReindexPlugin.class,
+                Netty3Plugin.class,
+                Netty4Plugin.class);
+    }
+
+    /**
+     * Lower the queue sizes to be small enough that both bulk and searches will time out and have to be retried.
+     */
+    @Override
+    protected Settings nodeSettings() {
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings());
+        // Use pools of size 1 so we can block them
+        settings.put("thread_pool.bulk.size", 1);
+        settings.put("thread_pool.search.size", 1);
+        // Use queues of size 1 because size 0 is broken and because search requests need the queue to function
+        settings.put("thread_pool.bulk.queue_size", 1);
+        settings.put("thread_pool.search.queue_size", 1);
+        // Enable http so we can test retries on reindex from remote. In this case the "remote" cluster is just this cluster.
+        settings.put(NetworkModule.HTTP_ENABLED.getKey(), true);
+        // Whitelist reindexing from the http host we're going to use
+        settings.put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "myself");
+        if (useNetty3) {
+            settings.put(NetworkModule.HTTP_TYPE_KEY, Netty3Plugin.NETTY_HTTP_TRANSPORT_NAME);
+            settings.put(NetworkModule.TRANSPORT_TYPE_KEY, Netty3Plugin.NETTY_TRANSPORT_NAME);
+        }
+        return settings.build();
+    }
+
     public void testReindex() throws Exception {
         testCase(ReindexAction.NAME, ReindexAction.INSTANCE.newRequestBuilder(client()).source("source").destination("dest"),
                 matcher().created(DOC_COUNT));
@@ -110,7 +125,8 @@ public class RetryTests extends ESSingleNodeTestCase {
     public void testReindexFromRemote() throws Exception {
         NodeInfo nodeInfo = client().admin().cluster().prepareNodesInfo().get().getNodes().get(0);
         TransportAddress address = nodeInfo.getHttp().getAddress().publishAddress();
-        RemoteInfo remote = new RemoteInfo("http", address.getHost(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null, null);
+        RemoteInfo remote = new RemoteInfo("http", address.getHost(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null, null,
+                emptyMap());
         ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client()).source("source").destination("dest")
                 .setRemoteInfo(remote);
         testCase(ReindexAction.NAME, request, matcher().created(DOC_COUNT));
@@ -188,7 +204,7 @@ public class RetryTests extends ESSingleNodeTestCase {
                 barrier.await();
                 logger.info("Blocked the [{}] executor", name);
                 barrier.await();
-                logger.info("Ublocking the [{}] executor", name);
+                logger.info("Unblocking the [{}] executor", name);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -206,4 +222,5 @@ public class RetryTests extends ESSingleNodeTestCase {
         assertThat(response.getTasks(), hasSize(1));
         return (BulkByScrollTask.Status) response.getTasks().get(0).getStatus();
     }
+
 }

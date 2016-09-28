@@ -143,8 +143,8 @@ class InstallPluginCommand extends SettingCommand {
     private final OptionSpec<String> arguments;
 
 
-    public static final Set<PosixFilePermission> DIR_AND_EXECUTABLE_PERMS;
-    public static final Set<PosixFilePermission> FILE_PERMS;
+    static final Set<PosixFilePermission> DIR_AND_EXECUTABLE_PERMS;
+    static final Set<PosixFilePermission> FILE_PERMS;
 
     static {
         Set<PosixFilePermission> dirAndExecutablePerms = new HashSet<>(7);
@@ -185,18 +185,16 @@ class InstallPluginCommand extends SettingCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
-        // TODO: in jopt-simple 5.0 we can enforce a min/max number of positional args
-        List<String> args = arguments.values(options);
-        if (args.size() != 1) {
-            throw new UserException(ExitCodes.USAGE, "Must supply a single plugin id argument");
-        }
-        String pluginId = args.get(0);
+        String pluginId = arguments.value(options);
         boolean isBatch = options.has(batchOption) || System.console() == null;
         execute(terminal, pluginId, isBatch, settings);
     }
 
     // pkg private for testing
     void execute(Terminal terminal, String pluginId, boolean isBatch, Map<String, String> settings) throws Exception {
+        if (pluginId == null) {
+            throw new UserException(ExitCodes.USAGE, "plugin id is required");
+        }
         final Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
         // TODO: remove this leniency!! is it needed anymore?
         if (Files.exists(env.pluginsFile()) == false) {
@@ -216,18 +214,13 @@ class InstallPluginCommand extends SettingCommand {
             final String url;
             final String stagingHash = System.getProperty(PROPERTY_STAGING_ID);
             if (stagingHash != null) {
-                url = String.format(
-                        Locale.ROOT,
-                        "https://download.elastic.co/elasticsearch/staging/%1$s-%2$s/org/elasticsearch/plugin/%3$s/%1$s/%3$s-%1$s.zip",
-                        version,
-                        stagingHash,
-                        pluginId);
+                url = String.format(Locale.ROOT,
+                    "https://staging.elastic.co/%3$s-%1$s/downloads/elasticsearch-plugins/%2$s/%2$s-%3$s.zip",
+                    stagingHash, pluginId, version);
             } else {
-                url = String.format(
-                        Locale.ROOT,
-                        "https://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%1$s/%2$s/%1$s-%2$s.zip",
-                        pluginId,
-                        version);
+                url = String.format(Locale.ROOT,
+                    "https://artifacts.elastic.co/downloads/elasticsearch-plugins/%1$s/%1$s-%2$s.zip",
+                    pluginId, version);
             }
             terminal.println("-> Downloading " + pluginId + " from elastic");
             return downloadZipAndChecksum(terminal, url, tmpDir);

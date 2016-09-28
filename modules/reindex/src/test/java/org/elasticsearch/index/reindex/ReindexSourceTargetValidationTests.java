@@ -31,10 +31,14 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
+
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -53,7 +57,8 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
                 .put(index("source", "source_multi"), true)
                 .put(index("source2", "source_multi"), true)).build();
     private static final IndexNameExpressionResolver INDEX_NAME_EXPRESSION_RESOLVER = new IndexNameExpressionResolver(Settings.EMPTY);
-    private static final AutoCreateIndex AUTO_CREATE_INDEX = new AutoCreateIndex(Settings.EMPTY, INDEX_NAME_EXPRESSION_RESOLVER);
+    private static final AutoCreateIndex AUTO_CREATE_INDEX = new AutoCreateIndex(Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), INDEX_NAME_EXPRESSION_RESOLVER);
 
     public void testObviousCases() {
         fails("target", "target");
@@ -86,9 +91,10 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
 
     public void testRemoteInfoSkipsValidation() {
         // The index doesn't have to exist
-        succeeds(new RemoteInfo(randomAsciiOfLength(5), "test", 9200, new BytesArray("test"), null, null), "does_not_exist", "target");
+        succeeds(new RemoteInfo(randomAsciiOfLength(5), "test", 9200, new BytesArray("test"), null, null, emptyMap()), "does_not_exist",
+                "target");
         // And it doesn't matter if they are the same index. They are considered to be different because the remote one is, well, remote.
-        succeeds(new RemoteInfo(randomAsciiOfLength(5), "test", 9200, new BytesArray("test"), null, null), "target", "target");
+        succeeds(new RemoteInfo(randomAsciiOfLength(5), "test", 9200, new BytesArray("test"), null, null, emptyMap()), "target", "target");
     }
 
     private void fails(String target, String... sources) {

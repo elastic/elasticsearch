@@ -32,7 +32,10 @@ import org.gradle.util.ConfigureUtil
  */
 public class RestIntegTestTask extends RandomizedTestingTask {
 
-    ClusterConfiguration clusterConfig = new ClusterConfiguration()
+    ClusterConfiguration clusterConfig
+
+    /** Info about nodes in the integ test cluster. Note this is *not* available until runtime. */
+    List<NodeInfo> nodes
 
     /** Flag indicating whether the rest tests in the rest spec should be run. */
     @Input
@@ -44,6 +47,7 @@ public class RestIntegTestTask extends RandomizedTestingTask {
         dependsOn(project.testClasses)
         classpath = project.sourceSets.test.runtimeClasspath
         testClassesDir = project.sourceSets.test.output.classesDir
+        clusterConfig = new ClusterConfiguration(project)
 
         // start with the common test configuration
         configure(BuildPlugin.commonTestConfig(project))
@@ -51,6 +55,12 @@ public class RestIntegTestTask extends RandomizedTestingTask {
         parallelism = '1'
         include('**/*IT.class')
         systemProperty('tests.rest.load_packaged', 'false')
+        systemProperty('tests.rest.cluster', "${-> nodes[0].httpUri()}")
+        systemProperty('tests.config.dir', "${-> nodes[0].confDir}")
+        // TODO: our "client" qa tests currently use the rest-test plugin. instead they should have their own plugin
+        // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass
+        // both as separate sysprops
+        systemProperty('tests.cluster', "${-> nodes[0].transportUri()}")
 
         // copy the rest spec/tests into the test resources
         RestSpecHack.configureDependencies(project)
@@ -60,13 +70,7 @@ public class RestIntegTestTask extends RandomizedTestingTask {
         // this must run after all projects have been configured, so we know any project
         // references can be accessed as a fully configured
         project.gradle.projectsEvaluated {
-            NodeInfo node = ClusterFormationTasks.setup(project, this, clusterConfig)
-            systemProperty('tests.rest.cluster', "${-> node.httpUri()}")
-            systemProperty('tests.config.dir', "${-> node.confDir}")
-            // TODO: our "client" qa tests currently use the rest-test plugin. instead they should have their own plugin
-            // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass
-            // both as separate sysprops
-            systemProperty('tests.cluster', "${-> node.transportUri()}")
+            nodes = ClusterFormationTasks.setup(project, this, clusterConfig)
         }
     }
 
@@ -85,6 +89,10 @@ public class RestIntegTestTask extends RandomizedTestingTask {
 
     public ClusterConfiguration getCluster() {
         return clusterConfig
+    }
+
+    public List<NodeInfo> getNodes() {
+        return nodes
     }
 
     @Override

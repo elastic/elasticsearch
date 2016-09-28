@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
@@ -29,7 +30,6 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
 
 import java.lang.invoke.LambdaMetafactory;
 import java.util.ArrayList;
@@ -47,7 +47,7 @@ import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE
  * This can currently only be the direct argument of a call (method/constructor).
  * When the argument is of a known type, it uses
  * <a href="http://cr.openjdk.java.net/~briangoetz/lambda/lambda-translation.html">
- * Java's lambda translation</a>. However, if its a def call, then we don't have 
+ * Java's lambda translation</a>. However, if its a def call, then we don't have
  * enough information, and have to defer this until link time. In that case a placeholder
  * and all captures are pushed onto the stack and folded into the signature of the parent call.
  * <p>
@@ -64,24 +64,25 @@ import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE
  * <br>
  * {@code sort(list, lambda$0(capture))}
  */
-public class ELambda extends AExpression implements ILambda {
-    final String name;
-    final FunctionReserved reserved;
-    final List<String> paramTypeStrs;
-    final List<String> paramNameStrs;
-    final List<AStatement> statements;
+public final class ELambda extends AExpression implements ILambda {
+
+    private final String name;
+    private final FunctionReserved reserved;
+    private final List<String> paramTypeStrs;
+    private final List<String> paramNameStrs;
+    private final List<AStatement> statements;
 
     // desugared synthetic method (lambda body)
-    SFunction desugared;
+    private SFunction desugared;
     // captured variables
-    List<Variable> captures;
+    private List<Variable> captures;
     // static parent, static lambda
-    FunctionRef ref;
+    private FunctionRef ref;
     // dynamic parent, deferred until link time
-    String defPointer;
+    private String defPointer;
 
-    public ELambda(String name, FunctionReserved reserved, 
-                   Location location, List<String> paramTypes, List<String> paramNames, 
+    public ELambda(String name, FunctionReserved reserved,
+                   Location location, List<String> paramTypes, List<String> paramNames,
                    List<AStatement> statements) {
         super(location);
         this.name = Objects.requireNonNull(name);
@@ -90,7 +91,7 @@ public class ELambda extends AExpression implements ILambda {
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
         this.statements = Collections.unmodifiableList(statements);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         for (AStatement statement : statements) {
@@ -100,7 +101,7 @@ public class ELambda extends AExpression implements ILambda {
 
     @Override
     void analyze(Locals locals) {
-        final Definition.Type returnType;
+        final Type returnType;
         final List<String> actualParamTypeStrs;
         Method interfaceMethod;
         // inspect the target first, set interface method if we know it.
@@ -114,12 +115,12 @@ public class ELambda extends AExpression implements ILambda {
             // we know the method statically, infer return type and any unknown/def types
             interfaceMethod = expected.struct.getFunctionalMethod();
             if (interfaceMethod == null) {
-                throw createError(new IllegalArgumentException("Cannot pass lambda to [" + expected.name + 
+                throw createError(new IllegalArgumentException("Cannot pass lambda to [" + expected.name +
                                                                "], not a functional interface"));
             }
             // check arity before we manipulate parameters
             if (interfaceMethod.arguments.size() != paramTypeStrs.size())
-                throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name + 
+                throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name +
                                                    "] in [" + expected.clazz + "]");
             // for method invocation, its allowed to ignore the return value
             if (interfaceMethod.rtn == Definition.VOID_TYPE) {
@@ -159,14 +160,14 @@ public class ELambda extends AExpression implements ILambda {
         }
         paramTypes.addAll(actualParamTypeStrs);
         paramNames.addAll(paramNameStrs);
-        
+
         // desugar lambda body into a synthetic method
-        desugared = new SFunction(reserved, location, returnType.name, name, 
+        desugared = new SFunction(reserved, location, returnType.name, name,
                                             paramTypes, paramNames, statements, true);
-        desugared.generate();
-        desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), returnType, desugared.parameters, 
+        desugared.generateSignature();
+        desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), returnType, desugared.parameters,
                                                 captures.size(), reserved.getMaxLoopCounter()));
-        
+
         // setup method reference to synthetic method
         if (expected == null) {
             ref = null;
@@ -195,8 +196,10 @@ public class ELambda extends AExpression implements ILambda {
             }
             // convert MethodTypes to asm Type for the constant pool.
             String invokedType = ref.invokedType.toMethodDescriptorString();
-            Type samMethodType = Type.getMethodType(ref.samMethodType.toMethodDescriptorString());
-            Type interfaceType = Type.getMethodType(ref.interfaceMethodType.toMethodDescriptorString());
+            org.objectweb.asm.Type samMethodType =
+                org.objectweb.asm.Type.getMethodType(ref.samMethodType.toMethodDescriptorString());
+            org.objectweb.asm.Type interfaceType =
+                org.objectweb.asm.Type.getMethodType(ref.interfaceMethodType.toMethodDescriptorString());
             if (ref.needsBridges()) {
                 writer.invokeDynamic(ref.invokedName,
                                      invokedType,
@@ -235,8 +238,8 @@ public class ELambda extends AExpression implements ILambda {
     }
 
     @Override
-    public Type[] getCaptures() {
-        Type[] types = new Type[captures.size()];
+    public org.objectweb.asm.Type[] getCaptures() {
+        org.objectweb.asm.Type[] types = new org.objectweb.asm.Type[captures.size()];
         for (int i = 0; i < types.length; i++) {
             types[i] = captures.get(i).type.type;
         }

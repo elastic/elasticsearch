@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ReferenceManager;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener 
     private final IntSupplier getMaxRefreshListeners;
     private final Runnable forceRefresh;
     private final Executor listenerExecutor;
-    private final ESLogger logger;
+    private final Logger logger;
 
     /**
      * List of refresh listeners. Defaults to null and built on demand because most refresh cycles won't need it. Entries are never removed
@@ -54,7 +54,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener 
      */
     private volatile Translog.Location lastRefreshedLocation;
 
-    public RefreshListeners(IntSupplier getMaxRefreshListeners, Runnable forceRefresh, Executor listenerExecutor, ESLogger logger) {
+    public RefreshListeners(IntSupplier getMaxRefreshListeners, Runnable forceRefresh, Executor listenerExecutor, Logger logger) {
         this.getMaxRefreshListeners = getMaxRefreshListeners;
         this.forceRefresh = forceRefresh;
         this.listenerExecutor = listenerExecutor;

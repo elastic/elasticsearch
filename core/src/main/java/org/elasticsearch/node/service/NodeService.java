@@ -38,7 +38,6 @@ import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.ProcessorsRegistry;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.ScriptService;
@@ -57,19 +56,18 @@ public class NodeService extends AbstractComponent implements Closeable {
     private final CircuitBreakerService circuitBreakerService;
     private final IngestService ingestService;
     private final SettingsFilter settingsFilter;
-    private ClusterService clusterService;
     private ScriptService scriptService;
 
     @Nullable
-    private HttpServer httpServer;
+    private final HttpServer httpServer;
 
     private final Discovery discovery;
 
     @Inject
-    public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService,
-                       Discovery discovery, TransportService transportService, IndicesService indicesService,
-                       PluginsService pluginService, CircuitBreakerService circuitBreakerService, @Nullable HttpServer httpServer,
-                       ProcessorsRegistry.Builder processorsRegistryBuilder, ClusterService clusterService, SettingsFilter settingsFilter) {
+    public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery,
+                       TransportService transportService, IndicesService indicesService, PluginsService pluginService,
+                       CircuitBreakerService circuitBreakerService, ScriptService scriptService, @Nullable HttpServer httpServer,
+                       IngestService ingestService, ClusterService clusterService, SettingsFilter settingsFilter) {
         super(settings);
         this.threadPool = threadPool;
         this.monitorService = monitorService;
@@ -79,33 +77,11 @@ public class NodeService extends AbstractComponent implements Closeable {
         this.pluginService = pluginService;
         this.circuitBreakerService = circuitBreakerService;
         this.httpServer = httpServer;
-        this.clusterService = clusterService;
-        this.ingestService = new IngestService(settings, threadPool, processorsRegistryBuilder);
+        this.ingestService = ingestService;
         this.settingsFilter = settingsFilter;
+        this.scriptService = scriptService;
         clusterService.add(ingestService.getPipelineStore());
         clusterService.add(ingestService.getPipelineExecutionService());
-    }
-
-    // can not use constructor injection or there will be a circular dependency
-    @Inject(optional = true)
-    public void setScriptService(ScriptService scriptService) {
-        this.scriptService = scriptService;
-        this.ingestService.buildProcessorsFactoryRegistry(scriptService, clusterService);
-    }
-
-    public NodeInfo info() {
-        return new NodeInfo(Version.CURRENT, Build.CURRENT, discovery.localNode(),
-                settings,
-                monitorService.osService().info(),
-                monitorService.processService().info(),
-                monitorService.jvmService().info(),
-                threadPool.info(),
-                transportService.info(),
-                httpServer == null ? null : httpServer.info(),
-                pluginService == null ? null : pluginService.info(),
-                ingestService == null ? null : ingestService.info(),
-                indicesService.getTotalIndexingBufferBytes()
-        );
     }
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
@@ -121,25 +97,6 @@ public class NodeService extends AbstractComponent implements Closeable {
                 plugin ? (pluginService == null ? null : pluginService.info()) : null,
                 ingest ? (ingestService == null ? null : ingestService.info()) : null,
                 indices ? indicesService.getTotalIndexingBufferBytes() : null
-        );
-    }
-
-    public NodeStats stats() throws IOException {
-        // for indices stats we want to include previous allocated shards stats as well (it will
-        // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
-        return new NodeStats(discovery.localNode(), System.currentTimeMillis(),
-                indicesService.stats(true),
-                monitorService.osService().stats(),
-                monitorService.processService().stats(),
-                monitorService.jvmService().stats(),
-                threadPool.stats(),
-                monitorService.fsService().stats(),
-                transportService.stats(),
-                httpServer == null ? null : httpServer.stats(),
-                circuitBreakerService.stats(),
-                scriptService.stats(),
-                discovery.stats(),
-                ingestService.getPipelineExecutionService().stats()
         );
     }
 

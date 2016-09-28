@@ -46,9 +46,7 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
  * A Query that matches documents matching boolean combinations of other queries.
  */
 public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
-
     public static final String NAME = "bool";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(BoolQueryBuilder.NAME);
 
     public static final boolean ADJUST_PURE_NEGATIVE_DEFAULT = true;
     public static final boolean DISABLE_COORD_DEFAULT = false;
@@ -339,10 +337,6 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
                     break;
                 default:
                     throw new ParsingException(parser.getTokenLocation(), "[bool] query does not support [" + currentFieldName + "]");
-                }
-                if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "expected [END_OBJECT] but got [{}], possibly too many query clauses", parser.currentToken());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

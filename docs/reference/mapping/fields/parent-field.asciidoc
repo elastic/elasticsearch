@@ -28,7 +28,7 @@ PUT my_index/my_child/2?parent=1 <3>
   "text": "This is a child document"
 }
 
-PUT my_index/my_child/3?parent=1 <3>
+PUT my_index/my_child/3?parent=1&refresh=true <3>
 {
   "text": "This is another child document"
 }
@@ -103,7 +103,7 @@ GET my_index/_search
   cannot be established between documents of the same type.
 
 * The `_parent.type` setting can only point to a type that doesn't exist yet.
-  This means that a type cannot become a parent type after it is has been
+  This means that a type cannot become a parent type after it has been
   created.
 
 * Parent and child documents must be indexed on the same shard.  The `parent`

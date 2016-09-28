@@ -82,6 +82,9 @@ cluster health to have a stable master node.
 Any master-eligible node (all nodes by default) may be elected to become the
 master node by the <<modules-discovery-zen,master election process>>.
 
+IMPORTANT: Master nodes must have access to the `data/` directory (just like 
+`data` nodes) as this is where the cluster state is persisted between node restarts.
+
 Indexing and searching your data is CPU-, memory-, and I/O-intensive work
 which can put pressure on a node's resources. To ensure that your master
 node is stable and not under pressure, it is a good idea in a bigger
@@ -278,21 +281,16 @@ your data! The RPM and Debian distributions do this for you already.
 [[max-local-storage-nodes]]
 === `node.max_local_storage_nodes`
 
-The <<data-path,data path>> can be shared by multiple nodes, even by nodes
-from different clusters.  This is very useful for testing failover and
-different configurations on your development machine.  In production, however,
-it is recommended to run only one node of Elasticsearch per server.
+The <<data-path,data path>> can be shared by multiple nodes, even by nodes from different
+clusters. This is very useful for testing failover and different configurations on your development
+machine. In production, however, it is recommended to run only one node of Elasticsearch per server.
 
-To prevent more than one node from sharing the same data path, add this
-setting to the `elasticsearch.yml` config file:
+By default, Elasticsearch is configured to prevent more than one node from sharing the same data
+path. To allow for more than one node (e.g., on your development machine), use the setting
+`node.max_local_storage_nodes` and set this to a positve integer larger than one.
 
-[source,yaml]
-------------------------------
-node.max_local_storage_nodes: 1
-------------------------------
-
-WARNING: Never run different node types (i.e. master, data) from the
-same data directory. This can lead to unexpected data loss.
+WARNING: Never run different node types (i.e. master, data) from the same data directory. This can
+lead to unexpected data loss.
 
 [float]
 == Other node settings

@@ -28,14 +28,14 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.util.Map;
 
 /**
  * RestBuilderListener that returns higher than 200 status if there are any failures and allows to set XContent.Params.
  */
-public class BulkIndexByScrollResponseContentListener<R extends BulkIndexByScrollResponse> extends RestBuilderListener<R> {
+public class BulkIndexByScrollResponseContentListener extends RestBuilderListener<BulkIndexByScrollResponse> {
 
     private final Map<String, String> params;
 
@@ -45,14 +45,14 @@ public class BulkIndexByScrollResponseContentListener<R extends BulkIndexByScrol
     }
 
     @Override
-    public RestResponse buildResponse(R response, XContentBuilder builder) throws Exception {
+    public RestResponse buildResponse(BulkIndexByScrollResponse response, XContentBuilder builder) throws Exception {
         builder.startObject();
         response.toXContent(builder, new ToXContent.DelegatingMapParams(params, channel.request()));
         builder.endObject();
         return new BytesRestResponse(getStatus(response), builder);
     }
 
-    private RestStatus getStatus(R response) {
+    private RestStatus getStatus(BulkIndexByScrollResponse response) {
         /*
          * Return the highest numbered rest status under the assumption that higher numbered statuses are "more error" and thus more
          * interesting to the user.

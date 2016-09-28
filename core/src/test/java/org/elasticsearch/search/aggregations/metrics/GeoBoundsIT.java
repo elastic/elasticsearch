@@ -44,9 +44,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase
 public class GeoBoundsIT extends AbstractGeoTestCase {
     private static final String aggName = "geoBounds";

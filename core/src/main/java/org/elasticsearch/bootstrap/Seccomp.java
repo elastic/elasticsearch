@@ -26,9 +26,9 @@ import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import com.sun.jna.ptr.PointerByReference;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
@@ -92,7 +92,7 @@ import java.util.Map;
  */
 // not an example of how to write code!!!
 final class Seccomp {
-    private static final ESLogger logger = Loggers.getLogger(Seccomp.class);
+    private static final Logger logger = Loggers.getLogger(Seccomp.class);
 
     // Linux implementation, based on seccomp(2) or prctl(2) with bpf filtering
 
@@ -200,6 +200,7 @@ final class Seccomp {
     static final int SECCOMP_RET_ALLOW = 0x7FFF0000;
 
     // some errno constants for error checking/handling
+    static final int EPERM  = 0x01;
     static final int EACCES = 0x0D;
     static final int EFAULT = 0x0E;
     static final int EINVAL = 0x16;
@@ -275,8 +276,21 @@ final class Seccomp {
 
         // check that unimplemented syscalls actually return ENOSYS
         // you never know (e.g. https://code.google.com/p/chromium/issues/detail?id=439795)
-        if (linux_syscall(999) >= 0 || Native.getLastError() != ENOSYS) {
+        if (linux_syscall(999) >= 0) {
             throw new UnsupportedOperationException("seccomp unavailable: your kernel is buggy and you should upgrade");
+        }
+
+        switch (Native.getLastError()) {
+            case ENOSYS:
+                break; // ok
+            case EPERM:
+                // NOT ok, but likely a docker container
+                if (logger.isDebugEnabled()) {
+                    logger.debug("syscall(BOGUS) bogusly gets EPERM instead of ENOSYS");
+                }
+                break;
+            default:
+                throw new UnsupportedOperationException("seccomp unavailable: your kernel is buggy and you should upgrade");
         }
 
         // try to check system calls really are who they claim

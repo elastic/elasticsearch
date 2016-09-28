@@ -19,15 +19,15 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.search.action.SearchTransportService;
-import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
@@ -40,7 +40,7 @@ import static org.elasticsearch.action.search.TransportSearchHelper.internalScro
 
 class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
 
-    private final ESLogger logger;
+    private final Logger logger;
     private final SearchPhaseController searchPhaseController;
     private final SearchTransportService searchTransportService;
     private final SearchScrollRequest request;
@@ -52,7 +52,7 @@ class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
     private final AtomicInteger successfulOps;
     private final AtomicInteger counter;
 
-    SearchScrollQueryAndFetchAsyncAction(ESLogger logger, ClusterService clusterService,
+    SearchScrollQueryAndFetchAsyncAction(Logger logger, ClusterService clusterService,
                                          SearchTransportService searchTransportService, SearchPhaseController searchPhaseController,
                                          SearchScrollRequest request, ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
         this.logger = logger;
@@ -146,7 +146,7 @@ class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
 
     private void onPhaseFailure(Exception e, long searchId, int shardIndex) {
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}] Failed to execute query phase", e, searchId);
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] Failed to execute query phase", searchId), e);
         }
         addShardFailure(shardIndex, new ShardSearchFailure(e));
         successfulOps.decrementAndGet();
@@ -168,8 +168,8 @@ class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
     }
 
     private void innerFinishHim() throws Exception {
-        ScoreDoc[] sortedShardList = searchPhaseController.sortDocs(true, queryFetchResults);
-        final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults,
+        ScoreDoc[] sortedShardDocs = searchPhaseController.sortDocs(true, queryFetchResults);
+        final InternalSearchResponse internalResponse = searchPhaseController.merge(true, sortedShardDocs, queryFetchResults,
             queryFetchResults);
         String scrollId = null;
         if (request.scroll() != null) {

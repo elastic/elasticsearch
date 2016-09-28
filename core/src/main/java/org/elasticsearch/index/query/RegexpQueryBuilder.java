@@ -43,9 +43,7 @@ import java.util.Optional;
  * A Query that does fuzzy matching for a specific value.
  */
 public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder> implements MultiTermQueryBuilder {
-
     public static final String NAME = "regexp";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     public static final int DEFAULT_FLAGS_VALUE = RegexpFlag.ALL.value();
     public static final int DEFAULT_MAX_DETERMINIZED_STATES = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
@@ -79,7 +77,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             throw new IllegalArgumentException("field name is null or empty");
         }
         if (value == null) {
-            throw new IllegalArgumentException("value cannot be null.");
+            throw new IllegalArgumentException("value cannot be null");
         }
         this.fieldName = fieldName;
         this.value = value;
@@ -182,10 +180,8 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
     public static Optional<RegexpQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-
-        String fieldName = parser.currentName();
+        String fieldName = null;
         String rewrite = null;
-
         String value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         int flagsValue = RegexpQueryBuilder.DEFAULT_FLAGS_VALUE;
@@ -199,6 +195,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
                 fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -229,15 +226,13 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                 if (parseContext.getParseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
+                    throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
                     fieldName = currentFieldName;
                     value = parser.textOrNull();
                 }
             }
         }
 
-        if (value == null) {
-            throw new ParsingException(parser.getTokenLocation(), "No value specified for regexp query");
-        }
         return Optional.of(new RegexpQueryBuilder(fieldName, value)
                 .flags(flagsValue)
                 .maxDeterminizedStates(maxDeterminizedStates)

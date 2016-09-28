@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,11 +33,10 @@ import java.util.List;
 import java.util.Map;
 
 public class MinBucketPipelineAggregationBuilder extends BucketMetricsPipelineAggregationBuilder<MinBucketPipelineAggregationBuilder> {
-    public static final String NAME = MinBucketPipelineAggregator.TYPE.name();
-    public static final ParseField AGGREGATION_FIELD_NAME = new ParseField(NAME);
+    public static final String NAME = "min_bucket";
 
     public MinBucketPipelineAggregationBuilder(String name, String bucketsPath) {
-        super(name, MinBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
+        super(name, NAME, new String[] { bucketsPath });
     }
 
     /**

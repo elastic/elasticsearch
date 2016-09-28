@@ -20,14 +20,14 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.mapper.internal.IdFieldMapper;
-import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.mapper.ParentFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TTLFieldMapper;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -54,7 +54,7 @@ public final class IngestDocument {
     static final String TIMESTAMP = "timestamp";
 
     private final Map<String, Object> sourceAndMetadata;
-    private final Map<String, String> ingestMetadata;
+    private final Map<String, Object> ingestMetadata;
 
     public IngestDocument(String index, String type, String id, String routing, String parent, String timestamp,
                           String ttl, Map<String, Object> source) {
@@ -94,7 +94,7 @@ public final class IngestDocument {
      * source and ingest metadata. This is needed because the ingest metadata will be initialized with the current timestamp at
      * init time, which makes equality comparisons impossible in tests.
      */
-    public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, String> ingestMetadata) {
+    public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
         this.sourceAndMetadata = sourceAndMetadata;
         this.ingestMetadata = ingestMetadata;
     }
@@ -166,6 +166,17 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public boolean hasField(String path) {
+        return hasField(path, false);
+    }
+
+    /**
+     * Checks whether the document contains a value for the provided path
+     * @param path The path within the document in dot-notation
+     * @param failOutOfRange Whether to throw an IllegalArgumentException if array is accessed outside of its range
+     * @return true if the document contains a value for the field, false otherwise
+     * @throws IllegalArgumentException if the path is null, empty or invalid.
+     */
+    public boolean hasField(String path, boolean failOutOfRange) {
         FieldPath fieldPath = new FieldPath(path);
         Object context = fieldPath.initialContext;
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
@@ -183,7 +194,12 @@ public final class IngestDocument {
                 try {
                     int index = Integer.parseInt(pathElement);
                     if (index < 0 || index >= list.size()) {
-                        return false;
+                        if (failOutOfRange) {
+                            throw new IllegalArgumentException("[" + index + "] is out of bounds for array with length [" +
+                                    list.size() + "] as part of path [" + path +"]");
+                        } else {
+                            return false;
+                        }
                     }
                     context = list.get(index);
                 } catch (NumberFormatException e) {
@@ -206,7 +222,16 @@ public final class IngestDocument {
             List<Object> list = (List<Object>) context;
             try {
                 int index = Integer.parseInt(leafKey);
-                return index >= 0 && index < list.size();
+                if (index >= 0 && index < list.size()) {
+                    return true;
+                } else {
+                    if (failOutOfRange) {
+                        throw new IllegalArgumentException("[" + index + "] is out of bounds for array with length [" +
+                                list.size() + "] as part of path [" + path +"]");
+                    } else {
+                        return false;
+                    }
+                }
             } catch (NumberFormatException e) {
                 return false;
             }
@@ -517,7 +542,7 @@ public final class IngestDocument {
      * Returns the available ingest metadata fields, by default only timestamp, but it is possible to set additional ones.
      * Use only for reading values, modify them instead using {@link #setFieldValue(String, Object)} and {@link #removeField(String)}
      */
-    public Map<String, String> getIngestMetadata() {
+    public Map<String, Object> getIngestMetadata() {
         return this.ingestMetadata;
     }
 

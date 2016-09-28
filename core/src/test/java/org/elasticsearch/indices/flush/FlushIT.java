@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -61,7 +62,7 @@ public class FlushIT extends ESIntegTestCase {
             final CountDownLatch latch = new CountDownLatch(10);
             final CopyOnWriteArrayList<Throwable> errors = new CopyOnWriteArrayList<>();
             for (int j = 0; j < 10; j++) {
-                client().admin().indices().prepareFlush("test").setWaitIfOngoing(true).execute(new ActionListener<FlushResponse>() {
+                client().admin().indices().prepareFlush("test").execute(new ActionListener<FlushResponse>() {
                     @Override
                     public void onResponse(FlushResponse flushResponse) {
                         try {
@@ -127,7 +128,7 @@ public class FlushIT extends ESIntegTestCase {
         internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, currentNodeName, newNodeName)).get();
 
         client().admin().cluster().prepareHealth()
-                .setWaitForRelocatingShards(0)
+                .setWaitForNoRelocatingShards(true)
                 .get();
         indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         for (ShardStats shardStats : indexStats.getShards()) {
@@ -213,7 +214,7 @@ public class FlushIT extends ESIntegTestCase {
 
     public void testUnallocatedShardsDoesNotHang() throws InterruptedException {
         //  create an index but disallow allocation
-        prepareCreate("test").setSettings(Settings.builder().put("index.routing.allocation.include._name", "nonexistent")).get();
+        prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).setSettings(Settings.builder().put("index.routing.allocation.include._name", "nonexistent")).get();
 
         // this should not hang but instead immediately return with empty result set
         List<ShardsSyncedFlushResult> shardsResult = client().admin().indices().prepareSyncedFlush("test").get().getShardsResultPerIndex().get("test");

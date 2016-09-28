@@ -55,7 +55,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class);
     }
 
     public void testManyToManyGeoPoints() throws ExecutionException, InterruptedException, IOException {
@@ -86,7 +86,6 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         indexRandom(true,
                 client().prepareIndex("index", "type", "d1").setSource(d1Builder),
                 client().prepareIndex("index", "type", "d2").setSource(d2Builder));
-        ensureYellow();
         GeoPoint[] q = new GeoPoint[2];
         if (randomBoolean()) {
             q[0] = new GeoPoint(2, 1);
@@ -152,7 +151,6 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         indexRandom(true,
                 client().prepareIndex("index", "type", "d1").setSource(d1Builder),
                 client().prepareIndex("index", "type", "d2").setSource(d2Builder));
-        ensureYellow();
         GeoPoint q = new GeoPoint(0,0);
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -211,7 +209,6 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         indexRandom(true,
                 client().prepareIndex("index", "type", "d1").setSource(d1Builder),
                 client().prepareIndex("index", "type", "d2").setSource(d2Builder));
-        ensureYellow();
 
         List<String> qHashes = new ArrayList<>();
         List<GeoPoint> qPoints = new ArrayList<>();
@@ -260,7 +257,6 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         indexRandom(true,
                 client().prepareIndex("index", "type", "d1").setSource(jsonBuilder().startObject().startObject(LOCATION_FIELD).field("lat", 1).field("lon", 1).endObject().endObject()),
                 client().prepareIndex("index", "type", "d2").setSource(jsonBuilder().startObject().startObject(LOCATION_FIELD).field("lat", 1).field("lon", 2).endObject().endObject()));
-        ensureYellow();
 
         String hashPoint = "s037ms06g7h0";
 
@@ -341,8 +337,6 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
         indexRandom(true,
                 client().prepareIndex("test1", "type").setSource("str_field", "bcd", "long_field", 3, "double_field", 0.65),
                 client().prepareIndex("test2", "type").setSource());
-
-        ensureYellow("test1", "test2");
 
         SearchResponse resp = client().prepareSearch("test1", "test2")
                 .addSort(fieldSort("str_field").order(SortOrder.ASC).unmappedType("keyword"))

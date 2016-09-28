@@ -43,13 +43,25 @@ curl -XGET 'localhost:9200/_analyze' -d '
 curl -XGET 'localhost:9200/_analyze' -d '
 {
   "tokenizer" : "keyword",
-  "token_filter" : ["lowercase"],
+  "filter" : ["lowercase"],
   "char_filter" : ["html_strip"],
   "text" : "this is a <b>test</b>"
 }'
 --------------------------------------------------
 
-deprecated[5.0.0, Use `filter`/`token_filter`/`char_filter` instead of `filters`/`token_filters`/`char_filters`]
+deprecated[5.0.0, Use `filter`/`char_filter` instead of `filters`/`char_filters` and `token_filters` has been removed]
+
+Custom tokenizers, token filters, and character filters can be specified in the request body as follows:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_analyze' -d '
+{
+  "tokenizer" : "whitespace",
+  "filter" : ["lowercase", {"type": "stop", "stopwords": ["a", "is", "this"]}],
+  "text" : "this is a test"
+}'
+--------------------------------------------------
 
 It can also run against a specific index:
 
@@ -70,7 +82,7 @@ can also be provided to use a different analyzer:
 curl -XGET 'localhost:9200/test/_analyze' -d '
 {
   "analyzer" : "whitespace",
-  "text : "this is a test"
+  "text" : "this is a test"
 }'
 --------------------------------------------------
 
@@ -100,7 +112,7 @@ provided it doesn't start with `{` :
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&token_filter=lowercase&char_filter=html_strip' -d 'this is a <b>test</b>'
+curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&filter=lowercase&char_filter=html_strip' -d 'this is a <b>test</b>'
 --------------------------------------------------
 
 === Explain Analyze
@@ -115,7 +127,7 @@ experimental[The format of the additional detail information is experimental and
 GET _analyze
 {
   "tokenizer" : "standard",
-  "token_filter" : ["snowball"],
+  "filter" : ["snowball"],
   "text" : "detailed output",
   "explain" : true,
   "attributes" : ["keyword"] <1>
@@ -123,8 +135,6 @@ GET _analyze
 --------------------------------------------------
 // CONSOLE
 <1> Set "keyword" to output "keyword" attribute only
-
-coming[2.0.0, body based parameters were added in 2.0.0]
 
 The request returns the following result:
 
@@ -171,4 +181,5 @@ The request returns the following result:
   }
 }
 --------------------------------------------------
+// TESTRESPONSE
 <1> Output only "keyword" attribute, since specify "attributes" in the request.

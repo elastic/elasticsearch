@@ -37,7 +37,8 @@ import java.util.Collection;
 import java.util.Iterator;
 
 /**
- *
+ * Dfs phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
+ * The additional information is used to better compare the scores coming from all the shards, which depend on local factors (e.g. idf)
  */
 public class DfsPhase implements SearchPhase {
 

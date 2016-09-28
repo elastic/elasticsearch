@@ -19,7 +19,9 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ExceptionsHelper;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,8 +41,8 @@ public final class ConfigurationUtils {
      *
      * If the property value isn't of type string a {@link ElasticsearchParseException} is thrown.
      */
-    public static String readOptionalStringProperty(String processorType, String processorTag, Map<String, Object> configuration,
-                                                    String propertyName) {
+    public static String readOptionalStringProperty(String processorType, String processorTag,
+                                                    Map<String, Object> configuration, String propertyName) {
         Object value = configuration.remove(propertyName);
         return readString(processorType, processorTag, propertyName, value);
     }
@@ -105,15 +107,14 @@ public final class ConfigurationUtils {
             value.getClass().getName() + "]");
     }
 
-
     /**
      * Returns and removes the specified property from the specified configuration map.
      *
      * If the property value isn't of type int a {@link ElasticsearchParseException} is thrown.
      * If the property is missing an {@link ElasticsearchParseException} is thrown
      */
-    public static int readIntProperty(String processorType, String processorTag, Map<String, Object> configuration, String propertyName,
-                                      int defaultValue) {
+    public static Integer readIntProperty(String processorType, String processorTag, Map<String, Object> configuration,
+                                          String propertyName, Integer defaultValue) {
         Object value = configuration.remove(propertyName);
         if (value == null) {
             return defaultValue;
@@ -146,7 +147,8 @@ public final class ConfigurationUtils {
      * If the property value isn't of type list an {@link ElasticsearchParseException} is thrown.
      * If the property is missing an {@link ElasticsearchParseException} is thrown
      */
-    public static <T> List<T> readList(String processorType, String processorTag, Map<String, Object> configuration, String propertyName) {
+    public static <T> List<T> readList(String processorType, String processorTag, Map<String, Object> configuration,
+                                       String propertyName) {
         Object value = configuration.remove(propertyName);
         if (value == null) {
             throw newConfigurationException(processorType, processorTag, propertyName, "required property is missing");
@@ -211,7 +213,8 @@ public final class ConfigurationUtils {
     /**
      * Returns and removes the specified property as an {@link Object} from the specified configuration map.
      */
-    public static Object readObject(String processorType, String processorTag, Map<String, Object> configuration, String propertyName) {
+    public static Object readObject(String processorType, String processorTag, Map<String, Object> configuration,
+                                    String propertyName) {
         Object value = configuration.remove(propertyName);
         if (value == null) {
             throw newConfigurationException(processorType, processorTag, propertyName, "required property is missing");
@@ -219,10 +222,45 @@ public final class ConfigurationUtils {
         return value;
     }
 
-    public static ElasticsearchParseException newConfigurationException(String processorType, String processorTag, String propertyName,
-                                                                        String reason) {
+    public static ElasticsearchException newConfigurationException(String processorType, String processorTag,
+                                                                        String propertyName, String reason) {
         ElasticsearchParseException exception = new ElasticsearchParseException("[" + propertyName + "] " + reason);
+        addHeadersToException(exception, processorType, processorTag, propertyName);
+        return exception;
+    }
 
+    public static ElasticsearchException newConfigurationException(String processorType, String processorTag,
+                                                                        String propertyName, Exception cause) {
+        ElasticsearchException exception = ExceptionsHelper.convertToElastic(cause);
+        addHeadersToException(exception, processorType, processorTag, propertyName);
+        return exception;
+    }
+
+    public static List<Processor> readProcessorConfigs(List<Map<String, Map<String, Object>>> processorConfigs,
+                                                       Map<String, Processor.Factory> processorFactories) throws Exception {
+        List<Processor> processors = new ArrayList<>();
+        if (processorConfigs != null) {
+            for (Map<String, Map<String, Object>> processorConfigWithKey : processorConfigs) {
+                for (Map.Entry<String, Map<String, Object>> entry : processorConfigWithKey.entrySet()) {
+                    processors.add(readProcessor(processorFactories, entry.getKey(), entry.getValue()));
+                }
+            }
+        }
+
+        return processors;
+    }
+
+    public static TemplateService.Template compileTemplate(String processorType, String processorTag, String propertyName,
+                                                           String propertyValue, TemplateService templateService) {
+        try {
+            return templateService.compile(propertyValue);
+        } catch (Exception e) {
+            throw ConfigurationUtils.newConfigurationException(processorType, processorTag, propertyName, e);
+        }
+    }
+
+    private static void addHeadersToException(ElasticsearchException exception, String processorType,
+                                              String processorTag, String propertyName) {
         if (processorType != null) {
             exception.addHeader("processor_type", processorType);
         }
@@ -232,46 +270,37 @@ public final class ConfigurationUtils {
         if (propertyName != null) {
             exception.addHeader("property_name", propertyName);
         }
-        return exception;
     }
 
-    public static List<Processor> readProcessorConfigs(List<Map<String, Map<String, Object>>> processorConfigs,
-                                                       ProcessorsRegistry processorRegistry) throws Exception {
-        List<Processor> processors = new ArrayList<>();
-        if (processorConfigs != null) {
-            for (Map<String, Map<String, Object>> processorConfigWithKey : processorConfigs) {
-                for (Map.Entry<String, Map<String, Object>> entry : processorConfigWithKey.entrySet()) {
-                    processors.add(readProcessor(processorRegistry, entry.getKey(), entry.getValue()));
-                }
-            }
-        }
-
-        return processors;
-    }
-
-    private static Processor readProcessor(ProcessorsRegistry processorRegistry, String type, Map<String, Object> config) throws Exception {
-        Processor.Factory factory = processorRegistry.getProcessorFactory(type);
+    public static Processor readProcessor(Map<String, Processor.Factory> processorFactories,
+                                           String type, Map<String, Object> config) throws Exception {
+        Processor.Factory factory = processorFactories.get(type);
         if (factory != null) {
             boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(null, null, config, "ignore_failure", false);
             List<Map<String, Map<String, Object>>> onFailureProcessorConfigs =
                 ConfigurationUtils.readOptionalList(null, null, config, Pipeline.ON_FAILURE_KEY);
 
-            List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorRegistry);
+            List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorFactories);
             String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
-            Processor processor = factory.create(tag, config);
 
             if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
-                throw newConfigurationException(processor.getType(), processor.getTag(), Pipeline.ON_FAILURE_KEY,
+                throw newConfigurationException(type, tag, Pipeline.ON_FAILURE_KEY,
                     "processors list cannot be empty");
             }
-            if (config.isEmpty() == false) {
-                throw new ElasticsearchParseException("processor [{}] doesn't support one or more provided configuration parameters {}",
-                    type, Arrays.toString(config.keySet().toArray()));
-            }
-            if (onFailureProcessors.size() > 0 || ignoreFailure) {
-                return new CompoundProcessor(ignoreFailure, Collections.singletonList(processor), onFailureProcessors);
-            } else {
-                return processor;
+
+            try {
+                Processor processor = factory.create(processorFactories, tag, config);
+                if (config.isEmpty() == false) {
+                    throw new ElasticsearchParseException("processor [{}] doesn't support one or more provided configuration parameters {}",
+                        type, Arrays.toString(config.keySet().toArray()));
+                }
+                if (onFailureProcessors.size() > 0 || ignoreFailure) {
+                    return new CompoundProcessor(ignoreFailure, Collections.singletonList(processor), onFailureProcessors);
+                } else {
+                    return processor;
+                }
+            } catch (Exception e) {
+                throw newConfigurationException(type, tag, null, e);
             }
         }
         throw new ElasticsearchParseException("No processor type exists with name [" + type + "]");

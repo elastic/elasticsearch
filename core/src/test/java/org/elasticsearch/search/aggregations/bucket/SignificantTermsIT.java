@@ -41,18 +41,22 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.core.IsNull.notNullValue;
 
 /**
  *
@@ -385,6 +389,27 @@ public class SignificantTermsIT extends ESIntegTestCase {
         checkExpectedStringTermsFound(topTerms);
     }
 
+    public void testPartiallyUnmappedWithFormat() throws Exception {
+        SearchResponse response = client().prepareSearch("idx_unmapped", "test")
+                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setQuery(boolQuery().should(termQuery("_all", "the")).should(termQuery("_all", "terje")))
+                .setFrom(0).setSize(60).setExplain(true)
+                .addAggregation(significantTerms("mySignificantTerms")
+                        .field("fact_category")
+                        .executionHint(randomExecutionHint())
+                        .minDocCount(1)
+                        .format("0000"))
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
+        for (int i = 1; i <= 3; i++) {
+            String key = String.format(Locale.ROOT, "%04d", i);
+            SignificantTerms.Bucket bucket = topTerms.getBucketByKey(key);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKeyAsString(), equalTo(key));
+        }
+    }
 
     private void checkExpectedStringTermsFound(SignificantTerms topTerms) {
         HashMap<String,Bucket>topWords=new HashMap<>();

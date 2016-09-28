@@ -5,8 +5,10 @@ The delete index API allows to delete an existing index.
 
 [source,js]
 --------------------------------------------------
-$ curl -XDELETE 'http://localhost:9200/twitter/'
+DELETE /twitter
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 The above example deletes an index called `twitter`. Specifying an index,
 alias or wildcard expression is required.

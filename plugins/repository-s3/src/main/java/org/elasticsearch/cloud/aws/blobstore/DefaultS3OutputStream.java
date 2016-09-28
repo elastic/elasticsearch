@@ -31,7 +31,7 @@ import com.amazonaws.services.s3.model.PutObjectResult;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
 import com.amazonaws.util.Base64;
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -64,7 +64,7 @@ import java.util.List;
 public class DefaultS3OutputStream extends S3OutputStream {
 
     private static final ByteSizeValue MULTIPART_MAX_SIZE = new ByteSizeValue(5, ByteSizeUnit.GB);
-    private static final ESLogger logger = Loggers.getLogger("cloud.aws");
+    private static final Logger logger = Loggers.getLogger("cloud.aws");
     /**
      * Multipart Upload API data
      */

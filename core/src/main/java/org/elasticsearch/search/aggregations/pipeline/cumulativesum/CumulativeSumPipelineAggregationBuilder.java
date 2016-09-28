@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline.cumulativesum;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +28,8 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
@@ -44,20 +44,19 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 
 public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<CumulativeSumPipelineAggregationBuilder> {
-    public static final String NAME = CumulativeSumPipelineAggregator.TYPE.name();
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
+    public static final String NAME = "cumulative_sum";
 
     private String format;
 
     public CumulativeSumPipelineAggregationBuilder(String name, String bucketsPath) {
-        super(name, CumulativeSumPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
+        super(name, NAME, new String[] { bucketsPath });
     }
 
     /**
      * Read from a stream.
      */
     public CumulativeSumPipelineAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CumulativeSumPipelineAggregator.TYPE.name());
+        super(in, NAME);
         format = in.readOptionalString();
     }
 
@@ -104,15 +103,21 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
             throw new IllegalStateException(BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");
         }
-        if (!(parent instanceof AbstractHistogramAggregatorFactory<?>)) {
-            throw new IllegalStateException("cumulative sum aggregation [" + name
-                    + "] must have a histogram or date_histogram as parent");
-        } else {
-            AbstractHistogramAggregatorFactory<?> histoParent = (AbstractHistogramAggregatorFactory<?>) parent;
+        if (parent instanceof HistogramAggregatorFactory) {
+            HistogramAggregatorFactory histoParent = (HistogramAggregatorFactory) parent;
             if (histoParent.minDocCount() != 0) {
                 throw new IllegalStateException("parent histogram of cumulative sum aggregation [" + name
                         + "] must have min_doc_count of 0");
             }
+        } else if (parent instanceof DateHistogramAggregatorFactory) {
+            DateHistogramAggregatorFactory histoParent = (DateHistogramAggregatorFactory) parent;
+            if (histoParent.minDocCount() != 0) {
+                throw new IllegalStateException("parent histogram of cumulative sum aggregation [" + name
+                        + "] must have min_doc_count of 0");
+            }
+        } else {
+            throw new IllegalStateException("cumulative sum aggregation [" + name
+                    + "] must have a histogram or date_histogram as parent");
         }
     }
 

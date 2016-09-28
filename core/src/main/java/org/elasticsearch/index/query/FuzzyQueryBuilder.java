@@ -47,9 +47,7 @@ import java.util.Optional;
  */
 @Deprecated
 public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> implements MultiTermQueryBuilder {
-
     public static final String NAME = "fuzzy";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     /** Default maximum edit distance. Defaults to AUTO. */
     public static final Fuzziness DEFAULT_FUZZINESS = Fuzziness.AUTO;
@@ -154,7 +152,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
      */
     public FuzzyQueryBuilder(String fieldName, Object value) {
         if (Strings.isEmpty(fieldName)) {
-            throw new IllegalArgumentException("field name cannot be null or empty.");
+            throw new IllegalArgumentException("field name cannot be null or empty");
         }
         if (value == null) {
             throw new IllegalArgumentException("query value cannot be null");
@@ -260,63 +258,58 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
 
     public static Optional<FuzzyQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-
-        XContentParser.Token token = parser.nextToken();
-        if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ParsingException(parser.getTokenLocation(), "[fuzzy] query malformed, no field");
-        }
-
-        String fieldName = parser.currentName();
+        String fieldName = null;
         Object value = null;
-
         Fuzziness fuzziness = FuzzyQueryBuilder.DEFAULT_FUZZINESS;
         int prefixLength = FuzzyQueryBuilder.DEFAULT_PREFIX_LENGTH;
         int maxExpansions = FuzzyQueryBuilder.DEFAULT_MAX_EXPANSIONS;
         boolean transpositions = FuzzyQueryBuilder.DEFAULT_TRANSPOSITIONS;
         String rewrite = null;
-
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-
-        token = parser.nextToken();
-        if (token == XContentParser.Token.START_OBJECT) {
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else {
-                    if (parseContext.getParseFieldMatcher().match(currentFieldName, TERM_FIELD)) {
-                        value = parser.objectBytes();
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
-                        value = parser.objectBytes();
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
-                        boost = parser.floatValue();
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Fuzziness.FIELD)) {
-                        fuzziness = Fuzziness.parse(parser);
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, PREFIX_LENGTH_FIELD)) {
-                        prefixLength = parser.intValue();
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MAX_EXPANSIONS_FIELD)) {
-                        maxExpansions = parser.intValue();
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, TRANSPOSITIONS_FIELD)) {
-                        transpositions = parser.booleanValue();
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
-                        rewrite = parser.textOrNull();
-                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
-                        queryName = parser.text();
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
+                // skip
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
+                fieldName = currentFieldName;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "[fuzzy] query does not support [" + currentFieldName + "]");
+                        if (parseContext.getParseFieldMatcher().match(currentFieldName, TERM_FIELD)) {
+                            value = parser.objectBytes();
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
+                            value = parser.objectBytes();
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                            boost = parser.floatValue();
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Fuzziness.FIELD)) {
+                            fuzziness = Fuzziness.parse(parser);
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, PREFIX_LENGTH_FIELD)) {
+                            prefixLength = parser.intValue();
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MAX_EXPANSIONS_FIELD)) {
+                            maxExpansions = parser.intValue();
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, TRANSPOSITIONS_FIELD)) {
+                            transpositions = parser.booleanValue();
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
+                            rewrite = parser.textOrNull();
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                            queryName = parser.text();
+                        } else {
+                            throw new ParsingException(parser.getTokenLocation(),
+                                    "[fuzzy] query does not support [" + currentFieldName + "]");
+                        }
                     }
                 }
+            } else {
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
+                fieldName = parser.currentName();
+                value = parser.objectBytes();
             }
-            parser.nextToken();
-        } else {
-            value = parser.objectBytes();
-            // move to the next token
-            parser.nextToken();
-        }
-
-        if (value == null) {
-            throw new ParsingException(parser.getTokenLocation(), "no value specified for fuzzy query");
         }
         return Optional.of(new FuzzyQueryBuilder(fieldName, value)
                 .fuzziness(fuzziness)

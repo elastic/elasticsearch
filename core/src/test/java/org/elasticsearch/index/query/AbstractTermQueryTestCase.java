@@ -30,23 +30,11 @@ public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<
     protected abstract QB createQueryBuilder(String fieldName, Object value);
 
     public void testIllegalArguments() throws QueryShardException {
-        try {
-            if (randomBoolean()) {
-                createQueryBuilder(null, randomAsciiOfLengthBetween(1, 30));
-            } else {
-                createQueryBuilder("", randomAsciiOfLengthBetween(1, 30));
-            }
-            fail("fieldname cannot be null or empty");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            createQueryBuilder("field", null);
-            fail("value cannot be null or empty");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        String term = randomAsciiOfLengthBetween(1, 30);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createQueryBuilder(null, term));
+        assertEquals("field name is null or empty", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> createQueryBuilder("", term));
+        assertEquals("field name is null or empty", e.getMessage());
     }
 
     @Override

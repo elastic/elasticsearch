@@ -71,12 +71,18 @@ a percolator query does not exist, it will be handled as a default string field 
 fail.
 
 [float]
-==== Important Notes
+==== Limitations
 
 Because the `percolate` query is processing one document at a time, it doesn't support queries and filters that run
 against child documents such as `has_child` and `has_parent`.
 
+The percolator doesn't accepts percolator queries containing `range` queries with ranges that are based on current
+time (using `now`).
+
 There are a number of queries that fetch data via a get call during query parsing. For example the `terms` query when
 using terms lookup, `template` query when using indexed scripts and `geo_shape` when using pre-indexed shapes. When these
 queries are indexed by the `percolator` field type then the get call is executed once. So each time the `percolator`
-query evaluates these queries, the fetches terms, shapes etc. as the were upon index time will be used.
+query evaluates these queries, the fetches terms, shapes etc. as the were upon index time will be used. Important to note
+is that fetching of terms that these queries do, happens both each time the percolator query gets indexed on both primary
+and replica shards, so the terms that are actually indexed can be different between shard copies, if the source index
+changed while indexing.

@@ -16,17 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.replication;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
-import org.elasticsearch.indices.recovery.RecoveryTargetHandler;
-import org.elasticsearch.indices.recovery.RecoveryTargetService;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -63,11 +63,11 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         private final RecoveryState.Stage stageToBlock;
         public static final EnumSet<RecoveryState.Stage> SUPPORTED_STAGES =
             EnumSet.of(RecoveryState.Stage.INDEX, RecoveryState.Stage.TRANSLOG, RecoveryState.Stage.FINALIZE);
-        private final ESLogger logger;
+        private final Logger logger;
 
         BlockingTarget(RecoveryState.Stage stageToBlock, CountDownLatch recoveryBlocked, CountDownLatch releaseRecovery, IndexShard shard,
-                       DiscoveryNode sourceNode, RecoveryTargetService.RecoveryListener listener, ESLogger logger) {
-            super(shard, sourceNode, listener);
+                       DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener, Logger logger) {
+            super(shard, sourceNode, listener, version -> {});
             this.recoveryBlocked = recoveryBlocked;
             this.releaseRecovery = releaseRecovery;
             this.stageToBlock = stageToBlock;
@@ -118,4 +118,5 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             return super.finalizeRecovery();
         }
     }
+
 }

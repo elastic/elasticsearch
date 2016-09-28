@@ -19,6 +19,8 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -34,13 +36,14 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
+import org.elasticsearch.index.shard.IndexShardRelocatedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -53,6 +56,7 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
 
 /**
@@ -68,13 +72,15 @@ import java.util.stream.StreamSupport;
  */
 public class RecoverySourceHandler {
 
-    protected final ESLogger logger;
+    protected final Logger logger;
     // Shard that is going to be recovered (the "source")
     private final IndexShard shard;
     private final String indexName;
     private final int shardId;
     // Request containing source and target node information
     private final StartRecoveryRequest request;
+    private final Supplier<Long> currentClusterStateVersionSupplier;
+    private final Function<String, Releasable> delayNewRecoveries;
     private final int chunkSizeInBytes;
     private final RecoveryTargetHandler recoveryTarget;
 
@@ -98,11 +104,15 @@ public class RecoverySourceHandler {
 
     public RecoverySourceHandler(final IndexShard shard, RecoveryTargetHandler recoveryTarget,
                                  final StartRecoveryRequest request,
+                                 final Supplier<Long> currentClusterStateVersionSupplier,
+                                 Function<String, Releasable> delayNewRecoveries,
                                  final int fileChunkSizeInBytes,
-                                 final ESLogger logger) {
+                                 final Logger logger) {
         this.shard = shard;
         this.recoveryTarget = recoveryTarget;
         this.request = request;
+        this.currentClusterStateVersionSupplier = currentClusterStateVersionSupplier;
+        this.delayNewRecoveries = delayNewRecoveries;
         this.logger = logger;
         this.indexName = this.request.shardId().getIndex().getName();
         this.shardId = this.request.shardId().id();
@@ -118,7 +128,7 @@ public class RecoverySourceHandler {
             logger.trace("captured translog id [{}] for recovery", translogView.minTranslogGeneration());
             final IndexCommit phase1Snapshot;
             try {
-                phase1Snapshot = shard.snapshotIndex(false);
+                phase1Snapshot = shard.acquireIndexCommit(false);
             } catch (Exception e) {
                 IOUtils.closeWhileHandlingException(translogView);
                 throw new RecoveryEngineException(shard.shardId(), 1, "Snapshot failed", e);
@@ -130,10 +140,26 @@ public class RecoverySourceHandler {
                 throw new RecoveryEngineException(shard.shardId(), 1, "phase1 failed", e);
             } finally {
                 try {
-                    shard.releaseSnapshot(phase1Snapshot);
+                    shard.releaseIndexCommit(phase1Snapshot);
                 } catch (IOException ex) {
                     logger.warn("releasing snapshot caused exception", ex);
                 }
+            }
+
+            // engine was just started at the end of phase 1
+            if (shard.state() == IndexShardState.RELOCATED) {
+                /**
+                 * The primary shard has been relocated while we copied files. This means that we can't guarantee any more that all
+                 * operations that were replicated during the file copy (when the target engine was not yet opened) will be present in the
+                 * local translog and thus will be resent on phase 2. The reason is that an operation replicated by the target primary is
+                 * sent to the recovery target and the local shard (old primary) concurrently, meaning it may have arrived at the recovery
+                 * target before we opened the engine and is still in-flight on the local shard.
+                 *
+                 * Checking the relocated status here, after we opened the engine on the target, is safe because primary relocation waits
+                 * for all ongoing operations to complete and be fully replicated. Therefore all future operation by the new primary are
+                 * guaranteed to reach the target shard when it's engine is open.
+                 */
+                throw new IndexShardRelocatedException(request.shardId());
             }
 
             logger.trace("{} snapshot translog for recovery. current size is [{}]", shard.shardId(), translogView.totalOperations());
@@ -288,8 +314,12 @@ public class RecoverySourceHandler {
                         RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but " +
                                 "checksums are ok", null);
                         exception.addSuppressed(targetException);
-                        logger.warn("{} Remote file corruption during finalization of recovery on node {}. local checksum OK",
-                                corruptIndexException, shard.shardId(), request.targetNode());
+                        logger.warn(
+                            (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                                "{} Remote file corruption during finalization of recovery on node {}. local checksum OK",
+                                shard.shardId(),
+                                request.targetNode()),
+                            corruptIndexException);
                         throw exception;
                     } else {
                         throw targetException;
@@ -316,7 +346,8 @@ public class RecoverySourceHandler {
         // Send a request preparing the new shard's translog to receive
         // operations. This ensures the shard engine is started and disables
         // garbage collection (not the JVM's GC!) of tombstone deletes
-        cancellableThreads.executeIO(() -> recoveryTarget.prepareForTranslogOperations(totalTranslogOps));
+        cancellableThreads.executeIO(() -> recoveryTarget.prepareForTranslogOperations(totalTranslogOps,
+            shard.segmentStats(false).getMaxUnsafeAutoIdTimestamp()));
         stopWatch.stop();
 
         response.startTime = stopWatch.totalTime().millis() - startEngineStart;
@@ -364,13 +395,19 @@ public class RecoverySourceHandler {
             shard.markAllocationIdAsInSync(response.getAllocationId(), response.getLocalCheckpoint());
         });
 
-        if (isPrimaryRelocation()) {
-            logger.trace("[{}][{}] performing relocation hand-off to {}", indexName, shardId, request.targetNode());
-            try {
+        if (request.isPrimaryRelocation()) {
+            // in case of primary relocation we have to ensure that the cluster state on the primary relocation target has all
+            // replica shards that have recovered or are still recovering from the current primary, otherwise replication actions
+            // will not be send to these replicas. To accomplish this, first block new recoveries, then take version of latest cluster
+            // state. This means that no new recovery can be completed based on information of a newer cluster state than the current one.
+            try (Releasable ignored = delayNewRecoveries.apply("primary relocation hand-off in progress or completed for " + shardId)) {
+                final long currentClusterStateVersion = currentClusterStateVersionSupplier.get();
+                logger.trace("[{}][{}] waiting on {} to have cluster state with version [{}]", indexName, shardId, request.targetNode(),
+                    currentClusterStateVersion);
+                cancellableThreads.execute(() -> recoveryTarget.ensureClusterStateVersion(currentClusterStateVersion));
+
+                logger.trace("[{}][{}] performing relocation hand-off to {}", indexName, shardId, request.targetNode());
                 cancellableThreads.execute(() -> shard.relocated("to " + request.targetNode()));
-            } catch (Exception e) {
-                logger.debug("[{}][{}] completing relocation hand-off to {} failed", e, indexName, shardId, request.targetNode());
-                throw e;
             }
             /**
              * if the recovery process fails after setting the shard state to RELOCATED, both relocation source and
@@ -380,10 +417,6 @@ public class RecoverySourceHandler {
         stopWatch.stop();
         logger.trace("[{}][{}] finalizing recovery to {}: took [{}]",
                 indexName, shardId, request.targetNode(), stopWatch.totalTime());
-    }
-
-    protected boolean isPrimaryRelocation() {
-        return request.recoveryType() == RecoveryState.Type.PRIMARY_RELOCATION;
     }
 
     /**
@@ -532,8 +565,13 @@ public class RecoverySourceHandler {
                             RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but " +
                                     "checksums are ok", null);
                             exception.addSuppressed(e);
-                            logger.warn("{} Remote file corruption on node {}, recovering {}. local checksum OK",
-                                    corruptIndexException, shardId, request.targetNode(), md);
+                            logger.warn(
+                                (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                                    "{} Remote file corruption on node {}, recovering {}. local checksum OK",
+                                    shardId,
+                                    request.targetNode(),
+                                    md),
+                                corruptIndexException);
                             throw exception;
                         }
                     } else {

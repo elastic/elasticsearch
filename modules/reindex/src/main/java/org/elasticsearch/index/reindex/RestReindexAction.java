@@ -42,13 +42,11 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.suggest.Suggesters;
+import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
 import java.util.List;
@@ -56,6 +54,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -64,7 +63,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  * Expose reindex over rest.
  */
-public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, TransportReindexAction> {
+public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> {
     static final ObjectParser<ReindexRequest, ReindexParseContext> PARSER = new ObjectParser<>("reindex");
     private static final Pattern HOST_PATTERN = Pattern.compile("(?<scheme>[^:]+)://(?<host>[^:]+):(?<port>\\d+)");
 
@@ -84,8 +83,9 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
             try (XContentParser innerParser = parser.contentType().xContent().createParser(builder.bytes())) {
-                request.getSearchRequest().source().parseXContent(context.queryParseContext(innerParser), context.aggParsers,
-                        context.suggesters);
+                request.getSearchRequest().source().parseXContent(context.queryParseContext(innerParser),
+                        context.searchRequestParsers.aggParsers, context.searchRequestParsers.suggesters,
+                        context.searchRequestParsers.searchExtParsers);
             }
         };
 
@@ -112,9 +112,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
     @Inject
     public RestReindexAction(Settings settings, RestController controller,
-            IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
-            ClusterService clusterService, TransportReindexAction action) {
-        super(settings, indicesQueriesRegistry, aggParsers, suggesters, clusterService, action);
+            SearchRequestParsers searchRequestParsers, ClusterService clusterService) {
+        super(settings, searchRequestParsers, clusterService, ReindexAction.INSTANCE);
         controller.registerHandler(POST, "/_reindex", this);
     }
 
@@ -123,14 +122,14 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         if (false == request.hasContent()) {
             throw new ElasticsearchException("_reindex requires a request body");
         }
-        handleRequest(request, channel, true, true);
+        handleRequest(request, channel, client, true, true);
     }
 
     @Override
     protected ReindexRequest buildRequest(RestRequest request) throws IOException {
         ReindexRequest internal = new ReindexRequest(new SearchRequest(), new IndexRequest());
         try (XContentParser xcontent = XContentFactory.xContent(request.content()).createParser(request.content())) {
-            PARSER.parse(xcontent, internal, new ReindexParseContext(indicesQueriesRegistry, aggParsers, suggesters, parseFieldMatcher));
+            PARSER.parse(xcontent, internal, new ReindexParseContext(searchRequestParsers, parseFieldMatcher));
         }
         return internal;
     }
@@ -151,11 +150,12 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         String scheme = hostMatcher.group("scheme");
         String host = hostMatcher.group("host");
         int port = Integer.parseInt(hostMatcher.group("port"));
+        Map<String, String> headers = extractStringStringMap(remote, "headers");
         if (false == remote.isEmpty()) {
             throw new IllegalArgumentException(
                     "Unsupported fields in [remote]: [" + Strings.collectionToCommaDelimitedString(remote.keySet()) + "]");
         }
-        return new RemoteInfo(scheme, host, port, queryForRemote(source), username, password);
+        return new RemoteInfo(scheme, host, port, queryForRemote(source), username, password, headers);
     }
 
     /**
@@ -189,6 +189,25 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         throw new IllegalArgumentException("Expected [" + name + "] to be a string but was [" + value + "]");
     }
 
+    private static Map<String, String> extractStringStringMap(Map<String, Object> source, String name) {
+        Object value = source.remove(name);
+        if (value == null) {
+            return emptyMap();
+        }
+        if (false == value instanceof Map) {
+            throw new IllegalArgumentException("Expected [" + name + "] to be an object containing strings but was [" + value + "]");
+        }
+        Map<?, ?> map = (Map<?, ?>) value;
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            if (false == entry.getKey() instanceof String || false == entry.getValue() instanceof String) {
+                throw new IllegalArgumentException("Expected [" + name + "] to be an object containing strings but has [" + entry + "]");
+            }
+        }
+        @SuppressWarnings("unchecked") // We just checked....
+        Map<String, String> safe = (Map<String, String>) map;
+        return safe;
+    }
+
     private static BytesReference queryForRemote(Map<String, Object> source) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         Object query = source.remove("query");
@@ -204,21 +223,16 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     }
 
     static class ReindexParseContext implements ParseFieldMatcherSupplier {
-        private final IndicesQueriesRegistry indicesQueryRegistry;
+        private final SearchRequestParsers searchRequestParsers;
         private final ParseFieldMatcher parseFieldMatcher;
-        private final AggregatorParsers aggParsers;
-        private final Suggesters suggesters;
 
-        public ReindexParseContext(IndicesQueriesRegistry indicesQueryRegistry, AggregatorParsers aggParsers,
-            Suggesters suggesters, ParseFieldMatcher parseFieldMatcher) {
-            this.indicesQueryRegistry = indicesQueryRegistry;
-            this.aggParsers = aggParsers;
-            this.suggesters = suggesters;
+        ReindexParseContext(SearchRequestParsers searchRequestParsers, ParseFieldMatcher parseFieldMatcher) {
+            this.searchRequestParsers = searchRequestParsers;
             this.parseFieldMatcher = parseFieldMatcher;
         }
 
-        public QueryParseContext queryParseContext(XContentParser parser) {
-            return new QueryParseContext(indicesQueryRegistry, parser, parseFieldMatcher);
+        QueryParseContext queryParseContext(XContentParser parser) {
+            return new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
         }
 
         @Override

@@ -53,10 +53,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.KeywordFieldMapper.KeywordFieldType;
-import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
-import org.elasticsearch.index.mapper.core.TextFieldMapper.TextFieldType;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
+import org.elasticsearch.index.mapper.StringFieldMapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -79,7 +79,6 @@ import static org.elasticsearch.index.mapper.Uid.createUidAsBytes;
  * The documents are provided as a set of strings and/or a list of {@link Item}.
  */
 public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQueryBuilder> {
-
     public static final String NAME = "more_like_this";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME, "mlt");
 
@@ -781,7 +780,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         if (fields != null) {
-            builder.field(Field.FIELDS.getPreferredName(), fields);
+            builder.array(Field.FIELDS.getPreferredName(), fields);
         }
         buildLikeField(builder, Field.LIKE.getPreferredName(), likeTexts, likeItems);
         buildLikeField(builder, Field.UNLIKE.getPreferredName(), unlikeTexts, unlikeItems);
@@ -792,7 +791,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         builder.field(Field.MIN_WORD_LENGTH.getPreferredName(), minWordLength);
         builder.field(Field.MAX_WORD_LENGTH.getPreferredName(), maxWordLength);
         if (stopWords != null) {
-            builder.field(Field.STOP_WORDS.getPreferredName(), stopWords);
+            builder.array(Field.STOP_WORDS.getPreferredName(), stopWords);
         }
         if (analyzer != null) {
             builder.field(Field.ANALYZER.getPreferredName(), analyzer);
@@ -1022,7 +1021,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
 
         // set analyzer
-        Analyzer analyzerObj = context.getAnalysisService().analyzer(analyzer);
+        Analyzer analyzerObj = context.getIndexAnalyzers().get(analyzer);
         if (analyzerObj == null) {
             analyzerObj = context.getMapperService().searchAnalyzer();
         }

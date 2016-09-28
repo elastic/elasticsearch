@@ -30,7 +30,8 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -50,8 +51,7 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
 
 public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<MovAvgPipelineAggregationBuilder> {
-    public static final String NAME = MovAvgPipelineAggregator.TYPE.name();
-    public static final ParseField AGGREGATION_FIELD_NAME = new ParseField(NAME);
+    public static final String NAME = "moving_avg";
 
     public static final ParseField MODEL = new ParseField("model");
     private static final ParseField WINDOW = new ParseField("window");
@@ -67,14 +67,14 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
     private Boolean minimize;
 
     public MovAvgPipelineAggregationBuilder(String name, String bucketsPath) {
-        super(name, MovAvgPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
+        super(name, NAME, new String[] { bucketsPath });
     }
 
     /**
      * Read from a stream.
      */
     public MovAvgPipelineAggregationBuilder(StreamInput in) throws IOException {
-        super(in, MovAvgPipelineAggregator.TYPE.name());
+        super(in, NAME);
         format = in.readOptionalString();
         gapPolicy = GapPolicy.readFrom(in);
         window = in.readVInt();
@@ -267,15 +267,21 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
             throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                     + " must contain a single entry for aggregation [" + name + "]");
         }
-        if (!(parent instanceof AbstractHistogramAggregatorFactory<?>)) {
-            throw new IllegalStateException("moving average aggregation [" + name
-                    + "] must have a histogram or date_histogram as parent");
-        } else {
-            AbstractHistogramAggregatorFactory<?> histoParent = (AbstractHistogramAggregatorFactory<?>) parent;
+        if (parent instanceof HistogramAggregatorFactory) {
+            HistogramAggregatorFactory histoParent = (HistogramAggregatorFactory) parent;
             if (histoParent.minDocCount() != 0) {
                 throw new IllegalStateException("parent histogram of moving average aggregation [" + name
                         + "] must have min_doc_count of 0");
             }
+        } else if (parent instanceof DateHistogramAggregatorFactory) {
+            DateHistogramAggregatorFactory histoParent = (DateHistogramAggregatorFactory) parent;
+            if (histoParent.minDocCount() != 0) {
+                throw new IllegalStateException("parent histogram of moving average aggregation [" + name
+                        + "] must have min_doc_count of 0");
+            }
+        } else {
+            throw new IllegalStateException("moving average aggregation [" + name
+                    + "] must have a histogram or date_histogram as parent");
         }
     }
 

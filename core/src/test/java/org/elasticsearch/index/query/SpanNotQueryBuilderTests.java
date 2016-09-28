@@ -62,18 +62,9 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
     }
 
     public void testIllegalArgument() {
-        try {
-            new SpanNotQueryBuilder(null, new SpanTermQueryBuilder("field", "value"));
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-        try {
-            new SpanNotQueryBuilder(new SpanTermQueryBuilder("field", "value"), null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        SpanTermQueryBuilder spanTermQuery = new SpanTermQueryBuilder("field", "value");
+        expectThrows(IllegalArgumentException.class, () -> new SpanNotQueryBuilder(null, spanTermQuery));
+        expectThrows(IllegalArgumentException.class, () -> new SpanNotQueryBuilder(spanTermQuery, null));
     }
 
     public void testDist() {
@@ -136,12 +127,8 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
             builder.endObject();
             builder.endObject();
 
-            try {
-                parseQuery(builder.string());
-                fail("ParsingException should have been caught");
-            } catch (ParsingException e) {
-                assertThat("ParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot must have [include]"));
-            }
+            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(builder.string()));
+            assertThat(e.getDetailedMessage(), containsString("spanNot must have [include]"));
         }
         {
             XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -154,12 +141,8 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
             builder.endObject();
             builder.endObject();
 
-            try {
-                parseQuery(builder.string());
-                fail("ParsingException should have been caught");
-            } catch (ParsingException e) {
-                assertThat("ParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot must have [exclude]"));
-            }
+            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(builder.string()));
+            assertThat(e.getDetailedMessage(), containsString("spanNot must have [exclude]"));
         }
         {
             XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -175,12 +158,8 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
             builder.endObject();
             builder.endObject();
 
-            try {
-                parseQuery(builder.string());
-                fail("ParsingException should have been caught");
-            } catch (ParsingException e) {
-                assertThat("ParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot can either use [dist] or [pre] & [post] (or none)"));
-            }
+            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(builder.string()));
+            assertThat(e.getDetailedMessage(), containsString("spanNot can either use [dist] or [pre] & [post] (or none)"));
         }
     }
 

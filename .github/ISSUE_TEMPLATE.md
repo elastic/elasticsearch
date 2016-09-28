@@ -3,7 +3,11 @@ GitHub is reserved for bug reports and feature requests. The best place
 to ask a general question is at the Elastic Discourse forums at
 https://discuss.elastic.co. If you are in fact posting a bug report or
 a feature request, please include one and only one of the below blocks
-in your new issue.
+in your new issue. Note that whether you're filing a bug report or a
+feature request, ensure that your submission is for an
+[OS that we support](https://www.elastic.co/support/matrix#show_os).
+Bug reports on an OS that we do not support or feature requests
+specific to an OS that we do not support will be closed.
 -->
 
 <!--
@@ -12,6 +16,8 @@ request block and provide responses for all of the below items.
 -->
 
 **Elasticsearch version**:
+
+**Plugins installed**: []
 
 **JVM version**:
 

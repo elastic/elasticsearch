@@ -23,17 +23,15 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class ZenPingService extends AbstractLifecycleComponent implements ZenPing {
+public class ZenPingService extends AbstractLifecycleComponent {
 
     private List<ZenPing> zenPings = Collections.emptyList();
 
@@ -47,7 +45,6 @@ public class ZenPingService extends AbstractLifecycleComponent implements ZenPin
         return this.zenPings;
     }
 
-    @Override
     public void setPingContextProvider(PingContextProvider contextProvider) {
         if (lifecycle.started()) {
             throw new IllegalStateException("Can't set nodes provider when started");
@@ -78,60 +75,31 @@ public class ZenPingService extends AbstractLifecycleComponent implements ZenPin
         }
     }
 
-    public PingResponse[] pingAndWait(TimeValue timeout) {
-        final AtomicReference<PingResponse[]> response = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        ping(new PingListener() {
-            @Override
-            public void onPing(PingResponse[] pings) {
-                response.set(pings);
-                latch.countDown();
+    public ZenPing.PingCollection pingAndWait(TimeValue timeout) {
+        final ZenPing.PingCollection response = new ZenPing.PingCollection();
+        final CountDownLatch latch = new CountDownLatch(zenPings.size());
+        for (ZenPing zenPing : zenPings) {
+            final AtomicBoolean counted = new AtomicBoolean();
+            try {
+                zenPing.ping(pings -> {
+                    response.addPings(pings);
+                    if (counted.compareAndSet(false, true)) {
+                        latch.countDown();
+                    }
+                }, timeout);
+            } catch (Exception ex) {
+                logger.warn("Ping execution failed", ex);
+                if (counted.compareAndSet(false, true)) {
+                    latch.countDown();
+                }
             }
-        }, timeout);
+        }
         try {
             latch.await();
-            return response.get();
+            return response;
         } catch (InterruptedException e) {
             logger.trace("pingAndWait interrupted");
-            return null;
-        }
-    }
-
-    @Override
-    public void ping(PingListener listener, TimeValue timeout) {
-        List<? extends ZenPing> zenPings = this.zenPings;
-        CompoundPingListener compoundPingListener = new CompoundPingListener(listener, zenPings);
-        for (ZenPing zenPing : zenPings) {
-            try {
-                zenPing.ping(compoundPingListener, timeout);
-            } catch (EsRejectedExecutionException ex) {
-                logger.debug("Ping execution rejected", ex);
-                compoundPingListener.onPing(null);
-            }
-        }
-    }
-
-    private static class CompoundPingListener implements PingListener {
-
-        private final PingListener listener;
-
-        private final AtomicInteger counter;
-
-        private PingCollection responses = new PingCollection();
-
-        private CompoundPingListener(PingListener listener, List<? extends ZenPing> zenPings) {
-            this.listener = listener;
-            this.counter = new AtomicInteger(zenPings.size());
-        }
-
-        @Override
-        public void onPing(PingResponse[] pings) {
-            if (pings != null) {
-                responses.addPings(pings);
-            }
-            if (counter.decrementAndGet() == 0) {
-                listener.onPing(responses.toArray());
-            }
+            return response;
         }
     }
 }

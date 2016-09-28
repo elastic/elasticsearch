@@ -36,11 +36,8 @@ import java.util.Optional;
 /**
  * Builder for {@link org.apache.lucene.search.spans.SpanWithinQuery}.
  */
-public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQueryBuilder>
-        implements SpanQueryBuilder {
-
+public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_within";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField BIG_FIELD = new ParseField("big");
     private static final ParseField LITTLE_FIELD = new ParseField("little");

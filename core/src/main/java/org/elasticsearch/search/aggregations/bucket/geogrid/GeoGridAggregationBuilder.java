@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,6 +33,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDocValues;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -47,22 +47,22 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoGridAggregationBuilder> {
-    public static final String NAME = InternalGeoHashGrid.TYPE.name();
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
+    public static final String NAME = "geohash_grid";
+    private static final Type TYPE = new Type(NAME);
 
     private int precision = GeoHashGridParser.DEFAULT_PRECISION;
     private int requiredSize = GeoHashGridParser.DEFAULT_MAX_NUM_CELLS;
     private int shardSize = -1;
 
     public GeoGridAggregationBuilder(String name) {
-        super(name, InternalGeoHashGrid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        super(name, TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
     }
 
     /**
      * Read from a stream.
      */
     public GeoGridAggregationBuilder(StreamInput in) throws IOException {
-        super(in, InternalGeoHashGrid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        super(in, TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
         precision = in.readVInt();
         requiredSize = in.readVInt();
         shardSize = in.readVInt();

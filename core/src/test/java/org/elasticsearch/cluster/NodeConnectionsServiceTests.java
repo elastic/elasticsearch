@@ -73,7 +73,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     private ClusterState clusterStateFromNodes(List<DiscoveryNode> nodes) {
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         for (DiscoveryNode node : nodes) {
-            builder.put(node);
+            builder.add(node);
         }
         return ClusterState.builder(new ClusterName("test")).nodes(builder).build();
     }
@@ -149,7 +149,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         this.transport = new MockTransport();
-        transportService = new TransportService(Settings.EMPTY, transport, THREAD_POOL);
+        transportService = new TransportService(Settings.EMPTY, transport, THREAD_POOL, TransportService.NOOP_TRANSPORT_INTERCEPTOR);
         transportService.start();
         transportService.acceptIncomingRequests();
     }

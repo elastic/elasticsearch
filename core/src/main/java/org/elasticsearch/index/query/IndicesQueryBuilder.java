@@ -47,7 +47,6 @@ import java.util.Optional;
 public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilder> {
 
     public static final String NAME = "indices";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField NO_MATCH_QUERY = new ParseField("no_match_query");
@@ -133,7 +132,7 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field(INDICES_FIELD.getPreferredName(), indices);
+        builder.array(INDICES_FIELD.getPreferredName(), indices);
         builder.field(QUERY_FIELD.getPreferredName());
         innerQuery.toXContent(builder, params);
         builder.field(NO_MATCH_QUERY.getPreferredName());

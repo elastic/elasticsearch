@@ -40,9 +40,9 @@ public final class HttpTransportSettings {
     public static final Setting<Integer> SETTING_CORS_MAX_AGE =
         Setting.intSetting("http.cors.max-age", 1728000, Property.NodeScope);
     public static final Setting<String> SETTING_CORS_ALLOW_METHODS =
-        new Setting<>("http.cors.allow-methods", "OPTIONS, HEAD, GET, POST, PUT, DELETE", (value) -> value, Property.NodeScope);
+        new Setting<>("http.cors.allow-methods", "OPTIONS,HEAD,GET,POST,PUT,DELETE", (value) -> value, Property.NodeScope);
     public static final Setting<String> SETTING_CORS_ALLOW_HEADERS =
-        new Setting<>("http.cors.allow-headers", "X-Requested-With, Content-Type, Content-Length", (value) -> value, Property.NodeScope);
+        new Setting<>("http.cors.allow-headers", "X-Requested-With,Content-Type,Content-Length", (value) -> value, Property.NodeScope);
     public static final Setting<Boolean> SETTING_CORS_ALLOW_CREDENTIALS =
         Setting.boolSetting("http.cors.allow-credentials", false, Property.NodeScope);
     public static final Setting<Boolean> SETTING_PIPELINING =

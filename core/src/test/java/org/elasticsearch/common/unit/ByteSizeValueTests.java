@@ -20,8 +20,12 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -32,24 +36,24 @@ import static org.hamcrest.Matchers.is;
  */
 public class ByteSizeValueTests extends ESTestCase {
     public void testActualPeta() {
-        MatcherAssert.assertThat(new ByteSizeValue(4, ByteSizeUnit.PB).bytes(), equalTo(4503599627370496L));
+        MatcherAssert.assertThat(new ByteSizeValue(4, ByteSizeUnit.PB).getBytes(), equalTo(4503599627370496L));
     }
 
     public void testActualTera() {
-        MatcherAssert.assertThat(new ByteSizeValue(4, ByteSizeUnit.TB).bytes(), equalTo(4398046511104L));
+        MatcherAssert.assertThat(new ByteSizeValue(4, ByteSizeUnit.TB).getBytes(), equalTo(4398046511104L));
     }
 
     public void testActual() {
-        MatcherAssert.assertThat(new ByteSizeValue(4, ByteSizeUnit.GB).bytes(), equalTo(4294967296L));
+        MatcherAssert.assertThat(new ByteSizeValue(4, ByteSizeUnit.GB).getBytes(), equalTo(4294967296L));
     }
 
     public void testSimple() {
-        assertThat(ByteSizeUnit.BYTES.toBytes(10), is(new ByteSizeValue(10, ByteSizeUnit.BYTES).bytes()));
-        assertThat(ByteSizeUnit.KB.toKB(10), is(new ByteSizeValue(10, ByteSizeUnit.KB).kb()));
-        assertThat(ByteSizeUnit.MB.toMB(10), is(new ByteSizeValue(10, ByteSizeUnit.MB).mb()));
-        assertThat(ByteSizeUnit.GB.toGB(10), is(new ByteSizeValue(10, ByteSizeUnit.GB).gb()));
-        assertThat(ByteSizeUnit.TB.toTB(10), is(new ByteSizeValue(10, ByteSizeUnit.TB).tb()));
-        assertThat(ByteSizeUnit.PB.toPB(10), is(new ByteSizeValue(10, ByteSizeUnit.PB).pb()));
+        assertThat(ByteSizeUnit.BYTES.toBytes(10), is(new ByteSizeValue(10, ByteSizeUnit.BYTES).getBytes()));
+        assertThat(ByteSizeUnit.KB.toKB(10), is(new ByteSizeValue(10, ByteSizeUnit.KB).getKb()));
+        assertThat(ByteSizeUnit.MB.toMB(10), is(new ByteSizeValue(10, ByteSizeUnit.MB).getMb()));
+        assertThat(ByteSizeUnit.GB.toGB(10), is(new ByteSizeValue(10, ByteSizeUnit.GB).getGb()));
+        assertThat(ByteSizeUnit.TB.toTB(10), is(new ByteSizeValue(10, ByteSizeUnit.TB).getTb()));
+        assertThat(ByteSizeUnit.PB.toPB(10), is(new ByteSizeValue(10, ByteSizeUnit.PB).getPb()));
     }
 
     public void testEquality() {
@@ -163,6 +167,17 @@ public class ByteSizeValueTests extends ESTestCase {
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("failed to parse setting [test]"));
+        }
+    }
+
+    public void testSerialization() throws IOException {
+        ByteSizeValue byteSizeValue = new ByteSizeValue(randomPositiveLong(), randomFrom(ByteSizeUnit.values()));
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            byteSizeValue.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                ByteSizeValue deserializedByteSizeValue = new ByteSizeValue(in);
+                assertEquals(byteSizeValue, deserializedByteSizeValue);
+            }
         }
     }
 }

@@ -34,7 +34,7 @@ public class UppercaseProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         String processorTag = randomAsciiOfLength(10);
-        UppercaseProcessor uppercaseProcessor = (UppercaseProcessor)factory.create(processorTag, config);
+        UppercaseProcessor uppercaseProcessor = (UppercaseProcessor)factory.create(null, processorTag, config);
         assertThat(uppercaseProcessor.getTag(), equalTo(processorTag));
         assertThat(uppercaseProcessor.getField(), equalTo("field1"));
     }
@@ -43,7 +43,7 @@ public class UppercaseProcessorFactoryTests extends ESTestCase {
         UppercaseProcessor.Factory factory = new UppercaseProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         try {
-            factory.create(null, config);
+            factory.create(null, null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));

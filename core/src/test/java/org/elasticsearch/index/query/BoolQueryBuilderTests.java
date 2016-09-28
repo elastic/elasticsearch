@@ -163,30 +163,10 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
     public void testIllegalArguments() {
         BoolQueryBuilder booleanQuery = new BoolQueryBuilder();
-
-        try {
-            booleanQuery.must(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-        }
-
-        try {
-            booleanQuery.mustNot(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-        }
-
-        try {
-            booleanQuery.filter(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-        }
-
-        try {
-            booleanQuery.should(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-        }
+        expectThrows(IllegalArgumentException.class, () -> booleanQuery.must(null));
+        expectThrows(IllegalArgumentException.class, () -> booleanQuery.mustNot(null));
+        expectThrows(IllegalArgumentException.class, () -> booleanQuery.filter(null));
+        expectThrows(IllegalArgumentException.class, () -> booleanQuery.should(null));
     }
 
     // https://github.com/elastic/elasticsearch/issues/7240
@@ -385,12 +365,22 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
      * test that two queries in object throws error
      */
     public void testTooManyQueriesInObject() throws IOException {
-        String clauseType = randomFrom(new String[] {"must", "should", "must_not", "filter"});
+        String clauseType = randomFrom("must", "should", "must_not", "filter");
         // should also throw error if invalid query is preceded by a valid one
-        String query = "{\"bool\" : {\"" + clauseType
-                + "\" : { \"match\" : { \"foo\" : \"bar\" } , \"match\" : { \"baz\" : \"buzz\" } } } }";
+        String query = "{\n" +
+                "  \"bool\": {\n" +
+                "    \"" + clauseType + "\": {\n" +
+                "      \"match\": {\n" +
+                "        \"foo\": \"bar\"\n" +
+                "      },\n" +
+                "      \"match\": {\n" +
+                "        \"baz\": \"buzz\"\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
         ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query, ParseFieldMatcher.EMPTY));
-        assertEquals("expected [END_OBJECT] but got [FIELD_NAME], possibly too many query clauses", ex.getMessage());
+        assertEquals("[match] malformed query, expected [END_OBJECT] but found [FIELD_NAME]", ex.getMessage());
     }
 
     public void testRewrite() throws IOException {

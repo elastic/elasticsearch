@@ -32,6 +32,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
@@ -63,15 +64,21 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     private final IndicesService indicesService;
     private final MetaDataCreateIndexService metaDataCreateIndexService;
     private final NodeServicesProvider nodeServicesProvider;
+    private final IndexScopedSettings indexScopedSettings;
 
     @Inject
-    public MetaDataIndexTemplateService(Settings settings, ClusterService clusterService, MetaDataCreateIndexService metaDataCreateIndexService, AliasValidator aliasValidator, IndicesService indicesService, NodeServicesProvider nodeServicesProvider) {
+    public MetaDataIndexTemplateService(Settings settings, ClusterService clusterService,
+                                        MetaDataCreateIndexService metaDataCreateIndexService,
+                                        AliasValidator aliasValidator, IndicesService indicesService,
+                                        NodeServicesProvider nodeServicesProvider,
+                                        IndexScopedSettings indexScopedSettings) {
         super(settings);
         this.clusterService = clusterService;
         this.aliasValidator = aliasValidator;
         this.indicesService = indicesService;
         this.metaDataCreateIndexService = metaDataCreateIndexService;
         this.nodeServicesProvider = nodeServicesProvider;
+        this.indexScopedSettings = indexScopedSettings;
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
@@ -204,6 +211,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             createdIndex = dummyIndexService.index();
 
             templateBuilder.order(request.order);
+            templateBuilder.version(request.version);
             templateBuilder.template(request.template);
             templateBuilder.settings(request.settings);
 
@@ -259,6 +267,14 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             validationErrors.add("template must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
 
+        try {
+            indexScopedSettings.validate(request.settings);
+        } catch (IllegalArgumentException iae) {
+            validationErrors.add(iae.getMessage());
+            for (Throwable t : iae.getSuppressed()) {
+                validationErrors.add(t.getMessage());
+            }
+        }
         List<String> indexSettingsValidation = metaDataCreateIndexService.getIndexSettingsValidationErrors(request.settings);
         validationErrors.addAll(indexSettingsValidation);
         if (!validationErrors.isEmpty()) {
@@ -288,6 +304,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         final String cause;
         boolean create;
         int order;
+        Integer version;
         String template;
         Settings settings = Settings.Builder.EMPTY_SETTINGS;
         Map<String, String> mappings = new HashMap<>();
@@ -343,6 +360,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
         public PutRequest masterTimeout(TimeValue masterTimeout) {
             this.masterTimeout = masterTimeout;
+            return this;
+        }
+
+        public PutRequest version(Integer version) {
+            this.version = version;
             return this;
         }
     }

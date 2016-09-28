@@ -18,11 +18,15 @@
  */
 package org.elasticsearch.search;
 
-
+import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,12 +38,22 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.ShardFetchRequest;
+import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
@@ -110,12 +124,81 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertEquals(activeRefs, indexShard.store().refCount());
     }
 
-    public static class FailOnRewriteQueryPlugin extends Plugin {
+    public void testSearchWhileIndexDeleted() throws IOException, InterruptedException {
+        createIndex("index");
+        client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
-        public void onModule(SearchModule module) {
-            module.registerQuery(FailOnRewriteQueryBuilder::new, parseContext -> {
+        SearchService service = getInstanceFromNode(SearchService.class);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        IndexShard indexShard = indexService.getShard(0);
+        AtomicBoolean running = new AtomicBoolean(true);
+        CountDownLatch startGun = new CountDownLatch(1);
+        Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
+        final Thread thread = new Thread() {
+            @Override
+            public void run() {
+                startGun.countDown();
+                while(running.get()) {
+                    service.afterIndexDeleted(indexService.index(), indexService.getIndexSettings().getSettings());
+                    if (randomBoolean()) {
+                        // here we trigger some refreshes to ensure the IR go out of scope such that we hit ACE if we access a search
+                        // context in a non-sane way.
+                        try {
+                            semaphore.acquire();
+                        } catch (InterruptedException e) {
+                            throw new AssertionError(e);
+                        }
+                        client().prepareIndex("index", "type").setSource("field", "value")
+                            .setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values())).execute(new ActionListener<IndexResponse>() {
+                            @Override
+                            public void onResponse(IndexResponse indexResponse) {
+                                semaphore.release();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                semaphore.release();
+                            }
+                        });
+                    }
+                }
+            }
+        };
+        thread.start();
+        startGun.await();
+        try {
+            final int rounds = scaledRandomIntBetween(100, 10000);
+            for (int i = 0; i < rounds; i++) {
+                try {
+                    QuerySearchResultProvider querySearchResultProvider = service.executeQueryPhase(
+                        new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+                            new SearchSourceBuilder(), new String[0], false));
+                    IntArrayList intCursors = new IntArrayList(1);
+                    intCursors.add(0);
+                    ShardFetchRequest req = new ShardFetchRequest(querySearchResultProvider.id(), intCursors, null /* not a scroll */);
+                    service.executeFetchPhase(req);
+                } catch (AlreadyClosedException ex) {
+                    throw ex;
+                } catch (IllegalStateException ex) {
+                    assertEquals("search context is already closed can't increment refCount current count [0]", ex.getMessage());
+                } catch (SearchContextMissingException ex) {
+                    // that's fine
+                }
+            }
+        } finally {
+            running.set(false);
+            thread.join();
+            semaphore.acquire(Integer.MAX_VALUE);
+        }
+    }
+
+    public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {
+        @Override
+        public List<QuerySpec<?>> getQueries() {
+            return singletonList(new QuerySpec<>("fail_on_rewrite_query", FailOnRewriteQueryBuilder::new, parseContext -> {
                 throw new UnsupportedOperationException("No query parser for this plugin");
-            }, new ParseField("fail_on_rewrite_query"));
+            }));
         }
     }
 

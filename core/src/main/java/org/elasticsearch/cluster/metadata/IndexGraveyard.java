@@ -37,11 +37,11 @@ import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 
@@ -219,7 +219,7 @@ public final class IndexGraveyard implements MetaData.Custom {
         /**
          * Add a set of deleted indexes to the list of tombstones in the cluster state.
          */
-        public Builder addTombstones(final Index[] indices) {
+        public Builder addTombstones(final Collection<Index> indices) {
             for (Index index : indices) {
                 addTombstone(index);
             }

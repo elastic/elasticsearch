@@ -47,3 +47,5 @@ include::setup/bootstrap-checks.asciidoc[]
 include::setup/sysconfig.asciidoc[]
 
 include::setup/upgrade.asciidoc[]
+
+include::setup/stopping.asciidoc[]

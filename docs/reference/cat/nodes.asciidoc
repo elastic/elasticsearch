@@ -3,48 +3,35 @@
 
 The `nodes` command shows the cluster topology.
 
-["source","sh",subs="attributes,callouts"]
+[source,sh]
 --------------------------------------------------
-% curl 192.168.56.10:9200/_cat/nodes
-SP4H 4727 192.168.56.30 9300 {version} {jdk} 72.1gb 35.4 93.9mb 79 239.1mb 0.45 3.4h mdi - Boneyard
-_uhJ 5134 192.168.56.10 9300 {version} {jdk} 72.1gb 33.3 93.9mb 85 239.1mb 0.06 3.4h mdi * Athena
-HfDp 4562 192.168.56.20 9300 {version} {jdk} 72.2gb 74.5 93.9mb 83 239.1mb 0.12 3.4h mdi - Zarek
---------------------------------------------------
-
-The first few columns tell you where your nodes live.  For sanity it
-also tells you what version of ES and the JVM each one runs.
-
-["source","sh",subs="attributes,callouts"]
---------------------------------------------------
-nodeId pid  ip            port version     jdk
-u2PZ   4234 192.168.56.30 9300 {version} {jdk}
-URzf   5443 192.168.56.10 9300 {version} {jdk}
-ActN   3806 192.168.56.20 9300 {version} {jdk}
+% GET /_cat/nodes
+192.168.56.30 9 78 22 1.80 2.05 2.51 mdi * bGG90GE
+192.168.56.10 6 75 14 1.24 2.45 1.37 md  - I8hydUG
+192.168.56.20 5 71 12 1.07 1.05 1.11 di  - H5dfFeA
 --------------------------------------------------
 
-
-The next few give a picture of your heap, memory, and load.
+The first few columns tell you where your nodes live and give
+a picture of your heap, memory, cpu and load.
 
 [source,sh]
 --------------------------------------------------
-diskAvail heapPercent heapMax ramPercent  ramMax load
-   72.1gb        31.3  93.9mb         81 239.1mb 0.24
-   72.1gb        19.6  93.9mb         82 239.1mb 0.05
-   72.2gb        64.9  93.9mb         84 239.1mb 0.12
+ip            heap.percent ram.percent cpu load_1m load_5m load_15m
+192.168.56.30            9          78  22    1.80    2.05     2.51
+192.168.56.10            6          75  14    1.24    2.45     1.37
+192.168.56.20            5          71  12    1.07    1.05     1.11
 --------------------------------------------------
 
 The last columns provide ancillary information that can often be
 useful when looking at the cluster as a whole, particularly large
-ones.  How many master-eligible nodes do I have?  How many client
-nodes?  It looks like someone restarted a node recently; which one was
-it?
+ones.  How many master-eligible nodes do I have?
 
 [source,sh]
 --------------------------------------------------
-uptime node.role master name
-  3.5h di        -      Boneyard
-  3.5h md        *      Athena
-  3.5h i         -      Zarek
+node.role master name
+mdi       *      bGG90GE
+md        -      I8hydUG
+di        -      H5dfFeA
 --------------------------------------------------
 
 [float]
@@ -65,7 +52,7 @@ by default.  To have the headers appear in the output, use verbose
 mode (`v`). The header name will match the supplied value (e.g.,
 `pid` versus `p`).  For example:
 
-["source","sh",subs="attributes,callouts"]
+[source,sh]
 --------------------------------------------------
 % curl 192.168.56.10:9200/_cat/nodes?v&h=id,ip,port,v,m
 id   ip            port v           m
@@ -102,13 +89,15 @@ descriptors |123
 descriptors percentage |1
 |`file_desc.max` |`fdm`, `fileDescriptorMax` |No |Maximum number of file
 descriptors |1024
-|`load` |`l` |No |Most recent load average |0.22
 |`cpu` | |No |Recent system CPU usage as percent |12
+|`load_1m` |`l` |No |Most recent load average |0.22
+|`load_5m` |`l` |No |Load average for the last five minutes |0.78
+|`load_15m` |`l` |No |Load average for the last fifteen minutes |1.24
 |`uptime` |`u` |No |Node uptime |17.3m
 |`node.role` |`r`, `role`, `nodeRole` |Yes |Master eligible node (m);
 Data node (d); Ingest node (i); Coordinating node only (-) |mdi
 |`master` |`m` |Yes |Elected master (*); Not elected master (-) |*
-|`name` |`n` |Yes |Node name |Venom
+|`name` |`n` |Yes |Node name |I8hydUG
 |`completion.size` |`cs`, `completionSize` |No |Size of completion |0b
 |`fielddata.memory_size` |`fm`, `fielddataMemory` |No |Used fielddata
 cache memory |0b
@@ -152,6 +141,8 @@ of current indexing operations |0
 indexing |134ms
 |`indexing.index_total` |`iito`, `indexingIndexTotal` |No |Number of
 indexing operations |1
+|`indexing.index_failed` |`iif`, `indexingIndexFailed` |No |Number of
+failed indexing operations |0
 |`merges.current` |`mc`, `mergesCurrent` |No |Number of current
 merge operations |0
 |`merges.current_docs` |`mcd`, `mergesCurrentDocs` |No |Number of
@@ -166,15 +157,6 @@ documents |0
 merges |0b
 |`merges.total_time` |`mtt`, `mergesTotalTime` |No |Time spent merging
 documents |0s
-|`percolate.current` |`pc`, `percolateCurrent` |No |Number of current
-percolations |0
-|`percolate.memory_size` |`pm`, `percolateMemory` |No |Memory used by
-current percolations |0b
-|`percolate.queries` |`pq`, `percolateQueries` |No |Number of
-registered percolation queries |0
-|`percolate.time` |`pti`, `percolateTime` |No |Time spent
-percolating |0s
-|`percolate.total` |`pto`, `percolateTotal` |No |Total percolations |0
 |`refresh.total` |`rto`, `refreshTotal` |No |Number of refreshes |16
 |`refresh.time` |`rti`, `refreshTime` |No |Time spent in refreshes |91ms
 |`script.compilations` |`scrcc`, `scriptCompilations` |No |Total script compilations |17
@@ -203,4 +185,9 @@ segments |1.4kb
 |Memory used by index writer |18mb
 |`segments.version_map_memory` |`svmm`, `segmentsVersionMapMemory` |No
 |Memory used by version map |1.0kb
+|`segments.fixed_bitset_memory` |`sfbm`, `fixedBitsetMemory` |No
+|Memory used by fixed bit sets for nested object field types and type filters for types referred in _parent fields |1.0kb
+|`suggest.current` |`suc`, `suggestCurrent` |No |Number of current suggest operations |0
+|`suggest.time` |`suti`, `suggestTime` |No |Time spent in suggest |0
+|`suggest.total` |`suto`, `suggestTotal` |No |Number of suggest operations |0
 |=======================================================================

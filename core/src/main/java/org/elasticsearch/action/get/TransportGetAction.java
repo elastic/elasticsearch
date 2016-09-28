@@ -92,8 +92,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             indexShard.refresh("refresh_flag_get");
         }
 
-        GetResult result = indexShard.getService().get(request.type(), request.id(), request.fields(),
-                request.realtime(), request.version(), request.versionType(), request.fetchSourceContext(), request.ignoreErrorsOnGeneratedFields());
+        GetResult result = indexShard.getService().get(request.type(), request.id(), request.storedFields(),
+                request.realtime(), request.version(), request.versionType(), request.fetchSourceContext());
         return new GetResponse(result);
     }
 

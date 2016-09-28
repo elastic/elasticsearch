@@ -22,11 +22,14 @@ package org.apache.lucene.search.vectorhighlight;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.queries.BoostingQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
@@ -55,7 +58,12 @@ public class CustomFieldQuery extends FieldQuery {
 
     @Override
     void flatten(Query sourceQuery, IndexReader reader, Collection<Query> flatQueries, float boost) throws IOException {
-        if (sourceQuery instanceof SpanTermQuery) {
+        if (sourceQuery instanceof BoostQuery) {
+            BoostQuery bq = (BoostQuery) sourceQuery;
+            sourceQuery = bq.getQuery();
+            boost *= bq.getBoost();
+            flatten(sourceQuery, reader, flatQueries, boost);
+        } else if (sourceQuery instanceof SpanTermQuery) {
             super.flatten(new TermQuery(((SpanTermQuery) sourceQuery).getTerm()), reader, flatQueries, boost);
         } else if (sourceQuery instanceof ConstantScoreQuery) {
             flatten(((ConstantScoreQuery) sourceQuery).getQuery(), reader, flatQueries, boost);
@@ -71,6 +79,15 @@ public class CustomFieldQuery extends FieldQuery {
         } else if (sourceQuery instanceof BlendedTermQuery) {
             final BlendedTermQuery blendedTermQuery = (BlendedTermQuery) sourceQuery;
             flatten(blendedTermQuery.rewrite(reader), reader, flatQueries, boost);
+        } else if (sourceQuery instanceof ToParentBlockJoinQuery) {
+            ToParentBlockJoinQuery blockJoinQuery = (ToParentBlockJoinQuery) sourceQuery;
+            flatten(blockJoinQuery.getChildQuery(), reader, flatQueries, boost);
+        } else if (sourceQuery instanceof BoostingQuery) {
+            BoostingQuery boostingQuery = (BoostingQuery) sourceQuery;
+            //flatten positive query with query boost
+            flatten(boostingQuery.getMatch(), reader, flatQueries, boost);
+            //flatten negative query with negative boost
+            flatten(boostingQuery.getContext(), reader, flatQueries, boostingQuery.getBoost());
         } else {
             super.flatten(sourceQuery, reader, flatQueries, boost);
         }

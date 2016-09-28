@@ -191,7 +191,8 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        final TransportService transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL);
+        final TransportService transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR);
         transportService.start();
         transportService.acceptIncomingRequests();
         setClusterState(clusterService, TEST_INDEX);
@@ -220,7 +221,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         int totalIndexShards = 0;
         for (int i = 0; i < numberOfNodes; i++) {
             final DiscoveryNode node = newNode(i);
-            discoBuilder = discoBuilder.put(node);
+            discoBuilder = discoBuilder.add(node);
             int numberOfShards = randomIntBetween(1, 10);
             totalIndexShards += numberOfShards;
             for (int j = 0; j < numberOfShards; j++) {

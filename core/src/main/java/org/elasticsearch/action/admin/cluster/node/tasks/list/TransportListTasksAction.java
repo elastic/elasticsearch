@@ -56,8 +56,8 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     @Inject
     public TransportListTasksAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
             TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ListTasksAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, ListTasksRequest::new, ListTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+        super(settings, ListTasksAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+                ListTasksRequest::new, ListTasksResponse::new, ThreadPool.Names.MANAGEMENT);
     }
 
     @Override

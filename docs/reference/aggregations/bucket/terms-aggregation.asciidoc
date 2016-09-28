@@ -160,7 +160,8 @@ NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sens
         override it and reset it to be equal to `size`.
 
 
-The default `shard_size` is a multiple of the `size` parameter which is dependant on the number of shards.
+The default `shard_size` will be `size` if the search request needs to go to a single shard, and `(size * 1.5 + 10)`
+otherwise.
 
 ==== Calculating Document Count Error
 
@@ -243,9 +244,18 @@ determined and is given a value of -1 to indicate this.
 ==== Order
 
 The order of the buckets can be customized by setting the `order` parameter. By default, the buckets are ordered by
-their `doc_count` descending. It is also possible to change this behaviour as follows:
+their `doc_count` descending.  It is possible to change this behaviour as documented below:
 
-Ordering the buckets by their `doc_count` in an ascending manner:
+WARNING: Sorting by ascending `_count` or by sub aggregation is discouraged as it increases the
+<<search-aggregations-bucket-terms-aggregation-approximate-counts,error>> on document counts.
+It is fine when a single shard is queried, or when the field that is being aggregated was used
+as a routing key at index time: in these cases results will be accurate since shards have disjoint
+values. However otherwise, errors are unbounded. One particular case that could still be useful
+is sorting by <<search-aggregations-metrics-min-aggregation,`min`>> or
+<<search-aggregations-metrics-max-aggregation,`max`>> aggregation: counts will not be accurate
+but at least the top buckets will be correctly picked.
+
+Ordering the buckets by their doc `_count` in an ascending manner:
 
 [source,js]
 --------------------------------------------------
@@ -316,14 +326,15 @@ Ordering the buckets by multi value metrics sub-aggregation (identified by the a
 }
 --------------------------------------------------
 
-WARNING: Sorting by ascending `_count` or by sub aggregation is discouraged as it increases the
-<<search-aggregations-bucket-terms-aggregation-approximate-counts,error>> on document counts.
-It is fine when a single shard is queried, or when the field that is being aggregated was used
-as a routing key at index time: in these cases results will be accurate since shards have disjoint
-values. However otherwise, errors are unbounded. One particular case that could still be useful
-is sorting by <<search-aggregations-metrics-min-aggregation,`min`>> or
-<<search-aggregations-metrics-max-aggregation,`max`>> aggregation: counts will not be accurate
-but at least the top buckets will be correctly picked.
+[NOTE]
+.Pipeline aggs cannot be used for sorting
+=======================================
+
+<<search-aggregations-pipeline,Pipeline aggregations>> are run during the
+reduce phase after all other aggregations have already completed.  For this
+reason, they cannot be used for ordering.
+
+=======================================
 
 It is also possible to order the buckets based on a "deeper" aggregation in the hierarchy. This is supported as long
 as the aggregations path are of a single-bucket type, where the last aggregation in the path may either be a single-bucket
@@ -333,12 +344,14 @@ a multi-value metrics aggregation, and in case of a single-value metrics aggrega
 
 The path must be defined in the following form:
 
+// https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
+[source,ebnf]
 --------------------------------------------------
-AGG_SEPARATOR       :=  '>'
-METRIC_SEPARATOR    :=  '.'
-AGG_NAME            :=  <the name of the aggregation>
-METRIC              :=  <the name of the metric (in case of multi-value metrics aggregation)>
-PATH                :=  <AGG_NAME>[<AGG_SEPARATOR><AGG_NAME>]*[<METRIC_SEPARATOR><METRIC>]
+AGG_SEPARATOR       =  '>' ;
+METRIC_SEPARATOR    =  '.' ;
+AGG_NAME            =  <the name of the aggregation> ;
+METRIC              =  <the name of the metric (in case of multi-value metrics aggregation)> ;
+PATH                =  <AGG_NAME> [ <AGG_SEPARATOR>, <AGG_NAME> ]* [ <METRIC_SEPARATOR>, <METRIC> ] ;
 --------------------------------------------------
 
 [source,js]
@@ -446,7 +459,7 @@ Generating the terms using a script:
         "genres" : {
             "terms" : {
                 "script" : {
-                    "inline": "doc['genre'].value"
+                    "inline": "doc['genre'].value",
                     "lang": "painless"
                 }
             }

@@ -15,7 +15,7 @@ PUT /my_index
         "my_type": {
             "properties": {
                 "post_date": { "type": "date" },
-                "user": { 
+                "user": {
                     "type": "keyword"
                 },
                 "name": {
@@ -26,8 +26,6 @@ PUT /my_index
         }
     }
 }
-
-GET /_cluster/health?wait_for_status=yellow
 --------------------------------------------------
 // CONSOLE
 
@@ -100,7 +98,7 @@ PUT /my_index/my_type/1?refresh
     "price": [20, 4]
 }
 
-POST /_search 
+POST /_search
 {
    "query" : {
       "term" : { "product" : "chocolate" }
@@ -353,9 +351,23 @@ Multiple geo points can be passed as an array containing any `geo_point` format,
 
 [source,js]
 --------------------------------------------------
-"pin.location" : [[-70, 40], [-71, 42]]
-"pin.location" : [{"lat": 40, "lon": -70}, {"lat": 42, "lon": -71}]
+GET /_search
+{
+    "sort" : [
+        {
+            "_geo_distance" : {
+                "pin.location" : [[-70, 40], [-71, 42]],
+                "order" : "asc",
+                "unit" : "km"
+            }
+        }
+    ],
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
+}
 --------------------------------------------------
+// CONSOLE
 
 and so forth.
 

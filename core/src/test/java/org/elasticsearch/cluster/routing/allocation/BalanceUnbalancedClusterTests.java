@@ -60,22 +60,20 @@ public class BalanceUnbalancedClusterTests extends CatAllocationTestCase {
                 .put(IndexMetaData.builder(index).settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
                 .build();
 
-        RoutingTable routingTable = RoutingTable.builder(state.routingTable())
+        RoutingTable initialRoutingTable = RoutingTable.builder(state.routingTable())
                 .addAsNew(metaData.index(index))
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(state).metaData(metaData).routingTable(routingTable).build();
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(state).metaData(metaData).routingTable(initialRoutingTable).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
         while (true) {
-            if (routingTable.shardsWithState(INITIALIZING).isEmpty()) {
+            if (clusterState.routingTable().shardsWithState(INITIALIZING).isEmpty()) {
                 break;
             }
-            routingTable = strategy.applyStartedShards(clusterState, routingTable.shardsWithState(INITIALIZING)).routingTable();
-            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+            clusterState = strategy.applyStartedShards(clusterState, clusterState.routingTable().shardsWithState(INITIALIZING));
         }
         Map<String, Integer> counts = new HashMap<>();
-        for (IndexShardRoutingTable table : routingTable.index(index)) {
+        for (IndexShardRoutingTable table : clusterState.routingTable().index(index)) {
             for (ShardRouting r : table) {
                 String s = r.currentNodeId();
                 Integer count = counts.get(s);

@@ -38,6 +38,7 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -53,8 +54,8 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.RefreshListeners;
@@ -89,9 +90,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- * TODO: document me!
- */
 public class ShadowEngineTests extends ESTestCase {
 
     protected final ShardId shardId = new ShardId("index", "_na_", 1);
@@ -252,7 +250,7 @@ public class ShadowEngineTests extends ESTestCase {
         EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings, null, store, createSnapshotDeletionPolicy(),
                 mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), eventListener, null,
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-                TimeValue.timeValueMinutes(5), refreshListeners);
+                TimeValue.timeValueMinutes(5), refreshListeners, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
 
         return config;
     }
@@ -614,8 +612,7 @@ public class ShadowEngineTests extends ESTestCase {
         // but, we can still get it (in realtime)
         Engine.GetResult getResult = primaryEngine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source().source, equalTo(B_1));
-        assertThat(getResult.docIdAndVersion(), nullValue());
+        assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
 
         // can't get it from the replica, because it's not in the translog for a shadow replica
@@ -625,10 +622,8 @@ public class ShadowEngineTests extends ESTestCase {
 
         // but, not there non realtime
         getResult = primaryEngine.get(new Engine.Get(false, newUid("1")));
-        assertThat(getResult.exists(), equalTo(false));
+        assertThat(getResult.exists(), equalTo(true));
         getResult.release();
-        // refresh and it should be there
-        primaryEngine.refresh("test");
 
         // now its there...
         searchResult = primaryEngine.acquireSearcher("test");
@@ -665,8 +660,7 @@ public class ShadowEngineTests extends ESTestCase {
         // but, we can still get it (in realtime)
         getResult = primaryEngine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source().source, equalTo(B_2));
-        assertThat(getResult.docIdAndVersion(), nullValue());
+        assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
 
         // refresh and it should be updated
@@ -749,7 +743,6 @@ public class ShadowEngineTests extends ESTestCase {
         // and, verify get (in real time)
         getResult = primaryEngine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source(), nullValue());
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
 
@@ -762,7 +755,6 @@ public class ShadowEngineTests extends ESTestCase {
         searchResult.close();
         getResult = replicaEngine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source(), nullValue());
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
 
@@ -997,7 +989,7 @@ public class ShadowEngineTests extends ESTestCase {
         final int numDocs = randomIntBetween(2, 10); // at least 2 documents otherwise we don't see any deletes below
         for (int i = 0; i < numDocs; i++) {
             ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
-            Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(i)), doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime());
+            Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(i)), doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), -1, false);
             primaryEngine.index(firstIndexRequest);
             assertThat(firstIndexRequest.version(), equalTo(1L));
         }

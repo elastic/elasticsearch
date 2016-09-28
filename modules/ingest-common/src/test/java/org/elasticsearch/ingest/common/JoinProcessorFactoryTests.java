@@ -35,7 +35,7 @@ public class JoinProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("separator", "-");
         String processorTag = randomAsciiOfLength(10);
-        JoinProcessor joinProcessor = factory.create(processorTag, config);
+        JoinProcessor joinProcessor = factory.create(null, processorTag, config);
         assertThat(joinProcessor.getTag(), equalTo(processorTag));
         assertThat(joinProcessor.getField(), equalTo("field1"));
         assertThat(joinProcessor.getSeparator(), equalTo("-"));
@@ -46,7 +46,7 @@ public class JoinProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("separator", "-");
         try {
-            factory.create(null, config);
+            factory.create(null, null, config);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
@@ -58,7 +58,7 @@ public class JoinProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         try {
-            factory.create(null, config);
+            factory.create(null, null, config);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[separator] required property is missing"));

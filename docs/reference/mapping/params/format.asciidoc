@@ -173,8 +173,8 @@ The following tables lists all the defaults ISO formats supported:
 
 `date_time` or `strict_date_time`::
 
-    A formatter that combines a full date and time, separated by a 'T': `yyyy-
-    MM-dd'T'HH:mm:ss.SSSZZ`.
+    A formatter that combines a full date and time, separated by a 'T': 
+    `yyyy-MM-dd'T'HH:mm:ss.SSSZZ`.
 
 `date_time_no_millis` or `strict_date_time_no_millis`::
 

@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class TrimProcessorFactoryTests extends ESTestCase {
 
@@ -34,16 +35,29 @@ public class TrimProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         String processorTag = randomAsciiOfLength(10);
-        TrimProcessor uppercaseProcessor = (TrimProcessor)factory.create(processorTag, config);
+        TrimProcessor uppercaseProcessor = (TrimProcessor)factory.create(null, processorTag, config);
         assertThat(uppercaseProcessor.getTag(), equalTo(processorTag));
         assertThat(uppercaseProcessor.getField(), equalTo("field1"));
+        assertThat(uppercaseProcessor.isIgnoreMissing(), is(false));
+    }
+
+    public void testCreateWithIgnoreMissing() throws Exception {
+        TrimProcessor.Factory factory = new TrimProcessor.Factory();
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("ignore_missing", true);
+        String processorTag = randomAsciiOfLength(10);
+        TrimProcessor uppercaseProcessor = (TrimProcessor)factory.create(null, processorTag, config);
+        assertThat(uppercaseProcessor.getTag(), equalTo(processorTag));
+        assertThat(uppercaseProcessor.getField(), equalTo("field1"));
+        assertThat(uppercaseProcessor.isIgnoreMissing(), is(true));
     }
 
     public void testCreateMissingField() throws Exception {
         TrimProcessor.Factory factory = new TrimProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         try {
-            factory.create(null, config);
+            factory.create(null, null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));

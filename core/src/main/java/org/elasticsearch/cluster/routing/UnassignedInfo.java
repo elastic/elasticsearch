@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,6 +37,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Locale;
+import java.util.Objects;
 
 /**
  * Holds additional information as to why the shard is in unassigned state.
@@ -105,7 +108,98 @@ public final class UnassignedInfo implements ToXContent, Writeable {
         /**
          * Unassigned as a result of a failed primary while the replica was initializing.
          */
-        PRIMARY_FAILED;
+        PRIMARY_FAILED,
+        /**
+         * Unassigned after forcing an empty primary
+         */
+        FORCED_EMPTY_PRIMARY
+    }
+
+    /**
+     * Captures the status of an unsuccessful allocation attempt for the shard,
+     * causing it to remain in the unassigned state.
+     *
+     * Note, ordering of the enum is important, make sure to add new values
+     * at the end and handle version serialization properly.
+     */
+    public enum AllocationStatus implements Writeable {
+        /**
+         * The shard was denied allocation to a node because the allocation deciders all returned a NO decision
+         */
+        DECIDERS_NO((byte) 0),
+        /**
+         * The shard was denied allocation to a node because there were no valid shard copies found for it;
+         * this can happen on node restart with gateway allocation
+         */
+        NO_VALID_SHARD_COPY((byte) 1),
+        /**
+         * The allocation attempt was throttled on the shard by the allocation deciders
+         */
+        DECIDERS_THROTTLED((byte) 2),
+        /**
+         * Waiting on getting shard data from all nodes before making a decision about where to allocate the shard
+         */
+        FETCHING_SHARD_DATA((byte) 3),
+        /**
+         * Allocation decision has been delayed
+         */
+        DELAYED_ALLOCATION((byte) 4),
+        /**
+         * No allocation attempt has been made yet
+         */
+        NO_ATTEMPT((byte) 5);
+
+        private final byte id;
+
+        AllocationStatus(byte id) {
+            this.id = id;
+        }
+
+        // package private for testing
+        byte getId() {
+            return id;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByte(id);
+        }
+
+        public static AllocationStatus readFrom(StreamInput in) throws IOException {
+            byte id = in.readByte();
+            switch (id) {
+                case 0:
+                    return DECIDERS_NO;
+                case 1:
+                    return NO_VALID_SHARD_COPY;
+                case 2:
+                    return DECIDERS_THROTTLED;
+                case 3:
+                    return FETCHING_SHARD_DATA;
+                case 4:
+                    return DELAYED_ALLOCATION;
+                case 5:
+                    return NO_ATTEMPT;
+                default:
+                    throw new IllegalArgumentException("Unknown AllocationStatus value [" + id + "]");
+            }
+        }
+
+        public static AllocationStatus fromDecision(Decision decision) {
+            Objects.requireNonNull(decision);
+            switch (decision.type()) {
+                case NO:
+                    return DECIDERS_NO;
+                case THROTTLE:
+                    return DECIDERS_THROTTLED;
+                default:
+                    throw new IllegalArgumentException("no allocation attempt from decision[" + decision.type() + "]");
+            }
+        }
+
+        public String value() {
+            return toString().toLowerCase(Locale.ROOT);
+        }
     }
 
     private final Reason reason;
@@ -115,6 +209,7 @@ public final class UnassignedInfo implements ToXContent, Writeable {
     private final String message;
     private final Exception failure;
     private final int failedAllocations;
+    private final AllocationStatus lastAllocationStatus; // result of the last allocation attempt for this shard
 
     /**
      * creates an UnassignedInfo object based on **current** time
@@ -123,7 +218,8 @@ public final class UnassignedInfo implements ToXContent, Writeable {
      * @param message more information about cause.
      **/
     public UnassignedInfo(Reason reason, String message) {
-        this(reason, message, null, reason == Reason.ALLOCATION_FAILED ? 1 : 0, System.nanoTime(), System.currentTimeMillis(), false);
+        this(reason, message, null, reason == Reason.ALLOCATION_FAILED ? 1 : 0, System.nanoTime(), System.currentTimeMillis(), false,
+             AllocationStatus.NO_ATTEMPT);
     }
 
     /**
@@ -133,16 +229,18 @@ public final class UnassignedInfo implements ToXContent, Writeable {
      * @param unassignedTimeNanos  the time to use as the base for any delayed re-assignment calculation
      * @param unassignedTimeMillis the time of unassignment used to display to in our reporting.
      * @param delayed              if allocation of this shard is delayed due to INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.
+     * @param lastAllocationStatus the result of the last allocation attempt for this shard
      */
     public UnassignedInfo(Reason reason, @Nullable String message, @Nullable Exception failure, int failedAllocations,
-                          long unassignedTimeNanos, long unassignedTimeMillis, boolean delayed) {
-        this.reason = reason;
+                          long unassignedTimeNanos, long unassignedTimeMillis, boolean delayed, AllocationStatus lastAllocationStatus) {
+        this.reason = Objects.requireNonNull(reason);
         this.unassignedTimeMillis = unassignedTimeMillis;
         this.unassignedTimeNanos = unassignedTimeNanos;
         this.delayed = delayed;
         this.message = message;
         this.failure = failure;
         this.failedAllocations = failedAllocations;
+        this.lastAllocationStatus = Objects.requireNonNull(lastAllocationStatus);
         assert (failedAllocations > 0) == (reason == Reason.ALLOCATION_FAILED) :
             "failedAllocations: " + failedAllocations + " for reason " + reason;
         assert !(message == null && failure != null) : "provide a message if a failure exception is provided";
@@ -159,6 +257,7 @@ public final class UnassignedInfo implements ToXContent, Writeable {
         this.message = in.readOptionalString();
         this.failure = in.readException();
         this.failedAllocations = in.readVInt();
+        this.lastAllocationStatus = AllocationStatus.readFrom(in);
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -169,6 +268,7 @@ public final class UnassignedInfo implements ToXContent, Writeable {
         out.writeOptionalString(message);
         out.writeException(failure);
         out.writeVInt(failedAllocations);
+        lastAllocationStatus.writeTo(out);
     }
 
     public UnassignedInfo readFrom(StreamInput in) throws IOException {
@@ -241,6 +341,13 @@ public final class UnassignedInfo implements ToXContent, Writeable {
     }
 
     /**
+     * Get the status for the last allocation attempt for this shard.
+     */
+    public AllocationStatus getLastAllocationStatus() {
+        return lastAllocationStatus;
+    }
+
+    /**
      * Calculates the delay left based on current time (in nanoseconds) and the delay defined by the index settings.
      * Only relevant if shard is effectively delayed (see {@link #isDelayed()})
      * Returns 0 if delay is negative
@@ -302,6 +409,7 @@ public final class UnassignedInfo implements ToXContent, Writeable {
         if (details != null) {
             sb.append(", details[").append(details).append("]");
         }
+        sb.append(", allocation_status[").append(lastAllocationStatus.value()).append("]");
         return sb.toString();
     }
 
@@ -323,6 +431,7 @@ public final class UnassignedInfo implements ToXContent, Writeable {
         if (details != null) {
             builder.field("details", details);
         }
+        builder.field("allocation_status", lastAllocationStatus.value());
         builder.endObject();
         return builder;
     }
@@ -353,17 +462,22 @@ public final class UnassignedInfo implements ToXContent, Writeable {
         if (message != null ? !message.equals(that.message) : that.message != null) {
             return false;
         }
+        if (lastAllocationStatus != that.lastAllocationStatus) {
+            return false;
+        }
         return !(failure != null ? !failure.equals(that.failure) : that.failure != null);
     }
 
     @Override
     public int hashCode() {
-        int result = reason != null ? reason.hashCode() : 0;
+        int result = reason.hashCode();
         result = 31 * result + Boolean.hashCode(delayed);
         result = 31 * result + Integer.hashCode(failedAllocations);
         result = 31 * result + Long.hashCode(unassignedTimeMillis);
         result = 31 * result + (message != null ? message.hashCode() : 0);
         result = 31 * result + (failure != null ? failure.hashCode() : 0);
+        result = 31 * result + lastAllocationStatus.hashCode();
         return result;
     }
+
 }

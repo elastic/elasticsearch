@@ -57,6 +57,9 @@ dependencies {
 }
 
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
+// enable the JMH's BenchmarkProcessor to generate the final benchmark classes
+// needs to be added separately otherwise Gradle will quote it and javac will fail
+compileJava.options.compilerArgs.addAll(["-processor", "org.openjdk.jmh.generators.BenchmarkProcessor"])
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 
 forbiddenApis {

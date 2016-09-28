@@ -19,7 +19,6 @@
 
 package org.elasticsearch.percolator;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.search.BooleanClause;
@@ -27,12 +26,10 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -46,7 +43,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
@@ -55,8 +51,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -75,7 +71,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     private Long indexedDocumentVersion;
     private BytesReference documentSource;
 
-    boolean indexedDocumentExists = true;
+    private boolean indexedDocumentExists = true;
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -172,31 +168,10 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         assertThat(e.getMessage() , equalTo(expectedString));
     }
 
-    // overwrite this test, because adding bogus field to the document part is valid and that would make the test fail
-    // (the document part represents the document being percolated and any key value pair is allowed there)
     @Override
-    public void testUnknownObjectException() throws IOException {
-        String validQuery = createTestQueryBuilder().toString();
-        int endPos = validQuery.indexOf("document");
-        if (endPos == -1) {
-            endPos = validQuery.length();
-        }
-        assertThat(validQuery, containsString("{"));
-        for (int insertionPosition = 0; insertionPosition < endPos; insertionPosition++) {
-            if (validQuery.charAt(insertionPosition) == '{') {
-                String testQuery = validQuery.substring(0, insertionPosition) + "{ \"newField\" : " +
-                        validQuery.substring(insertionPosition) + "}";
-                try {
-                    parseQuery(testQuery);
-                    fail("some parsing exception expected for query: " + testQuery);
-                } catch (ParsingException | Script.ScriptParseException | ElasticsearchParseException e) {
-                    // different kinds of exception wordings depending on location
-                    // of mutation, so no simple asserts possible here
-                } catch (JsonParseException e) {
-                    // mutation produced invalid json
-                }
-            }
-        }
+    protected Set<String> getObjectsHoldingArbitraryContent() {
+        //document contains arbitrary content, no error expected when an object is added to it
+        return Collections.singleton(PercolateQueryBuilder.DOCUMENT_FIELD.getPreferredName());
     }
 
     public void testRequiredParameters() {

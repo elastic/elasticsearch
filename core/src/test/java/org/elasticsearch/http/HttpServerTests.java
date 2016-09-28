@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.http;
 
+import java.util.Collections;
 import java.util.Map;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -59,7 +60,7 @@ public class HttpServerTests extends ESTestCase {
         inFlightRequestsBreaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
 
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
-        RestController restController = new RestController(settings);
+        RestController restController = new RestController(settings, Collections.emptySet());
         restController.registerHandler(RestRequest.Method.GET, "/",
             (request, channel, client) -> channel.sendResponse(
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
@@ -188,11 +189,11 @@ public class HttpServerTests extends ESTestCase {
     }
 
     private static final class TestRestRequest extends RestRequest {
-        private final String path;
+
         private final BytesReference content;
 
         private TestRestRequest(String path, String content) {
-            this.path = path;
+            super(Collections.emptyMap(), path);
             this.content = new BytesArray(content);
         }
 
@@ -204,11 +205,6 @@ public class HttpServerTests extends ESTestCase {
         @Override
         public String uri() {
             return null;
-        }
-
-        @Override
-        public String rawPath() {
-            return path;
         }
 
         @Override
@@ -231,24 +227,5 @@ public class HttpServerTests extends ESTestCase {
             return null;
         }
 
-        @Override
-        public boolean hasParam(String key) {
-            return false;
-        }
-
-        @Override
-        public String param(String key) {
-            return null;
-        }
-
-        @Override
-        public String param(String key, String defaultValue) {
-            return null;
-        }
-
-        @Override
-        public Map<String, String> params() {
-            return null;
-        }
     }
 }

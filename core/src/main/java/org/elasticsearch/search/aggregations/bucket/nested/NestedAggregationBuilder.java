@@ -19,24 +19,26 @@
 
 package org.elasticsearch.search.aggregations.bucket.nested;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedAggregationBuilder> {
-    public static final String NAME = InternalNested.TYPE.name();
-    public static final ParseField AGGREGATION_FIELD_NAME = new ParseField(NAME);
+    public static final String NAME = "nested";
+    private static final Type TYPE = new Type(NAME);
 
     private final String path;
 
@@ -48,7 +50,7 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
      *            match the path to a nested object in the mappings.
      */
     public NestedAggregationBuilder(String name, String path) {
-        super(name, InternalNested.TYPE);
+        super(name, TYPE);
         if (path == null) {
             throw new IllegalArgumentException("[path] must not be null: [" + name + "]");
         }
@@ -59,7 +61,7 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
      * Read from a stream.
      */
     public NestedAggregationBuilder(StreamInput in) throws IOException {
-        super(in, InternalNested.TYPE);
+        super(in, TYPE);
         path = in.readString();
     }
 
@@ -78,7 +80,22 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
     @Override
     protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
             throws IOException {
-        return new NestedAggregatorFactory(name, type, path, context, parent, subFactoriesBuilder, metaData);
+        ObjectMapper childObjectMapper = context.searchContext().getObjectMapper(path);
+        if (childObjectMapper == null) {
+            // in case the path has been unmapped:
+            return new NestedAggregatorFactory(name, type, null, null, context, parent, subFactoriesBuilder, metaData);
+        }
+
+        if (childObjectMapper.nested().isNested() == false) {
+            throw new AggregationExecutionException("[nested] nested path [" + path + "] is not nested");
+        }
+        try {
+            ObjectMapper parentObjectMapper = context.searchContext().getQueryShardContext().nestedScope().nextLevel(childObjectMapper);
+            return new NestedAggregatorFactory(name, type, parentObjectMapper, childObjectMapper, context, parent, subFactoriesBuilder,
+                    metaData);
+        } finally {
+            context.searchContext().getQueryShardContext().nestedScope().previousLevel();
+        }
     }
 
     @Override

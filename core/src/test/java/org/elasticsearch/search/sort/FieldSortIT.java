@@ -77,7 +77,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class FieldSortIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/9421")
@@ -94,7 +94,6 @@ public class FieldSortIT extends ESIntegTestCase {
                 client().prepareIndex("test_" + i, "foo", "" + i).setSource("{\"entry\": " + i + "}").get();
             }
         }
-        ensureYellow();
         refresh();
         // sort DESC
         SearchResponse searchResponse = client().prepareSearch()
@@ -123,11 +122,11 @@ public class FieldSortIT extends ESIntegTestCase {
         }
     }
 
-    @LuceneTestCase.BadApple(bugUrl = "simon is working on this")
     public void testIssue6614() throws ExecutionException, InterruptedException {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         boolean strictTimeBasedIndices = randomBoolean();
         final int numIndices = randomIntBetween(2, 25); // at most 25 days in the month
+        int docs = 0;
         for (int i = 0; i < numIndices; i++) {
           final String indexId = strictTimeBasedIndices ? "idx_" + i : "idx";
           if (strictTimeBasedIndices || i == 0) {
@@ -143,10 +142,10 @@ public class FieldSortIT extends ESIntegTestCase {
                                     String.format(Locale.ROOT, "%02d", j+1) +
                                     ":00:00"));
           }
+            indexRandom(true, builders);
+            docs += builders.size();
+            builders.clear();
         }
-        int docs = builders.size();
-        indexRandom(true, builders);
-        ensureYellow();
         SearchResponse allDocsResponse = client().prepareSearch().setQuery(
                 QueryBuilders.boolQuery().must(QueryBuilders.termQuery("foo", "bar")).must(
                         QueryBuilders.rangeQuery("timeUpdated").gte("2014/0" + randomIntBetween(1, 7) + "/01")))
@@ -858,7 +857,6 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testIgnoreUnmapped() throws Exception {
         createIndex("test");
-        ensureYellow();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("id", "1")
@@ -889,7 +887,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testSortMVField() throws Exception {
         assertAcked(prepareCreate("test")
-.addMapping("type1",
+                        .addMapping("type1",
                 XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("long_values")
                         .field("type", "long").endObject().startObject("int_values").field("type", "integer").endObject()
                         .startObject("short_values").field("type", "short").endObject().startObject("byte_values")

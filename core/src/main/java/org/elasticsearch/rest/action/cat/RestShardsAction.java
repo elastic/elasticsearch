@@ -40,9 +40,10 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestActionListener;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.RestActionListener;
+import org.elasticsearch.rest.action.RestResponseListener;
+
+import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -73,6 +74,7 @@ public class RestShardsAction extends AbstractCatAction {
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
                 indicesStatsRequest.all();
+                indicesStatsRequest.indices(indices);
                 client.admin().indices().stats(indicesStatsRequest, new RestResponseListener<IndicesStatsResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(IndicesStatsResponse indicesStatsResponse) throws Exception {
@@ -103,6 +105,8 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell("unassigned.at", "alias:ua;default:false;desc:time shard became unassigned (UTC)");
         table.addCell("unassigned.for", "alias:uf;default:false;text-align:right;desc:time has been unassigned");
         table.addCell("unassigned.details", "alias:ud;default:false;desc:additional details as to why the shard became unassigned");
+
+        table.addCell("recoverysource.type", "alias:rs;default:false;desc:recovery source type");
 
         table.addCell("completion.size", "alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
 
@@ -241,6 +245,12 @@ public class RestShardsAction extends AbstractCatAction {
                 table.addCell(null);
                 table.addCell(null);
                 table.addCell(null);
+                table.addCell(null);
+            }
+
+            if (shard.recoverySource() != null) {
+                table.addCell(shard.recoverySource().getType().toString().toLowerCase(Locale.ROOT));
+            } else {
                 table.addCell(null);
             }
 

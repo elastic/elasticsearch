@@ -39,6 +39,8 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+
+import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -55,8 +57,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      */
     @BeforeClass
     public static void init() throws IOException {
-        namedWriteableRegistry = new NamedWriteableRegistry();
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, namedWriteableRegistry, false);
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
         queriesRegistry = searchModule.getQueryParserRegistry();
         suggesters = searchModule.getSuggesters();
         parseFieldMatcher = ParseFieldMatcher.STRICT;

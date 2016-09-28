@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -36,6 +37,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -167,31 +169,35 @@ public class TransportClusterAllocationExplainAction
         if (node.getId().equals(assignedNodeId)) {
             finalDecision = ClusterAllocationExplanation.FinalDecision.ALREADY_ASSIGNED;
             finalExplanation = "the shard is already assigned to this node";
-        } else if (hasPendingAsyncFetch &&
-                shard.primary() == false &&
-                shard.unassigned() &&
-                shard.allocatedPostIndexCreate(indexMetaData) &&
-                nodeDecision.type() != Decision.Type.YES) {
+        } else if (shard.unassigned() && shard.primary() == false &&
+                shard.unassignedInfo().getReason() != UnassignedInfo.Reason.INDEX_CREATED && nodeDecision.type() != Decision.Type.YES) {
             finalExplanation = "the shard cannot be assigned because allocation deciders return a " + nodeDecision.type().name() +
-                    " decision and the shard's state is still being fetched";
+                    " decision";
             finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
-        } else if (hasPendingAsyncFetch &&
-                shard.unassigned() &&
-                shard.allocatedPostIndexCreate(indexMetaData)) {
+        } else if (shard.unassigned() && shard.primary() == false &&
+                shard.unassignedInfo().getReason() != UnassignedInfo.Reason.INDEX_CREATED && hasPendingAsyncFetch) {
             finalExplanation = "the shard's state is still being fetched so it cannot be allocated";
             finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
-        } else if (shard.primary() && shard.unassigned() && shard.allocatedPostIndexCreate(indexMetaData) &&
+        } else if (shard.primary() && shard.unassigned() &&
+                (shard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE ||
+                    shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT)
+                && hasPendingAsyncFetch) {
+            finalExplanation = "the shard's state is still being fetched so it cannot be allocated";
+            finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
+        } else if (shard.primary() && shard.unassigned() && shard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE &&
                 storeCopy == ClusterAllocationExplanation.StoreCopy.STALE) {
             finalExplanation = "the copy of the shard is stale, allocation ids do not match";
             finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
-        } else if (shard.primary() && shard.unassigned() && shard.allocatedPostIndexCreate(indexMetaData) &&
+        } else if (shard.primary() && shard.unassigned() && shard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE &&
                 storeCopy == ClusterAllocationExplanation.StoreCopy.NONE) {
             finalExplanation = "there is no copy of the shard available";
             finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
-        } else if (shard.primary() && shard.unassigned() && storeCopy == ClusterAllocationExplanation.StoreCopy.CORRUPT) {
+        } else if (shard.primary() && shard.unassigned() && shard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE &&
+                storeCopy == ClusterAllocationExplanation.StoreCopy.CORRUPT) {
             finalExplanation = "the copy of the shard is corrupt";
             finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
-        } else if (shard.primary() && shard.unassigned() && storeCopy == ClusterAllocationExplanation.StoreCopy.IO_ERROR) {
+        } else if (shard.primary() && shard.unassigned() && shard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE &&
+                storeCopy == ClusterAllocationExplanation.StoreCopy.IO_ERROR) {
             finalExplanation = "the copy of the shard cannot be read";
             finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
         } else {
@@ -219,7 +225,7 @@ public class TransportClusterAllocationExplainAction
     public static ClusterAllocationExplanation explainShard(ShardRouting shard, RoutingAllocation allocation, RoutingNodes routingNodes,
                                                             boolean includeYesDecisions, ShardsAllocator shardAllocator,
                                                             List<IndicesShardStoresResponse.StoreStatus> shardStores,
-                                                            GatewayAllocator gatewayAllocator) {
+                                                            GatewayAllocator gatewayAllocator, ClusterInfo clusterInfo) {
         // don't short circuit deciders, we want a full explanation
         allocation.debugDecision(true);
         // get the existing unassigned info if available
@@ -257,21 +263,22 @@ public class TransportClusterAllocationExplainAction
             Float weight = weights.get(node);
             IndicesShardStoresResponse.StoreStatus storeStatus = nodeToStatus.get(node);
             NodeExplanation nodeExplanation = calculateNodeExplanation(shard, indexMetaData, node, decision, weight,
-                    storeStatus, shard.currentNodeId(), indexMetaData.activeAllocationIds(shard.getId()),
+                    storeStatus, shard.currentNodeId(), indexMetaData.inSyncAllocationIds(shard.getId()),
                     allocation.hasPendingAsyncFetch());
             explanations.put(node, nodeExplanation);
         }
         return new ClusterAllocationExplanation(shard.shardId(), shard.primary(),
-            shard.currentNodeId(), allocationDelayMillis, remainingDelayMillis, ui,
-            gatewayAllocator.hasFetchPending(shard.shardId(), shard.primary()), explanations);
+                shard.currentNodeId(), allocationDelayMillis, remainingDelayMillis, ui,
+                gatewayAllocator.hasFetchPending(shard.shardId(), shard.primary()), explanations, clusterInfo);
     }
 
     @Override
     protected void masterOperation(final ClusterAllocationExplainRequest request, final ClusterState state,
                                    final ActionListener<ClusterAllocationExplainResponse> listener) {
         final RoutingNodes routingNodes = state.getRoutingNodes();
+        final ClusterInfo clusterInfo = clusterInfoService.getClusterInfo();
         final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, state,
-                clusterInfoService.getClusterInfo(), System.nanoTime(), false);
+                clusterInfo, System.nanoTime(), false);
 
         ShardRouting foundShard = null;
         if (request.useAnyUnassignedShard()) {
@@ -318,7 +325,8 @@ public class TransportClusterAllocationExplainAction
                         shardStoreResponse.getStoreStatuses().get(shardRouting.getIndexName());
                 List<IndicesShardStoresResponse.StoreStatus> shardStoreStatus = shardStatuses.get(shardRouting.id());
                 ClusterAllocationExplanation cae = explainShard(shardRouting, allocation, routingNodes,
-                        request.includeYesDecisions(), shardAllocator, shardStoreStatus, gatewayAllocator);
+                        request.includeYesDecisions(), shardAllocator, shardStoreStatus, gatewayAllocator,
+                        request.includeDiskInfo() ? clusterInfo : null);
                 listener.onResponse(new ClusterAllocationExplainResponse(cae));
             }
 

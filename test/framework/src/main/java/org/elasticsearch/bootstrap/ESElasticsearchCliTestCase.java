@@ -22,6 +22,7 @@ package org.elasticsearch.bootstrap;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -31,7 +32,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 abstract class ESElasticsearchCliTestCase extends ESTestCase {
 
     interface InitConsumer {
-        void accept(final boolean foreground, final String pidFile, final Map<String, String> esSettings);
+        void accept(final boolean foreground, final Path pidFile, final boolean quiet, final Map<String, String> esSettings);
     }
 
     void runTest(
@@ -45,9 +46,9 @@ abstract class ESElasticsearchCliTestCase extends ESTestCase {
             final AtomicBoolean init = new AtomicBoolean();
             final int status = Elasticsearch.main(args, new Elasticsearch() {
                 @Override
-                void init(final boolean daemonize, final String pidFile, final Map<String, String> esSettings) {
+                void init(final boolean daemonize, final Path pidFile, final boolean quiet, final Map<String, String> esSettings) {
                     init.set(true);
-                    initConsumer.accept(!daemonize, pidFile, esSettings);
+                    initConsumer.accept(!daemonize, pidFile, quiet, esSettings);
                 }
             }, terminal);
             assertThat(status, equalTo(expectedStatus));

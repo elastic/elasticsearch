@@ -20,6 +20,7 @@
 package org.elasticsearch.ttl;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -96,7 +97,6 @@ public class SimpleTTLIT extends ESIntegTestCase {
                         .startObject("_ttl").field("enabled", true).field("default", "1d").endObject()
                         .endObject()
                         .endObject()));
-        ensureYellow("test");
 
         final NumShards test = getNumShards("test");
 
@@ -106,18 +106,18 @@ public class SimpleTTLIT extends ESIntegTestCase {
         long now = System.currentTimeMillis();
         IndexResponse indexResponse = client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
                 .setTimestamp(String.valueOf(now)).setTTL(providedTTLValue).setRefreshPolicy(IMMEDIATE).get();
-        assertThat(indexResponse.isCreated(), is(true));
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
         indexResponse = client().prepareIndex("test", "type1", "with_routing").setSource("field1", "value1")
                 .setTimestamp(String.valueOf(now)).setTTL(providedTTLValue).setRouting("routing").setRefreshPolicy(IMMEDIATE).get();
-        assertThat(indexResponse.isCreated(), is(true));
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
         indexResponse = client().prepareIndex("test", "type1", "no_ttl").setSource("field1", "value1").get();
-        assertThat(indexResponse.isCreated(), is(true));
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
         indexResponse = client().prepareIndex("test", "type2", "default_ttl").setSource("field1", "value1").get();
-        assertThat(indexResponse.isCreated(), is(true));
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         // realtime get check
         long currentTime = System.currentTimeMillis();
-        GetResponse getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").get();
+        GetResponse getResponse = client().prepareGet("test", "type1", "1").setStoredFields("_ttl").get();
         long ttl0;
         if (getResponse.isExists()) {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
@@ -127,7 +127,7 @@ public class SimpleTTLIT extends ESIntegTestCase {
         }
         // verify the ttl is still decreasing when going to the replica
         currentTime = System.currentTimeMillis();
-        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").get();
+        getResponse = client().prepareGet("test", "type1", "1").setStoredFields("_ttl").get();
         if (getResponse.isExists()) {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
             assertThat(ttl0, lessThanOrEqualTo(providedTTLValue - (currentTime - now)));
@@ -136,7 +136,7 @@ public class SimpleTTLIT extends ESIntegTestCase {
         }
         // non realtime get (stored)
         currentTime = System.currentTimeMillis();
-        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).get();
+        getResponse = client().prepareGet("test", "type1", "1").setStoredFields("_ttl").setRealtime(false).get();
         if (getResponse.isExists()) {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
             assertThat(ttl0, lessThanOrEqualTo(providedTTLValue - (currentTime - now)));
@@ -145,7 +145,7 @@ public class SimpleTTLIT extends ESIntegTestCase {
         }
         // non realtime get going the replica
         currentTime = System.currentTimeMillis();
-        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).get();
+        getResponse = client().prepareGet("test", "type1", "1").setStoredFields("_ttl").setRealtime(false).get();
         if (getResponse.isExists()) {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
             assertThat(ttl0, lessThanOrEqualTo(providedTTLValue - (currentTime - now)));
@@ -154,10 +154,10 @@ public class SimpleTTLIT extends ESIntegTestCase {
         }
 
         // no TTL provided so no TTL fetched
-        getResponse = client().prepareGet("test", "type1", "no_ttl").setFields("_ttl").setRealtime(true).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "no_ttl").setStoredFields("_ttl").setRealtime(true).execute().actionGet();
         assertThat(getResponse.getField("_ttl"), nullValue());
         // no TTL provided make sure it has default TTL
-        getResponse = client().prepareGet("test", "type2", "default_ttl").setFields("_ttl").setRealtime(true).execute().actionGet();
+        getResponse = client().prepareGet("test", "type2", "default_ttl").setStoredFields("_ttl").setRealtime(true).execute().actionGet();
         ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl0, greaterThan(0L));
 
@@ -190,28 +190,28 @@ public class SimpleTTLIT extends ESIntegTestCase {
         ));
 
         // realtime get check
-        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "1").setStoredFields("_ttl").setRealtime(true).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
-        getResponse = client().prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(true).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "with_routing").setRouting("routing").setStoredFields("_ttl").setRealtime(true).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
         // replica realtime get check
-        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "1").setStoredFields("_ttl").setRealtime(true).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
-        getResponse = client().prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(true).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "with_routing").setRouting("routing").setStoredFields("_ttl").setRealtime(true).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
 
         // Need to run a refresh, in order for the non realtime get to work.
         client().admin().indices().prepareRefresh("test").execute().actionGet();
 
         // non realtime get (stored) check
-        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "1").setStoredFields("_ttl").setRealtime(false).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
-        getResponse = client().prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(false).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "with_routing").setRouting("routing").setStoredFields("_ttl").setRealtime(false).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
         // non realtime get going the replica check
-        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "1").setStoredFields("_ttl").setRealtime(false).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
-        getResponse = client().prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(false).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "with_routing").setRouting("routing").setStoredFields("_ttl").setRealtime(false).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
     }
 
@@ -252,7 +252,6 @@ public class SimpleTTLIT extends ESIntegTestCase {
                         .startObject("_ttl").field("enabled", true).endObject()
                         .endObject()
                         .endObject()));
-        ensureYellow("test");
 
         long aLongTime = 10000000;
         long firstTtl = aLongTime * 3;
@@ -260,7 +259,7 @@ public class SimpleTTLIT extends ESIntegTestCase {
         long thirdTtl = aLongTime * 1;
         IndexResponse indexResponse = client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
                 .setTTL(firstTtl).setRefreshPolicy(IMMEDIATE).get();
-        assertTrue(indexResponse.isCreated());
+        assertTrue(indexResponse.getResult() == DocWriteResponse.Result.CREATED);
         assertThat(getTtl("type1", 1), both(lessThanOrEqualTo(firstTtl)).and(greaterThan(secondTtl)));
 
         // Updating with the default detect_noop without a change to the document doesn't change the ttl.
@@ -288,7 +287,7 @@ public class SimpleTTLIT extends ESIntegTestCase {
     }
 
     private long getTtl(String type, Object id) {
-        GetResponse getResponse = client().prepareGet("test", type, id.toString()).setFields("_ttl").setRealtime(true).execute()
+        GetResponse getResponse = client().prepareGet("test", type, id.toString()).setStoredFields("_ttl").execute()
                 .actionGet();
         return ((Number) getResponse.getField("_ttl").getValue()).longValue();
     }

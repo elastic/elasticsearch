@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -33,29 +32,10 @@ import java.util.List;
 import java.util.Map;
 
 public class InternalBucketMetricValue extends InternalNumericMetricsAggregation.SingleValue {
-
-    public static final Type TYPE = new Type("bucket_metric_value");
-
-    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalBucketMetricValue readResult(StreamInput in) throws IOException {
-            InternalBucketMetricValue result = new InternalBucketMetricValue();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
+    public static final String NAME = "bucket_metric_value";
 
     private double value;
-
     private String[] keys;
-
-    protected InternalBucketMetricValue() {
-        super();
-    }
 
     public InternalBucketMetricValue(String name, String[] keys, double value, DocValueFormat formatter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
@@ -65,9 +45,26 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
         this.format = formatter;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public InternalBucketMetricValue(StreamInput in) throws IOException {
+        super(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
+        value = in.readDouble();
+        keys = in.readStringArray();
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(format);
+        out.writeDouble(value);
+        out.writeStringArray(keys);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 
     @Override
@@ -95,20 +92,6 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        format = in.readNamedWriteable(DocValueFormat.class);
-        value = in.readDouble();
-        keys = in.readStringArray();
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(format);
-        out.writeDouble(value);
-        out.writeStringArray(keys);
     }
 
     @Override

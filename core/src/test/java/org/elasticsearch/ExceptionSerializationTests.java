@@ -64,7 +64,7 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesNotFoundException;
+import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchParseException;
@@ -121,7 +121,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         final Path startPath = PathUtils.get(ElasticsearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI())
                 .resolve("org").resolve("elasticsearch");
         final Set<? extends Class<?>> ignore = Sets.newHashSet(
-                org.elasticsearch.test.rest.parser.RestTestParseException.class,
+                org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException.class,
                 CancellableThreadsTests.CustomException.class,
                 org.elasticsearch.rest.BytesRestResponseTests.WithHeadersException.class,
                 AbstractClientHeadersTestCase.InternalException.class);
@@ -757,10 +757,10 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(107, org.elasticsearch.repositories.RepositoryMissingException.class);
         ids.put(108, null);
         ids.put(109, org.elasticsearch.index.engine.DocumentSourceMissingException.class);
-        ids.put(110, org.elasticsearch.index.engine.FlushNotAllowedEngineException.class);
+        ids.put(110, null); // FlushNotAllowedEngineException was removed in 5.0
         ids.put(111, org.elasticsearch.common.settings.NoClassSettingsException.class);
         ids.put(112, org.elasticsearch.transport.BindTransportException.class);
-        ids.put(113, org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesNotFoundException.class);
+        ids.put(113, org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException.class);
         ids.put(114, org.elasticsearch.index.shard.IndexShardRecoveringException.class);
         ids.put(115, org.elasticsearch.index.translog.TranslogException.class);
         ids.put(116, org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException.class);
@@ -771,7 +771,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(121, org.elasticsearch.search.aggregations.InvalidAggregationPathException.class);
         ids.put(122, null);
         ids.put(123, org.elasticsearch.indices.IndexAlreadyExistsException.class);
-        ids.put(124, org.elasticsearch.script.Script.ScriptParseException.class);
+        ids.put(124, null);
         ids.put(125, TcpTransport.HttpOnTransportException.class);
         ids.put(126, org.elasticsearch.index.mapper.MapperParsingException.class);
         ids.put(127, org.elasticsearch.search.SearchContextException.class);
@@ -791,6 +791,8 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(141, org.elasticsearch.index.query.QueryShardException.class);
         ids.put(142, ShardStateAction.NoLongerPrimaryShardException.class);
         ids.put(143, org.elasticsearch.script.ScriptException.class);
+        ids.put(144, org.elasticsearch.cluster.NotMasterException.class);
+        ids.put(145, org.elasticsearch.ElasticsearchStatusException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {
@@ -840,5 +842,12 @@ public class ExceptionSerializationTests extends ESTestCase {
                 assertEquals(serialize.getClass().toString(), "c", serialize.getReason());
             }
         }
+    }
+
+    public void testElasticsearchRemoteException() throws IOException {
+        ElasticsearchStatusException ex = new ElasticsearchStatusException("something", RestStatus.TOO_MANY_REQUESTS);
+        ElasticsearchStatusException e = serialize(ex);
+        assertEquals(ex.status(), e.status());
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
     }
 }

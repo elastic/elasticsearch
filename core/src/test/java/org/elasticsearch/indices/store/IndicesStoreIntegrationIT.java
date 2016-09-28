@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.store;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,7 +38,6 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -45,7 +45,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.RecoverySource;
+import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -91,7 +91,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class);
     }
 
     @Override
@@ -125,7 +125,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         logger.info("--> running cluster_health");
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
                 .setWaitForNodes("4")
-                .setWaitForRelocatingShards(0)
+                .setWaitForNoRelocatingShards(true)
                 .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
@@ -158,7 +158,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
             internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_3)).get();
         }
         clusterHealth = client().admin().cluster().prepareHealth()
-                .setWaitForRelocatingShards(0)
+                .setWaitForNoRelocatingShards(true)
                 .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
@@ -215,7 +215,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_2)).get();
         shardActiveRequestSent.await();
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
-                .setWaitForRelocatingShards(0)
+                .setWaitForNoRelocatingShards(true)
                 .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         logClusterState();
@@ -255,7 +255,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         logger.info("--> running cluster_health");
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
                 .setWaitForNodes("3")
-                .setWaitForRelocatingShards(0)
+                .setWaitForNoRelocatingShards(true)
                 .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
@@ -270,7 +270,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         clusterHealth = client().admin().cluster().prepareHealth()
                 .setWaitForGreenStatus()
                 .setWaitForNodes("2")
-                .setWaitForRelocatingShards(0)
+                .setWaitForNoRelocatingShards(true)
                 .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
@@ -313,7 +313,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                         .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", node4)
         ));
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setWaitForGreenStatus().setWaitForNodes("5").get().isTimedOut());
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNoRelocatingShards(true).setWaitForGreenStatus().setWaitForNodes("5").get().isTimedOut());
 
         // disable allocation to control the situation more easily
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
@@ -474,11 +474,11 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
      * the ShardActiveRequest.
      */
     public static class ReclocationStartEndTracer extends MockTransportService.Tracer {
-        private final ESLogger logger;
+        private final Logger logger;
         private final CountDownLatch beginRelocationLatch;
         private final CountDownLatch receivedShardExistsRequestLatch;
 
-        public ReclocationStartEndTracer(ESLogger logger, CountDownLatch beginRelocationLatch, CountDownLatch receivedShardExistsRequestLatch) {
+        public ReclocationStartEndTracer(Logger logger, CountDownLatch beginRelocationLatch, CountDownLatch receivedShardExistsRequestLatch) {
             this.logger = logger;
             this.beginRelocationLatch = beginRelocationLatch;
             this.receivedShardExistsRequestLatch = receivedShardExistsRequestLatch;
@@ -494,7 +494,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         @Override
         public void requestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
-            if (action.equals(RecoverySource.Actions.START_RECOVERY)) {
+            if (action.equals(PeerRecoverySourceService.Actions.START_RECOVERY)) {
                 logger.info("sent: {}, relocation starts", action);
                 beginRelocationLatch.countDown();
             }

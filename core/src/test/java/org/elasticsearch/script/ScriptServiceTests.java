@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -44,7 +45,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -81,11 +82,14 @@ public class ScriptServiceTests extends ESTestCase {
         baseSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
+                .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 10000)
                 .build();
         resourceWatcherService = new ResourceWatcherService(baseSettings, null);
         scriptEngineService = new TestEngineService();
         dangerousScriptEngineService = new TestDangerousEngineService();
-        scriptEnginesByLangMap = ScriptModesTests.buildScriptEnginesByLangMap(Collections.singleton(scriptEngineService));
+        TestEngineService defaultScriptServiceEngine = new TestEngineService(Script.DEFAULT_SCRIPT_LANG) {};
+        scriptEnginesByLangMap = ScriptModesTests.buildScriptEnginesByLangMap(
+                new HashSet<>(Arrays.asList(scriptEngineService, defaultScriptServiceEngine)));
         //randomly register custom script contexts
         int randomInt = randomIntBetween(0, 3);
         //prevent duplicates using map
@@ -102,7 +106,8 @@ public class ScriptServiceTests extends ESTestCase {
             String context = plugin + "_" + operation;
             contexts.put(context, new ScriptContext.Plugin(plugin, operation));
         }
-        scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(scriptEngineService, dangerousScriptEngineService));
+        scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(scriptEngineService, dangerousScriptEngineService,
+                defaultScriptServiceEngine));
         scriptContextRegistry = new ScriptContextRegistry(contexts.values());
         scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
@@ -122,6 +127,30 @@ public class ScriptServiceTests extends ESTestCase {
                 return "100";
             }
         };
+    }
+
+    public void testCompilationCircuitBreaking() throws Exception {
+        buildScriptService(Settings.EMPTY);
+        scriptService.setMaxCompilationsPerMinute(1);
+        scriptService.checkCompilationLimit(); // should pass
+        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
+        scriptService.setMaxCompilationsPerMinute(2);
+        scriptService.checkCompilationLimit(); // should pass
+        scriptService.checkCompilationLimit(); // should pass
+        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
+        int count = randomIntBetween(5, 50);
+        scriptService.setMaxCompilationsPerMinute(count);
+        for (int i = 0; i < count; i++) {
+            scriptService.checkCompilationLimit(); // should pass
+        }
+        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
+        scriptService.setMaxCompilationsPerMinute(0);
+        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
+        scriptService.setMaxCompilationsPerMinute(Integer.MAX_VALUE);
+        int largeLimit = randomIntBetween(1000, 10000);
+        for (int i = 0; i < largeLimit; i++) {
+            scriptService.checkCompilationLimit();
+        }
     }
 
     public void testNotSupportedDisableDynamicSetting() throws IOException {
@@ -381,12 +410,11 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testDefaultLanguage() throws IOException {
         Settings.Builder builder = Settings.builder();
-        builder.put("script.default_lang", "test");
         builder.put("script.inline", "true");
         buildScriptService(builder.build());
         CompiledScript script = scriptService.compile(new Script("1 + 1", ScriptType.INLINE, null, null),
                 randomFrom(scriptContexts), Collections.emptyMap());
-        assertEquals(script.lang(), "test");
+        assertEquals(script.lang(), Script.DEFAULT_SCRIPT_LANG);
     }
 
     public void testStoreScript() throws Exception {
@@ -401,14 +429,14 @@ public class ScriptServiceTests extends ESTestCase {
         ScriptMetaData scriptMetaData = result.getMetaData().custom(ScriptMetaData.TYPE);
         assertNotNull(scriptMetaData);
         assertEquals("abc", scriptMetaData.getScript("_lang", "_id"));
-        assertEquals(script, scriptMetaData.getScriptAsBytes("_lang", "_id"));
     }
 
     public void testDeleteScript() throws Exception {
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder()
                         .putCustom(ScriptMetaData.TYPE,
-                                new ScriptMetaData.Builder(null).storeScript("_lang", "_id", new BytesArray("abc")).build()))
+                                new ScriptMetaData.Builder(null).storeScript("_lang", "_id",
+                                    new BytesArray("{\"script\":\"abc\"}")).build()))
                 .build();
 
         DeleteStoredScriptRequest request = new DeleteStoredScriptRequest("_lang", "_id");
@@ -444,12 +472,12 @@ public class ScriptServiceTests extends ESTestCase {
         int maxSize = 0xFFFF;
         buildScriptService(Settings.EMPTY);
         // allowed
-        scriptService.validate("_id", "test", new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 13) + "\"}"));
+        scriptService.validateStoredScript("_id", "test", new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 13) + "\"}"));
 
         // disallowed
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> {
-                    scriptService.validate("_id", "test", new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 12) + "\"}"));
+                    scriptService.validateStoredScript("_id", "test", new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 12) + "\"}"));
                 });
         assertThat(e.getMessage(), equalTo(
                 "Limit of script size in bytes [" + maxSize+ "] has been exceeded for script [_id] with size [" + (maxSize + 1) + "]"));
@@ -484,14 +512,24 @@ public class ScriptServiceTests extends ESTestCase {
 
         public static final String NAME = "test";
 
+        private final String name;
+
+        public TestEngineService() {
+            this(NAME);
+        }
+
+        public TestEngineService(String name) {
+            this.name = name;
+        }
+
         @Override
         public String getType() {
-            return NAME;
+            return name;
         }
 
         @Override
         public String getExtension() {
-            return NAME;
+            return name;
         }
 
         @Override

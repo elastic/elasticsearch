@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.translog;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TwoPhaseCommit;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,7 +38,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -49,18 +48,15 @@ import org.elasticsearch.index.shard.IndexShardComponent;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -113,7 +109,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     // the list of translog readers is guaranteed to be in order of translog generation
     private final List<TranslogReader> readers = new ArrayList<>();
-    private volatile ScheduledFuture<?> syncScheduler;
     // this is a concurrent set and is not protected by any of the locks. The main reason
     // is that is being accessed by two separate classes (additions & reading are done by Translog, remove by View when closed)
     private final Set<View> outstandingViews = ConcurrentCollections.newConcurrentSet();
@@ -201,7 +196,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 Files.createDirectories(location);
                 final long generation = 1;
                 Checkpoint checkpoint = new Checkpoint(0, 0, generation);
-                Checkpoint.write(getChannelFactory(), location.resolve(CHECKPOINT_FILE_NAME), checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
+                final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
+                Checkpoint.write(getChannelFactory(), checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
+                IOUtils.fsync(checkpointFile, false);
                 current = createWriter(generation);
                 this.lastCommittedTranslogFileGeneration = NOT_SET_GENERATION;
 
@@ -259,7 +256,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 try {
                     Files.delete(tempFile);
                 } catch (IOException ex) {
-                    logger.warn("failed to delete temp file {}", ex, tempFile);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to delete temp file {}", tempFile), ex);
                 }
             }
         }
@@ -311,7 +308,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     closeFilesIfNoPendingViews();
                 }
             } finally {
-                FutureUtils.cancel(syncScheduler);
                 logger.debug("translog closed");
             }
         }
@@ -386,31 +382,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return newFile;
     }
 
-
-    /**
-     * Read the Operation object from the given location. This method will try to read the given location from
-     * the current or from the currently committing translog file. If the location is in a file that has already
-     * been closed or even removed the method will return <code>null</code> instead.
-     */
-    public Translog.Operation read(Location location) {
-        try (ReleasableLock lock = readLock.acquire()) {
-            final BaseTranslogReader reader;
-            final long currentGeneration = current.getGeneration();
-            if (currentGeneration == location.generation) {
-                reader = current;
-            } else if (readers.isEmpty() == false && readers.get(readers.size() - 1).getGeneration() == location.generation) {
-                reader = readers.get(readers.size() - 1);
-            } else if (currentGeneration < location.generation) {
-                throw new IllegalStateException("location generation [" + location.generation + "] is greater than the current generation [" + currentGeneration + "]");
-            } else {
-                return null;
-            }
-            return reader.read(location);
-        } catch (IOException e) {
-            throw new ElasticsearchException("failed to read source from translog location " + location, e);
-        }
-    }
-
     /**
      * Adds a delete / index operations to the transaction log.
      *
@@ -434,7 +405,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             try (ReleasableLock lock = readLock.acquire()) {
                 ensureOpen();
                 Location location = current.add(bytes);
-                assert assertBytesAtLocation(location, bytes);
                 return location;
             }
         } catch (AlreadyClosedException | IOException ex) {
@@ -471,12 +441,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    boolean assertBytesAtLocation(Translog.Location location, BytesReference expectedBytes) throws IOException {
-        // tests can override this
-        ByteBuffer buffer = ByteBuffer.allocate(location.size);
-        current.readBytes(buffer, location.translogLocation);
-        return new BytesArray(buffer.array()).equals(expectedBytes);
-    }
 
     /**
      * Snapshots the current transaction log allowing to safely iterate over the snapshot.
@@ -563,6 +527,24 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             throw ex;
         }
         return false;
+    }
+
+    /**
+     * Ensures that all locations in the given stream have been synced / written to the underlying storage.
+     * This method allows for internal optimization to minimize the amout of fsync operations if multiple
+     * locations must be synced.
+     *
+     * @return Returns <code>true</code> iff this call caused an actual sync operation otherwise <code>false</code>
+     */
+    public boolean ensureSynced(Stream<Location> locations) throws IOException {
+        final Optional<Location> max = locations.max(Location::compareTo);
+        // we only need to sync the max location since it will sync all other
+        // locations implicitly
+        if (max.isPresent()) {
+            return ensureSynced(max.get());
+        } else {
+            return false;
+        }
     }
 
     private void closeOnTragicEvent(Exception ex) {
@@ -654,7 +636,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
 
-    public static class Location implements Accountable, Comparable<Location> {
+    public static class Location implements Comparable<Location> {
 
         public final long generation;
         public final long translogLocation;
@@ -666,17 +648,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             this.size = size;
         }
 
-        @Override
-        public long ramBytesUsed() {
-            return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 2 * Long.BYTES + Integer.BYTES;
-        }
-
-        @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
-        }
-
-        @Override
         public String toString() {
             return "[generation: " + generation + ", location: " + translogLocation + ", size: " + size + "]";
         }
@@ -779,7 +750,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         /**
          * Reads the type and the operation from the given stream. The operatino must be written with
-         * {@link #writeType(Operation, StreamOutput)}
+         * {@link Operation#writeType(Operation, StreamOutput)}
          */
         static Operation readType(StreamInput input) throws IOException {
             Translog.Operation.Type type = Translog.Operation.Type.fromId(input.readByte());
@@ -823,22 +794,25 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     public static class Index implements Operation {
-        public static final int SERIALIZATION_FORMAT = 7;
-
-        private String id;
-        private String type;
+        public static final int FORMAT_2x = 6; // since 2.0-beta1 and 1.1
+        public static final int FORMAT_AUTO_GENERATED_IDS = 7; // since 5.0.0-beta1
+        public static final int FORMAT_SEQ_NO = FORMAT_AUTO_GENERATED_IDS + 1; // since 6.0.0
+        public static final int SERIALIZATION_FORMAT = FORMAT_SEQ_NO + 1;
+        private final String id;
+        private final long autoGeneratedIdTimestamp;
+        private final String type;
         private long seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
-        private long version = Versions.MATCH_ANY;
-        private VersionType versionType = VersionType.INTERNAL;
-        private BytesReference source;
-        private String routing;
-        private String parent;
-        private long timestamp;
-        private long ttl;
+        private final long version;
+        private final VersionType versionType;
+        private final BytesReference source;
+        private final String routing;
+        private final String parent;
+        private final long timestamp;
+        private final long ttl;
 
         public Index(StreamInput in) throws IOException {
             final int format = in.readVInt(); // SERIALIZATION_FORMAT
-            assert format >= SERIALIZATION_FORMAT - 1 : "format was: " + format;
+            assert format >= FORMAT_2x : "format was: " + format;
             id = in.readString();
             type = in.readString();
             source = in.readBytesReference();
@@ -849,7 +823,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             this.ttl = in.readLong();
             this.versionType = VersionType.fromValue(in.readByte());
             assert versionType.validateVersionForWrites(this.version);
-            if (format >= 7) {
+            if (format >= FORMAT_AUTO_GENERATED_IDS) {
+                this.autoGeneratedIdTimestamp = in.readLong();
+            } else {
+                this.autoGeneratedIdTimestamp = IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
+            }
+            if (format >= FORMAT_SEQ_NO) {
                 seqNo = in.readVLong();
             }
         }
@@ -865,6 +844,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             this.timestamp = index.timestamp();
             this.ttl = index.ttl();
             this.versionType = index.versionType();
+            this.autoGeneratedIdTimestamp = index.getAutoGeneratedIdTimestamp();
         }
 
         public Index(String type, String id, byte[] source) {
@@ -872,13 +852,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             this.id = id;
             this.source = new BytesArray(source);
             this.seqNo = 0;
-            this.version = 0;
             version = Versions.MATCH_ANY;
             versionType = VersionType.INTERNAL;
             routing = null;
             parent = null;
             timestamp = 0;
             ttl = 0;
+            autoGeneratedIdTimestamp = -1;
         }
 
         @Override
@@ -948,6 +928,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             out.writeLong(timestamp);
             out.writeLong(ttl);
             out.writeByte(versionType.getValue());
+            out.writeLong(autoGeneratedIdTimestamp);
             out.writeVLong(seqNo);
         }
 
@@ -969,6 +950,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     id.equals(index.id) == false ||
                     type.equals(index.type) == false ||
                     versionType != index.versionType ||
+                    autoGeneratedIdTimestamp != index.autoGeneratedIdTimestamp ||
                     source.equals(index.source) == false) {
                     return false;
             }
@@ -990,6 +972,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             result = 31 * result + (routing != null ? routing.hashCode() : 0);
             result = 31 * result + (parent != null ? parent.hashCode() : 0);
             result = 31 * result + Long.hashCode(timestamp);
+            result = 31 * result + Long.hashCode(autoGeneratedIdTimestamp);
             result = 31 * result + Long.hashCode(ttl);
             return result;
         }
@@ -1000,6 +983,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     "id='" + id + '\'' +
                     ", type='" + type + '\'' +
                     '}';
+        }
+
+        public long getAutoGeneratedIdTimestamp() {
+            return autoGeneratedIdTimestamp;
         }
     }
 
@@ -1216,7 +1203,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     @Override
-    public void prepareCommit() throws IOException {
+    public long prepareCommit() throws IOException {
         try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
             if (currentCommittingGeneration != NOT_SET_GENERATION) {
@@ -1239,10 +1226,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             IOUtils.closeWhileHandlingException(this); // tragic event
             throw e;
         }
+        return 0L;
     }
 
     @Override
-    public void commit() throws IOException {
+    public long commit() throws IOException {
         try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
             if (currentCommittingGeneration == NOT_SET_GENERATION) {
@@ -1255,6 +1243,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             currentCommittingGeneration = NOT_SET_GENERATION;
             trimUnreferencedReaders();
         }
+        return 0;
     }
 
     void trimUnreferencedReaders() {

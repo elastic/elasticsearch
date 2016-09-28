@@ -25,6 +25,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
+import java.util.Collections;
+import java.util.Set;
 
 /**
  * A generic abstraction on top of handling content, inspired by JSON and pull parsing.
@@ -42,27 +44,20 @@ public interface XContent {
      * Creates a new generator using the provided output stream.
      */
     default XContentGenerator createGenerator(OutputStream os) throws IOException {
-        return createGenerator(os, null, true);
+        return createGenerator(os, Collections.emptySet(), Collections.emptySet());
     }
 
     /**
-     * Creates a new generator using the provided output stream and some
-     * inclusive filters. Same as createGenerator(os, filters, true).
-     */
-    default XContentGenerator createGenerator(OutputStream os, String[] filters) throws IOException {
-        return createGenerator(os, filters, true);
-    }
-
-    /**
-     * Creates a new generator using the provided output stream and some
-     * filters.
+     * Creates a new generator using the provided output stream and some inclusive and/or exclusive filters. When both exclusive and
+     * inclusive filters are provided, the underlying generator will first use exclusion filters to remove fields and then will check the
+     * remaining fields against the inclusive filters.
      *
-     * @param inclusive
-     *            If true only paths matching a filter will be included in
-     *            output. If false no path matching a filter will be included in
-     *            output
+     * @param os       the output stream
+     * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.
+     * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
      */
-    XContentGenerator createGenerator(OutputStream os, String[] filters, boolean inclusive) throws IOException;
+    XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException;
+
     /**
      * Creates a parser over the provided string content.
      */

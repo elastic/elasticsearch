@@ -19,6 +19,9 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -29,10 +32,11 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -55,13 +59,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- *
+ * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
+ * this class are created through {@link RecoveriesCollection}.
  */
-
-
 public class RecoveryTarget extends AbstractRefCounted implements RecoveryTargetHandler {
 
-    private final ESLogger logger;
+    private final Logger logger;
 
     private static final AtomicLong idGenerator = new AtomicLong();
 
@@ -73,32 +76,54 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final DiscoveryNode sourceNode;
     private final String tempFilePrefix;
     private final Store store;
-    private final RecoveryTargetService.RecoveryListener listener;
+    private final PeerRecoveryTargetService.RecoveryListener listener;
+    private final Callback<Long> ensureClusterStateVersionCallback;
 
     private final AtomicBoolean finished = new AtomicBoolean();
 
     private final ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
-    private final CancellableThreads cancellableThreads = new CancellableThreads();
+    private final CancellableThreads cancellableThreads;
 
     // last time this status was accessed
     private volatile long lastAccessTime = System.nanoTime();
 
     private final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
-    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryTargetService.RecoveryListener listener) {
+    private RecoveryTarget(RecoveryTarget copyFrom) { // copy constructor
+        this(copyFrom.indexShard, copyFrom.sourceNode, copyFrom.listener, copyFrom.cancellableThreads, copyFrom.recoveryId,
+            copyFrom.ensureClusterStateVersionCallback);
+    }
 
+    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
+                          Callback<Long> ensureClusterStateVersionCallback) {
+        this(indexShard, sourceNode, listener, new CancellableThreads(), idGenerator.incrementAndGet(), ensureClusterStateVersionCallback);
+    }
+    /**
+     * creates a new recovery target object that represents a recovery to the provided indexShard
+     *
+     * @param indexShard local shard where we want to recover to
+     * @param sourceNode source node of the recovery where we recover from
+     * @param listener called when recovery is completed / failed
+     * @param ensureClusterStateVersionCallback callback to ensure that the current node is at least on a cluster state with the provided
+     *                                          version. Necessary for primary relocation so that new primary knows about all other ongoing
+     *                                          replica recoveries when replicating documents (see {@link RecoverySourceHandler}).
+     */
+    private RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
+                           CancellableThreads cancellableThreads, long recoveryId, Callback<Long> ensureClusterStateVersionCallback) {
         super("recovery_status");
-        this.recoveryId = idGenerator.incrementAndGet();
+        this.cancellableThreads = cancellableThreads;
+        this.recoveryId = recoveryId;
         this.listener = listener;
         this.logger = Loggers.getLogger(getClass(), indexShard.indexSettings().getSettings(), indexShard.shardId());
         this.indexShard = indexShard;
         this.sourceNode = sourceNode;
         this.shardId = indexShard.shardId();
-        this.tempFilePrefix = RECOVERY_PREFIX + indexShard.recoveryState().getTimer().startTime() + ".";
+        this.tempFilePrefix = RECOVERY_PREFIX + UUIDs.base64UUID() + ".";
         this.store = indexShard.store();
-        indexShard.recoveryStats().incCurrentAsTarget();
+        this.ensureClusterStateVersionCallback = ensureClusterStateVersionCallback;
         // make sure the store is not released until we are done.
         store.incRef();
+        indexShard.recoveryStats().incCurrentAsTarget();
     }
 
     public long recoveryId() {
@@ -149,6 +174,22 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     public void renameAllTempFiles() throws IOException {
         ensureRefCount();
         store.renameTempFilesSafe(tempFileNames);
+    }
+
+    /**
+     * Closes the current recovery target and returns a
+     * clone to reset the ongoing recovery.
+     * Note: the returned target must be canceled, failed or finished
+     * in order to release all it's reference.
+     */
+    RecoveryTarget resetRecovery() throws IOException {
+        ensureRefCount();
+        if (finished.compareAndSet(false, true)) {
+            // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
+            decRef();
+        }
+        indexShard.performRecoveryRestart();
+        return new RecoveryTarget(this);
     }
 
     /**
@@ -243,39 +284,31 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         return indexOutput;
     }
 
-    public void resetRecovery() throws IOException {
-        cleanOpenFiles();
-        indexShard().performRecoveryRestart();
-    }
-
     @Override
     protected void closeInternal() {
         try {
-            cleanOpenFiles();
+            // clean open index outputs
+            Iterator<Entry<String, IndexOutput>> iterator = openIndexOutputs.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<String, IndexOutput> entry = iterator.next();
+                logger.trace("closing IndexOutput file [{}]", entry.getValue());
+                try {
+                    entry.getValue().close();
+                } catch (Exception e) {
+                    logger.debug(
+                        (Supplier<?>) () -> new ParameterizedMessage("error while closing recovery output [{}]", entry.getValue()), e);
+                }
+                iterator.remove();
+            }
+            // trash temporary files
+            for (String file : tempFileNames.keySet()) {
+                logger.trace("cleaning temporary file [{}]", file);
+                store.deleteQuiet(file);
+            }
         } finally {
             // free store. increment happens in constructor
             store.decRef();
             indexShard.recoveryStats().decCurrentAsTarget();
-        }
-    }
-
-    protected void cleanOpenFiles() {
-        // clean open index outputs
-        Iterator<Entry<String, IndexOutput>> iterator = openIndexOutputs.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<String, IndexOutput> entry = iterator.next();
-            logger.trace("closing IndexOutput file [{}]", entry.getValue());
-            try {
-                entry.getValue().close();
-            } catch (Exception e) {
-                logger.debug("error while closing recovery output [{}]", e, entry.getValue());
-            }
-            iterator.remove();
-        }
-        // trash temporary files
-        for (String file : tempFileNames.keySet()) {
-            logger.trace("cleaning temporary file [{}]", file);
-            store.deleteQuiet(file);
         }
     }
 
@@ -294,9 +327,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /*** Implementation of {@link RecoveryTargetHandler } */
 
     @Override
-    public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
+    public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
-        indexShard().skipTranslogRecovery();
+        indexShard().skipTranslogRecovery(maxUnsafeAutoIdTimestamp);
     }
 
     @Override
@@ -304,6 +337,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         final IndexShard indexShard = indexShard();
         indexShard.finalizeRecovery();
         return new FinalizeResponse(indexShard.routingEntry().allocationId().getId(), indexShard.getLocalCheckpoint());
+    }
+
+    @Override
+    public void ensureClusterStateVersion(long clusterStateVersion) {
+        ensureClusterStateVersionCallback.handle(clusterStateVersion);
     }
 
     @Override
@@ -396,7 +434,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 indexOutput.close();
             }
             final String temporaryFileName = getTempNameForFile(name);
-            assert Arrays.asList(store.directory().listAll()).contains(temporaryFileName);
+            assert Arrays.asList(store.directory().listAll()).contains(temporaryFileName) :
+                "expected: [" + temporaryFileName + "] in " + Arrays.toString(store.directory().listAll());
             store.directory().sync(Collections.singleton(temporaryFileName));
             IndexOutput remove = removeOpenIndexOutputs(name);
             assert remove == null || remove == indexOutput; // remove maybe null if we got finished

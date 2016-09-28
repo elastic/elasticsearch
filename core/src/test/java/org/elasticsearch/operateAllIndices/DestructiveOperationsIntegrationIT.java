@@ -74,7 +74,6 @@ public class DestructiveOperationsIntegrationIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareCreate("index1").get());
         assertAcked(client().admin().indices().prepareCreate("1index").get());
-        ensureYellow();// wait for primaries to be allocated
         // Should succeed, since no wildcards
         assertAcked(client().admin().indices().prepareClose("1index").get());
 

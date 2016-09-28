@@ -22,6 +22,7 @@ package org.elasticsearch.update;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -370,7 +371,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript(new Script("field", ScriptService.ScriptType.INLINE, "field_inc", null))
                 .execute().actionGet();
-        assertTrue(updateResponse.isCreated());
+        assertEquals(DocWriteResponse.Result.CREATED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
@@ -382,7 +383,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript(new Script("field", ScriptService.ScriptType.INLINE, "field_inc", null))
                 .execute().actionGet();
-        assertFalse(updateResponse.isCreated());
+        assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
@@ -411,7 +412,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .setScriptedUpsert(true)
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "scripted_upsert", params))
                 .execute().actionGet();
-        assertTrue(updateResponse.isCreated());
+        assertEquals(DocWriteResponse.Result.CREATED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
@@ -425,7 +426,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .setScriptedUpsert(true)
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "scripted_upsert", params))
                 .execute().actionGet();
-        assertFalse(updateResponse.isCreated());
+        assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
@@ -468,7 +469,7 @@ public class UpdateIT extends ESIntegTestCase {
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values", Collections.singletonMap("extra", "foo")))
-                .setFields("_source")
+                .setFetchSource(true)
                 .execute().actionGet();
 
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -526,15 +527,9 @@ public class UpdateIT extends ESIntegTestCase {
                         .setVersionType(VersionType.EXTERNAL).execute(),
                 ActionRequestValidationException.class);
 
-
-        // With force version
-        client().prepareUpdate(indexOrAlias(), "type", "2")
-                .setScript(new Script("", ScriptService.ScriptType.INLINE,  "put_values", Collections.singletonMap("text", "v10")))
-                .setVersion(10).setVersionType(VersionType.FORCE).get();
-
         GetResponse get = get("test", "type", "2");
         assertThat(get.getVersion(), equalTo(10L));
-        assertThat((String) get.getSource().get("text"), equalTo("v10"));
+        assertThat((String) get.getSource().get("text"), equalTo("value"));
 
         // upserts - the combination with versions is a bit weird. Test are here to ensure we do not change our behavior unintentionally
 
@@ -554,7 +549,7 @@ public class UpdateIT extends ESIntegTestCase {
         UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values", Collections.singletonMap("extra", "foo")))
-                .setFields("_source")
+                .setFetchSource(true)
                 .execute().actionGet();
 
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -581,7 +576,7 @@ public class UpdateIT extends ESIntegTestCase {
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setScript(new Script("field", ScriptService.ScriptType.INLINE, "field_inc", null)).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(2L));
-        assertFalse(updateResponse.isCreated());
+        assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
@@ -594,7 +589,7 @@ public class UpdateIT extends ESIntegTestCase {
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setScript(new Script("field", ScriptService.ScriptType.INLINE, "field_inc", params)).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(3L));
-        assertFalse(updateResponse.isCreated());
+        assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
@@ -606,7 +601,7 @@ public class UpdateIT extends ESIntegTestCase {
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values", Collections.singletonMap("_ctx", Collections.singletonMap("op", "none")))).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(3L));
-        assertFalse(updateResponse.isCreated());
+        assertEquals(DocWriteResponse.Result.NOOP, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
@@ -618,7 +613,7 @@ public class UpdateIT extends ESIntegTestCase {
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values", Collections.singletonMap("_ctx", Collections.singletonMap("op", "delete")))).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(4L));
-        assertFalse(updateResponse.isCreated());
+        assertEquals(DocWriteResponse.Result.DELETED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
@@ -629,13 +624,29 @@ public class UpdateIT extends ESIntegTestCase {
         // check fields parameter
         client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
-                .setScript(new Script("field", ScriptService.ScriptType.INLINE, "field_inc", null)).setFields("_source", "field")
-                .execute().actionGet();
+            .setScript(new Script("field", ScriptService.ScriptType.INLINE, "field_inc", null))
+            .setFields("field")
+            .setFetchSource(true)
+            .execute().actionGet();
         assertThat(updateResponse.getIndex(), equalTo("test"));
         assertThat(updateResponse.getGetResult(), notNullValue());
         assertThat(updateResponse.getGetResult().getIndex(), equalTo("test"));
         assertThat(updateResponse.getGetResult().sourceRef(), notNullValue());
         assertThat(updateResponse.getGetResult().field("field").getValue(), notNullValue());
+
+        // check _source parameter
+        client().prepareIndex("test", "type1", "1").setSource("field1", 1, "field2", 2).execute().actionGet();
+        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+            .setScript(new Script("field1", ScriptService.ScriptType.INLINE, "field_inc", null))
+            .setFetchSource("field1", "field2")
+            .get();
+        assertThat(updateResponse.getIndex(), equalTo("test"));
+        assertThat(updateResponse.getGetResult(), notNullValue());
+        assertThat(updateResponse.getGetResult().getIndex(), equalTo("test"));
+        assertThat(updateResponse.getGetResult().sourceRef(), notNullValue());
+        assertThat(updateResponse.getGetResult().field("field1"), nullValue());
+        assertThat(updateResponse.getGetResult().sourceAsMap().size(), equalTo(1));
+        assertThat(updateResponse.getGetResult().sourceAsMap().get("field1"), equalTo(2));
 
         // check updates without script
         // add new field

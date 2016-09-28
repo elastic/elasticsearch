@@ -31,7 +31,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -43,9 +43,7 @@ import java.util.Optional;
  * Constructs a query that only match on documents that the field has a value in them.
  */
 public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder> {
-
     public static final String NAME = "exists";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
 

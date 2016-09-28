@@ -19,18 +19,29 @@
 
 package org.elasticsearch.cloud.gce;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 
 public class GceModule extends AbstractModule {
     // pkg private so tests can override with mock
-    static Class<? extends GceComputeService> computeServiceImpl = GceComputeServiceImpl.class;
+    static Class<? extends GceInstancesService> computeServiceImpl = GceInstancesServiceImpl.class;
 
-    public static Class<? extends GceComputeService> getComputeServiceImpl() {
+    protected final Settings settings;
+    protected final Logger logger = Loggers.getLogger(GceModule.class);
+
+    public GceModule(Settings settings) {
+        this.settings = settings;
+    }
+
+    public static Class<? extends GceInstancesService> getComputeServiceImpl() {
         return computeServiceImpl;
     }
 
     @Override
     protected void configure() {
-        bind(GceComputeService.class).to(computeServiceImpl).asEagerSingleton();
+        logger.debug("configure GceModule (bind compute service)");
+        bind(GceInstancesService.class).to(computeServiceImpl).asEagerSingleton();
     }
 }

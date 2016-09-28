@@ -21,6 +21,7 @@ package org.elasticsearch.test.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -29,14 +30,11 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -52,10 +50,10 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.local.LocalTransport;
-import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -74,54 +72,31 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * (for example, @see org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing, which constructs
  * fake DiscoveryNode instances where the publish address is one of the bound addresses).
  */
-public class MockTransportService extends TransportService {
+public final class MockTransportService extends TransportService {
 
     public static class TestPlugin extends Plugin {
-        public void onModule(NetworkModule module) {
-            module.registerTransportService("mock", MockTransportService.class);
-        }
-
         @Override
         public List<Setting<?>> getSettings() {
             return Arrays.asList(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING);
         }
-        @Override
-        public Settings additionalSettings() {
-            return Settings.builder().put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, "mock").build();
-        }
     }
 
     public static MockTransportService local(Settings settings, Version version, ThreadPool threadPool) {
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         Transport transport = new LocalTransport(settings, threadPool, namedWriteableRegistry, new NoneCircuitBreakerService()) {
             @Override
             protected Version getVersion() {
                 return version;
             }
         };
-        return new MockTransportService(settings, transport, threadPool);
+        return new MockTransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR);
     }
-
-    public static MockTransportService nettyFromThreadPool(
-            Settings settings,
-            ThreadPool threadPool, final Version version) {
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        Transport transport = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE,
-                namedWriteableRegistry, new NoneCircuitBreakerService()) {
-            @Override
-            protected Version getCurrentVersion() {
-                return version;
-            }
-        };
-        return new MockTransportService(Settings.EMPTY, transport, threadPool);
-    }
-
 
     private final Transport original;
 
     @Inject
-    public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
-        super(settings, new LookupTestTransport(transport), threadPool);
+    public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor) {
+        super(settings, new LookupTestTransport(transport), threadPool, interceptor);
         this.original = transport;
     }
 
@@ -659,6 +634,4 @@ public class MockTransportService extends TransportService {
             }
         }
     }
-
-
 }

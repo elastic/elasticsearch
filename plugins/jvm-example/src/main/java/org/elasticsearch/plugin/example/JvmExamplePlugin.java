@@ -44,13 +44,13 @@ public class JvmExamplePlugin extends Plugin {
     }
 
     @Override
-    public Collection<Module> nodeModules() {
+    public Collection<Module> createGuiceModules() {
         return Collections.<Module>singletonList(new ConfiguredExampleModule());
     }
 
     @Override
     @SuppressWarnings("rawtypes") // Plugin use a rawtype
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
         Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         return services;
     }
@@ -64,7 +64,7 @@ public class JvmExamplePlugin extends Plugin {
     }
 
     /**
-     * Module decalaring some example configuration and a _cat action that uses
+     * Module declaring some example configuration and a _cat action that uses
      * it.
      */
     public static class ConfiguredExampleModule extends AbstractModule {

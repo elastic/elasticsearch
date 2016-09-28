@@ -19,15 +19,17 @@
 
 package org.elasticsearch.ingest.attachment;
 
-import org.elasticsearch.node.NodeModule;
+import java.util.Collections;
+import java.util.Map;
+
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-import java.io.IOException;
+public class IngestAttachmentPlugin extends Plugin implements IngestPlugin {
 
-public class IngestAttachmentPlugin extends Plugin {
-
-    public void onModule(NodeModule nodeModule) throws IOException {
-        nodeModule.registerProcessor(AttachmentProcessor.TYPE,
-            (registry) -> new AttachmentProcessor.Factory());
+    @Override
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        return Collections.singletonMap(AttachmentProcessor.TYPE, new AttachmentProcessor.Factory());
     }
 }

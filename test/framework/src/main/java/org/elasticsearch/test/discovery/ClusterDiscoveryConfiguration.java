@@ -21,10 +21,12 @@ package org.elasticsearch.test.discovery;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.transport.TransportSettings;
@@ -107,7 +109,7 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
 
         @Override
         public Settings nodeSettings(int nodeOrdinal) {
-            Settings.Builder builder = Settings.builder();
+            Settings.Builder builder = Settings.builder().put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), numOfNodes);
 
             String[] unicastHosts = new String[unicastHostOrdinals.length];
             if (nodeOrdinal >= unicastHostPorts.length) {
@@ -116,7 +118,7 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
                 // we need to pin the node port & host so we'd know where to point things
                 builder.put(TransportSettings.PORT.getKey(), unicastHostPorts[nodeOrdinal]);
                 builder.put(TransportSettings.HOST.getKey(), IP_ADDR); // only bind on one IF we use v4 here by default
-                builder.put("http.enabled", false);
+                builder.put(NetworkModule.HTTP_ENABLED.getKey(), false);
                 for (int i = 0; i < unicastHostOrdinals.length; i++) {
                     unicastHosts[i] = IP_ADDR + ":" + (unicastHostPorts[unicastHostOrdinals[i]]);
                 }

@@ -20,7 +20,6 @@
 package org.elasticsearch.nodesinfo;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -35,11 +34,11 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.ingest.IngestInfo;
+import org.elasticsearch.ingest.ProcessorInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.monitor.os.DummyOsInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
-import org.elasticsearch.plugins.DummyPluginInfo;
+import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,7 +47,6 @@ import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,25 +56,20 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.IsEqual.equalTo;
 
-/**
- *
- */
 public class NodeInfoStreamingTests extends ESTestCase {
 
     public void testNodeInfoStreaming() throws IOException {
         NodeInfo nodeInfo = createNodeInfo();
-        Version version = Version.CURRENT;
-        BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(version);
-        nodeInfo.writeTo(out);
-        out.close();
-        StreamInput in = out.bytes().streamInput();
-        in.setVersion(version);
-        NodeInfo readNodeInfo = NodeInfo.readNodeInfo(in);
-        assertExpectedUnchanged(nodeInfo, readNodeInfo);
-
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            nodeInfo.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                NodeInfo readNodeInfo = NodeInfo.readNodeInfo(in);
+                assertExpectedUnchanged(nodeInfo, readNodeInfo);
+            }
+        }
     }
-    // checks all properties that are expected to be unchanged. Once we start changing them between versions this method has to be changed as well
+    // checks all properties that are expected to be unchanged.
+    // Once we start changing them between versions this method has to be changed as well
     private void assertExpectedUnchanged(NodeInfo nodeInfo, NodeInfo readNodeInfo) throws IOException {
         assertThat(nodeInfo.getBuild().toString(), equalTo(readNodeInfo.getBuild().toString()));
         assertThat(nodeInfo.getHostname(), equalTo(readNodeInfo.getHostname()));
@@ -89,62 +82,95 @@ public class NodeInfoStreamingTests extends ESTestCase {
         compareJsonOutput(nodeInfo.getTransport(), readNodeInfo.getTransport());
         compareJsonOutput(nodeInfo.getNode(), readNodeInfo.getNode());
         compareJsonOutput(nodeInfo.getOs(), readNodeInfo.getOs());
-        comparePluginsAndModules(nodeInfo, readNodeInfo);
+        compareJsonOutput(nodeInfo.getPlugins(), readNodeInfo.getPlugins());
         compareJsonOutput(nodeInfo.getIngest(), readNodeInfo.getIngest());
     }
 
-    private void comparePluginsAndModules(NodeInfo nodeInfo, NodeInfo readNodeInfo) throws IOException {
-        ToXContent.Params params = ToXContent.EMPTY_PARAMS;
-        XContentBuilder pluginsAndModules = jsonBuilder();
-        pluginsAndModules.startObject();
-        nodeInfo.getPlugins().toXContent(pluginsAndModules, params);
-        pluginsAndModules.endObject();
-        XContentBuilder readPluginsAndModules = jsonBuilder();
-        readPluginsAndModules.startObject();
-        readNodeInfo.getPlugins().toXContent(readPluginsAndModules, params);
-        readPluginsAndModules.endObject();
-        assertThat(pluginsAndModules.string(), equalTo(readPluginsAndModules.string()));
-    }
-
     private void compareJsonOutput(ToXContent param1, ToXContent param2) throws IOException {
+        if (param1 == null) {
+            assertNull(param2);
+            return;
+        }
         ToXContent.Params params = ToXContent.EMPTY_PARAMS;
         XContentBuilder param1Builder = jsonBuilder();
-        XContentBuilder param2Builder = jsonBuilder();
+        param1Builder.startObject();
         param1.toXContent(param1Builder, params);
+        param1Builder.endObject();
+
+        XContentBuilder param2Builder = jsonBuilder();
+        param2Builder.startObject();
         param2.toXContent(param2Builder, params);
+        param2Builder.endObject();
         assertThat(param1Builder.string(), equalTo(param2Builder.string()));
     }
 
-    private NodeInfo createNodeInfo() {
+    private static NodeInfo createNodeInfo() {
         Build build = Build.CURRENT;
         DiscoveryNode node = new DiscoveryNode("test_node", LocalTransportAddress.buildUnique(),
                 emptyMap(), emptySet(), VersionUtils.randomVersion(random()));
-        Map<String, String> serviceAttributes = new HashMap<>();
-        serviceAttributes.put("test", "attribute");
-        Settings settings = Settings.builder().put("test", "setting").build();
-        OsInfo osInfo = DummyOsInfo.INSTANCE;
-        ProcessInfo process = new ProcessInfo(randomInt(), randomBoolean());
-        JvmInfo jvm = JvmInfo.jvmInfo();
-        List<ThreadPool.Info> threadPoolInfos = new ArrayList<>();
-        threadPoolInfos.add(new ThreadPool.Info("test_threadpool", ThreadPool.ThreadPoolType.FIXED, 5));
-        ThreadPoolInfo threadPoolInfo = new ThreadPoolInfo(threadPoolInfos);
+        Settings settings = randomBoolean() ? null : Settings.builder().put("test", "setting").build();
+        OsInfo osInfo = null;
+        if (randomBoolean()) {
+            int availableProcessors = randomIntBetween(1, 64);
+            int allocatedProcessors = randomIntBetween(1, availableProcessors);
+            long refreshInterval = randomBoolean() ? -1 : randomPositiveLong();
+            String name = randomAsciiOfLengthBetween(3, 10);
+            String arch = randomAsciiOfLengthBetween(3, 10);
+            String version = randomAsciiOfLengthBetween(3, 10);
+            osInfo = new OsInfo(refreshInterval, availableProcessors, allocatedProcessors, name, arch, version);
+        }
+        ProcessInfo process = randomBoolean() ? null : new ProcessInfo(randomInt(), randomBoolean(), randomPositiveLong());
+        JvmInfo jvm = randomBoolean() ? null : JvmInfo.jvmInfo();
+        ThreadPoolInfo threadPoolInfo = null;
+        if (randomBoolean()) {
+            int numThreadPools = randomIntBetween(1, 10);
+            List<ThreadPool.Info> threadPoolInfos = new ArrayList<>(numThreadPools);
+            for (int i = 0; i < numThreadPools; i++) {
+                threadPoolInfos.add(new ThreadPool.Info(randomAsciiOfLengthBetween(3, 10),
+                        randomFrom(ThreadPool.ThreadPoolType.values()), randomInt()));
+            }
+            threadPoolInfo = new ThreadPoolInfo(threadPoolInfos);
+        }
         Map<String, BoundTransportAddress> profileAddresses = new HashMap<>();
-        BoundTransportAddress dummyBoundTransportAddress = new BoundTransportAddress(new TransportAddress[]{LocalTransportAddress.buildUnique()}, LocalTransportAddress.buildUnique());
+        BoundTransportAddress dummyBoundTransportAddress = new BoundTransportAddress(
+                new TransportAddress[]{LocalTransportAddress.buildUnique()}, LocalTransportAddress.buildUnique());
         profileAddresses.put("test_address", dummyBoundTransportAddress);
-        TransportInfo transport = new TransportInfo(dummyBoundTransportAddress, profileAddresses);
-        HttpInfo htttpInfo = new HttpInfo(dummyBoundTransportAddress, randomLong());
-        PluginsAndModules plugins = new PluginsAndModules();
-        plugins.addModule(DummyPluginInfo.INSTANCE);
-        plugins.addPlugin(DummyPluginInfo.INSTANCE);
-        IngestInfo ingestInfo = new IngestInfo(Collections.emptyList());
-        ByteSizeValue indexingBuffer;
-        if (random().nextBoolean()) {
-            indexingBuffer = null;
-        } else {
+        TransportInfo transport = randomBoolean() ? null : new TransportInfo(dummyBoundTransportAddress, profileAddresses);
+        HttpInfo httpInfo = randomBoolean() ? null : new HttpInfo(dummyBoundTransportAddress, randomLong());
+
+        PluginsAndModules pluginsAndModules = null;
+        if (randomBoolean()) {
+            int numPlugins = randomIntBetween(0, 5);
+            List<PluginInfo> plugins = new ArrayList<>();
+            for (int i = 0; i < numPlugins; i++) {
+                plugins.add(new PluginInfo(randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10),
+                        randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10)));
+            }
+            int numModules = randomIntBetween(0, 5);
+            List<PluginInfo> modules = new ArrayList<>();
+            for (int i = 0; i < numModules; i++) {
+                modules.add(new PluginInfo(randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10),
+                        randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10)));
+            }
+            pluginsAndModules = new PluginsAndModules(plugins, modules);
+        }
+
+        IngestInfo ingestInfo = null;
+        if (randomBoolean()) {
+            int numProcessors = randomIntBetween(0, 5);
+            List<ProcessorInfo> processors = new ArrayList<>(numProcessors);
+            for (int i = 0; i < numProcessors; i++) {
+                processors.add(new ProcessorInfo(randomAsciiOfLengthBetween(3, 10)));
+            }
+            ingestInfo = new IngestInfo(processors);
+        }
+
+        ByteSizeValue indexingBuffer = null;
+        if (randomBoolean()) {
             // pick a random long that sometimes exceeds an int:
             indexingBuffer = new ByteSizeValue(random().nextLong() & ((1L<<40)-1));
         }
         return new NodeInfo(VersionUtils.randomVersion(random()), build, node, settings, osInfo, process, jvm,
-            threadPoolInfo, transport, htttpInfo, plugins, ingestInfo, indexingBuffer);
+            threadPoolInfo, transport, httpInfo, pluginsAndModules, ingestInfo, indexingBuffer);
     }
 }

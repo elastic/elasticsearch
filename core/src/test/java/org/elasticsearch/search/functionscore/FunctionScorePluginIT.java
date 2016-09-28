@@ -23,7 +23,6 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,16 +31,19 @@ import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.DecayFunctionParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -57,7 +59,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class FunctionScorePluginIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(CustomDistanceScorePlugin.class);
+        return Arrays.asList(CustomDistanceScorePlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return Arrays.asList(CustomDistanceScorePlugin.class);
     }
 
     public void testPlugin() throws Exception {
@@ -94,16 +101,16 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
 
     }
 
-    public static class CustomDistanceScorePlugin extends Plugin {
-        public void onModule(SearchModule scoreModule) {
-            scoreModule.registerScoreFunction(CustomDistanceScoreBuilder::new, CustomDistanceScoreBuilder.PARSER,
-                    CustomDistanceScoreBuilder.FUNCTION_NAME_FIELD);
+    public static class CustomDistanceScorePlugin extends Plugin implements SearchPlugin {
+        @Override
+        public List<ScoreFunctionSpec<?>> getScoreFunctions() {
+            return singletonList(new ScoreFunctionSpec<>(CustomDistanceScoreBuilder.NAME, CustomDistanceScoreBuilder::new,
+                    CustomDistanceScoreBuilder.PARSER));
         }
     }
 
     public static class CustomDistanceScoreBuilder extends DecayFunctionBuilder<CustomDistanceScoreBuilder> {
         public static final String NAME = "linear_mult";
-        public static final ParseField FUNCTION_NAME_FIELD = new ParseField(NAME);
         public static final ScoreFunctionParser<CustomDistanceScoreBuilder> PARSER = new DecayFunctionParser<>(
                 CustomDistanceScoreBuilder::new);
 

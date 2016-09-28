@@ -28,6 +28,7 @@ import org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Arrays;
 import java.util.Collection;
 
 public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCase {
@@ -43,9 +44,7 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put("discovery.type", "azure")
-                // We need the network to make the mock working
-            .put(Node.NODE_MODE_SETTING.getKey(), "network");
+            .put("discovery.type", "azure");
 
         // We add a fake subscription_id to start mock compute service
         builder.put(Management.SUBSCRIPTION_ID_SETTING.getKey(), "fake")
@@ -58,7 +57,7 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(AzureDiscoveryPlugin.class, mockPlugin);
+        return Arrays.asList(AzureDiscoveryPlugin.class, mockPlugin);
     }
 
     protected void checkNumberOfNodes(int expected) {

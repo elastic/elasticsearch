@@ -19,11 +19,9 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,11 +29,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class ScriptSettings {
 
-    public static final String DEFAULT_LANG = "groovy";
+    static final String LEGACY_DEFAULT_LANG = "groovy";
+
+    /**
+     * The default script language to use for scripts that are stored in documents that have no script lang set explicitly.
+     * This setting is legacy setting and only applies for indices created on ES versions prior to version 5.0
+     *
+     * This constant will be removed in the next major release.
+     */
+    @Deprecated
+    public static final String LEGACY_SCRIPT_SETTING = "script.legacy.default_lang";
 
     private static final Map<ScriptService.ScriptType, Setting<Boolean>> SCRIPT_TYPE_SETTING_MAP;
 
@@ -52,7 +58,7 @@ public class ScriptSettings {
 
     private final Map<ScriptContext, Setting<Boolean>> scriptContextSettingMap;
     private final List<Setting<Boolean>> scriptLanguageSettings;
-    private final Setting<String> defaultScriptLanguageSetting;
+    private final Setting<String> defaultLegacyScriptLanguageSetting;
 
     public ScriptSettings(ScriptEngineRegistry scriptEngineRegistry, ScriptContextRegistry scriptContextRegistry) {
         Map<ScriptContext, Setting<Boolean>> scriptContextSettingMap = contextSettings(scriptContextRegistry);
@@ -61,8 +67,8 @@ public class ScriptSettings {
         List<Setting<Boolean>> scriptLanguageSettings = languageSettings(SCRIPT_TYPE_SETTING_MAP, scriptContextSettingMap, scriptEngineRegistry, scriptContextRegistry);
         this.scriptLanguageSettings = Collections.unmodifiableList(scriptLanguageSettings);
 
-        this.defaultScriptLanguageSetting = new Setting<>("script.default_lang", DEFAULT_LANG, setting -> {
-            if (!"groovy".equals(setting) && !scriptEngineRegistry.getRegisteredLanguages().containsKey(setting)) {
+        this.defaultLegacyScriptLanguageSetting = new Setting<>(LEGACY_SCRIPT_SETTING, LEGACY_DEFAULT_LANG, setting -> {
+            if (!LEGACY_DEFAULT_LANG.equals(setting) && !scriptEngineRegistry.getRegisteredLanguages().containsKey(setting)) {
                 throw new IllegalArgumentException("unregistered default language [" + setting + "]");
             }
             return setting;
@@ -100,9 +106,25 @@ public class ScriptSettings {
                 }
                 final boolean defaultIfNothingSet = defaultLangAndType;
 
+                Function<Settings, String> defaultLangAndTypeFn = settings -> {
+                    final Setting<Boolean> globalTypeSetting = scriptTypeSettingMap.get(scriptType);
+                    final Setting<Boolean> langAndTypeSetting = Setting.boolSetting(ScriptModes.getGlobalKey(language, scriptType),
+                            defaultIfNothingSet, Property.NodeScope);
+
+                    if (langAndTypeSetting.exists(settings)) {
+                        // fine-grained e.g. script.engine.groovy.inline
+                        return langAndTypeSetting.get(settings).toString();
+                    } else if (globalTypeSetting.exists(settings)) {
+                        // global type - script.inline
+                        return globalTypeSetting.get(settings).toString();
+                    } else {
+                        return Boolean.toString(defaultIfNothingSet);
+                    }
+                };
+
                 // Setting for something like "script.engine.groovy.inline"
                 final Setting<Boolean> langAndTypeSetting = Setting.boolSetting(ScriptModes.getGlobalKey(language, scriptType),
-                        defaultLangAndType, Property.NodeScope);
+                        defaultLangAndTypeFn, Property.NodeScope);
                 scriptModeSettings.add(langAndTypeSetting);
 
                 for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
@@ -147,7 +169,7 @@ public class ScriptSettings {
         settings.addAll(SCRIPT_TYPE_SETTING_MAP.values());
         settings.addAll(scriptContextSettingMap.values());
         settings.addAll(scriptLanguageSettings);
-        settings.add(defaultScriptLanguageSetting);
+        settings.add(defaultLegacyScriptLanguageSetting);
         return settings;
     }
 
@@ -155,7 +177,11 @@ public class ScriptSettings {
         return scriptLanguageSettings;
     }
 
-    public Setting<String> getDefaultScriptLanguageSetting() {
-        return defaultScriptLanguageSetting;
+    public Setting<String> getDefaultLegacyScriptLanguageSetting() {
+        return defaultLegacyScriptLanguageSetting;
+    }
+
+    public static String getLegacyDefaultLang(Settings settings) {
+        return settings.get(LEGACY_SCRIPT_SETTING, ScriptSettings.LEGACY_DEFAULT_LANG);
     }
 }

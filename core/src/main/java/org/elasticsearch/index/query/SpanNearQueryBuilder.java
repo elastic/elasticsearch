@@ -42,15 +42,12 @@ import java.util.Optional;
  * The span near query maps to Lucene {@link SpanNearQuery}.
  */
 public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuilder> implements SpanQueryBuilder {
-
     public static final String NAME = "span_near";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     /** Default for flag controlling whether matches are required to be in-order */
     public static boolean DEFAULT_IN_ORDER = true;
 
     private static final ParseField SLOP_FIELD = new ParseField("slop");
-    private static final ParseField COLLECT_PAYLOADS_FIELD = new ParseField("collect_payloads").withAllDeprecated("no longer supported");
     private static final ParseField CLAUSES_FIELD = new ParseField("clauses");
     private static final ParseField IN_ORDER_FIELD = new ParseField("in_order");
 
@@ -177,8 +174,6 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             } else if (token.isValue()) {
                 if (parseContext.getParseFieldMatcher().match(currentFieldName, IN_ORDER_FIELD)) {
                     inOrder = parser.booleanValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, COLLECT_PAYLOADS_FIELD)) {
-                    // Deprecated in 3.0.0
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, SLOP_FIELD)) {
                     slop = parser.intValue();
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {

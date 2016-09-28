@@ -36,9 +36,7 @@ import java.util.Optional;
  * A Query that matches documents containing a term.
  */
 public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
-
     public static final String NAME = "term";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField TERM_FIELD = new ParseField("term");
     private static final ParseField VALUE_FIELD = new ParseField("value");
@@ -100,11 +98,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
             } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
-                // also support a format of "term" : {"field_name" : { ... }}
-                if (fieldName != null) {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[term] query does not support different field names, use [bool] query instead");
-                }
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
                 fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -125,10 +119,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
                     }
                 }
             } else if (token.isValue()) {
-                if (fieldName != null) {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[term] query does not support different field names, use [bool] query instead");
-                }
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
                 fieldName = currentFieldName;
                 value = parser.objectBytes();
             } else if (token == XContentParser.Token.START_ARRAY) {

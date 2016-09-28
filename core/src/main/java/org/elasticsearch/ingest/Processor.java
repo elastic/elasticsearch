@@ -19,6 +19,11 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.script.ScriptService;
+
 import java.util.Map;
 
 /**
@@ -50,12 +55,57 @@ public interface Processor {
         /**
          * Creates a processor based on the specified map of maps config.
          *
+         * @param processorFactories Other processors which may be created inside this processor
          * @param tag The tag for the processor
-         * @param config Configuration for the processor to create
+         * @param config The configuration for the processor
          *
-         * Implementations are responsible for removing the used keys, so that after creating a pipeline ingest can
-         * verify if all configurations settings have been used.
+         * <b>Note:</b> Implementations are responsible for removing the used configuration keys, so that after
+         * creating a pipeline ingest can verify if all configurations settings have been used.
          */
-        Processor create(String tag, Map<String, Object> config) throws Exception;
+        Processor create(Map<String, Processor.Factory> processorFactories, String tag,
+                         Map<String, Object> config) throws Exception;
+    }
+
+    /**
+     * Infrastructure class that holds services that can be used by processor factories to create processor instances
+     * and that gets passed around to all {@link org.elasticsearch.plugins.IngestPlugin}s.
+     */
+    class Parameters {
+
+        /**
+         * Useful to provide access to the node's environment like config directory to processor factories.
+         */
+        public final Environment env;
+
+        /**
+         * Provides processors script support.
+         */
+        public final ScriptService scriptService;
+
+        /**
+         * Provides template support to pipeline settings.
+         */
+        public final TemplateService templateService;
+
+        /**
+         * Provide analyzer support
+         */
+        public final AnalysisRegistry analysisRegistry;
+
+        /**
+         * Allows processors to read headers set by {@link org.elasticsearch.action.support.ActionFilter}
+         * instances that have run prior to in ingest.
+         */
+        public final ThreadContext threadContext;
+
+        public Parameters(Environment env, ScriptService scriptService, TemplateService templateService,
+                          AnalysisRegistry analysisRegistry, ThreadContext threadContext) {
+            this.env = env;
+            this.scriptService = scriptService;
+            this.templateService = templateService;
+            this.threadContext = threadContext;
+            this.analysisRegistry = analysisRegistry;
+        }
+
     }
 }

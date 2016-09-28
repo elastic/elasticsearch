@@ -33,17 +33,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.mapper.ParentFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
 
 public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQueryBuilder> {
-
     public static final String NAME = "parent_id";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     /**
      * The default value for ignore_unmapped.

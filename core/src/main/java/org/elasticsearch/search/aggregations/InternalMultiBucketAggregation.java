@@ -29,10 +29,6 @@ import java.util.Map;
 
 public abstract class InternalMultiBucketAggregation<A extends InternalMultiBucketAggregation, B extends InternalMultiBucketAggregation.InternalBucket>
         extends InternalAggregation implements MultiBucketsAggregation {
-
-    public InternalMultiBucketAggregation() {
-    }
-
     public InternalMultiBucketAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
     }
@@ -47,7 +43,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     /**
      * Create a new copy of this {@link Aggregation} with the same settings as
      * this {@link Aggregation} and contains the provided buckets.
-     * 
+     *
      * @param buckets
      *            the buckets to use in the new {@link Aggregation}
      * @return the new {@link Aggregation}
@@ -57,7 +53,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     /**
      * Create a new {@link InternalBucket} using the provided prototype bucket
      * and aggregations.
-     * 
+     *
      * @param aggregations
      *            the aggregations for the new bucket
      * @param prototype
@@ -70,6 +66,8 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;
+        } else if (path.get(0).equals("_bucket_count")) {
+            return getBuckets().size();
         } else {
             List<? extends Bucket> buckets = getBuckets();
             Object[] propertyArray = new Object[buckets.size()];

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceParser.Range;
@@ -43,8 +43,8 @@ import java.util.List;
 import java.util.Objects;
 
 public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoDistanceAggregationBuilder> {
-    public static final String NAME = InternalGeoDistance.TYPE.name();
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
+    public static final String NAME = "geo_distance";
+    public static final Type TYPE = new Type(NAME);
 
     private final GeoPoint origin;
     private List<Range> ranges = new ArrayList<>();

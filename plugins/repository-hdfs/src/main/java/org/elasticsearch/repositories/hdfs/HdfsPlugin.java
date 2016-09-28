@@ -23,15 +23,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Collections;
+import java.util.Map;
 
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
+import org.elasticsearch.repositories.Repository;
 
-// Code
-public final class HdfsPlugin extends Plugin {
+public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
 
     // initialize some problematic classes with elevated privileges
     static {
@@ -84,7 +87,8 @@ public final class HdfsPlugin extends Plugin {
         return null;
     }
 
-    public void onModule(RepositoriesModule repositoriesModule) {
-        repositoriesModule.registerRepository("hdfs", HdfsRepository.class, BlobStoreIndexShardRepository.class);
+    @Override
+    public Map<String, Repository.Factory> getRepositories(Environment env) {
+        return Collections.singletonMap("hdfs", (metadata) -> new HdfsRepository(metadata, env));
     }
 }

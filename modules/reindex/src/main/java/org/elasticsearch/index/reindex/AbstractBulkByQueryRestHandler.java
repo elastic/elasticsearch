@@ -19,9 +19,12 @@
 
 package org.elasticsearch.index.reindex;
 
+import java.io.IOException;
+import java.util.Map;
+import java.util.function.Consumer;
+
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -30,16 +33,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.suggest.Suggesters;
-
-import java.io.IOException;
-import java.util.Map;
-import java.util.function.Consumer;
+import org.elasticsearch.search.SearchRequestParsers;
 
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
 
@@ -48,12 +45,11 @@ import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_A
  */
 public abstract class AbstractBulkByQueryRestHandler<
         Request extends AbstractBulkByScrollRequest<Request>,
-        TA extends TransportAction<Request, BulkIndexByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, TA> {
+        A extends GenericAction<Request, BulkIndexByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
 
-    protected AbstractBulkByQueryRestHandler(Settings settings, IndicesQueriesRegistry indicesQueriesRegistry,
-                                             AggregatorParsers aggParsers, Suggesters suggesters, ClusterService clusterService,
-                                             TA action) {
-        super(settings, indicesQueriesRegistry, aggParsers, suggesters, clusterService, action);
+    protected AbstractBulkByQueryRestHandler(Settings settings, SearchRequestParsers searchRequestParsers,
+                                             ClusterService clusterService, A action) {
+        super(settings, searchRequestParsers, clusterService, action);
     }
 
     protected void parseInternalRequest(Request internal, RestRequest restRequest,
@@ -112,7 +108,6 @@ public abstract class AbstractBulkByQueryRestHandler<
             }
         }
 
-        RestSearchAction.parseSearchRequest(searchRequest, indicesQueriesRegistry, restRequest, parseFieldMatcher, aggParsers,
-                suggesters, content);
+        RestSearchAction.parseSearchRequest(searchRequest, restRequest, searchRequestParsers, parseFieldMatcher, content);
     }
 }

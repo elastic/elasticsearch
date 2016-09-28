@@ -40,7 +40,7 @@ That will return something like this:
     "search": 0
   },
   "throttled_millis": 0,
-  "requests_per_second": "unlimited",
+  "requests_per_second": -1.0,
   "throttled_until_millis": 0,
   "total": 119,
   "failures" : [ ]
@@ -101,7 +101,7 @@ POST twitter,blog/tweet,post/_delete_by_query
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT twitter\nPUT blog\nGET _cluster\/health?wait_for_status=yellow\n/]
+// TEST[s/^/PUT twitter\nPUT blog\n/]
 
 If you provide `routing` then the routing is copied to the scroll query,
 limiting the process to the shards that match that routing value:
@@ -144,7 +144,7 @@ POST twitter/_delete_by_query?scroll_size=5000
 === URL Parameters
 
 In addition to the standard parameters like `pretty`, the Delete By Query API
-also supports `refresh`, `wait_for_completion`, `consistency`, and `timeout`.
+also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, and `timeout`.
 
 Sending the `refresh` will refresh all shards involved in the delete by query
 once the request completes. This is different than the Delete API's `refresh`
@@ -159,20 +159,21 @@ record of this task as a document at `.tasks/task/${taskId}`. This is yours
 to keep or remove as you see fit. When you are done with it, delete it so
 Elasticsearch can reclaim the space it uses.
 
-`consistency` controls how many copies of a shard must respond to each write
-request. `timeout` controls how long each write request waits for unavailable
+`wait_for_active_shards` controls how many copies of a shard must be active
+before proceeding with the request. See <<index-wait-for-active-shards,here>>
+for details. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
 <<docs-bulk,Bulk API>>.
 
-`requests_per_second` can be set to any decimal number (`1.4`, `6`, `1000`, etc)
-and throttles the number of requests per second that the delete by query issues.
-The throttling is done waiting between bulk batches so that it can manipulate
-the scroll timeout. The wait time is the difference between the time it took the
-batch to complete and the time `requests_per_second * requests_in_the_batch`.
-Since the batch isn't broken into multiple bulk requests large batch sizes will
-cause Elasticsearch to create many requests and then wait for a while before
-starting the next set. This is "bursty" instead of "smooth". The default is
-`unlimited` which is also the only non-number value that it accepts.
+`requests_per_second` can be set to any positive decimal number (`1.4`, `6`,
+`1000`, etc) and throttles the number of requests per second that the delete-by-query
+issues or it can be set to `-1` to disabled throttling. The throttling is done
+waiting between bulk batches so that it can manipulate the scroll timeout. The
+wait time is the difference between the time it took the batch to complete and
+the time `requests_per_second * requests_in_the_batch`. Since the batch isn't
+broken into multiple bulk requests large batch sizes will cause Elasticsearch
+to create many requests and then wait for a while before starting the next set.
+This is "bursty" instead of "smooth". The default is `-1`.
 
 [float]
 === Response body
@@ -243,7 +244,7 @@ The responses looks like:
 {
   "nodes" : {
     "r1A2WoRbTwKZ516z6NEs5A" : {
-      "name" : "Tyrannus",
+      "name" : "r1A2WoR",
       "transport_address" : "127.0.0.1:9300",
       "host" : "127.0.0.1",
       "ip" : "127.0.0.1:9300",
@@ -313,7 +314,7 @@ POST _tasks/taskid:1/_cancel
 
 The `task_id` can be found using the tasks API above.
 
-Cancelation should happen quickly but might take a few seconds. The task status
+Cancellation should happen quickly but might take a few seconds. The task status
 API above will continue to list the task until it is wakes to cancel itself.
 
 
@@ -326,14 +327,86 @@ using the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _delete_by_query/taskid:1/_rethrottle?requests_per_second=unlimited
+POST _delete_by_query/taskid:1/_rethrottle?requests_per_second=-1
 --------------------------------------------------
 // CONSOLE
 
 The `task_id` can be found using the tasks API above.
 
 Just like when setting it on the `_delete_by_query` API `requests_per_second`
-can be either `unlimited` to disable throttling or any decimal number like `1.7`
-or `12` to throttle to that level. Rethrottling that speeds up the query takes
-effect immediately but rethrotting that slows down the query will take effect
-on after completing the current batch. This prevents scroll timeouts.
+can be either `-1` to disable throttling or any decimal number
+like `1.7` or `12` to throttle to that level. Rethrottling that speeds up the
+query takes effect immediately but rethrotting that slows down the query will
+take effect on after completing the current batch. This prevents scroll
+timeouts.
+
+[float]
+=== Manually slicing
+
+Delete-by-query supports <<sliced-scroll>> allowing you to manually parallelize
+the process relatively easily:
+
+[source,js]
+----------------------------------------------------------------
+POST twitter/_delete_by_query
+{
+  "slice": {
+    "id": 0,
+    "max": 2
+  },
+  "query": {
+    "range": {
+      "likes": {
+        "lt": 10
+      }
+    }
+  }
+}
+POST twitter/_delete_by_query
+{
+  "slice": {
+    "id": 1,
+    "max": 2
+  },
+  "query": {
+    "range": {
+      "likes": {
+        "lt": 10
+      }
+    }
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
+
+Which you can verify works with:
+
+[source,js]
+----------------------------------------------------------------
+GET _refresh
+POST twitter/_search?size=0&filter_path=hits.total
+{
+  "query": {
+    "range": {
+      "likes": {
+        "lt": 10
+      }
+    }
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Which results in a sensible `total` like this one:
+
+[source,js]
+----------------------------------------------------------------
+{
+  "hits": {
+    "total": 0
+  }
+}
+----------------------------------------------------------------
+// TESTRESPONSE

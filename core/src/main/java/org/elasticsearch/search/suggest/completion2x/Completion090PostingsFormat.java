@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.suggest.completion2x;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FieldsProducer;
@@ -41,10 +42,10 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.index.mapper.CompletionFieldMapper2x;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.CompletionFieldMapper2x;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionContext;
 
@@ -74,7 +75,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
     public static final int SUGGEST_VERSION_CURRENT = SUGGEST_CODEC_VERSION;
     public static final String EXTENSION = "cmp";
 
-    private static final ESLogger logger = Loggers.getLogger(Completion090PostingsFormat.class);
+    private static final Logger logger = Loggers.getLogger(Completion090PostingsFormat.class);
     private PostingsFormat delegatePostingsFormat;
     private static final Map<String, CompletionLookupProvider> providers;
     private CompletionLookupProvider writeProvider;
@@ -127,7 +128,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
             boolean success = false;
             try {
                 output = state.directory.createOutput(suggestFSTFile, state.context);
-                CodecUtil.writeHeader(output, CODEC_NAME, SUGGEST_VERSION_CURRENT);
+                CodecUtil.writeIndexHeader(output, CODEC_NAME, SUGGEST_VERSION_CURRENT, state.segmentInfo.getId(), state.segmentSuffix);
                 /*
                  * we write the delegate postings format name so we can load it
                  * without getting an instance in the ctor
@@ -165,7 +166,13 @@ public class Completion090PostingsFormat extends PostingsFormat {
         public CompletionFieldsProducer(SegmentReadState state) throws IOException {
             String suggestFSTFile = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, EXTENSION);
             IndexInput input = state.directory.openInput(suggestFSTFile, state.context);
-            version = CodecUtil.checkHeader(input, CODEC_NAME, SUGGEST_CODEC_VERSION, SUGGEST_VERSION_CURRENT);
+            if (state.segmentInfo.getVersion().onOrAfter(Version.LUCENE_6_2_0)) {
+                // Lucene 6.2.0+ requires all index files to use index header, but prior to that we used an ordinary codec header:
+                version = CodecUtil.checkIndexHeader(input, CODEC_NAME, SUGGEST_CODEC_VERSION, SUGGEST_VERSION_CURRENT,
+                        state.segmentInfo.getId(), state.segmentSuffix);
+            } else {
+                version = CodecUtil.checkHeader(input, CODEC_NAME, SUGGEST_CODEC_VERSION, SUGGEST_VERSION_CURRENT);
+            }
             FieldsProducer delegateProducer = null;
             boolean success = false;
             try {

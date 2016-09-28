@@ -25,16 +25,18 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.search.Highlighters;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.highlight.HighlightPhase;
-import org.elasticsearch.search.highlight.SearchContextHighlight;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
+import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
@@ -42,6 +44,7 @@ import org.elasticsearch.search.internal.SubSearchContext;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Highlighting in the case of the percolate query is a bit different, because the PercolateQuery itself doesn't get highlighted,
@@ -49,7 +52,7 @@ import java.util.List;
  */
 public final class PercolatorHighlightSubFetchPhase extends HighlightPhase {
 
-    public PercolatorHighlightSubFetchPhase(Settings settings, Highlighters highlighters) {
+    public PercolatorHighlightSubFetchPhase(Settings settings, Map<String, Highlighter> highlighters) {
         super(settings, highlighters);
     }
 
@@ -110,10 +113,19 @@ public final class PercolatorHighlightSubFetchPhase extends HighlightPhase {
                     return result;
                 }
             }
+        } else if (query instanceof DisjunctionMaxQuery) {
+            for (Query disjunct : ((DisjunctionMaxQuery) query).getDisjuncts()) {
+                PercolateQuery result = locatePercolatorQuery(disjunct);
+                if (result != null) {
+                    return result;
+                }
+            }
         } else if (query instanceof ConstantScoreQuery) {
             return locatePercolatorQuery(((ConstantScoreQuery) query).getQuery());
         } else if (query instanceof BoostQuery) {
             return locatePercolatorQuery(((BoostQuery) query).getQuery());
+        } else if (query instanceof FunctionScoreQuery) {
+            return locatePercolatorQuery(((FunctionScoreQuery) query).getSubQuery());
         }
 
         return null;

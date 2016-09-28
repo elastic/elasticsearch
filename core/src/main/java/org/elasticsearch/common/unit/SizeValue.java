@@ -23,22 +23,14 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-/**
- *
- */
-public class SizeValue implements Streamable {
+public class SizeValue implements Writeable {
 
-    private long size;
-
-    private SizeUnit sizeUnit;
-
-    private SizeValue() {
-
-    }
+    private final long size;
+    private final SizeUnit sizeUnit;
 
     public SizeValue(long singles) {
         this(singles, SizeUnit.SINGLE);
@@ -50,6 +42,16 @@ public class SizeValue implements Streamable {
         }
         this.size = size;
         this.sizeUnit = sizeUnit;
+    }
+
+    public SizeValue(StreamInput in) throws IOException {
+        size = in.readVLong();
+        sizeUnit = SizeUnit.SINGLE;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(singles());
     }
 
     public long singles() {
@@ -192,23 +194,6 @@ public class SizeValue implements Streamable {
             throw new ElasticsearchParseException("failed to parse [{}]", e, sValue);
         }
         return new SizeValue(singles, SizeUnit.SINGLE);
-    }
-
-    public static SizeValue readSizeValue(StreamInput in) throws IOException {
-        SizeValue sizeValue = new SizeValue();
-        sizeValue.readFrom(in);
-        return sizeValue;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        size = in.readVLong();
-        sizeUnit = SizeUnit.SINGLE;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(singles());
     }
 
     @Override

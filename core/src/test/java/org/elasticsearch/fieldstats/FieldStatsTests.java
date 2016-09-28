@@ -23,13 +23,19 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.fieldstats.IndexConstraint;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
@@ -89,6 +95,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             equalTo(String.format(Locale.ENGLISH, "%03d", 0)));
         assertThat(result.getAllFieldStats().get("field").getMaxValueAsString(),
             equalTo(String.format(Locale.ENGLISH, "%03d", 10)));
+        assertThat(result.getAllFieldStats().get("field").getDisplayType(),
+            equalTo("string"));
     }
 
     public void testDouble() {
@@ -106,6 +114,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(-1d));
         assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9d));
         assertThat(result.getAllFieldStats().get(fieldName).getMinValueAsString(), equalTo(Double.toString(-1)));
+        assertThat(result.getAllFieldStats().get(fieldName).getDisplayType(), equalTo("float"));
     }
 
     public void testHalfFloat() {
@@ -124,6 +133,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9d));
         assertThat(result.getAllFieldStats().get(fieldName).getMinValueAsString(), equalTo(Float.toString(-1)));
         assertThat(result.getAllFieldStats().get(fieldName).getMaxValueAsString(), equalTo(Float.toString(9)));
+        assertThat(result.getAllFieldStats().get(fieldName).getDisplayType(), equalTo("float"));
     }
 
     public void testFloat() {
@@ -169,6 +179,11 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             equalTo(java.lang.Long.toString(max)));
         assertThat(result.getAllFieldStats().get(fieldName).isSearchable(), equalTo(true));
         assertThat(result.getAllFieldStats().get(fieldName).isAggregatable(), equalTo(true));
+        if (fieldType.equals("float") || fieldType.equals("double") || fieldType.equals("half-float")) {
+            assertThat(result.getAllFieldStats().get(fieldName).getDisplayType(), equalTo("float"));
+        } else {
+            assertThat(result.getAllFieldStats().get(fieldName).getDisplayType(), equalTo("integer"));
+        }
 
         client().admin().indices().prepareDelete("test").get();
         client().admin().indices().prepareDelete("test1").get();
@@ -191,6 +206,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(stat.getSumTotalTermFreq(), equalTo(4L));
         assertThat(stat.isSearchable(), equalTo(true));
         assertThat(stat.isAggregatable(), equalTo(false));
+        assertThat(stat.getDisplayType(), equalTo("integer"));
     }
 
     public void testMerge_notAvailable() {
@@ -209,6 +225,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(stat.getSumTotalTermFreq(), equalTo(-1L));
         assertThat(stat.isSearchable(), equalTo(true));
         assertThat(stat.isAggregatable(), equalTo(true));
+        assertThat(stat.getDisplayType(), equalTo("integer"));
 
         stats.add(new FieldStats.Long(1, -1L, -1L, -1L, true, true, 1L, 1L));
         stat = stats.remove(0);
@@ -221,6 +238,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(stat.getSumTotalTermFreq(), equalTo(-1L));
         assertThat(stat.isSearchable(), equalTo(true));
         assertThat(stat.isAggregatable(), equalTo(true));
+        assertThat(stat.getDisplayType(), equalTo("integer"));
     }
 
     public void testNumberFiltering() {
@@ -350,6 +368,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             equalTo(dateTime1Str));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
             equalTo(dateTime2Str));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
+            equalTo("date"));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -370,6 +390,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             equalTo(dateTime1.getMillis()));
         assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValueAsString(),
             equalTo(dateTime1Str));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getDisplayType(),
+            equalTo("date"));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -402,6 +424,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             equalTo(dateTime2.getMillis()));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
             equalTo(dateTime2Str));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
+            equalTo("date"));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -417,6 +441,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             equalTo(dateTime1Str));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
             equalTo(dateTime2Str));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
+            equalTo("date"));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -432,6 +458,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             equalTo(dateTime1Str));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
             equalTo(dateTime2Str));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
+            equalTo("date"));
     }
 
     public void testDateFiltering_optionalFormat() {
@@ -453,6 +481,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(),
             equalTo("2014-01-02T00:00:00.000Z"));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getDisplayType(),
+            equalTo("date"));
 
         try {
             client().prepareFieldStats()
@@ -487,6 +517,54 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             .get();
         assertThat(response.getAllFieldStats().size(), equalTo(1));
         assertThat(response.getAllFieldStats().get("_type").isSearchable(), equalTo(true));
-        // assertThat(response.getAllFieldStats().get("_type").isAggregatable(), equalTo(true));
+        assertThat(response.getAllFieldStats().get("_type").isAggregatable(), equalTo(true));
+    }
+
+    public void testSerialization() throws IOException {
+        for (int i = 0; i < 20; i++) {
+            assertSerialization(randomFieldStats());
+        }
+    }
+
+    /**
+     * creates a random field stats which does not guarantee that {@link FieldStats#maxValue} is greater than {@link FieldStats#minValue}
+     **/
+    private FieldStats randomFieldStats() throws UnknownHostException {
+        int type = randomInt(5);
+        switch (type) {
+            case 0:
+                return new FieldStats.Long(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                    randomPositiveLong(), randomBoolean(), randomBoolean(), randomLong(), randomLong());
+            case 1:
+                return new FieldStats.Double(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                    randomPositiveLong(), randomBoolean(), randomBoolean(), randomDouble(), randomDouble());
+            case 2:
+                return new FieldStats.Date(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                    randomPositiveLong(), randomBoolean(), randomBoolean(), Joda.forPattern("basicDate"),
+                    new Date().getTime(), new Date().getTime());
+            case 3:
+                return new FieldStats.Text(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                    randomPositiveLong(), randomBoolean(), randomBoolean(),
+                    new BytesRef(randomAsciiOfLength(10)), new BytesRef(randomAsciiOfLength(20)));
+            case 4:
+                return new FieldStats.Ip(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                    randomPositiveLong(), randomBoolean(), randomBoolean(),
+                    InetAddress.getByName("::1"), InetAddress.getByName("::1"));
+            case 5:
+                return new FieldStats.Ip(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                    randomPositiveLong(), randomBoolean(), randomBoolean(),
+                    InetAddress.getByName("1.2.3.4"), InetAddress.getByName("1.2.3.4"));
+            default:
+                throw new IllegalArgumentException("Invalid type");
+        }
+    }
+
+    private void assertSerialization(FieldStats stats) throws IOException {
+        BytesStreamOutput output = new BytesStreamOutput();
+        stats.writeTo(output);
+        output.flush();
+        FieldStats deserializedStats = FieldStats.readFrom(output.bytes().streamInput());
+        assertThat(stats, equalTo(deserializedStats));
+        assertThat(stats.hashCode(), equalTo(deserializedStats.hashCode()));
     }
 }

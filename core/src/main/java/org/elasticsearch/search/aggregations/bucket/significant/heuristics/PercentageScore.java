@@ -22,18 +22,17 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 
 import java.io.IOException;
 
 public class PercentageScore extends SignificanceHeuristic {
-    public static final ParseField NAMES_FIELD = new ParseField("percentage");
+    public static final String NAME = "percentage";
 
     public PercentageScore() {
     }
@@ -48,17 +47,18 @@ public class PercentageScore extends SignificanceHeuristic {
 
     @Override
     public String getWriteableName() {
-        return NAMES_FIELD.getPreferredName();
+        return NAME;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NAMES_FIELD.getPreferredName()).endObject();
+        builder.startObject(NAME).endObject();
         return builder;
     }
 
-    public static SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher)
+    public static SignificanceHeuristic parse(XContentParseContext context)
             throws IOException, QueryShardException {
+        XContentParser parser = context.getParser();
         // move to the closing bracket
         if (!parser.nextToken().equals(XContentParser.Token.END_OBJECT)) {
             throw new ElasticsearchParseException("failed to parse [percentage] significance heuristic. expected an empty object, but got [{}] instead", parser.currentToken());
@@ -97,7 +97,7 @@ public class PercentageScore extends SignificanceHeuristic {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(NAMES_FIELD.getPreferredName()).endObject();
+            builder.startObject(NAME).endObject();
             return builder;
         }
     }

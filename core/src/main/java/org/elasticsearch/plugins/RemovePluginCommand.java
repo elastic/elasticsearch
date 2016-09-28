@@ -43,7 +43,7 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 /**
  * A command for the plugin cli to remove a plugin from elasticsearch.
  */
-class RemovePluginCommand extends SettingCommand {
+final class RemovePluginCommand extends SettingCommand {
 
     private final OptionSpec<String> arguments;
 
@@ -54,12 +54,8 @@ class RemovePluginCommand extends SettingCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
-        // TODO: in jopt-simple 5.0 we can enforce a min/max number of positional args
-        List<String> args = arguments.values(options);
-        if (args.size() != 1) {
-            throw new UserException(ExitCodes.USAGE, "Must supply a single plugin id argument");
-        }
-        execute(terminal, args.get(0), settings);
+        String arg = arguments.value(options);
+        execute(terminal, arg, settings);
     }
 
     // pkg private for testing
@@ -68,14 +64,16 @@ class RemovePluginCommand extends SettingCommand {
 
         terminal.println("-> Removing " + Strings.coalesceToEmpty(pluginName) + "...");
 
-        Path pluginDir = env.pluginsFile().resolve(pluginName);
+        final Path pluginDir = env.pluginsFile().resolve(pluginName);
         if (Files.exists(pluginDir) == false) {
-            throw new UserException(ExitCodes.USAGE, "plugin " + pluginName + " not found; run 'elasticsearch-plugin list' to get list of installed plugins");
+            throw new UserException(
+                    ExitCodes.USAGE,
+                    "plugin " + pluginName + " not found; run 'elasticsearch-plugin list' to get list of installed plugins");
         }
 
-        List<Path> pluginPaths = new ArrayList<>();
+        final List<Path> pluginPaths = new ArrayList<>();
 
-        Path pluginBinDir = env.binFile().resolve(pluginName);
+        final Path pluginBinDir = env.binFile().resolve(pluginName);
         if (Files.exists(pluginBinDir)) {
             if (Files.isDirectory(pluginBinDir) == false) {
                 throw new UserException(ExitCodes.IO_ERROR, "Bin dir for " + pluginName + " is not a directory");
@@ -85,10 +83,19 @@ class RemovePluginCommand extends SettingCommand {
         }
 
         terminal.println(VERBOSE, "Removing: " + pluginDir);
-        Path tmpPluginDir = env.pluginsFile().resolve(".removing-" + pluginName);
+        final Path tmpPluginDir = env.pluginsFile().resolve(".removing-" + pluginName);
         Files.move(pluginDir, tmpPluginDir, StandardCopyOption.ATOMIC_MOVE);
         pluginPaths.add(tmpPluginDir);
 
         IOUtils.rm(pluginPaths.toArray(new Path[pluginPaths.size()]));
+
+        // we preserve the config files in case the user is upgrading the plugin, but we print
+        // a message so the user knows in case they want to remove manually
+        final Path pluginConfigDir = env.configFile().resolve(pluginName);
+        if (Files.exists(pluginConfigDir)) {
+            terminal.println(
+                    "-> Preserving plugin config files [" + pluginConfigDir + "] in case of upgrade, delete manually if not needed");
+        }
     }
+
 }

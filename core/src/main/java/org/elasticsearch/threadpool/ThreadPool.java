@@ -19,19 +19,23 @@
 
 package org.elasticsearch.threadpool;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
@@ -298,14 +302,18 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     }
 
     /**
-     * Schedules a periodic action that always runs on the scheduler thread.
+     * Schedules a periodic action that runs on the specified thread pool.
      *
      * @param command the action to take
      * @param interval the delay interval
-     * @return a ScheduledFuture who's get will return when the task is complete and throw an exception if it is canceled
+     * @param executor The name of the thread pool on which to execute this task. {@link Names#SAME} means "execute on the scheduler thread",
+     *             which there is only one of. Executing blocking or long running code on the {@link Names#SAME} thread pool should never
+     *             be done as it can cause issues with the cluster
+     * @return a {@link Cancellable} that can be used to cancel the subsequent runs of the command. If the command is running, it will
+     *         not be interrupted.
      */
-    public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, TimeValue interval) {
-        return scheduler.scheduleWithFixedDelay(new LoggingRunnable(command), interval.millis(), interval.millis(), TimeUnit.MILLISECONDS);
+    public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
+        return new ReschedulingRunnable(command, interval, executor, this);
     }
 
     /**
@@ -314,17 +322,18 @@ public class ThreadPool extends AbstractComponent implements Closeable {
      * it to this method.
      *
      * @param delay delay before the task executes
-     * @param name the name of the thread pool on which to execute this task. SAME means "execute on the scheduler thread" which changes the
+     * @param executor the name of the thread pool on which to execute this task. SAME means "execute on the scheduler thread" which changes the
      *        meaning of the ScheduledFuture returned by this method. In that case the ScheduledFuture will complete only when the command
      *        completes.
      * @param command the command to run
      * @return a ScheduledFuture who's get will return when the task is has been added to its target thread pool and throw an exception if
      *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
      *         the ScheduledFuture will cannot interact with it.
+     * @throws EsRejectedExecutionException if the task cannot be scheduled for execution
      */
-    public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
-        if (!Names.SAME.equals(name)) {
-            command = new ThreadedRunnable(command, executor(name));
+    public ScheduledFuture<?> schedule(TimeValue delay, String executor, Runnable command) {
+        if (!Names.SAME.equals(executor)) {
+            command = new ThreadedRunnable(command, executor(executor));
         }
         return scheduler.schedule(new LoggingRunnable(command), delay.millis(), TimeUnit.MILLISECONDS);
     }
@@ -406,7 +415,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
             try {
                 runnable.run();
             } catch (Exception e) {
-                logger.warn("failed to run {}", e, runnable.toString());
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to run {}", runnable.toString()), e);
                 throw e;
             }
         }
@@ -520,18 +529,14 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         }
     }
 
-    public static class Info implements Streamable, ToXContent {
+    public static class Info implements Writeable, ToXContent {
 
-        private String name;
-        private ThreadPoolType type;
-        private int min;
-        private int max;
-        private TimeValue keepAlive;
-        private SizeValue queueSize;
-
-        Info() {
-
-        }
+        private final String name;
+        private final ThreadPoolType type;
+        private final int min;
+        private final int max;
+        private final TimeValue keepAlive;
+        private final SizeValue queueSize;
 
         public Info(String name, ThreadPoolType type) {
             this(name, type, -1);
@@ -548,6 +553,25 @@ public class ThreadPool extends AbstractComponent implements Closeable {
             this.max = max;
             this.keepAlive = keepAlive;
             this.queueSize = queueSize;
+        }
+
+        public Info(StreamInput in) throws IOException {
+            name = in.readString();
+            type = ThreadPoolType.fromType(in.readString());
+            min = in.readInt();
+            max = in.readInt();
+            keepAlive = in.readOptionalWriteable(TimeValue::new);
+            queueSize = in.readOptionalWriteable(SizeValue::new);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeString(type.getType());
+            out.writeInt(min);
+            out.writeInt(max);
+            out.writeOptionalWriteable(keepAlive);
+            out.writeOptionalWriteable(queueSize);
         }
 
         public String getName() {
@@ -574,46 +598,6 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         @Nullable
         public SizeValue getQueueSize() {
             return this.queueSize;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            name = in.readString();
-            type = ThreadPoolType.fromType(in.readString());
-            min = in.readInt();
-            max = in.readInt();
-            if (in.readBoolean()) {
-                keepAlive = new TimeValue(in);
-            }
-            if (in.readBoolean()) {
-                queueSize = SizeValue.readSizeValue(in);
-            }
-            in.readBoolean(); // here to conform with removed waitTime
-            in.readBoolean(); // here to conform with removed rejected setting
-            in.readBoolean(); // here to conform with queue type
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(name);
-            out.writeString(type.getType());
-            out.writeInt(min);
-            out.writeInt(max);
-            if (keepAlive == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                keepAlive.writeTo(out);
-            }
-            if (queueSize == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                queueSize.writeTo(out);
-            }
-            out.writeBoolean(false); // here to conform with removed waitTime
-            out.writeBoolean(false); // here to conform with removed rejected setting
-            out.writeBoolean(false); // here to conform with queue type
         }
 
         @Override
@@ -645,7 +629,6 @@ public class ThreadPool extends AbstractComponent implements Closeable {
             static final String KEEP_ALIVE = "keep_alive";
             static final String QUEUE_SIZE = "queue_size";
         }
-
     }
 
     /**
@@ -700,4 +683,105 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         return threadContext;
     }
 
+    /**
+     * This interface represents an object whose execution may be cancelled during runtime.
+     */
+    public interface Cancellable {
+
+        /**
+         * Cancel the execution of this object. This method is idempotent.
+         */
+        void cancel();
+
+        /**
+         * Check if the execution has been cancelled
+         * @return true if cancelled
+         */
+        boolean isCancelled();
+    }
+
+    /**
+     * This class encapsulates the scheduling of a {@link Runnable} that needs to be repeated on a interval. For example, checking a value
+     * for cleanup every second could be done by passing in a Runnable that can perform the check and the specified interval between
+     * executions of this runnable. <em>NOTE:</em> the runnable is only rescheduled to run again after completion of the runnable.
+     *
+     * For this class, <i>completion</i> means that the call to {@link Runnable#run()} returned or an exception was thrown and caught. In
+     * case of an exception, this class will log the exception and reschedule the runnable for its next execution. This differs from the
+     * {@link ScheduledThreadPoolExecutor#scheduleWithFixedDelay(Runnable, long, long, TimeUnit)} semantics as an exception there would
+     * terminate the rescheduling of the runnable.
+     */
+    static final class ReschedulingRunnable extends AbstractRunnable implements Cancellable {
+
+        private final Runnable runnable;
+        private final TimeValue interval;
+        private final String executor;
+        private final ThreadPool threadPool;
+
+        private volatile boolean run = true;
+
+        /**
+         * Creates a new rescheduling runnable and schedules the first execution to occur after the interval specified
+         *
+         * @param runnable the {@link Runnable} that should be executed periodically
+         * @param interval the time interval between executions
+         * @param executor the executor where this runnable should be scheduled to run
+         * @param threadPool the {@link ThreadPool} instance to use for scheduling
+         */
+        ReschedulingRunnable(Runnable runnable, TimeValue interval, String executor, ThreadPool threadPool) {
+            this.runnable = runnable;
+            this.interval = interval;
+            this.executor = executor;
+            this.threadPool = threadPool;
+            threadPool.schedule(interval, executor, this);
+        }
+
+        @Override
+        public void cancel() {
+            run = false;
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return run == false;
+        }
+
+        @Override
+        public void doRun() {
+            // always check run here since this may have been cancelled since the last execution and we do not want to run
+            if (run) {
+                runnable.run();
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            threadPool.logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]", runnable.toString(), executor), e);
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            run = false;
+            if (threadPool.logger.isDebugEnabled()) {
+                threadPool.logger.debug((Supplier<?>) () -> new ParameterizedMessage("scheduled task [{}] was rejected on thread pool [{}]", runnable, executor), e);
+            }
+        }
+
+        @Override
+        public void onAfter() {
+            // if this has not been cancelled reschedule it to run again
+            if (run) {
+                try {
+                    threadPool.schedule(interval, executor, this);
+                } catch (final EsRejectedExecutionException e) {
+                    onRejection(e);
+                }
+            }
+        }
+    }
+
+    public static boolean assertNotScheduleThread(String reason) {
+        assert Thread.currentThread().getName().contains("scheduler") == false :
+            "Expected current thread [" + Thread.currentThread() + "] to not be the scheduler thread. Reason: [" + reason + "]";
+        return true;
+    }
 }

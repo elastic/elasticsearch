@@ -114,13 +114,13 @@ final class Security {
      * @param environment configuration for generating dynamic permissions
      * @param filterBadDefaults true if we should filter out bad java defaults in the system policy.
      */
-    static void configure(Environment environment, boolean filterBadDefaults) throws Exception {
+    static void configure(Environment environment, boolean filterBadDefaults) throws IOException, NoSuchAlgorithmException {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Policy.setPolicy(new ESPolicy(createPermissions(environment), getPluginPermissions(environment), filterBadDefaults));
 
         // enable security manager
-        System.setSecurityManager(new SecureSM());
+        System.setSecurityManager(new SecureSM(new String[] { "org.elasticsearch.bootstrap.", "org.elasticsearch.cli" }));
 
         // do some basic tests
         selfTest();
@@ -257,11 +257,6 @@ final class Security {
         for (Path path : environment.dataFiles()) {
             addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
         }
-        // TODO: this should be removed in ES 6.0! We will no longer support data paths with the cluster as a folder
-        assert Version.CURRENT.major < 6 : "cluster name is no longer used in data path";
-        for (Path path : environment.dataWithClusterFiles()) {
-            addPathIfExists(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
-        }
         for (Path path : environment.repoFiles()) {
             addPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete");
         }
@@ -285,7 +280,7 @@ final class Security {
         }
 
         // loop through all profiles and add permissions for each one, if its valid.
-        // (otherwise NettyTransport is lenient and ignores it)
+        // (otherwise Netty transports are lenient and ignores it)
         for (Map.Entry<String, Settings> entry : profiles.entrySet()) {
             Settings profileSettings = entry.getValue();
             String name = entry.getKey();

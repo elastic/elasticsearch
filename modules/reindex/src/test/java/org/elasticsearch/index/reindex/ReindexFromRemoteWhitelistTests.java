@@ -31,6 +31,7 @@ import java.net.UnknownHostException;
 import java.util.HashSet;
 import java.util.Set;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.index.reindex.TransportReindexAction.checkRemoteWhitelist;
 
@@ -58,7 +59,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
         String[] inList = whitelist.iterator().next().split(":");
         String host = inList[0];
         int port = Integer.valueOf(inList[1]);
-        checkRemoteWhitelist(whitelist, new RemoteInfo(randomAsciiOfLength(5), host, port, new BytesArray("test"), null, null),
+        checkRemoteWhitelist(whitelist, new RemoteInfo(randomAsciiOfLength(5), host, port, new BytesArray("test"), null, null, emptyMap()),
                 localhostOrNone());
     }
 
@@ -66,14 +67,15 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
         Set<String> whitelist = randomWhitelist();
         whitelist.add("myself");
         TransportAddress publishAddress = new InetSocketTransportAddress(InetAddress.getByAddress(new byte[] {0x7f,0x00,0x00,0x01}), 9200);
-        checkRemoteWhitelist(whitelist, new RemoteInfo(randomAsciiOfLength(5), "127.0.0.1", 9200, new BytesArray("test"), null, null),
-                publishAddress);
+        checkRemoteWhitelist(whitelist,
+                new RemoteInfo(randomAsciiOfLength(5), "127.0.0.1", 9200, new BytesArray("test"), null, null, emptyMap()), publishAddress);
     }
 
     public void testUnwhitelistedRemote() {
         int port = between(1, Integer.MAX_VALUE);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> checkRemoteWhitelist(randomWhitelist(),
-                new RemoteInfo(randomAsciiOfLength(5), "not in list", port, new BytesArray("test"), null, null), localhostOrNone()));
+        RemoteInfo remoteInfo = new RemoteInfo(randomAsciiOfLength(5), "not in list", port, new BytesArray("test"), null, null, emptyMap());
+        Exception e = expectThrows(IllegalArgumentException.class,
+                () -> checkRemoteWhitelist(randomWhitelist(), remoteInfo, localhostOrNone()));
         assertEquals("[not in list:" + port + "] not whitelisted in reindex.remote.whitelist", e.getMessage());
     }
 

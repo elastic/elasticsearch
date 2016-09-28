@@ -59,7 +59,6 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         }
         assertAcked(prepareCreate(index).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0)
                 .addMapping(type, "text", textMappings));
-        ensureYellow(index);
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
         addTermsDocs("1", 1, 0, indexBuilders);//high score but low doc freq
@@ -119,7 +118,6 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
             termMappings += ",fielddata=true";
         }
         assertAcked(prepareCreate(index).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping(type, "text", termMappings));
-        ensureYellow(index);
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
         addTermsDocs("1", 1, indexBuilders);//low doc freq but high score

@@ -21,9 +21,7 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -31,21 +29,18 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
-/**
- *
- */
 public class QuerySearchResult extends QuerySearchResultProvider {
 
     private long id;
@@ -189,6 +184,12 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         return this;
     }
 
+    /** Returns true iff the result has hits */
+    public boolean hasHits() {
+        return (topDocs != null && topDocs.scoreDocs.length > 0) ||
+            (suggest != null && suggest.hasScoreDocs());
+    }
+
     public static QuerySearchResult readQuerySearchResult(StreamInput in) throws IOException {
         QuerySearchResult result = new QuerySearchResult();
         result.readFrom(in);
@@ -204,7 +205,6 @@ public class QuerySearchResult extends QuerySearchResultProvider {
 
     public void readFromWithId(long id, StreamInput in) throws IOException {
         this.id = id;
-//        shardTarget = readSearchShardTarget(in);
         from = in.readVInt();
         size = in.readVInt();
         int numSortFieldsPlus1 = in.readVInt();
@@ -220,30 +220,14 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         if (in.readBoolean()) {
             aggregations = InternalAggregations.readAggregations(in);
         }
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            List<SiblingPipelineAggregator> pipelineAggregators = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                // NORELEASE temporary hack to support old style streams and new style NamedWriteable at the same time
-                if (in.readBoolean()) {
-                    pipelineAggregators.add((SiblingPipelineAggregator) in.readNamedWriteable(PipelineAggregator.class));
-                } else {
-                    BytesReference type = in.readBytesReference();
-                    PipelineAggregator pipelineAggregator = PipelineAggregatorStreams.stream(type).readResult(in);
-                    pipelineAggregators.add((SiblingPipelineAggregator) pipelineAggregator);
-                }
-            }
-            this.pipelineAggregators = pipelineAggregators;
-        }
+        pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class).stream().map(a -> (SiblingPipelineAggregator) a)
+                .collect(Collectors.toList());
         if (in.readBoolean()) {
             suggest = Suggest.readSuggest(in);
         }
         searchTimedOut = in.readBoolean();
         terminatedEarly = in.readOptionalBoolean();
-
-        if (in.getVersion().onOrAfter(Version.V_2_2_0) && in.readBoolean()) {
-            profileShardResults = new ProfileShardResult(in);
-        }
+        profileShardResults = in.readOptionalWriteable(ProfileShardResult::new);
     }
 
     @Override
@@ -254,7 +238,6 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     }
 
     public void writeToNoId(StreamOutput out) throws IOException {
-//        shardTarget.writeTo(out);
         out.writeVInt(from);
         out.writeVInt(size);
         if (sortValueFormats == null) {
@@ -272,24 +255,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             out.writeBoolean(true);
             aggregations.writeTo(out);
         }
-        if (pipelineAggregators == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeVInt(pipelineAggregators.size());
-            for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
-                // NORELEASE temporary hack to support old style streams and new style NamedWriteable
-                try {
-                    pipelineAggregator.getWriteableName(); // Throws UnsupportedOperationException if we should use old style streams.
-                    out.writeBoolean(true);
-                    out.writeNamedWriteable(pipelineAggregator);
-                } catch (UnsupportedOperationException e) {
-                    out.writeBoolean(false);
-                    out.writeBytesReference(pipelineAggregator.type().stream());
-                    pipelineAggregator.writeTo(out);
-                }
-            }
-        }
+        out.writeNamedWriteableList(pipelineAggregators == null ? emptyList() : pipelineAggregators);
         if (suggest == null) {
             out.writeBoolean(false);
         } else {
@@ -298,14 +264,6 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         }
         out.writeBoolean(searchTimedOut);
         out.writeOptionalBoolean(terminatedEarly);
-
-        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
-            if (profileShardResults == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                profileShardResults.writeTo(out);
-            }
-        }
+        out.writeOptionalWriteable(profileShardResults);
     }
 }

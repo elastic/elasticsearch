@@ -1,4 +1,11 @@
 ---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
 "Test simulate with stored ingest pipeline":
   - do:
       ingest.put_pipeline:
@@ -481,7 +488,7 @@
   - match: { docs.0.processor_results.4.doc._source.status: 200 }
 
 ---
-"Test verbose simulate with ignore_failure":
+"Test verbose simulate with ignore_failure and thrown exception":
   - do:
       ingest.simulate:
         verbose: true
@@ -547,5 +554,54 @@
   - match: { docs.0.processor_results.0.doc._source.field1: "123.42 400 <foo>" }
   - match: { docs.0.processor_results.0.doc._source.status: 200 }
   - match: { docs.0.processor_results.1.tag: "rename-1" }
+  - match: { docs.0.processor_results.1.ignored_error.error.type: "illegal_argument_exception" }
+  - match: { docs.0.processor_results.1.ignored_error.error.reason: "field [foofield] doesn't exist" }
   - match: { docs.0.processor_results.1.doc._source.field1: "123.42 400 <foo>" }
   - match: { docs.0.processor_results.1.doc._source.status: 200 }
+
+---
+"Test verbose simulate with ignore_failure and no exception thrown":
+  - do:
+      ingest.simulate:
+        verbose: true
+        body: >
+          {
+            "pipeline" : {
+              "description": "_description",
+              "processors": [
+                {
+                  "set" : {
+                    "tag" : "setstatus-1",
+                    "field" : "status",
+                    "value" : 200
+                  }
+                },
+                {
+                  "rename" : {
+                    "tag" : "rename-1",
+                    "field" : "status",
+                    "target_field" : "new_status",
+                    "ignore_failure": true
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "field1": "123.42 400 <foo>"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - length: { docs.0.processor_results: 2 }
+  - match: { docs.0.processor_results.0.tag: "setstatus-1" }
+  - match: { docs.0.processor_results.0.doc._source.field1: "123.42 400 <foo>" }
+  - match: { docs.0.processor_results.0.doc._source.status: 200 }
+  - length: { docs.0.processor_results.1: 2 }
+  - match: { docs.0.processor_results.1.tag: "rename-1" }
+  - match: { docs.0.processor_results.1.doc._source.new_status: 200 }

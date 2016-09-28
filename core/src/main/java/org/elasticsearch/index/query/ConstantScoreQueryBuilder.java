@@ -38,9 +38,7 @@ import java.util.Optional;
  * query boost for every document in the filter.
  */
 public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScoreQueryBuilder> {
-
     public static final String NAME = "constant_score";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField INNER_QUERY_FIELD = new ParseField("filter", "query");
 

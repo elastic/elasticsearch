@@ -19,11 +19,14 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * A recovery handler that skips phase 1 as well as sending the snapshot. During phase 3 the shard is marked
@@ -34,9 +37,10 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
     private final IndexShard shard;
     private final StartRecoveryRequest request;
 
-    public SharedFSRecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, StartRecoveryRequest request, ESLogger
-            logger) {
-        super(shard, recoveryTarget, request, -1, logger);
+    public SharedFSRecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, StartRecoveryRequest request,
+                                         Supplier<Long> currentClusterStateVersionSupplier,
+                                         Function<String, Releasable> delayNewRecoveries, Logger logger) {
+        super(shard, recoveryTarget, request, currentClusterStateVersionSupplier, delayNewRecoveries, -1, logger);
         this.shard = shard;
         this.request = request;
     }
@@ -46,7 +50,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
         boolean engineClosed = false;
         try {
             logger.trace("{} recovery [phase1] to {}: skipping phase 1 for shared filesystem", request.shardId(), request.targetNode());
-            if (isPrimaryRelocation()) {
+            if (request.isPrimaryRelocation()) {
                 logger.debug("[phase1] closing engine on primary for shared filesystem recovery");
                 try {
                     // if we relocate we need to close the engine in order to open a new

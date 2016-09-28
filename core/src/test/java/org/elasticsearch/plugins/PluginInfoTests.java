@@ -23,8 +23,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.test.ESTestCase;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -201,15 +202,17 @@ public class PluginInfoTests extends ESTestCase {
     }
 
     public void testPluginListSorted() {
-        PluginsAndModules pluginsInfo = new PluginsAndModules();
-        pluginsInfo.addPlugin(new PluginInfo("c", "foo", "dummy", "dummyclass"));
-        pluginsInfo.addPlugin(new PluginInfo("b", "foo", "dummy", "dummyclass"));
-        pluginsInfo.addPlugin(new PluginInfo("e", "foo", "dummy", "dummyclass"));
-        pluginsInfo.addPlugin(new PluginInfo("a", "foo", "dummy", "dummyclass"));
-        pluginsInfo.addPlugin(new PluginInfo("d", "foo", "dummy", "dummyclass"));
+        List<PluginInfo> plugins = new ArrayList<>();
+        plugins.add(new PluginInfo("c", "foo", "dummy", "dummyclass"));
+        plugins.add(new PluginInfo("b", "foo", "dummy", "dummyclass"));
+        plugins.add(new PluginInfo("e", "foo", "dummy", "dummyclass"));
+        plugins.add(new PluginInfo("a", "foo", "dummy", "dummyclass"));
+        plugins.add(new PluginInfo("d", "foo", "dummy", "dummyclass"));
+        PluginsAndModules pluginsInfo = new PluginsAndModules(plugins, Collections.emptyList());
+
 
         final List<PluginInfo> infos = pluginsInfo.getPluginInfos();
-        List<String> names = infos.stream().map((input) -> input.getName()).collect(Collectors.toList());
+        List<String> names = infos.stream().map(PluginInfo::getName).collect(Collectors.toList());
         assertThat(names, contains("a", "b", "c", "d", "e"));
     }
 }

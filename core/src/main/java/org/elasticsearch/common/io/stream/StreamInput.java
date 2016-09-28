@@ -53,6 +53,7 @@ import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -119,6 +120,7 @@ public abstract class StreamInput extends InputStream {
      * only if you must differentiate null from empty. Use {@link StreamInput#readBytesReference()} and
      * {@link StreamOutput#writeBytesReference(BytesReference)} if you do not.
      */
+    @Nullable
     public BytesReference readOptionalBytesReference() throws IOException {
         int length = readVInt() - 1;
         if (length < 0) {
@@ -275,6 +277,14 @@ public abstract class StreamInput extends InputStream {
     }
 
     @Nullable
+    public Long readOptionalLong() throws IOException {
+        if (readBoolean()) {
+            return readLong();
+        }
+        return null;
+    }
+
+    @Nullable
     public Text readOptionalText() throws IOException {
         int length = readInt();
         if (length == -1) {
@@ -354,6 +364,7 @@ public abstract class StreamInput extends InputStream {
         return Double.longBitsToDouble(readLong());
     }
 
+    @Nullable
     public final Double readOptionalDouble() throws IOException {
         if (readBoolean()) {
             return readDouble();
@@ -401,11 +412,46 @@ public abstract class StreamInput extends InputStream {
         return ret;
     }
 
+    @Nullable
     public String[] readOptionalStringArray() throws IOException {
         if (readBoolean()) {
             return readStringArray();
         }
         return null;
+    }
+
+    public <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
+        int size = readVInt();
+        Map<K, V> map = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            K key = keyReader.read(this);
+            V value = valueReader.read(this);
+            map.put(key, value);
+        }
+        return map;
+    }
+
+    /**
+     * Read a {@link Map} of {@code K}-type keys to {@code V}-type {@link List}s.
+     * <pre><code>
+     * Map&lt;String, List&lt;String&gt;&gt; map = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
+     * </code></pre>
+     *
+     * @param keyReader The key reader
+     * @param valueReader The value reader
+     * @return Never {@code null}.
+     */
+    public <K, V> Map<K, List<V>> readMapOfLists(final Writeable.Reader<K> keyReader, final Writeable.Reader<V> valueReader)
+            throws IOException {
+        final int size = readVInt();
+        if (size == 0) {
+            return Collections.emptyMap();
+        }
+        final Map<K, List<V>> map = new HashMap<>(size);
+        for (int i = 0; i < size; ++i) {
+            map.put(keyReader.read(this), readList(valueReader));
+        }
+        return map;
     }
 
     @Nullable
@@ -619,6 +665,7 @@ public abstract class StreamInput extends InputStream {
     /**
      * Serializes a potential null value.
      */
+    @Nullable
     public <T extends Streamable> T readOptionalStreamable(Supplier<T> supplier) throws IOException {
         if (readBoolean()) {
             T streamable = supplier.get();
@@ -629,6 +676,7 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
+    @Nullable
     public <T extends Writeable> T readOptionalWriteable(Writeable.Reader<T> reader) throws IOException {
         if (readBoolean()) {
             T t = reader.read(this);
@@ -753,6 +801,7 @@ public abstract class StreamInput extends InputStream {
     /**
      * Reads an optional {@link NamedWriteable}.
      */
+    @Nullable
     public <C extends NamedWriteable> C readOptionalNamedWriteable(Class<C> categoryClass) throws IOException {
         if (readBoolean()) {
             return readNamedWriteable(categoryClass);
@@ -791,6 +840,18 @@ public abstract class StreamInput extends InputStream {
         List<T> builder = new ArrayList<>(count);
         for (int i=0; i<count; i++) {
             builder.add(reader.read(this));
+        }
+        return builder;
+    }
+
+    /**
+     * Reads a list of {@link NamedWriteable}s.
+     */
+    public <T extends NamedWriteable> List<T> readNamedWriteableList(Class<T> categoryClass) throws IOException {
+        int count = readVInt();
+        List<T> builder = new ArrayList<>(count);
+        for (int i=0; i<count; i++) {
+            builder.add(readNamedWriteable(categoryClass));
         }
         return builder;
     }

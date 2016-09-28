@@ -211,30 +211,16 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         if (in.readBoolean()) {
             indices = NodeIndicesStats.readIndicesStats(in);
         }
-        if (in.readBoolean()) {
-            os = OsStats.readOsStats(in);
-        }
-        if (in.readBoolean()) {
-            process = ProcessStats.readProcessStats(in);
-        }
-        if (in.readBoolean()) {
-            jvm = JvmStats.readJvmStats(in);
-        }
-        if (in.readBoolean()) {
-            threadPool = ThreadPoolStats.readThreadPoolStats(in);
-        }
-        if (in.readBoolean()) {
-            fs = new FsInfo(in);
-        }
-        if (in.readBoolean()) {
-            transport = TransportStats.readTransportStats(in);
-        }
-        if (in.readBoolean()) {
-            http = HttpStats.readHttpStats(in);
-        }
-        breaker = AllCircuitBreakerStats.readOptionalAllCircuitBreakerStats(in);
-        scriptStats = in.readOptionalStreamable(ScriptStats::new);
-        discoveryStats = in.readOptionalStreamable(() -> new DiscoveryStats(null));
+        os = in.readOptionalWriteable(OsStats::new);
+        process = in.readOptionalWriteable(ProcessStats::new);
+        jvm = in.readOptionalWriteable(JvmStats::new);
+        threadPool = in.readOptionalWriteable(ThreadPoolStats::new);
+        fs = in.readOptionalWriteable(FsInfo::new);
+        transport = in.readOptionalWriteable(TransportStats::new);
+        http = in.readOptionalWriteable(HttpStats::new);
+        breaker = in.readOptionalWriteable(AllCircuitBreakerStats::new);
+        scriptStats = in.readOptionalWriteable(ScriptStats::new);
+        discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
         ingestStats = in.readOptionalWriteable(IngestStats::new);
     }
 
@@ -248,51 +234,16 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
             out.writeBoolean(true);
             indices.writeTo(out);
         }
-        if (os == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            os.writeTo(out);
-        }
-        if (process == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            process.writeTo(out);
-        }
-        if (jvm == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            jvm.writeTo(out);
-        }
-        if (threadPool == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            threadPool.writeTo(out);
-        }
-        if (fs == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            fs.writeTo(out);
-        }
-        if (transport == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            transport.writeTo(out);
-        }
-        if (http == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            http.writeTo(out);
-        }
-        out.writeOptionalStreamable(breaker);
-        out.writeOptionalStreamable(scriptStats);
-        out.writeOptionalStreamable(discoveryStats);
+        out.writeOptionalWriteable(os);
+        out.writeOptionalWriteable(process);
+        out.writeOptionalWriteable(jvm);
+        out.writeOptionalWriteable(threadPool);
+        out.writeOptionalWriteable(fs);
+        out.writeOptionalWriteable(transport);
+        out.writeOptionalWriteable(http);
+        out.writeOptionalWriteable(breaker);
+        out.writeOptionalWriteable(scriptStats);
+        out.writeOptionalWriteable(discoveryStats);
         out.writeOptionalWriteable(ingestStats);
     }
 
@@ -318,11 +269,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
                 builder.endObject();
             }
         }
-
         if (getIndices() != null) {
             getIndices().toXContent(builder, params);
         }
-
         if (getOs() != null) {
             getOs().toXContent(builder, params);
         }
@@ -350,15 +299,12 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         if (getScriptStats() != null) {
             getScriptStats().toXContent(builder, params);
         }
-
         if (getDiscoveryStats() != null) {
             getDiscoveryStats().toXContent(builder, params);
         }
-
         if (getIngestStats() != null) {
             getIngestStats().toXContent(builder, params);
         }
-
         return builder;
     }
 }

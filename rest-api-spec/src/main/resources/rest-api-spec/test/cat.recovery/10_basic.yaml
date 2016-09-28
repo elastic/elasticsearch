@@ -16,9 +16,6 @@
         body:   { foo: bar }
         refresh: true
   - do:
-       cluster.health:
-         wait_for_status: yellow
-  - do:
       cat.recovery:
           h: i,s,t,ty,st,shost,thost,rep,snap,f,fr,fp,tf,b,br,bp,tb,to,tor,top
 
@@ -29,7 +26,7 @@
                 index1      \s+
                 \d          \s+                                 # shard
                 (?:\d+ms|\d+(?:\.\d+)?s)    \s+                 # time in ms or seconds
-                (store|replica|snapshot|relocating)     \s+     # type
+                (empty_store|existing_store|peer|snapshot|local_shards) \s+ # source type
                 (init|index|verify_index|translog|finalize|done) \s+ # stage
                 [-\w./]+    \s+                                 # source_host
                 [-\w./]+    \s+                                 # target_host

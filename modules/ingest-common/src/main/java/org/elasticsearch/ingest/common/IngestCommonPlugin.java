@@ -19,9 +19,6 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.node.NodeModule;
-import org.elasticsearch.plugins.Plugin;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,9 +28,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class IngestCommonPlugin extends Plugin {
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.Plugin;
 
-    public static final String NAME = "ingest-common";
+public class IngestCommonPlugin extends Plugin implements IngestPlugin {
 
     private final Map<String, String> builtinPatterns;
 
@@ -41,26 +40,29 @@ public class IngestCommonPlugin extends Plugin {
         this.builtinPatterns = loadBuiltinPatterns();
     }
 
-    public void onModule(NodeModule nodeModule) {
-        nodeModule.registerProcessor(DateProcessor.TYPE, (registry) -> new DateProcessor.Factory());
-        nodeModule.registerProcessor(SetProcessor.TYPE, (registry) -> new SetProcessor.Factory(registry.getTemplateService()));
-        nodeModule.registerProcessor(AppendProcessor.TYPE, (registry) -> new AppendProcessor.Factory(registry.getTemplateService()));
-        nodeModule.registerProcessor(RenameProcessor.TYPE, (registry) -> new RenameProcessor.Factory());
-        nodeModule.registerProcessor(RemoveProcessor.TYPE, (registry) -> new RemoveProcessor.Factory(registry.getTemplateService()));
-        nodeModule.registerProcessor(SplitProcessor.TYPE, (registry) -> new SplitProcessor.Factory());
-        nodeModule.registerProcessor(JoinProcessor.TYPE, (registry) -> new JoinProcessor.Factory());
-        nodeModule.registerProcessor(UppercaseProcessor.TYPE, (registry) -> new UppercaseProcessor.Factory());
-        nodeModule.registerProcessor(LowercaseProcessor.TYPE, (registry) -> new LowercaseProcessor.Factory());
-        nodeModule.registerProcessor(TrimProcessor.TYPE, (registry) -> new TrimProcessor.Factory());
-        nodeModule.registerProcessor(ConvertProcessor.TYPE, (registry) -> new ConvertProcessor.Factory());
-        nodeModule.registerProcessor(GsubProcessor.TYPE, (registry) -> new GsubProcessor.Factory());
-        nodeModule.registerProcessor(FailProcessor.TYPE, (registry) -> new FailProcessor.Factory(registry.getTemplateService()));
-        nodeModule.registerProcessor(ForEachProcessor.TYPE, (registry) -> new ForEachProcessor.Factory(registry));
-        nodeModule.registerProcessor(DateIndexNameProcessor.TYPE, (registry) -> new DateIndexNameProcessor.Factory());
-        nodeModule.registerProcessor(SortProcessor.TYPE, (registry) -> new SortProcessor.Factory());
-        nodeModule.registerProcessor(GrokProcessor.TYPE, (registry) -> new GrokProcessor.Factory(builtinPatterns));
-        nodeModule.registerProcessor(ScriptProcessor.TYPE, (registry) ->
-            new ScriptProcessor.Factory(registry.getScriptService()));
+    @Override
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        Map<String, Processor.Factory> processors = new HashMap<>();
+        processors.put(DateProcessor.TYPE, new DateProcessor.Factory());
+        processors.put(SetProcessor.TYPE, new SetProcessor.Factory(parameters.templateService));
+        processors.put(AppendProcessor.TYPE, new AppendProcessor.Factory(parameters.templateService));
+        processors.put(RenameProcessor.TYPE, new RenameProcessor.Factory());
+        processors.put(RemoveProcessor.TYPE, new RemoveProcessor.Factory(parameters.templateService));
+        processors.put(SplitProcessor.TYPE, new SplitProcessor.Factory());
+        processors.put(JoinProcessor.TYPE, new JoinProcessor.Factory());
+        processors.put(UppercaseProcessor.TYPE, new UppercaseProcessor.Factory());
+        processors.put(LowercaseProcessor.TYPE, new LowercaseProcessor.Factory());
+        processors.put(TrimProcessor.TYPE, new TrimProcessor.Factory());
+        processors.put(ConvertProcessor.TYPE, new ConvertProcessor.Factory());
+        processors.put(GsubProcessor.TYPE, new GsubProcessor.Factory());
+        processors.put(FailProcessor.TYPE, new FailProcessor.Factory(parameters.templateService));
+        processors.put(ForEachProcessor.TYPE, new ForEachProcessor.Factory());
+        processors.put(DateIndexNameProcessor.TYPE, new DateIndexNameProcessor.Factory());
+        processors.put(SortProcessor.TYPE, new SortProcessor.Factory());
+        processors.put(GrokProcessor.TYPE, new GrokProcessor.Factory(builtinPatterns));
+        processors.put(ScriptProcessor.TYPE, new ScriptProcessor.Factory(parameters.scriptService));
+        processors.put(DotExpanderProcessor.TYPE, new DotExpanderProcessor.Factory());
+        return Collections.unmodifiableMap(processors);
     }
 
     // Code for loading built-in grok patterns packaged with the jar file:

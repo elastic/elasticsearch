@@ -136,7 +136,7 @@ public class ShardInfoIT extends ESIntegTestCase {
                 assertThat(state.routingTable().index("idx").shard(shardId).activeShards().size(), equalTo(copyCount));
 
                 ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth("idx")
-                        .setWaitForRelocatingShards(0)
+                        .setWaitForNoRelocatingShards(true)
                         .get();
                 assertThat(healthResponse.isTimedOut(), equalTo(false));
 

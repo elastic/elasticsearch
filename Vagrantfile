@@ -37,6 +37,13 @@ Vagrant.configure(2) do |config|
       [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
     SHELL
   end
+  config.vm.define "ubuntu-1604" do |config|
+    config.vm.box = "elastic/ubuntu-16.04-x86_64"
+    ubuntu_common config, extra: <<-SHELL
+      # Install Jayatana so we can work around it being present.
+      [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
+    SHELL
+  end
   # Wheezy's backports don't contain Openjdk 8 and the backflips required to
   # get the sun jdk on there just aren't worth it. We have jessie for testing
   # debian and it works fine.
@@ -60,8 +67,8 @@ Vagrant.configure(2) do |config|
     config.vm.box = "elastic/oraclelinux-7-x86_64"
     rpm_common config
   end
-  config.vm.define "fedora-22" do |config|
-    config.vm.box = "elastic/fedora-22-x86_64"
+  config.vm.define "fedora-24" do |config|
+    config.vm.box = "elastic/fedora-24-x86_64"
     dnf_common config
   end
   config.vm.define "opensuse-13" do |config|
@@ -78,8 +85,8 @@ Vagrant.configure(2) do |config|
   config.vm.synced_folder ".", "/vagrant", disabled: true
   config.vm.synced_folder ".", "/elasticsearch"
   config.vm.provider "virtualbox" do |v|
-    # Give the boxes 2GB so they can run our tests if they have to.
-    v.memory = 2048
+    # Give the boxes 3GB because Elasticsearch defaults to using 2GB
+    v.memory = 3072
   end
   if Vagrant.has_plugin?("vagrant-cachier")
     config.cache.scope = :box

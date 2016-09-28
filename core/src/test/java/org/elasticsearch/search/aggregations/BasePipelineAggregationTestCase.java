@@ -20,28 +20,32 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelineAggregationBuilder<AF>> extends ESTestCase {
@@ -52,51 +56,44 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
     protected static final String BOOLEAN_FIELD_NAME = "mapped_boolean";
     protected static final String DATE_FIELD_NAME = "mapped_date";
 
-    private static Injector injector;
-    private static Index index;
+    private String[] currentTypes;
 
-    private static String[] currentTypes;
-
-    protected static String[] getCurrentTypes() {
+    protected String[] getCurrentTypes() {
         return currentTypes;
     }
 
-    private static NamedWriteableRegistry namedWriteableRegistry;
+    private NamedWriteableRegistry namedWriteableRegistry;
 
-    protected static AggregatorParsers aggParsers;
-    protected static ParseFieldMatcher parseFieldMatcher;
-    protected static IndicesQueriesRegistry queriesRegistry;
+    protected AggregatorParsers aggParsers;
+    protected IndicesQueriesRegistry queriesRegistry;
+    protected ParseFieldMatcher parseFieldMatcher;
 
     protected abstract AF createTestAggregatorFactory();
 
     /**
      * Setup for the whole base test class.
      */
-    @BeforeClass
-    public static void init() throws IOException {
-        index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
-        injector = BaseAggregationTestCase.buildInjector(index);
-        namedWriteableRegistry = injector.getInstance(NamedWriteableRegistry.class);
-        aggParsers = injector.getInstance(AggregatorParsers.class);
+    public void setUp() throws Exception {
+        super.setUp();
+        Settings settings = Settings.builder()
+            .put("node.name", AbstractQueryTestCase.class.toString())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .build();
+        IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
+        SearchModule searchModule = new SearchModule(settings, false, emptyList());
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.addAll(indicesModule.getNamedWriteables());
+        entries.addAll(searchModule.getNamedWriteables());
+        namedWriteableRegistry = new NamedWriteableRegistry(entries);
+        queriesRegistry = searchModule.getQueryParserRegistry();
+        aggParsers = searchModule.getSearchRequestParsers().aggParsers;
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < currentTypes.length; i++) {
             String type = randomAsciiOfLengthBetween(1, 10);
             currentTypes[i] = type;
         }
-        queriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
         parseFieldMatcher = ParseFieldMatcher.STRICT;
-    }
-
-    @AfterClass
-    public static void afterClass() throws Exception {
-        injector.getInstance(ClusterService.class).close();
-        terminate(injector.getInstance(ThreadPool.class));
-        injector = null;
-        index = null;
-        aggParsers = null;
-        currentTypes = null;
-        namedWriteableRegistry = null;
     }
 
     /**
@@ -104,7 +101,6 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
      * AggregatorFactory and checks both for equality and asserts equality on
      * the two queries.
      */
-
     public void testFromXContent() throws IOException {
         AF testAgg = createTestAggregatorFactory();
         AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder().skipResolveOrder().addPipelineAggregator(testAgg);

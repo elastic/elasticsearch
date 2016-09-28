@@ -180,7 +180,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         super(item.index());
         this.id = item.id();
         this.type = item.type();
-        this.selectedFields(item.fields());
+        this.selectedFields(item.storedFields());
         this.routing(item.routing());
         this.parent(item.parent());
     }

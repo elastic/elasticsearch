@@ -20,8 +20,6 @@
 package org.elasticsearch.bootstrap;
 
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
-import org.apache.log4j.Java9Hack;
-import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.SecureSM;
 import org.elasticsearch.common.Strings;
@@ -91,10 +89,6 @@ public class BootstrapForTesting {
             throw new RuntimeException("found jar hell in test classpath", e);
         }
 
-        if (Constants.JRE_IS_MINIMUM_JAVA9) {
-            Java9Hack.fixLog4j();
-        }
-
         // install security manager if requested
         if (systemPropertyAsBoolean("tests.security.manager", true)) {
             try {
@@ -150,7 +144,7 @@ public class BootstrapForTesting {
                         return esPolicy.implies(domain, permission) || testFramework.implies(domain, permission);
                     }
                 });
-                System.setSecurityManager(new SecureSM(true));
+                System.setSecurityManager(SecureSM.createTestSecureSM());
                 Security.selfTest();
 
                 // guarantee plugin classes are initialized first, in case they have one-time hacks.

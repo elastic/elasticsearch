@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.store.RateLimiter;
@@ -37,6 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
+
     private final TransportService transportService;
     private final long recoveryId;
     private final ShardId shardId;
@@ -75,16 +77,16 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
-        transportService.submitRequest(targetNode, RecoveryTargetService.Actions.PREPARE_TRANSLOG,
-                new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps),
+    public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
+        transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,
+                new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps, maxUnsafeAutoIdTimestamp),
                 TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
                 EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
     }
 
     @Override
     public FinalizeResponse finalizeRecovery() {
-        return transportService.submitRequest(targetNode, RecoveryTargetService.Actions.FINALIZE,
+        return transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.FINALIZE,
                 new RecoveryFinalizeRecoveryRequest(recoveryId, shardId),
                 TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
                 new FutureTransportResponseHandler<FinalizeResponse>() {
@@ -96,10 +98,18 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
+    public void ensureClusterStateVersion(long clusterStateVersion) {
+        transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.WAIT_CLUSTERSTATE,
+            new RecoveryWaitForClusterStateRequest(recoveryId, shardId, clusterStateVersion),
+            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
+            EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+    }
+
+    @Override
     public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
         final RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(
                 recoveryId, shardId, operations, totalTranslogOps);
-        transportService.submitRequest(targetNode, RecoveryTargetService.Actions.TRANSLOG_OPS, translogOperationsRequest,
+        transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.TRANSLOG_OPS, translogOperationsRequest,
                 translogOpsRequestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
     }
 
@@ -109,7 +119,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
         RecoveryFilesInfoRequest recoveryInfoFilesRequest = new RecoveryFilesInfoRequest(recoveryId, shardId,
                 phase1FileNames, phase1FileSizes, phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps);
-        transportService.submitRequest(targetNode, RecoveryTargetService.Actions.FILES_INFO, recoveryInfoFilesRequest,
+        transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.FILES_INFO, recoveryInfoFilesRequest,
                 TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
                 EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
 
@@ -117,7 +127,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
     @Override
     public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
-        transportService.submitRequest(targetNode, RecoveryTargetService.Actions.CLEAN_FILES,
+        transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.CLEAN_FILES,
                 new RecoveryCleanFilesRequest(recoveryId, shardId, sourceMetaData, totalTranslogOps),
                 TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
                 EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
@@ -148,7 +158,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
             throttleTimeInNanos = 0;
         }
 
-        transportService.submitRequest(targetNode, RecoveryTargetService.Actions.FILE_CHUNK,
+        transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.FILE_CHUNK,
                 new RecoveryFileChunkRequest(recoveryId, shardId, fileMetaData, position, content, lastChunk,
                         totalTranslogOps,
                                 /* we send totalOperations with every request since we collect stats on the target and that way we can

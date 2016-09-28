@@ -18,6 +18,9 @@ sudo bin/elasticsearch-plugin install analysis-kuromoji
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/analysis-kuromoji/{version}/analysis-kuromoji-{version}.zip.
+
 [[analysis-kuromoji-remove]]
 [float]
 ==== Removal
@@ -172,8 +175,6 @@ PUT kuromoji_sample
   }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=東京スカイツリー
 --------------------------------------------------
 // CONSOLE
@@ -189,22 +190,23 @@ The above `analyze` request returns the following:
     "start_offset" : 0,
     "end_offset" : 2,
     "type" : "word",
-    "position" : 1
+    "position" : 0
   }, {
     "token" : "スカイツリー",
     "start_offset" : 2,
     "end_offset" : 8,
     "type" : "word",
-    "position" : 2
+    "position" : 1
   } ]
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 [[analysis-kuromoji-baseform]]
 ==== `kuromoji_baseform` token filter
 
 The `kuromoji_baseform` token filter replaces terms with their
-BaseFormAttribute. This acts as a lemmatizer for verbs and adjectives.
+BaseFormAttribute. This acts as a lemmatizer for verbs and adjectives. Example:
 
 [source,js]
 --------------------------------------------------
@@ -226,25 +228,25 @@ PUT kuromoji_sample
   }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=飲み
 --------------------------------------------------
 // CONSOLE
 
-[source,text]
+which responds with:
+
+[source,js]
 --------------------------------------------------
-# Result
 {
   "tokens" : [ {
     "token" : "飲む",
     "start_offset" : 0,
     "end_offset" : 2,
     "type" : "word",
-    "position" : 1
+    "position" : 0
   } ]
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 [[analysis-kuromoji-speech]]
 ==== `kuromoji_part_of_speech` token filter
@@ -256,6 +258,8 @@ part-of-speech tags. It accepts the following setting:
 
     An array of part-of-speech tags that should be removed. It defaults to the
     `stoptags.txt` file embedded in the `lucene-analyzer-kuromoji.jar`.
+
+For example:
 
 [source,js]
 --------------------------------------------------
@@ -286,32 +290,31 @@ PUT kuromoji_sample
   }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=寿司がおいしいね
-
 --------------------------------------------------
 // CONSOLE
 
-[source,text]
+Which responds with:
+
+[source,js]
 --------------------------------------------------
-# Result
 {
   "tokens" : [ {
     "token" : "寿司",
     "start_offset" : 0,
     "end_offset" : 2,
     "type" : "word",
-    "position" : 1
+    "position" : 0
   }, {
     "token" : "おいしい",
     "start_offset" : 3,
     "end_offset" : 7,
     "type" : "word",
-    "position" : 3
+    "position" : 2
   } ]
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 [[analysis-kuromoji-readingform]]
 ==== `kuromoji_readingform` token filter
@@ -360,12 +363,9 @@ PUT kuromoji_sample
     }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 POST kuromoji_sample/_analyze?analyzer=katakana_analyzer&text=寿司 <1>
 
 POST kuromoji_sample/_analyze?analyzer=romaji_analyzer&text=寿司 <2>
-
 --------------------------------------------------
 // CONSOLE
 
@@ -413,12 +413,9 @@ PUT kuromoji_sample
   }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=コピー <1>
 
 POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=サーバー <2>
-
 --------------------------------------------------
 // CONSOLE
 
@@ -464,33 +461,31 @@ PUT kuromoji_sample
   }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 POST kuromoji_sample/_analyze?analyzer=analyzer_with_ja_stop&text=ストップは消える
 --------------------------------------------------
 // CONSOLE
 
 The above request returns:
 
-[source,text]
+[source,js]
 --------------------------------------------------
-# Result
 {
   "tokens" : [ {
     "token" : "消える",
     "start_offset" : 5,
     "end_offset" : 8,
     "type" : "word",
-    "position" : 3
+    "position" : 2
   } ]
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 [[analysis-kuromoji-number]]
 ===== `kuromoji_number` token filter
 
 The `kuromoji_number` token filter normalizes Japanese numbers (kansūji)
-to regular Arabic decimal numbers in half-width characters.
+to regular Arabic decimal numbers in half-width characters. For example:
 
 [source,js]
 --------------------------------------------------
@@ -512,23 +507,22 @@ PUT kuromoji_sample
   }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=一〇〇〇
-
 --------------------------------------------------
 // CONSOLE
 
-[source,text]
+Which results in:
+
+[source,js]
 --------------------------------------------------
-# Result
 {
   "tokens" : [ {
     "token" : "1000",
     "start_offset" : 0,
     "end_offset" : 4,
     "type" : "word",
-    "position" : 1
+    "position" : 0
   } ]
 }
 --------------------------------------------------
+// TESTRESPONSE

@@ -19,14 +19,12 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.search.action.SearchTransportService;
-import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
@@ -36,7 +34,7 @@ import java.io.IOException;
 
 class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetchSearchResult> {
 
-    SearchQueryAndFetchAsyncAction(ESLogger logger, SearchTransportService searchTransportService,
+    SearchQueryAndFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
                                            ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
                                            SearchPhaseController searchPhaseController, ThreadPool threadPool,
                                            SearchRequest request, ActionListener<SearchResponse> listener) {
@@ -60,14 +58,11 @@ class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetc
         threadPool.executor(ThreadPool.Names.SEARCH).execute(new ActionRunnable<SearchResponse>(listener) {
             @Override
             public void doRun() throws IOException {
-                boolean useScroll = request.scroll() != null;
-                sortedShardList = searchPhaseController.sortDocs(useScroll, firstResults);
-                final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults,
+                final boolean isScrollRequest = request.scroll() != null;
+                sortedShardDocs = searchPhaseController.sortDocs(isScrollRequest, firstResults);
+                final InternalSearchResponse internalResponse = searchPhaseController.merge(isScrollRequest, sortedShardDocs, firstResults,
                     firstResults);
-                String scrollId = null;
-                if (request.scroll() != null) {
-                    scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults);
-                }
+                String scrollId = isScrollRequest ? TransportSearchHelper.buildScrollId(request.searchType(), firstResults) : null;
                 listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(),
                     buildTookInMillis(), buildShardFailures()));
             }

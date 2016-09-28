@@ -18,11 +18,13 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
@@ -38,6 +40,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ScopedSettingsTests extends ESTestCase {
 
@@ -154,16 +158,22 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public void testDiff() throws IOException {
-        Setting<Integer> foobarbaz = Setting.intSetting("foo.bar.baz", 1, Property.NodeScope);
-        Setting<Integer> foobar = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
-        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(foobar, foobarbaz)));
+        Setting<Integer> fooBarBaz = Setting.intSetting("foo.bar.baz", 1, Property.NodeScope);
+        Setting<Integer> fooBar = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
+        Setting<List<String>> foorBarQuux =
+                Setting.listSetting("foo.bar.quux", Arrays.asList("a", "b", "c"), Function.identity(), Property.NodeScope);
+        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(fooBar, fooBarBaz, foorBarQuux)));
         Settings diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.EMPTY);
-        assertEquals(diff.getAsMap().size(), 1);
-        assertEquals(diff.getAsInt("foo.bar.baz", null), Integer.valueOf(1));
+        assertThat(diff.getAsMap().size(), equalTo(2));
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
+        assertThat(diff.get("foo.bar.quux", null), equalTo("[\"a\",\"b\",\"c\"]"));
 
-        diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.builder().put("foo.bar.baz", 17).build());
-        assertEquals(diff.getAsMap().size(), 1);
-        assertEquals(diff.getAsInt("foo.bar.baz", null), Integer.valueOf(17));
+        diff = settings.diff(
+                Settings.builder().put("foo.bar", 5).build(),
+                Settings.builder().put("foo.bar.baz", 17).put("foo.bar.quux", "d,e,f").build());
+        assertThat(diff.getAsMap().size(), equalTo(2));
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(17));
+        assertThat(diff.get("foo.bar.quux", null), equalTo("[\"d\",\"e\",\"f\"]"));
     }
 
     public void testUpdateTracer() {
@@ -302,45 +312,44 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public void testLoggingUpdates() {
-        final String level = ESLoggerFactory.getRootLogger().getLevel();
-        final String testLevel = ESLoggerFactory.getLogger("test").getLevel();
-        String property = randomFrom(ESLoggerFactory.LogLevel.values()).toString();
+        final Level level = ESLoggerFactory.getRootLogger().getLevel();
+        final Level testLevel = ESLoggerFactory.getLogger("test").getLevel();
+        Level property = randomFrom(Level.values());
         Settings.Builder builder = Settings.builder().put("logger.level", property);
         try {
             ClusterSettings settings = new ClusterSettings(builder.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            try {
-                settings.validate(Settings.builder().put("logger._root", "boom").build());
-                fail();
-            } catch (IllegalArgumentException ex) {
-                assertEquals("No enum constant org.elasticsearch.common.logging.ESLoggerFactory.LogLevel.BOOM", ex.getMessage());
-            }
+            IllegalArgumentException ex =
+                expectThrows(
+                    IllegalArgumentException.class,
+                    () -> settings.validate(Settings.builder().put("logger._root", "boom").build()));
+            assertEquals("Unknown level constant [BOOM].", ex.getMessage());
             assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
-            assertEquals("TRACE", ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(Level.TRACE, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().build());
             assertEquals(property, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger.test", "TRACE").build());
-            assertEquals("TRACE", ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals(Level.TRACE, ESLoggerFactory.getLogger("test").getLevel());
             settings.applySettings(Settings.builder().build());
-            assertEquals(testLevel, ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals(property, ESLoggerFactory.getLogger("test").getLevel());
         } finally {
-            ESLoggerFactory.getRootLogger().setLevel(level);
-            ESLoggerFactory.getLogger("test").setLevel(testLevel);
+            Loggers.setLevel(ESLoggerFactory.getRootLogger(), level);
+            Loggers.setLevel(ESLoggerFactory.getLogger("test"), testLevel);
         }
     }
 
     public void testFallbackToLoggerLevel() {
-        final String level = ESLoggerFactory.getRootLogger().getLevel();
+        final Level level = ESLoggerFactory.getRootLogger().getLevel();
         try {
-            ClusterSettings settings = new ClusterSettings(Settings.builder().put("logger.level", "ERROR").build(),
-                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            ClusterSettings settings =
+                new ClusterSettings(Settings.builder().put("logger.level", "ERROR").build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
-            assertEquals("TRACE", ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(Level.TRACE, ESLoggerFactory.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().build()); // here we fall back to 'logger.level' which is our default.
-            assertEquals("ERROR", ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(Level.ERROR, ESLoggerFactory.getRootLogger().getLevel());
         } finally {
-            ESLoggerFactory.getRootLogger().setLevel(level);
+            Loggers.setLevel(ESLoggerFactory.getRootLogger(), level);
         }
     }
 

@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -49,9 +50,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
-import org.elasticsearch.test.ESAllocationTestCase;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -209,7 +211,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testThrottleWhenAllocatingToMatchingNode() {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(new AllocationDeciders(Settings.EMPTY,
-            new AllocationDecider[]{new TestAllocateDecision(Decision.YES), new SameShardAllocationDecider(Settings.EMPTY),
+            Arrays.asList(new TestAllocateDecision(Decision.YES), new SameShardAllocationDecider(Settings.EMPTY),
                 new AllocationDecider(Settings.EMPTY) {
                     @Override
                     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -218,7 +220,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                         }
                         return Decision.YES;
                     }
-                }}));
+                })));
         testAllocator.addData(node1, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"))
                 .addData(node2, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"));
         testAllocator.allocateUnassigned(allocation);
@@ -234,16 +236,16 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             // we sometime return empty list of files, make sure we test this as well
             testAllocator.addData(node2, null);
         }
-        boolean changed = testAllocator.allocateUnassigned(allocation);
-        assertThat(changed, equalTo(false));
+        testAllocator.allocateUnassigned(allocation);
+        assertThat(allocation.routingNodesChanged(), equalTo(false));
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
 
         allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders(),
                 Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1)).build(), UnassignedInfo.Reason.NODE_LEFT);
         testAllocator.addData(node2, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"));
-        changed = testAllocator.allocateUnassigned(allocation);
-        assertThat(changed, equalTo(true));
+        testAllocator.allocateUnassigned(allocation);
+        assertThat(allocation.routingNodesChanged(), equalTo(true));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(), equalTo(node2.getId()));
     }
@@ -253,8 +255,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         testAllocator.addData(node1, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"))
                 .addData(node2, "NO_MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"))
                 .addData(node3, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"));
-        boolean changed = testAllocator.processExistingRecoveries(allocation);
-        assertThat(changed, equalTo(true));
+        testAllocator.processExistingRecoveries(allocation);
+        assertThat(allocation.routingNodesChanged(), equalTo(true));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).get(0).shardId(), equalTo(shardId));
     }
@@ -264,8 +266,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         testAllocator.addData(node1, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"))
                 .addData(node2, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"))
                 .addData(node3, randomBoolean() ? "MATCH" : "NO_MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"));
-        boolean changed = testAllocator.processExistingRecoveries(allocation);
-        assertThat(changed, equalTo(false));
+        testAllocator.processExistingRecoveries(allocation);
+        assertThat(allocation.routingNodesChanged(), equalTo(false));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(0));
     }
 
@@ -273,8 +275,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders());
         testAllocator.addData(node1, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"))
                 .addData(node2, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"));
-        boolean changed = testAllocator.processExistingRecoveries(allocation);
-        assertThat(changed, equalTo(false));
+        testAllocator.processExistingRecoveries(allocation);
+        assertThat(allocation.routingNodesChanged(), equalTo(false));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(0));
     }
 
@@ -287,7 +289,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(Version.CURRENT).put(settings))
                     .numberOfShards(1).numberOfReplicas(1)
-                    .putActiveAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId())))
+                    .putInSyncAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId())))
             .build();
         // mark shard as delayed if reason is NODE_LEFT
         boolean delayed = reason == UnassignedInfo.Reason.NODE_LEFT &&
@@ -297,16 +299,18 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 .add(IndexRoutingTable.builder(shardId.getIndex())
                                 .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
                                         .addShard(primaryShard)
-                                        .addShard(ShardRouting.newUnassigned(shardId, null, false,
+                                        .addShard(ShardRouting.newUnassigned(shardId, false,
+                                            RecoverySource.PeerRecoverySource.INSTANCE,
                                             new UnassignedInfo(reason, null, null, failedAllocations, System.nanoTime(),
-                                                System.currentTimeMillis(), delayed)))
+                                                System.currentTimeMillis(), delayed, UnassignedInfo.AllocationStatus.NO_ATTEMPT)
+                                            ))
                                         .build())
                 )
                 .build();
         ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metaData(metaData)
                 .routingTable(routingTable)
-                .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();
+                .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3)).build();
         return new RoutingAllocation(deciders, new RoutingNodes(state, false), state, ClusterInfo.EMPTY, System.nanoTime(), false);
     }
 
@@ -315,20 +319,20 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(Version.CURRENT))
                     .numberOfShards(1).numberOfReplicas(1)
-                    .putActiveAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId())))
+                    .putInSyncAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId())))
                 .build();
         RoutingTable routingTable = RoutingTable.builder()
                 .add(IndexRoutingTable.builder(shardId.getIndex())
                                 .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
                                         .addShard(primaryShard)
-                                        .addShard(TestShardRouting.newShardRouting(shardId, node2.getId(), null, null, false, ShardRoutingState.INITIALIZING, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null)))
+                                        .addShard(TestShardRouting.newShardRouting(shardId, node2.getId(), null, false, ShardRoutingState.INITIALIZING, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null)))
                                         .build())
                 )
                 .build();
         ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metaData(metaData)
                 .routingTable(routingTable)
-                .nodes(DiscoveryNodes.builder().put(node1).put(node2).put(node3)).build();
+                .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3)).build();
         return new RoutingAllocation(deciders, new RoutingNodes(state, false), state, ClusterInfo.EMPTY, System.nanoTime(), false);
     }
 

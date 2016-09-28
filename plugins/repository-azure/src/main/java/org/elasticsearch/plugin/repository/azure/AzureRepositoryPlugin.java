@@ -19,44 +19,35 @@
 
 package org.elasticsearch.plugin.repository.azure;
 
-import org.elasticsearch.cloud.azure.AzureRepositoryModule;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesModule;
+import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.azure.AzureRepository;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
- *
+ * A plugin to add a repository type that writes to and from the Azure cloud storage service.
  */
-public class AzureRepositoryPlugin extends Plugin {
+public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin {
 
-    private final Settings settings;
-    protected final ESLogger logger = Loggers.getLogger(AzureRepositoryPlugin.class);
-
-    public AzureRepositoryPlugin(Settings settings) {
-        this.settings = settings;
-        logger.trace("starting azure repository plugin...");
+    // overridable for tests
+    protected AzureStorageService createStorageService(Settings settings) {
+        return new AzureStorageServiceImpl(settings);
     }
 
     @Override
-    public Collection<Module> nodeModules() {
-        return Collections.singletonList((Module) new AzureRepositoryModule(settings));
-    }
-
-    public void onModule(RepositoriesModule module) {
-        logger.debug("registering repository type [{}]", AzureRepository.TYPE);
-        module.registerRepository(AzureRepository.TYPE, AzureRepository.class, BlobStoreIndexShardRepository.class);
+    public Map<String, Repository.Factory> getRepositories(Environment env) {
+        return Collections.singletonMap(AzureRepository.TYPE,
+            (metadata) -> new AzureRepository(metadata, env, createStorageService(env.settings())));
     }
 
     @Override

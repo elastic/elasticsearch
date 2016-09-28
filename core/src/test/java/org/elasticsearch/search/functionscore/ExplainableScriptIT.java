@@ -42,6 +42,7 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -60,7 +61,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ExplainableScriptIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(ExplainableScriptPlugin.class);
+        return Arrays.asList(ExplainableScriptPlugin.class);
     }
 
     public void testNativeExplainScript() throws InterruptedException, IOException, ExecutionException {

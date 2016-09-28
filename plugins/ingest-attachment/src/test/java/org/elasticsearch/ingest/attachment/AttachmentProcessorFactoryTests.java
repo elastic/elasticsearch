@@ -47,7 +47,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
 
         String processorTag = randomAsciiOfLength(10);
 
-        AttachmentProcessor processor = factory.create(processorTag, config);
+        AttachmentProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("attachment"));
@@ -61,7 +61,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         config.put("indexed_chars", indexedChars);
 
         String processorTag = randomAsciiOfLength(10);
-        AttachmentProcessor processor = factory.create(processorTag, config);
+        AttachmentProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getIndexedChars(), is(indexedChars));
     }
@@ -70,7 +70,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("target_field", "_field");
-        AttachmentProcessor processor = factory.create(null, config);
+        AttachmentProcessor processor = factory.create(null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("_field"));
     }
@@ -87,7 +87,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("properties", fieldNames);
-        AttachmentProcessor processor = factory.create(null, config);
+        AttachmentProcessor processor = factory.create(null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getProperties(), equalTo(properties));
     }
@@ -97,7 +97,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("properties", Collections.singletonList("invalid"));
         try {
-            factory.create(null, config);
+            factory.create(null, null, config);
             fail("exception expected");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("[properties] illegal field option [invalid]"));
@@ -111,7 +111,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("properties", "invalid");
         try {
-            factory.create(null, config);
+            factory.create(null, null, config);
             fail("exception expected");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[properties] property isn't a list, but of type [java.lang.String]"));

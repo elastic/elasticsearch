@@ -29,6 +29,7 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 
@@ -39,13 +40,12 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<DeleteByQueryRequest, TransportDeleteByQueryAction> {
+public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<DeleteByQueryRequest, DeleteByQueryAction> {
 
     @Inject
     public RestDeleteByQueryAction(Settings settings, RestController controller,
-                                   IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
-                                   ClusterService clusterService, TransportDeleteByQueryAction action) {
-        super(settings, indicesQueriesRegistry, aggParsers, suggesters, clusterService, action);
+                                   SearchRequestParsers searchRequestParsers, ClusterService clusterService) {
+        super(settings, searchRequestParsers, clusterService, DeleteByQueryAction.INSTANCE);
         controller.registerHandler(POST, "/{index}/_delete_by_query", this);
         controller.registerHandler(POST, "/{index}/{type}/_delete_by_query", this);
     }
@@ -55,7 +55,7 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
         if (false == request.hasContent()) {
             throw new ElasticsearchException("_delete_by_query requires a request body");
         }
-        handleRequest(request, channel, false, false);
+        handleRequest(request, channel, client, false, false);
     }
 
     @Override

@@ -38,10 +38,10 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.LegacyDateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.LegacyDateFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
@@ -102,7 +102,6 @@ public class MapperQueryParser extends QueryParser {
         setLowercaseExpandedTerms(settings.lowercaseExpandedTerms());
         setPhraseSlop(settings.phraseSlop());
         setDefaultOperator(settings.defaultOperator());
-        setFuzzyMinSim(settings.fuzziness().asFloat());
         setFuzzyPrefixLength(settings.fuzzyPrefixLength());
         setLocale(settings.locale());
     }
@@ -114,7 +113,7 @@ public class MapperQueryParser extends QueryParser {
     @Override
     Query handleBareFuzzy(String qfield, Token fuzzySlop, String termImage) throws ParseException {
         if (fuzzySlop.image.length() == 1) {
-            return getFuzzyQuery(qfield, termImage, Float.toString(fuzzyMinSim));
+            return getFuzzyQuery(qfield, termImage, Float.toString(settings.fuzziness().asDistance(termImage)));
         }
         return getFuzzyQuery(qfield, termImage, fuzzySlop.image.substring(1));
     }

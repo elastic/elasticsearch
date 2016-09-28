@@ -43,18 +43,22 @@ public class RestSpecHack {
     }
 
     /**
-     * Creates a task to copy the rest spec files.
+     * Creates a task (if necessary) to copy the rest spec files.
      *
      * @param project The project to add the copy task to
      * @param includePackagedTests true if the packaged tests should be copied, false otherwise
      */
     public static Task configureTask(Project project, boolean includePackagedTests) {
+        Task copyRestSpec = project.tasks.findByName('copyRestSpec')
+        if (copyRestSpec != null) {
+            return copyRestSpec
+        }
         Map copyRestSpecProps = [
                 name     : 'copyRestSpec',
                 type     : Copy,
                 dependsOn: [project.configurations.restSpec, 'processTestResources']
         ]
-        Task copyRestSpec = project.tasks.create(copyRestSpecProps) {
+        copyRestSpec = project.tasks.create(copyRestSpecProps) {
             from { project.zipTree(project.configurations.restSpec.singleFile) }
             include 'rest-api-spec/api/**'
             if (includePackagedTests) {

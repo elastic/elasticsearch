@@ -41,6 +41,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static org.hamcrest.CoreMatchers.equalTo;
+
 public class ScopedSettingsTests extends ESTestCase {
 
     public void testAddConsumer() {
@@ -156,16 +158,22 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public void testDiff() throws IOException {
-        Setting<Integer> foobarbaz = Setting.intSetting("foo.bar.baz", 1, Property.NodeScope);
-        Setting<Integer> foobar = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
-        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(foobar, foobarbaz)));
+        Setting<Integer> fooBarBaz = Setting.intSetting("foo.bar.baz", 1, Property.NodeScope);
+        Setting<Integer> fooBar = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
+        Setting<List<String>> foorBarQuux =
+                Setting.listSetting("foo.bar.quux", Arrays.asList("a", "b", "c"), Function.identity(), Property.NodeScope);
+        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(fooBar, fooBarBaz, foorBarQuux)));
         Settings diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.EMPTY);
-        assertEquals(diff.getAsMap().size(), 1);
-        assertEquals(diff.getAsInt("foo.bar.baz", null), Integer.valueOf(1));
+        assertThat(diff.getAsMap().size(), equalTo(2));
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
+        assertThat(diff.get("foo.bar.quux", null), equalTo("[\"a\",\"b\",\"c\"]"));
 
-        diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.builder().put("foo.bar.baz", 17).build());
-        assertEquals(diff.getAsMap().size(), 1);
-        assertEquals(diff.getAsInt("foo.bar.baz", null), Integer.valueOf(17));
+        diff = settings.diff(
+                Settings.builder().put("foo.bar", 5).build(),
+                Settings.builder().put("foo.bar.baz", 17).put("foo.bar.quux", "d,e,f").build());
+        assertThat(diff.getAsMap().size(), equalTo(2));
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(17));
+        assertThat(diff.get("foo.bar.quux", null), equalTo("[\"d\",\"e\",\"f\"]"));
     }
 
     public void testUpdateTracer() {

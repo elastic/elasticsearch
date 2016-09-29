@@ -42,8 +42,11 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.FileScriptLookup;
+import org.elasticsearch.script.Script.InlineScriptLookup;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.Script.ScriptType;
+import org.elasticsearch.script.Script.StoredScriptLookup;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -227,7 +230,19 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     @Deprecated
     public String scriptString() {
-        return this.script == null ? null : this.script.lookup.getIdOrCode();
+        if (this.script == null) {
+            return null;
+        }
+
+        if (this.script.type == ScriptType.FILE) {
+            return ((FileScriptLookup)this.script.lookup).id;
+        } else if (this.script.type == ScriptType.STORED) {
+            return ((StoredScriptLookup)this.script.lookup).id;
+        } else if (this.script.type == ScriptType.INLINE) {
+            return ((InlineScriptLookup)this.script.lookup).code;
+        } else {
+            throw new IllegalArgumentException("unexpected script type [" + this.script.type.name + "]");
+        }
     }
 
     /**
@@ -235,7 +250,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     @Deprecated
     public ScriptType scriptType() {
-        return this.script == null ? null : this.script.lookup.getType();
+        return this.script == null ? null : this.script.type;
     }
 
     /**
@@ -288,7 +303,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     @Deprecated
     public String scriptLang() {
-        return script == null ? null : script.lookup.getLang();
+        if (script != null && script.type == ScriptType.INLINE) {
+            return ((InlineScriptLookup)script.lookup).lang;
+        }
+
+        return null;
     }
 
     /**
@@ -342,7 +361,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     @Deprecated
     public UpdateRequest script(String script, ScriptType scriptType, @Nullable Map<String, Object> scriptParams) {
-        this.script = ScriptInput.create(scriptType, null, script, Collections.emptyMap(), scriptParams);
+        if (scriptType == ScriptType.FILE) {
+            this.script = ScriptInput.file(script, scriptParams == null ? Collections.emptyMap() : scriptParams);
+        } else if (scriptType == ScriptType.STORED) {
+            this.script = ScriptInput.stored(script, scriptParams == null ? Collections.emptyMap() : scriptParams);
+        } else {
+            this.script = ScriptInput.inline(Script.DEFAULT_SCRIPT_LANG, script, Collections.emptyMap(),
+                scriptParams == null ? Collections.emptyMap() : scriptParams);
+        }
+
         return this;
     }
 
@@ -365,7 +392,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Deprecated
     public UpdateRequest script(String script, @Nullable String scriptLang, ScriptType scriptType,
             @Nullable Map<String, Object> scriptParams) {
-        this.script = ScriptInput.create(scriptType, scriptLang, script, Collections.emptyMap(), scriptParams);
+        if (scriptType == ScriptType.FILE) {
+            this.script = ScriptInput.file(script, scriptParams == null ? Collections.emptyMap() : scriptParams);
+        } else if (scriptType == ScriptType.STORED) {
+            this.script = ScriptInput.stored(script, scriptParams == null ? Collections.emptyMap() : scriptParams);
+        } else {
+            this.script = ScriptInput.inline(scriptLang == null ? Script.DEFAULT_SCRIPT_LANG : scriptLang,
+                script, Collections.emptyMap(), scriptParams == null ? Collections.emptyMap() : scriptParams);
+        }
+
         return this;
     }
 

@@ -36,6 +36,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchRequestParsers;
@@ -72,8 +73,16 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     protected void doExecute(SearchTemplateRequest request, ActionListener<SearchTemplateResponse> listener) {
         final SearchTemplateResponse response = new SearchTemplateResponse();
         try {
-            ScriptInput script = ScriptInput.create(
-                request.getScriptType(), TEMPLATE_LANG, request.getScript(), Collections.emptyMap(), request.getScriptParams());
+            ScriptInput script;
+
+            if (request.getScriptType() == ScriptType.FILE) {
+                script = ScriptInput.file(request.getScript(), request.getScriptParams());
+            } else if (request.getScriptType() == ScriptType.STORED) {
+                script = ScriptInput.stored(request.getScript(), request.getScriptParams());
+            } else{
+                script = ScriptInput.inline(TEMPLATE_LANG, request.getScript(), Collections.emptyMap(), request.getScriptParams());
+            }
+
             ExecutableScript executable = ExecutableScriptBinding.bind(
                 scriptService, ScriptContext.Standard.SEARCH, script.lookup, script.params);
 

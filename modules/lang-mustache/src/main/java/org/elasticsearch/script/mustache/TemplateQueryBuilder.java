@@ -63,12 +63,24 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     private final ScriptInput template;
 
     public TemplateQueryBuilder(String template, ScriptType scriptType, Map<String, Object> params) {
-        this(ScriptInput.create(scriptType, "mustache", template, Collections.emptyMap(), params));
+        this(template, scriptType, params, null);
     }
 
     public TemplateQueryBuilder(String template, ScriptType scriptType, Map<String, Object> params, XContentType ct) {
-        this(ScriptInput.create(
-            scriptType, "mustache", template, Collections.singletonMap(Script.CONTENT_TYPE_OPTION, ct.mediaType()), params));
+        DEPRECATION_LOGGER.deprecated("[{}] query is deprecated, use search template api instead", NAME);
+        if (template == null) {
+            throw new IllegalArgumentException("query template cannot be null");
+        }
+
+        if (scriptType == ScriptType.FILE) {
+            this.template = ScriptInput.file(template, params);
+        } else if (scriptType == ScriptType.STORED) {
+            this.template = ScriptInput.stored(template, params);
+        } else {
+            Map<String, String> options = ct == null ?
+                Collections.emptyMap() : Collections.singletonMap(Script.CONTENT_TYPE_OPTION, ct.mediaType());
+            this.template = ScriptInput.inline("mustache", template, options, params);
+        }
     }
 
     TemplateQueryBuilder(ScriptInput template) {

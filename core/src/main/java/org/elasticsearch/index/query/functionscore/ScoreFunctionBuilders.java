@@ -70,7 +70,7 @@ public class ScoreFunctionBuilders {
     }
 
     public static ScriptScoreFunctionBuilder scriptFunction(String script) {
-        return (new ScriptScoreFunctionBuilder(ScriptInput.create(script)));
+        return (new ScriptScoreFunctionBuilder(ScriptInput.inline(script)));
     }
 
     public static RandomScoreFunctionBuilder randomFunction(int seed) {

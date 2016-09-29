@@ -44,8 +44,7 @@ public class InternalTemplateService implements TemplateService {
         int mustacheStart = template.indexOf("{{");
         int mustacheEnd = template.indexOf("}}");
         if (mustacheStart != -1 && mustacheEnd != -1 && mustacheStart < mustacheEnd) {
-            ScriptInput script = ScriptInput.create(
-                Script.ScriptType.INLINE, "mustache", template, Collections.emptyMap(), Collections.emptyMap());
+            ScriptInput script = ScriptInput.inline("mustache", template, Collections.emptyMap(), Collections.emptyMap());
             CompiledScript compiledScript = script.lookup.getCompiled(
                 scriptService, ScriptContext.Standard.INGEST, ExecutableScriptBinding.BINDING);
             return new Template() {

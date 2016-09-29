@@ -393,8 +393,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
      * Sets a query used for filtering out suggested phrases (collation).
      */
     public PhraseSuggestionBuilder collateQuery(String collateQuery) {
-        this.collateQuery =
-            ScriptInput.create(Script.ScriptType.INLINE, "mustache", collateQuery, Collections.emptyMap(), Collections.emptyMap());
+        this.collateQuery = ScriptInput.inline("mustache", collateQuery, Collections.emptyMap(), Collections.emptyMap());
         return this;
     }
 

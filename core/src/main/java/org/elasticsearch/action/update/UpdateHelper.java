@@ -50,7 +50,11 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ExecutableScriptBinding;
+import org.elasticsearch.script.Script.FileScriptLookup;
+import org.elasticsearch.script.Script.InlineScriptLookup;
 import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.Script.ScriptType;
+import org.elasticsearch.script.Script.StoredScriptLookup;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -119,8 +123,10 @@ public class UpdateHelper extends AbstractComponent {
                 // (the default) or "none", meaning abort upsert
                 if (!"create".equals(scriptOpChoice)) {
                     if (!"none".equals(scriptOpChoice)) {
-                        logger.warn("Used upsert operation [{}] for script [{}], doing nothing...", scriptOpChoice,
-                                request.script.lookup.getIdOrCode());
+                        String script = request.script.type == ScriptType.FILE ? ((FileScriptLookup)request.script.lookup).id :
+                            request.script.type == ScriptType.STORED ? ((StoredScriptLookup)request.script.lookup).id :
+                            request.script.type == ScriptType.INLINE ? ((InlineScriptLookup)request.script.lookup).code : null;
+                        logger.warn("Used upsert operation [{}] for script [{}], doing nothing...", scriptOpChoice, script);
                     }
                     UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),
                             getResult.getVersion(), DocWriteResponse.Result.NOOP);
@@ -240,7 +246,10 @@ public class UpdateHelper extends AbstractComponent {
             update.setGetResult(extractGetResult(request, request.index(), getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
-            logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script.lookup.getIdOrCode());
+            String script = request.script.type == ScriptType.FILE ? ((FileScriptLookup)request.script.lookup).id :
+                request.script.type == ScriptType.STORED ? ((StoredScriptLookup)request.script.lookup).id :
+                request.script.type == ScriptType.INLINE ? ((InlineScriptLookup)request.script.lookup).code : null;
+            logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, script);
             UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(), getResult.getVersion(), DocWriteResponse.Result.NOOP);
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         }

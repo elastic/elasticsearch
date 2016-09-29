@@ -107,11 +107,11 @@ public final class ScriptProcessor extends AbstractProcessor {
 
             final ScriptInput script;
             if (Strings.hasLength(file)) {
-                script = ScriptInput.create(FILE, lang, file, Collections.emptyMap(), params);
-            } else if (Strings.hasLength(inline)) {
-                script = ScriptInput.create(INLINE, lang, inline, Collections.emptyMap(), params);
+                script = ScriptInput.file(file, params);
             } else if (Strings.hasLength(id)) {
-                script = ScriptInput.create(STORED, lang, id, Collections.emptyMap(), params);
+                script = ScriptInput.stored(id, params);
+            } else if (Strings.hasLength(inline)) {
+                script = ScriptInput.inline(lang, inline, Collections.emptyMap(), params);
             } else {
                 throw newConfigurationException(TYPE, processorTag, null, "Could not initialize script");
             }

@@ -78,8 +78,8 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
         if (script == null) {
             return null;
         }
-        return ScriptInput.create(
-            script.lookup.getType(), script.lookup.getLang(), script.lookup.getIdOrCode(), script.lookup.getOptions(), params);
+
+        return ScriptInput.update(script, null, null, null, null, params);
     }
 
     private static ScriptInput deepCopyScript(ScriptInput script, SearchContext context) {
@@ -88,8 +88,7 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
             if (params != null) {
                 params = deepCopyParams(params, context);
             }
-            return ScriptInput.create(
-                script.lookup.getType(), script.lookup.getLang(), script.lookup.getIdOrCode(), script.lookup.getOptions(), params);
+            return ScriptInput.update(script, null, null, null, null, params);
         } else {
             return null;
         }

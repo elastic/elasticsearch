@@ -43,6 +43,10 @@ import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.script.Script.FileScriptLookup;
+import org.elasticsearch.script.Script.InlineScriptLookup;
+import org.elasticsearch.script.Script.ScriptType;
+import org.elasticsearch.script.Script.StoredScriptLookup;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -168,7 +172,17 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
             sizeInBytes += request.upsertRequest().source().length();
         }
         if (request.script() != null) {
-            sizeInBytes += request.script().lookup.getIdOrCode().length() * 2;
+            int length;
+
+            if (request.script().type == ScriptType.FILE) {
+                length = ((FileScriptLookup)request.script().lookup).id.length();
+            } else if (request.script().type == ScriptType.STORED) {
+                length = ((StoredScriptLookup)request.script().lookup).id.length();
+            } else {
+                length = ((InlineScriptLookup)request.script().lookup).code.length();
+            }
+
+            sizeInBytes += length * 2;
         }
         return this;
     }

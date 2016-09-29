@@ -170,10 +170,11 @@ the request was ignored.
    "_type": "type1",
    "_id": "1",
    "_version": 6,
-   "result": noop
+   "result": noop,
+   "_shard_id" : 3
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_shard_id" : 3/"_shard_id" : "$body._shard_id"/]
 
 You can disable this behavior by setting "detect_noop": false like this:
 

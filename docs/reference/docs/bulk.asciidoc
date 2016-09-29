@@ -98,7 +98,9 @@ The result of this bulk operation is:
                "failed": 0
             },
             "created": true,
-            "status": 201
+            "status": 201,
+            "_seq_no" : 0,
+            "_shard_id" : 0
          }
       },
       {
@@ -114,7 +116,9 @@ The result of this bulk operation is:
                "successful": 1,
                "failed": 0
             },
-            "status": 404
+            "status": 404,
+            "_seq_no" : 1,
+            "_shard_id" : 1
          }
       },
       {
@@ -130,7 +134,9 @@ The result of this bulk operation is:
                "failed": 0
             },
             "created": true,
-            "status": 201
+            "status": 201,
+            "_seq_no" : 2,
+            "_shard_id" : 2
          }
       },
       {
@@ -145,13 +151,15 @@ The result of this bulk operation is:
                 "successful": 1,
                 "failed": 0
             },
-            "status": 200
+            "status": 200,
+            "_seq_no" : 3,
+            "_shard_id" : 3
          }
       }
    ]
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"took": 30/"took": $body.took/ s/"index_uuid": .../"index_uuid": $body.items.3.update.error.index_uuid/]
+// TESTRESPONSE[s/"took": 30/"took": $body.took/ s/"index_uuid": .../"index_uuid": $body.items.3.update.error.index_uuid/ s/"_shard_id" : 0/"_shard_id" : $body.items.0.index._shard_id/ s/"_shard_id" : 1/"_shard_id" : $body.items.1.delete._shard_id/ s/"_shard_id" : 2/"_shard_id" : $body.items.2.create._shard_id/ s/"_shard_id" : 3/"_shard_id" : $body.items.3.update._shard_id/ s/"_seq_no" : 0/"_seq_no" : $body.items.0.index._seq_no/ s/"_seq_no" : 1/"_seq_no" : $body.items.1.delete._seq_no/ s/"_seq_no" : 2/"_seq_no" : $body.items.2.create._seq_no/ s/"_seq_no" : 3/"_seq_no" : $body.items.3.update._seq_no/]
 
 The endpoints are `/_bulk`, `/{index}/_bulk`, and `{index}/{type}/_bulk`.
 When the index or the index/type are provided, they will be used by

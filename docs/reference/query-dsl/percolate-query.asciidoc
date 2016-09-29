@@ -181,10 +181,12 @@ Index response:
     "failed": 0
   },
   "created": true,
-  "result": "created"
+  "result": "created",
+  "_shard_id" : 3,
+  "_seq_no" : 1
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_shard_id" : 3/"_shard_id" : "$body._shard_id"/]
 
 Percolating an existing document, using the index response as basis to build to new search request:
 

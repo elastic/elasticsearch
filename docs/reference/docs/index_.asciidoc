@@ -33,7 +33,6 @@ The result of the above index operation is:
     "created" : true,
     "_seq_no" : 0,
     "_shard_id" : 3,
-    "forced_refresh": false
     "result" : created
 }
 --------------------------------------------------
@@ -234,13 +233,9 @@ The result of the above index operation is:
     "_id" : "6a8ca01c-7896-48e9-81cc-9f70661fcb32",
     "_version" : 1,
     "created" : true,
-<<<<<<< HEAD
     "_seq_no" : 0,
     "_shard_id" : 2,
-    "forced_refresh": false
-=======
     "result": "created"
->>>>>>> master
 }
 --------------------------------------------------
 // TESTRESPONSE[s/6a8ca01c-7896-48e9-81cc-9f70661fcb32/$body._id/ s/"successful" : 2/"successful" : 1/ s/"_shard_id" : 2/"_shard_id" : "$body._shard_id"/]

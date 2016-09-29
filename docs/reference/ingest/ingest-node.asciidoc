@@ -825,10 +825,12 @@ PUT /myindex/type/1?pipeline=monthlyindex
     "successful" : 1,
     "failed" : 0
   },
-  "created" : true
+  "created" : true,
+  "_shard_id" : 3,
+  "_seq_no" : 0
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_shard_id" : 3/"_shard_id" : "$body._shard_id"/]
 
 
 The above request will not index this document into the `myindex` index, but into the `myindex-2016-04-01` index because

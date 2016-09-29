@@ -19,11 +19,13 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 public class EvilSystemPropertyTests extends ESTestCase {
 
+    @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testMaxNumShards() {
         int limit = randomIntBetween(1, 10);
         System.setProperty("es.index.max_number_of_shards", Integer.toString(limit));

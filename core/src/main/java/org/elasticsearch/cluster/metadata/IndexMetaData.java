@@ -158,9 +158,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     }
 
     static {
-        final int maxNumShards = Integer.parseInt(System.getProperty("index.max_number_of_shards", "1024"));
+        final int maxNumShards = Integer.parseInt(System.getProperty("es.index.max_number_of_shards", "1024"));
         if (maxNumShards < 1) {
-            throw new IllegalArgumentException("index.max_number_of_shards must be > 0");
+            throw new IllegalArgumentException("es.index.max_number_of_shards must be > 0");
         }
         MAX_NUMBER_OF_SHARDS = maxNumShards;
     }

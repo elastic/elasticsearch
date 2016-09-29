@@ -65,44 +65,73 @@ public class RestAnalyzeAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/_analyze", this);
     }
 
+    private void deprecationLog(String key, RestRequest request) {
+        if (request.hasParam(key)) {
+            deprecationLogWithoutCheck(key);
+        }
+    }
+
+    private void deprecationLogWithoutCheck(String key) {
+        deprecationLogForText(key + " request parameter is deprecated and will be removed in the next major release." +
+            " Please use the JSON in the request body instead request param");
+    }
+
+    void deprecationLogForText(String msg) {
+        deprecationLogger.deprecated(msg);
+    }
+
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
 
         String[] texts = request.paramAsStringArrayOrEmptyIfAll("text");
+        deprecationLog("text", request);
 
         AnalyzeRequest analyzeRequest = new AnalyzeRequest(request.param("index"));
         analyzeRequest.text(texts);
         analyzeRequest.analyzer(request.param("analyzer"));
+        deprecationLog("analyzer", request);
         analyzeRequest.field(request.param("field"));
+        deprecationLog("field", request);
         if (request.hasParam("tokenizer")) {
             analyzeRequest.tokenizer(request.param("tokenizer"));
+            deprecationLogWithoutCheck("tokenizer");
         }
         for (String filter : request.paramAsStringArray("filter", Strings.EMPTY_ARRAY)) {
             analyzeRequest.addTokenFilter(filter);
+            deprecationLogWithoutCheck("filter");
         }
         for (String charFilter : request.paramAsStringArray("char_filter", Strings.EMPTY_ARRAY)) {
             analyzeRequest.addTokenFilter(charFilter);
+            deprecationLogWithoutCheck("char_filter");
         }
         analyzeRequest.explain(request.paramAsBoolean("explain", false));
+        deprecationLog("explain", request);
         analyzeRequest.attributes(request.paramAsStringArray("attributes", analyzeRequest.attributes()));
+        deprecationLog("attributes", request);
 
+        handleBodyContent(request, texts, analyzeRequest);
+
+        client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<>(channel));
+    }
+
+    void handleBodyContent(RestRequest request, String[] texts, AnalyzeRequest analyzeRequest) {
         if (RestActions.hasBodyContent(request)) {
             XContentType type = RestActions.guessBodyContentType(request);
             if (type == null) {
                 if (texts == null || texts.length == 0) {
                     texts = new String[]{ RestActions.getRestContent(request).utf8ToString() };
                     analyzeRequest.text(texts);
+                    deprecationLogForText(" plain text bodies is deprecated and " +
+                        "this feature will be removed in the next major release. Please use the text param in JSON");
                 }
             } else {
                 // NOTE: if rest request with xcontent body has request parameters, the parameters does not override xcontent values
                 buildFromContent(RestActions.getRestContent(request), analyzeRequest, parseFieldMatcher);
             }
         }
-
-        client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<>(channel));
     }
 
-    public static void buildFromContent(BytesReference content, AnalyzeRequest analyzeRequest, ParseFieldMatcher parseFieldMatcher) {
+    static void buildFromContent(BytesReference content, AnalyzeRequest analyzeRequest, ParseFieldMatcher parseFieldMatcher) {
         try (XContentParser parser = XContentHelper.createParser(content)) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException("Malformed content, must start with an object");

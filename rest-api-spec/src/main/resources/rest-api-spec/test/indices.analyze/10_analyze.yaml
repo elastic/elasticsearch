@@ -7,6 +7,8 @@ setup:
 ---
 "Basic test":
     - do:
+        warnings:
+          - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
         indices.analyze:
           text: Foo Bar
     - length: { tokens: 2 }
@@ -16,6 +18,10 @@ setup:
 ---
 "Tokenizer and filter":
     - do:
+        warnings:
+          - filter request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
+          - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
+          - tokenizer request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
         indices.analyze:
           filter:      lowercase
           text:         Foo Bar
@@ -37,6 +43,9 @@ setup:
                     analyzer: whitespace
 
     - do:
+        warnings:
+          - field request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
+          - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
         indices.analyze:
           field: text
           index: test
@@ -54,6 +63,8 @@ setup:
 ---
 "Body params override query string":
     - do:
+        warnings:
+          - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
         indices.analyze:
           text: Foo Bar
           body: { "text": "Bar Foo", "filter": ["lowercase"], "tokenizer": keyword }

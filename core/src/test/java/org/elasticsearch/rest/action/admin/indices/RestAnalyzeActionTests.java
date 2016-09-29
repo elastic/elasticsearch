@@ -19,16 +19,25 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
+
+import java.util.HashMap;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class RestAnalyzeActionTests extends ESTestCase {
 
@@ -118,7 +127,7 @@ public class RestAnalyzeActionTests extends ESTestCase {
         assertThat(e.getMessage(), startsWith("explain must be either 'true' or 'false'"));
     }
 
-    public void testDeprecatedParamException() throws Exception {
+    public void testDeprecatedParamIn2xException() throws Exception {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> RestAnalyzeAction.buildFromContent(
                 XContentFactory.jsonBuilder()
@@ -164,6 +173,26 @@ public class RestAnalyzeActionTests extends ESTestCase {
                     .endObject().bytes()
                 , new AnalyzeRequest("for test"), new ParseFieldMatcher(Settings.EMPTY)));
         assertThat(e.getMessage(), startsWith("Unknown parameter [token_filter]"));
+    }
+
+    public void testDeprecatedReqParamsIn5x() throws Exception {
+        RestAnalyzeAction action = mock(RestAnalyzeAction.class);
+        AnalyzeRequest analyzeRequest = new AnalyzeRequest();
+
+        BytesReference content = new BytesArray("this is test");
+        FakeRestRequest request = new FakeRestRequest.Builder()
+            .withContent(content)
+            .withMethod(randomFrom(RestRequest.Method.values()))
+            .build();
+
+        doCallRealMethod().when(action).handleBodyContent(request, null, analyzeRequest);
+
+        action.handleBodyContent(request, null, analyzeRequest);
+        verify(action).deprecationLogForText(" plain text bodies is deprecated and " +
+            "this feature will be removed in the next major release. Please use the text param in JSON");
+        assertThat(analyzeRequest.text().length, equalTo(1));
+        assertThat(analyzeRequest.text()[0], equalTo("this is test"));
+
     }
 
 }

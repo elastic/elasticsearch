@@ -71,11 +71,10 @@ PUT test
     }
   }
 }
-POST test/test
+POST test/test?refresh=true
 {"title": "noble warriors"}
-POST test/test
+POST test/test?refresh=true
 {"title": "nobel prize"}
-POST _refresh
 --------------------------------------------------
 // CONSOLE
 // TESTSETUP
@@ -126,7 +125,7 @@ can contain misspellings (See parameter descriptions below).
       "options" : [ {
         "text" : "nobel prize",
         "highlighted": "<em>nobel</em> prize",
-        "score" : 0.40765354
+        "score" : 0.5962314
       }]
     }
   ]

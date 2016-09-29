@@ -174,7 +174,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public static final String INDEX_SETTING_PREFIX = "index.";
     public static final String SETTING_NUMBER_OF_SHARDS = "index.number_of_shards";
     public static final Setting<Integer> INDEX_NUMBER_OF_SHARDS_SETTING =
-        Setting.intSetting(SETTING_NUMBER_OF_SHARDS, 5, 1, MAX_NUMBER_OF_SHARDS, Property.IndexScope);
+        Setting.intSetting(SETTING_NUMBER_OF_SHARDS, Math.min(5, MAX_NUMBER_OF_SHARDS), 1, MAX_NUMBER_OF_SHARDS,
+            Property.IndexScope);
     public static final String SETTING_NUMBER_OF_REPLICAS = "index.number_of_replicas";
     public static final Setting<Integer> INDEX_NUMBER_OF_REPLICAS_SETTING =
         Setting.intSetting(SETTING_NUMBER_OF_REPLICAS, 1, 0, Property.Dynamic, Property.IndexScope);

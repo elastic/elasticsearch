@@ -29,10 +29,13 @@ public class EvilSystemPropertyTests extends ESTestCase {
     public void testMaxNumShards() {
         int limit = randomIntBetween(1, 10);
         System.setProperty("es.index.max_number_of_shards", Integer.toString(limit));
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
-            IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING
-                .get(Settings.builder().put("index.number_of_shards", 11).build()));
-        assertEquals("Failed to parse value [11] for setting [index.number_of_shards] must be <= " + limit, exception.getMessage());
-        System.clearProperty("es.index.max_number_of_shards");
+        try {
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
+                IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING
+                    .get(Settings.builder().put("index.number_of_shards", 11).build()));
+            assertEquals("Failed to parse value [11] for setting [index.number_of_shards] must be <= " + limit, exception.getMessage());
+        } finally {
+            System.clearProperty("es.index.max_number_of_shards");
+        }
     }
 }

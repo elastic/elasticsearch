@@ -61,9 +61,15 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
 
     @Override
     public void tearDown() throws Exception {
-        super.tearDown();
-        transportService.stop();
-        transportService.close();
+        try {
+            // stop this first before we bubble up since
+            // transportService uses the threadpool that super.tearDown will close
+            transportService.stop();
+            transportService.close();
+        } finally {
+            super.tearDown();
+        }
+
     }
 
     @Override

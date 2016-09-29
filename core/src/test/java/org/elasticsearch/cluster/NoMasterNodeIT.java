@@ -49,7 +49,6 @@ import static org.hamcrest.Matchers.lessThan;
 /**
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-@ESIntegTestCase.SuppressLocalMode
 public class NoMasterNodeIT extends ESIntegTestCase {
     public void testNoMasterActions() throws Exception {
         // note, sometimes, we want to check with the fact that an index gets created, sometimes not...

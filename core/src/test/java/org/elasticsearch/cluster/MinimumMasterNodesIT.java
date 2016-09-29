@@ -63,7 +63,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-@ESIntegTestCase.SuppressLocalMode
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.discovery.zen:TRACE")
 public class MinimumMasterNodesIT extends ESIntegTestCase {
 

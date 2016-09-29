@@ -43,7 +43,6 @@ import java.util.concurrent.CyclicBarrier;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-@ESIntegTestCase.SuppressLocalMode
 public class IndexingMasterFailoverIT extends ESIntegTestCase {
 
     @Override

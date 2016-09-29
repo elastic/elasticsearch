@@ -45,10 +45,8 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.local.LocalTransport;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -112,7 +110,6 @@ public final class NetworkModule {
                          NetworkService networkService) {
         this.settings = settings;
         this.transportClient = transportClient;
-        registerTransport(LOCAL_TRANSPORT, () -> new LocalTransport(settings, threadPool, namedWriteableRegistry, circuitBreakerService));
         for (NetworkPlugin plugin : plugins) {
             if (transportClient == false && HTTP_ENABLED.get(settings)) {
                 Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(settings, threadPool, bigArrays,

@@ -75,7 +75,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-@ESIntegTestCase.SuppressLocalMode
 @TestLogging("_root:DEBUG")
 public class ZenDiscoveryIT extends ESIntegTestCase {
 

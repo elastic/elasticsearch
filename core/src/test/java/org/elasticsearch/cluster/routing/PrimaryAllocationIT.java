@@ -55,7 +55,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-@ESIntegTestCase.SuppressLocalMode
 public class PrimaryAllocationIT extends ESIntegTestCase {
 
     @Override

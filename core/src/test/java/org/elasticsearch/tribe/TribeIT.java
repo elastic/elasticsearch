@@ -44,6 +44,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.Transport;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -193,15 +194,15 @@ public class TribeIT extends ESIntegTestCase {
         settings.put(Node.NODE_DATA_SETTING.getKey(), false);
         settings.put(Node.NODE_MASTER_SETTING.getKey(), true);
         settings.put(NetworkModule.HTTP_ENABLED.getKey(), false);
-        settings.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), NetworkModule.LOCAL_TRANSPORT);
-        settings.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), NetworkModule.LOCAL_TRANSPORT);
+        settings.put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
+        settings.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local");
 
         doWithAllClusters(filter, c -> {
             String tribeSetting = "tribe." + c.getClusterName() + ".";
             settings.put(tribeSetting + ClusterName.CLUSTER_NAME_SETTING.getKey(), c.getClusterName());
             settings.put(tribeSetting + DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "100ms");
-            settings.put(tribeSetting + NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), NetworkModule.LOCAL_TRANSPORT);
-            settings.put(tribeSetting + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), NetworkModule.LOCAL_TRANSPORT);
+            settings.put(tribeSetting + NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
+            settings.put(tribeSetting + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local");
 
             Set<String> hosts = new HashSet<>();
             for (Transport transport : c.getInstances(Transport.class)) {

@@ -38,7 +38,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-@ESIntegTestCase.SuppressLocalMode
 public class SpecificMasterNodesIT extends ESIntegTestCase {
     protected final Settings.Builder settingsBuilder() {
         return Settings.builder().put("discovery.type", "zen");

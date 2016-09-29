@@ -37,8 +37,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
-import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 
@@ -51,11 +51,11 @@ import java.util.function.Supplier;
 
 public class NetworkModuleTests extends ModuleTestCase {
 
-    static class FakeTransport extends AssertingLocalTransport {
-        public FakeTransport() {
-            super(null, null, null, null);
-        }
-    }
+//    static class FakeTransport extends MockTcpTransport {
+//        public FakeTransport() {
+//            super(null, null, null, null);
+//        }
+//    }
 
     static class FakeHttpTransport extends AbstractLifecycleComponent implements HttpServerTransport {
         public FakeHttpTransport() {
@@ -110,7 +110,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "custom")
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
             .build();
-        Supplier<Transport> custom = FakeTransport::new;
+        Supplier<Transport> custom = () -> null;
         NetworkPlugin plugin = new NetworkPlugin() {
             @Override
             public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
@@ -166,7 +166,7 @@ public class NetworkModuleTests extends ModuleTestCase {
             .put(NetworkModule.HTTP_DEFAULT_TYPE_SETTING.getKey(), "default_custom")
             .put(NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.getKey(), "local")
             .put(NetworkModule.TRANSPORT_TYPE_KEY, "default_custom").build();
-        Supplier<Transport> customTransport = FakeTransport::new;
+        Supplier<Transport> customTransport = () -> null;
         Supplier<HttpServerTransport> custom = FakeHttpTransport::new;
         Supplier<HttpServerTransport> def = FakeHttpTransport::new;
         NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
@@ -200,7 +200,7 @@ public class NetworkModuleTests extends ModuleTestCase {
             .put(NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.getKey(), "default_custom").build();
         Supplier<HttpServerTransport> custom = FakeHttpTransport::new;
         Supplier<HttpServerTransport> def = FakeHttpTransport::new;
-        Supplier<Transport> customTransport = FakeTransport::new;
+        Supplier<Transport> customTransport = () -> null;
         NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
             @Override
             public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,

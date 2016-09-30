@@ -89,7 +89,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         Setting.positiveTimeSetting("discovery.zen.ping_timeout", timeValueSeconds(3), Property.NodeScope);
     public static final Setting<TimeValue> JOIN_TIMEOUT_SETTING =
         Setting.timeSetting("discovery.zen.join_timeout",
-            settings -> TimeValue.timeValueMillis(PING_TIMEOUT_SETTING.get(settings).millis() * 20).toString(),
+            settings -> TimeValue.timeValueMillis(PING_TIMEOUT_SETTING.get(settings).millis() * 20),
             TimeValue.timeValueMillis(0), Property.NodeScope);
     public static final Setting<Integer> JOIN_RETRY_ATTEMPTS_SETTING =
         Setting.intSetting("discovery.zen.join_retry_attempts", 3, 1, Property.NodeScope);
@@ -101,7 +101,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         Setting.boolSetting("discovery.zen.send_leave_request", true, Property.NodeScope);
     public static final Setting<TimeValue> MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING =
         Setting.timeSetting("discovery.zen.master_election.wait_for_joins_timeout",
-            settings -> TimeValue.timeValueMillis(JOIN_TIMEOUT_SETTING.get(settings).millis() / 2).toString(), TimeValue.timeValueMillis(0),
+            settings -> TimeValue.timeValueMillis(JOIN_TIMEOUT_SETTING.get(settings).millis() / 2), TimeValue.timeValueMillis(0),
             Property.NodeScope);
     public static final Setting<Boolean> MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING =
             Setting.boolSetting("discovery.zen.master_election.ignore_non_master_pings", false, Property.NodeScope);

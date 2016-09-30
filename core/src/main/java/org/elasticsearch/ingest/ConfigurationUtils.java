@@ -224,7 +224,13 @@ public final class ConfigurationUtils {
 
     public static ElasticsearchException newConfigurationException(String processorType, String processorTag,
                                                                         String propertyName, String reason) {
-        ElasticsearchParseException exception = new ElasticsearchParseException("[" + propertyName + "] " + reason);
+        String msg;
+        if (propertyName == null) {
+           msg = reason;
+        } else {
+            msg = "[" + propertyName + "] " + reason;
+        }
+        ElasticsearchParseException exception = new ElasticsearchParseException(msg);
         addHeadersToException(exception, processorType, processorTag, propertyName);
         return exception;
     }

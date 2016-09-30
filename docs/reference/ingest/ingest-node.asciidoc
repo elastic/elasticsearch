@@ -934,6 +934,12 @@ to the requester.
 
 [[foreach-processor]]
 === Foreach Processor
+
+experimental[This processor may change or be replaced by something else that provides similar functionality. This
+processor executes in its own context, which makes it different compared to all other processors and for features like
+verbose simulation the subprocessor isn't visible. The reason we still expose this processor, is that it is the only
+processor that can operate on an array]
+
 Processes elements in an array of unknown length.
 
 All processors can operate on elements inside an array, but if all elements of an array need to

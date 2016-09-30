@@ -1194,9 +1194,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 }
                 streamIn = compressor.streamInput(streamIn);
             }
-            if (version.onOrAfter(Version.CURRENT.minimumCompatibilityVersion()) == false || version.major != Version.CURRENT.major) {
+            if (version.onOrAfter(getCurrentVersion().minimumCompatibilityVersion()) == false
+                || version.major != getCurrentVersion().major) {
                 throw new IllegalStateException("Received message from unsupported version: [" + version
-                    + "] minimal compatible version is: [" +Version.CURRENT.minimumCompatibilityVersion() + "]");
+                    + "] minimal compatible version is: [" + getCurrentVersion().minimumCompatibilityVersion() + "]");
             }
             streamIn = new NamedWriteableAwareStreamInput(streamIn, namedWriteableRegistry);
             streamIn.setVersion(version);

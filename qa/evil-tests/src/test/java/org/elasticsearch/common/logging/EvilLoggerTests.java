@@ -188,7 +188,7 @@ public class EvilLoggerTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         final Environment environment = new Environment(settings);
-        LogConfigurator.configure(environment, true);
+        LogConfigurator.configure(environment);
     }
 
     private void assertLogLine(final String logLine, final Level level, final String location, final String message) {

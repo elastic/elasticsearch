@@ -38,7 +38,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation.FailedShard;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -206,10 +206,14 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 break;
             }
             String name = "index_" + randomAsciiOfLength(15).toLowerCase(Locale.ROOT);
-            CreateIndexRequest request = new CreateIndexRequest(name, Settings.builder()
+            Settings.Builder settingsBuilder = Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
-                .put(SETTING_NUMBER_OF_REPLICAS, randomInt(2))
-                .build()).waitForActiveShards(ActiveShardCount.NONE);
+                .put(SETTING_NUMBER_OF_REPLICAS, randomInt(2));
+            if (randomBoolean()) {
+                settingsBuilder.put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
+                    .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true);
+            }
+            CreateIndexRequest request = new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metaData().hasIndex(name));
         }
@@ -336,7 +340,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final Executor executor = mock(Executor.class);
         when(threadPool.generic()).thenReturn(executor);
         final MockIndicesService indicesService = indicesServiceSupplier.get();
-        final TransportService transportService = new TransportService(Settings.EMPTY, null, threadPool);
+        final TransportService transportService = new TransportService(Settings.EMPTY, null, threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR);
         final ClusterService clusterService = mock(ClusterService.class);
         final RepositoriesService repositoriesService = new RepositoriesService(Settings.EMPTY, clusterService,
             transportService, null);

@@ -23,11 +23,16 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.common.logging.Loggers;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 /** An InfoStream (for Lucene's IndexWriter) that redirects
  *  messages to "lucene.iw.ifd" and "lucene.iw" Logger.trace. */
 public final class LoggerInfoStream extends InfoStream {
 
     private final Logger parentLogger;
+
+    private final Map<String, Logger> loggers = new ConcurrentHashMap<>();
 
     public LoggerInfoStream(final Logger parentLogger) {
         this.parentLogger = parentLogger;
@@ -46,11 +51,12 @@ public final class LoggerInfoStream extends InfoStream {
     }
 
     private Logger getLogger(String component) {
-        return Loggers.getLogger(parentLogger, "." + component);
+        return loggers.computeIfAbsent(component, c -> Loggers.getLogger(parentLogger, "." + c));
     }
 
     @Override
     public void close() {
 
     }
+
 }

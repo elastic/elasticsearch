@@ -22,7 +22,6 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -37,7 +36,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -292,7 +290,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
                 sb.append(TAB).append(TAB).append(shard).append(": ");
                 sb.append("p_term [").append(indexMetaData.primaryTerm(shard)).append("], ");
-                sb.append("a_ids ").append(indexMetaData.inSyncAllocationIds(shard)).append("\n");
+                sb.append("isa_ids ").append(indexMetaData.inSyncAllocationIds(shard)).append("\n");
             }
         }
         sb.append(blocks().prettyPrint());
@@ -627,12 +625,6 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
         public DiscoveryNodes nodes() {
             return nodes;
-        }
-
-        public Builder routingResult(RoutingAllocation.Result routingResult) {
-            this.routingTable = routingResult.routingTable();
-            this.metaData = routingResult.metaData();
-            return this;
         }
 
         public Builder routingTable(RoutingTable routingTable) {

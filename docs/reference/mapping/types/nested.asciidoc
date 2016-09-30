@@ -205,5 +205,5 @@ phase.  Instead, highlighting needs to be performed via
 
 Indexing a document with 100 nested fields actually indexes 101 documents as each nested
 document is indexed as a separate document. To safeguard against ill-defined mappings
-the number of nested fields that can be defined per index has been limited to 50. This
-default limit can be changed with the index setting `index.mapping.nested_fields.limit`.
+the number of nested fields that can be defined per index has been limited to 50. See
+<<mapping-limit-settings>>.

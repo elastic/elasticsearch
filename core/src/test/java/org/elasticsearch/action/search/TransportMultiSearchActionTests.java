@@ -57,8 +57,12 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
         ThreadPool threadPool = new ThreadPool(settings);
         TaskManager taskManager = mock(TaskManager.class);
-        TransportService transportService = mock(TransportService.class);
-        when(transportService.getTaskManager()).thenReturn(taskManager);
+        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR) {
+            @Override
+            public TaskManager getTaskManager() {
+                return taskManager;
+            }
+        };
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test")).build());
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(Settings.EMPTY);

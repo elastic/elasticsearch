@@ -86,7 +86,7 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
         super(settings);
         this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
         this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
-        long sizeInBytes = size.bytes();
+        long sizeInBytes = size.getBytes();
         CacheBuilder<Key, Value> cacheBuilder = CacheBuilder.<Key, Value>builder()
             .setMaximumWeight(sizeInBytes).weigher((k, v) -> k.ramBytesUsed() + v.ramBytesUsed()).removalListener(this);
         if (expire != null) {

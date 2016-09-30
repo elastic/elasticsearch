@@ -28,11 +28,10 @@ import org.gradle.api.Task
 import org.gradle.api.XmlProvider
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.ModuleDependency
-import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
-import org.gradle.api.artifacts.maven.MavenPom
+import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
@@ -63,7 +62,6 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('nebula.info-java')
         project.pluginManager.apply('nebula.info-scm')
         project.pluginManager.apply('nebula.info-jar')
-        project.pluginManager.apply('com.bmuschko.nexus')
         project.pluginManager.apply(ProvidedBasePlugin)
 
         globalBuildInfo(project)
@@ -71,6 +69,8 @@ class BuildPlugin implements Plugin<Project> {
         configureConfigurations(project)
         project.ext.versions = VersionProperties.versions
         configureCompile(project)
+        configureJavadocJar(project)
+        configureSourcesJar(project)
         configurePomGeneration(project)
 
         configureTest(project)
@@ -267,11 +267,6 @@ class BuildPlugin implements Plugin<Project> {
         project.configurations.compile.dependencies.all(disableTransitiveDeps)
         project.configurations.testCompile.dependencies.all(disableTransitiveDeps)
         project.configurations.provided.dependencies.all(disableTransitiveDeps)
-
-        // add exclusions to the pom directly, for each of the transitive deps of this project's deps
-        project.modifyPom { MavenPom pom ->
-            pom.withXml(fixupDependencies(project))
-        }
     }
 
     /** Adds repositores used by ES dependencies */
@@ -284,10 +279,6 @@ class BuildPlugin implements Plugin<Project> {
             repos.mavenLocal()
         }
         repos.mavenCentral()
-        repos.maven {
-            name 'sonatype-snapshots'
-            url 'http://oss.sonatype.org/content/repositories/snapshots/'
-        }
         String luceneVersion = VersionProperties.lucene
         if (luceneVersion.contains('-snapshot')) {
             // extract the revision number from the version with a regex matcher
@@ -413,6 +404,25 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
         }
+    }
+
+    /** Adds a javadocJar task to generate a jar containing javadocs. */
+    static void configureJavadocJar(Project project) {
+        Jar javadocJarTask = project.task('javadocJar', type: Jar)
+        javadocJarTask.classifier = 'javadoc'
+        javadocJarTask.group = 'build'
+        javadocJarTask.description = 'Assembles a jar containing javadocs.'
+        javadocJarTask.from(project.tasks.getByName(JavaPlugin.JAVADOC_TASK_NAME))
+        project.assemble.dependsOn(javadocJarTask)
+    }
+
+    static void configureSourcesJar(Project project) {
+        Jar sourcesJarTask = project.task('sourcesJar', type: Jar)
+        sourcesJarTask.classifier = 'sources'
+        sourcesJarTask.group = 'build'
+        sourcesJarTask.description = 'Assembles a jar containing source files.'
+        sourcesJarTask.from(project.sourceSets.main.allSource)
+        project.assemble.dependsOn(sourcesJarTask)
     }
 
     /** Adds additional manifest info to jars, and adds source and javadoc jars */

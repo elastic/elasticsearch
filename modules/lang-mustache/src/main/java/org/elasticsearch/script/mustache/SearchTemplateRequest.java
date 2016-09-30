@@ -41,6 +41,8 @@ public class SearchTemplateRequest extends ActionRequest<SearchTemplateRequest> 
 
     private SearchRequest request;
     private boolean simulate = false;
+    private boolean explain = false;
+    private boolean profile = false;
     private ScriptService.ScriptType scriptType;
     private String script;
     private Map<String, Object> scriptParams;
@@ -67,6 +69,22 @@ public class SearchTemplateRequest extends ActionRequest<SearchTemplateRequest> 
 
     public void setSimulate(boolean simulate) {
         this.simulate = simulate;
+    }
+
+    public boolean isExplain() {
+        return explain;
+    }
+
+    public void setExplain(boolean explain) {
+        this.explain = explain;
+    }
+
+    public boolean isProfile() {
+        return profile;
+    }
+
+    public void setProfile(boolean profile) {
+        this.profile = profile;
     }
 
     public ScriptService.ScriptType getScriptType() {
@@ -123,6 +141,8 @@ public class SearchTemplateRequest extends ActionRequest<SearchTemplateRequest> 
         super.readFrom(in);
         request = in.readOptionalStreamable(SearchRequest::new);
         simulate = in.readBoolean();
+        explain = in.readBoolean();
+        profile = in.readBoolean();
         scriptType = ScriptService.ScriptType.readFrom(in);
         script = in.readOptionalString();
         if (in.readBoolean()) {
@@ -135,6 +155,8 @@ public class SearchTemplateRequest extends ActionRequest<SearchTemplateRequest> 
         super.writeTo(out);
         out.writeOptionalStreamable(request);
         out.writeBoolean(simulate);
+        out.writeBoolean(explain);
+        out.writeBoolean(profile);
         ScriptService.ScriptType.writeTo(scriptType, out);
         out.writeOptionalString(script);
         boolean hasParams = scriptParams != null;

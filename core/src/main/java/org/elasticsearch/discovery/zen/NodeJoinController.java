@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -41,7 +40,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
 
 import java.util.ArrayList;
@@ -457,17 +455,12 @@ public class NodeJoinController extends AbstractComponent {
 
             if (nodesChanged) {
                 newState.nodes(nodesBuilder);
-                final ClusterState tmpState = newState.build();
-                RoutingAllocation.Result result = allocationService.reroute(tmpState, "node_join");
-                newState = ClusterState.builder(tmpState);
-                if (result.changed()) {
-                    newState.routingResult(result);
-                }
+                return results.build(allocationService.reroute(newState.build(), "node_join"));
+            } else {
+                // we must return a new cluster state instance to force publishing. This is important
+                // for the joining node to finalize its join and set us as a master
+                return results.build(newState.build());
             }
-
-            // we must return a new cluster state instance to force publishing. This is important
-            // for the joining node to finalize its join and set us as a master
-            return results.build(newState.build());
         }
 
         private ClusterState.Builder becomeMasterAndTrimConflictingNodes(ClusterState currentState, List<DiscoveryNode> joiningNodes) {
@@ -487,9 +480,8 @@ public class NodeJoinController extends AbstractComponent {
             // now trim any left over dead nodes - either left there when the previous master stepped down
             // or removed by us above
             ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).blocks(clusterBlocks).build();
-            RoutingAllocation.Result result = allocationService.deassociateDeadNodes(tmpState, false,
-                "removed dead nodes on election");
-            return ClusterState.builder(tmpState).routingResult(result);
+            return ClusterState.builder(allocationService.deassociateDeadNodes(tmpState, false,
+                "removed dead nodes on election"));
         }
 
         @Override

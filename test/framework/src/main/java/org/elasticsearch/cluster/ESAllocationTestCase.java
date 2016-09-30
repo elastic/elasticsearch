@@ -26,9 +26,8 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -40,7 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.gateway.NoopGatewayAllocator;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -76,13 +75,13 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     public static MockAllocationService createAllocationService(Settings settings, ClusterSettings clusterSettings, Random random) {
         return new MockAllocationService(settings,
                 randomAllocationDeciders(settings, clusterSettings, random),
-                NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE);
+                new TestGatewayAllocator(), new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE);
     }
 
     public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
         return new MockAllocationService(settings,
                 randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
-                NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(settings), clusterInfoService);
+            new TestGatewayAllocator(), new BalancedShardsAllocator(settings), clusterInfoService);
     }
 
     public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator gatewayAllocator) {
@@ -126,9 +125,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         if (initializingShards.isEmpty()) {
             return clusterState;
         }
-        RoutingAllocation.Result routingResult = strategy.applyStartedShards(clusterState,
+        return strategy.applyStartedShards(clusterState,
             arrayAsArrayList(initializingShards.get(randomInt(initializingShards.size() - 1))));
-        return ClusterState.builder(clusterState).routingResult(routingResult).build();
     }
 
     protected static AllocationDeciders yesAllocationDeciders() {
@@ -148,12 +146,12 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected ClusterState applyStartedShardsUntilNoChange(ClusterState clusterState, AllocationService service) {
-        RoutingAllocation.Result routingResult;
+        ClusterState lastClusterState;
         do {
+            lastClusterState = clusterState;
             logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
-            routingResult = service.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
-            clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
-        } while (routingResult.changed());
+            clusterState = service.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        } while (lastClusterState.equals(clusterState) == false);
         return clusterState;
     }
 
@@ -212,10 +210,14 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         }
 
         @Override
-        public void applyStartedShards(StartedRerouteAllocation allocation) {}
+        public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
+            // no-op
+        }
 
         @Override
-        public void applyFailedShards(FailedRerouteAllocation allocation) {}
+        public void applyFailedShards(RoutingAllocation allocation, List<FailedShard> failedShards) {
+            // no-op
+        }
 
         @Override
         public void allocateUnassigned(RoutingAllocation allocation) {

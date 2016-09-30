@@ -138,7 +138,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
         if (inSyncAllocationIds.isEmpty()) {
             assert Version.indexCreated(indexMetaData.getSettings()).before(Version.V_5_0_0_alpha1) :
-                "trying to allocated a primary with an empty allocation id set, but index is new";
+                "trying to allocate a primary with an empty in sync allocation id set, but index is new. index: "
+                    + indexMetaData.getIndex();
             // when we load an old index (after upgrading cluster) or restore a snapshot of an old index
             // fall back to old version-based allocation mode
             // Note that once the shard has been active, lastActiveAllocationIds will be non-empty
@@ -257,11 +258,11 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
     /**
      * Builds a list of nodes. If matchAnyShard is set to false, only nodes that have an allocation id matching
-     * lastActiveAllocationIds are added to the list. Otherwise, any node that has a shard is added to the list, but
+     * inSyncAllocationIds are added to the list. Otherwise, any node that has a shard is added to the list, but
      * entries with matching allocation id are always at the front of the list.
      */
     protected static NodeShardsResult buildAllocationIdBasedNodeShardsResult(ShardRouting shard, boolean matchAnyShard,
-                                                                             Set<String> ignoreNodes, Set<String> lastActiveAllocationIds,
+                                                                             Set<String> ignoreNodes, Set<String> inSyncAllocationIds,
                                                                              FetchResult<NodeGatewayStartedShards> shardState,
                                                                              Logger logger) {
         LinkedList<NodeGatewayStartedShards> matchingNodeShardStates = new LinkedList<>();
@@ -292,7 +293,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
             if (allocationId != null) {
                 numberOfAllocationsFound++;
-                if (lastActiveAllocationIds.contains(allocationId)) {
+                if (inSyncAllocationIds.contains(allocationId)) {
                     if (nodeShardState.primary()) {
                         matchingNodeShardStates.addFirst(nodeShardState);
                     } else {

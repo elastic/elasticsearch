@@ -127,6 +127,20 @@ systems and operating systems, the server VM is the
 default. Additionally, Elasticsearch is configured by default to force
 the server VM.
 
+=== Use serial collector check
+
+There are various garbage collectors for the OpenJDK-derived JVMs targeting
+different workloads. The serial collector in particular is best suited for
+single logical CPU machines or extremely small heaps, neither of which are
+suitable for running Elasticsearch. Using the serial collector with
+Elasticsearch can be devastating for performance. The serial collector check
+ensures that Elasticsearch is not configured to run with the serial
+collector. To pass the serial collector check, you must not start Elasticsearch
+with the serial collector (whether it's from the defaults for the JVM that
+you're using, or you've explicitly specified it with `-XX:+UseSerialGC`). Note
+that the default JVM configuration that ship with Elasticsearch configures
+Elasticsearch to use the CMS collector.
+
 === OnError and OnOutOfMemoryError checks
 
 The JVM options `OnError` and `OnOutOfMemoryError` enable executing

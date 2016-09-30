@@ -23,8 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.Loggers;
@@ -168,6 +166,7 @@ final class BootstrapCheck {
             checks.add(new MaxMapCountCheck());
         }
         checks.add(new ClientJvmCheck());
+        checks.add(new UseSerialGCCheck());
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
         return Collections.unmodifiableList(checks);
@@ -443,6 +442,33 @@ final class BootstrapCheck {
                     Locale.ROOT,
                     "JVM is using the client VM [%s] but should be using a server VM for the best performance",
                     getVmName());
+        }
+
+    }
+
+    /**
+     * Checks if the serial collector is in use. This collector is single-threaded and devastating
+     * for performance and should not be used for a server application like Elasticsearch.
+     */
+    static class UseSerialGCCheck implements BootstrapCheck.Check {
+
+        @Override
+        public boolean check() {
+            return getUseSerialGC().equals("true");
+        }
+
+        // visible for testing
+        String getUseSerialGC() {
+            return JvmInfo.jvmInfo().useSerialGC();
+        }
+
+        @Override
+        public String errorMessage() {
+            return String.format(
+                Locale.ROOT,
+                "JVM is using the serial collector but should not be for the best performance; " +
+                    "either it's the default for the VM [%s] or -XX:+UseSerialGC was explicitly specified",
+                JvmInfo.jvmInfo().getVmName());
         }
 
     }

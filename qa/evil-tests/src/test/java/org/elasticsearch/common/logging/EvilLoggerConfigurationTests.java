@@ -58,7 +58,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
             final Environment environment = new Environment(settings);
-            LogConfigurator.configure(environment, true);
+            LogConfigurator.configure(environment);
 
             {
                 final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
@@ -97,7 +97,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
             .put("logger.level", level)
             .build();
         final Environment environment = new Environment(settings);
-        LogConfigurator.configure(environment, true);
+        LogConfigurator.configure(environment);
 
         final String loggerName = "test";
         final Logger logger = ESLoggerFactory.getLogger(loggerName);
@@ -113,7 +113,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
             .put("logger.test_resolve_order", "TRACE")
             .build();
         final Environment environment = new Environment(settings);
-        LogConfigurator.configure(environment, true);
+        LogConfigurator.configure(environment);
 
         // args should overwrite whatever is in the config
         final String loggerName = "test_resolve_order";
@@ -128,7 +128,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         final Environment environment = new Environment(settings);
-        LogConfigurator.configure(environment, true);
+        LogConfigurator.configure(environment);
 
         assertThat(ESLoggerFactory.getLogger("x").getLevel(), equalTo(Level.TRACE));
         assertThat(ESLoggerFactory.getLogger("x.y").getLevel(), equalTo(Level.DEBUG));
@@ -147,7 +147,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
         final Environment environment = new Environment(settings);
-        UserException e = expectThrows(UserException.class, () -> LogConfigurator.configure(environment, true));
+        UserException e = expectThrows(UserException.class, () -> LogConfigurator.configure(environment));
         assertThat(e, hasToString(containsString("no log4j2.properties found; tried")));
     }
 

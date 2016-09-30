@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -96,12 +95,7 @@ public class RoutingService extends AbstractLifecycleComponent {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     rerouting.set(false);
-                    RoutingAllocation.Result routingResult = allocationService.reroute(currentState, reason);
-                    if (!routingResult.changed()) {
-                        // no state changed
-                        return currentState;
-                    }
-                    return ClusterState.builder(currentState).routingResult(routingResult).build();
+                    return allocationService.reroute(currentState, reason);
                 }
 
                 @Override

@@ -633,8 +633,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.repositories.RepositoryMissingException::new, 107),
         DOCUMENT_SOURCE_MISSING_EXCEPTION(org.elasticsearch.index.engine.DocumentSourceMissingException.class,
                 org.elasticsearch.index.engine.DocumentSourceMissingException::new, 109),
-        FLUSH_NOT_ALLOWED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.FlushNotAllowedEngineException.class,
-                org.elasticsearch.index.engine.FlushNotAllowedEngineException::new, 110),
+        // 110 used to be FlushNotAllowedEngineException
         NO_CLASS_SETTINGS_EXCEPTION(org.elasticsearch.common.settings.NoClassSettingsException.class,
                 org.elasticsearch.common.settings.NoClassSettingsException::new, 111),
         BIND_TRANSPORT_EXCEPTION(org.elasticsearch.transport.BindTransportException.class,

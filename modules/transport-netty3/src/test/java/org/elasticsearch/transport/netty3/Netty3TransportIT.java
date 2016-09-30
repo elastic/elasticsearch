@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
@@ -32,10 +31,12 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportSettings;
 import org.jboss.netty.channel.Channel;
 
@@ -45,6 +46,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -83,13 +86,19 @@ public class Netty3TransportIT extends ESNetty3IntegTestCase {
 
     public static final class ExceptionThrowingNetty3Transport extends Netty3Transport {
 
-        public static class TestPlugin extends Plugin {
-            public void onModule(NetworkModule module) {
-                module.registerTransport("exception-throwing", ExceptionThrowingNetty3Transport.class);
+        public static class TestPlugin extends Plugin implements NetworkPlugin {
+
+            @Override
+            public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                  CircuitBreakerService circuitBreakerService,
+                                                                  NamedWriteableRegistry namedWriteableRegistry,
+                                                                  NetworkService networkService) {
+                return Collections.singletonMap("exception-throwing", () ->
+                    new ExceptionThrowingNetty3Transport(settings, threadPool, networkService, bigArrays,
+                        namedWriteableRegistry, circuitBreakerService));
             }
         }
 
-        @Inject
         public ExceptionThrowingNetty3Transport(
                 Settings settings,
                 ThreadPool threadPool,

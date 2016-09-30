@@ -55,6 +55,7 @@ import java.util.Set;
 
 import javax.net.ssl.SSLContext;
 
+import static java.util.Collections.singletonMap;
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 
@@ -113,6 +114,7 @@ public class ESRestTestCase extends ESTestCase {
         }
     }
 
+
     /**
      * Clean up after the test case.
      */
@@ -137,23 +139,61 @@ public class ESRestTestCase extends ESTestCase {
         return adminClient;
     }
 
+    /**
+     * Returns whether to preserve the indices created during this test on completion of this test.
+     * Defaults to {@code false}. Override this method if indices should be preserved after the test,
+     * with the assumption that some other process or test will clean up the indices afterward.
+     * This is useful if the data directory and indices need to be preserved between test runs
+     * (for example, when testing rolling upgrades).
+     */
+    protected boolean preserveIndicesUponCompletion() {
+        return false;
+    }
+
     private void wipeCluster() throws IOException {
-        // wipe indices
-        try {
-            adminClient().performRequest("DELETE", "*");
-        } catch (ResponseException e) {
-            // 404 here just means we had no indexes
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw e;
+        if (preserveIndicesUponCompletion() == false) {
+            // wipe indices
+            try {
+                adminClient().performRequest("DELETE", "*");
+            } catch (ResponseException e) {
+                // 404 here just means we had no indexes
+                if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                    throw e;
+                }
             }
         }
 
         // wipe index templates
         adminClient().performRequest("DELETE", "_template/*");
 
-        // wipe snapshots
-        // Technically this deletes all repositories and leave the snapshots in the repository. OK.
-        adminClient().performRequest("DELETE", "_snapshot/*");
+        wipeSnapshots();
+    }
+
+    /**
+     * Wipe fs snapshots we created one by one and all repositories so that the next test can create the repositories fresh and they'll
+     * start empty. There isn't an API to delete all snapshots. There is an API to delete all snapshot repositories but that leaves all of
+     * the snapshots intact in the repository.
+     */
+    private void wipeSnapshots() throws IOException {
+        for (Map.Entry<String, ?> repo : entityAsMap(adminClient.performRequest("GET", "_snapshot/_all")).entrySet()) {
+            String repoName = repo.getKey();
+            Map<?, ?> repoSpec = (Map<?, ?>) repo.getValue();
+            String repoType = (String) repoSpec.get("type");
+            if (repoType.equals("fs")) {
+                // All other repo types we really don't have a chance of being able to iterate properly, sadly.
+                String url = "_snapshot/" + repoName + "/_all";
+                Map<String, String> params = singletonMap("ignore_unavailable", "true");
+                List<?> snapshots = (List<?>) entityAsMap(adminClient.performRequest("GET", url, params)).get("snapshots");
+                for (Object snapshot : snapshots) {
+                    Map<?, ?> snapshotInfo = (Map<?, ?>) snapshot;
+                    String name = (String) snapshotInfo.get("snapshot");
+                    logger.debug("wiping snapshot [{}/{}]", repoName, name);
+                    adminClient().performRequest("DELETE", "_snapshot/" + repoName + "/" + name);
+                }
+            }
+            logger.debug("wiping snapshot repository [{}]", repoName);
+            adminClient().performRequest("DELETE", "_snapshot/" + repoName);
+        }
     }
 
     /**

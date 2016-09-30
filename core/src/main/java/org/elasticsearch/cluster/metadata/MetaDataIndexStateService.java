@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -125,11 +124,10 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     rtBuilder.remove(index.getIndex().getName());
                 }
 
-                RoutingAllocation.Result routingResult = allocationService.reroute(
+                //no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
+                return  allocationService.reroute(
                         ClusterState.builder(updatedState).routingTable(rtBuilder.build()).build(),
                         "indices closed [" + indicesAsString + "]");
-                //no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
-                return ClusterState.builder(updatedState).routingResult(routingResult).build();
             }
         });
     }
@@ -188,11 +186,10 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     rtBuilder.addAsFromCloseToOpen(updatedState.metaData().getIndexSafe(index.getIndex()));
                 }
 
-                RoutingAllocation.Result routingResult = allocationService.reroute(
+                //no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
+                return allocationService.reroute(
                         ClusterState.builder(updatedState).routingTable(rtBuilder.build()).build(),
                         "indices opened [" + indicesAsString + "]");
-                //no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
-                return ClusterState.builder(updatedState).routingResult(routingResult).build();
             }
         });
     }

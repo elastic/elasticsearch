@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -140,8 +139,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 routingTable.addAsRecovery(updatedState.metaData().index(index));
                 updatedState = ClusterState.builder(updatedState).routingTable(routingTable.build()).build();
 
-                RoutingAllocation.Result result = allocationService.reroute(updatedState, "reroute");
-                return ClusterState.builder(updatedState).routingResult(result).build();
+                return allocationService.reroute(updatedState, "reroute");
 
             }
 
@@ -159,8 +157,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 builder.nodes(DiscoveryNodes.builder(currentState.nodes()).remove("_non_existent"));
 
                 currentState = builder.build();
-                RoutingAllocation.Result result = allocationService.deassociateDeadNodes(currentState, true, "reroute");
-                return ClusterState.builder(currentState).routingResult(result).build();
+                return allocationService.deassociateDeadNodes(currentState, true, "reroute");
 
             }
 

@@ -206,7 +206,7 @@ public class CompletionFieldMapper2x extends FieldMapper {
                     throw new MapperParsingException(
                         "analyzer on completion field [" + name + "] must be set when search_analyzer is set");
                 }
-                indexAnalyzer = searchAnalyzer = parserContext.analysisService().analyzer("simple");
+                indexAnalyzer = searchAnalyzer = parserContext.getIndexAnalyzers().get("simple");
             } else if (searchAnalyzer == null) {
                 searchAnalyzer = indexAnalyzer;
             }
@@ -217,7 +217,7 @@ public class CompletionFieldMapper2x extends FieldMapper {
         }
 
         private NamedAnalyzer getNamedAnalyzer(ParserContext parserContext, String name) {
-            NamedAnalyzer analyzer = parserContext.analysisService().analyzer(name);
+            NamedAnalyzer analyzer = parserContext.getIndexAnalyzers().get(name);
             if (analyzer == null) {
                 throw new IllegalArgumentException("Can't find default or mapped analyzer with name [" + name + "]");
             }

@@ -49,7 +49,7 @@ import org.elasticsearch.common.settings.Settings;
  * To enable allocation awareness in this example nodes should contain a value
  * for the <tt>rack_id</tt> key like:
  * <pre>
- * node.rack_id:1
+ * node.attr.rack_id:1
  * </pre>
  * <p>
  * Awareness can also be used to prevent over-allocation in the case of node or

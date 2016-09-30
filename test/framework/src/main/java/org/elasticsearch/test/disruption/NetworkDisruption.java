@@ -328,6 +328,18 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         }
     }
 
+    public static class IsolateAllNodes extends DisruptedLinks {
+
+        public IsolateAllNodes(Set<String> nodes) {
+            super(nodes);
+        }
+
+        @Override
+        public boolean disrupt(String node1, String node2) {
+            return true;
+        }
+    }
+
     /**
      * Abstract class representing various types of network disruptions. Instances of this class override the {@link #applyDisruption}
      * method to apply their specific disruption type to requests that are send from a source to a target node.

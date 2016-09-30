@@ -29,7 +29,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -617,11 +616,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                             }
                             if (threadRandom.nextInt(100) == 7) {
                                 logger.trace("--> {}: TEST: now flush at {}", threadID, System.nanoTime() - startTime);
-                                try {
-                                    flush();
-                                } catch (FlushNotAllowedEngineException fnaee) {
-                                    // OK
-                                }
+                                flush();
                                 logger.trace("--> {}: TEST: flush done at {}", threadID, System.nanoTime() - startTime);
                             }
                         }

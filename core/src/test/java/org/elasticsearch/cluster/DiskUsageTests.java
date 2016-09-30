@@ -26,7 +26,6 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -269,8 +268,8 @@ public class DiskUsageTests extends ESTestCase {
         assertNotNull(usage);
         assertNotNull(path);
         assertEquals(usage.toString(), usage.getPath(), path.getPath());
-        assertEquals(usage.toString(), usage.getTotalBytes(), path.getTotal().bytes());
-        assertEquals(usage.toString(), usage.getFreeBytes(), path.getAvailable().bytes());
+        assertEquals(usage.toString(), usage.getTotalBytes(), path.getTotal().getBytes());
+        assertEquals(usage.toString(), usage.getFreeBytes(), path.getAvailable().getBytes());
 
     }
 }

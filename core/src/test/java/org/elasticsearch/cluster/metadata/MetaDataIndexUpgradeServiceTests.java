@@ -56,7 +56,8 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
     }
 
     public void testUpgrade() {
-        MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, new MapperRegistry(Collections.emptyMap(), Collections.emptyMap()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+        MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, new MapperRegistry(Collections.emptyMap(),
+            Collections.emptyMap()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         IndexMetaData src = newIndexMeta("foo", Settings.builder().put("index.refresh_interval", "-200").build());
         assertFalse(service.isUpgraded(src));
         src = service.upgradeIndexMetaData(src);
@@ -67,7 +68,8 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
     }
 
     public void testIsUpgraded() {
-        MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, new MapperRegistry(Collections.emptyMap(), Collections.emptyMap()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+        MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, new MapperRegistry(Collections.emptyMap(),
+            Collections.emptyMap()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         IndexMetaData src = newIndexMeta("foo", Settings.builder().put("index.refresh_interval", "-200").build());
         assertFalse(service.isUpgraded(src));
         Version version = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion());
@@ -75,6 +77,26 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
         assertFalse(service.isUpgraded(src));
         src = newIndexMeta("foo", Settings.builder().put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.CURRENT).build());
         assertTrue(service.isUpgraded(src));
+    }
+
+    public void testFailUpgrade() {
+        MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, new MapperRegistry(Collections.emptyMap(),
+            Collections.emptyMap()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+        final IndexMetaData metaData = newIndexMeta("foo", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_2_0_0_beta1)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.fromString("1.7.0"))
+            .put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE,
+            Version.CURRENT.luceneVersion.toString()).build());
+        String message = expectThrows(IllegalStateException.class, () -> service.upgradeIndexMetaData(metaData)).getMessage();
+        assertEquals(message, "The index [[foo/BOOM]] was created before v2.0.0.beta1. It should be reindexed in Elasticsearch 2.x " +
+            "before upgrading to " + Version.CURRENT.toString() + ".");
+
+        IndexMetaData goodMeta = newIndexMeta("foo", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_2_0_0_beta1)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.fromString("2.1.0"))
+            .put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE,
+                Version.CURRENT.luceneVersion.toString()).build());
+        service.upgradeIndexMetaData(goodMeta);
     }
 
     public static IndexMetaData newIndexMeta(String name, Settings indexSettings) {

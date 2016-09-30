@@ -730,7 +730,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.SyncedFlushResult syncFlush(String syncId, Engine.CommitId expectedCommitId) {
         verifyStartedOrRecovering();
         logger.trace("trying to sync flush. sync id [{}]. expected commit id [{}]]", syncId, expectedCommitId);
-        return getEngine().syncFlush(syncId, expectedCommitId);
+        Engine engine = getEngine();
+        if (engine.isRecovering()) {
+            throw new IllegalIndexShardStateException(shardId(), state, "syncFlush is only allowed if the engine is not recovery" +
+                " from translog");
+        }
+        return engine.syncFlush(syncId, expectedCommitId);
     }
 
     public Engine.CommitId flush(FlushRequest request) throws ElasticsearchException {
@@ -741,11 +746,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         // we allows flush while recovering, since we allow for operations to happen
         // while recovering, and we want to keep the translog at bay (up to deletes, which
-        // we don't gc).
+        // we don't gc). Yet, we don't use flush internally to clear deletes and flush the indexwriter since
+        // we use #writeIndexingBuffer for this now.
         verifyStartedOrRecovering();
-
+        Engine engine = getEngine();
+        if (engine.isRecovering()) {
+            throw new IllegalIndexShardStateException(shardId(), state, "flush is only allowed if the engine is not recovery" +
+                " from translog");
+        }
         long time = System.nanoTime();
-        Engine.CommitId commitId = getEngine().flush(force, waitIfOngoing);
+        Engine.CommitId commitId = engine.flush(force, waitIfOngoing);
         flushMetric.inc(System.nanoTime() - time);
         return commitId;
 
@@ -999,7 +1009,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             active.set(true);
             newEngine.recoverFromTranslog();
         }
+    }
 
+    protected void onNewEngine(Engine newEngine) {
+        refreshListeners.setTranslog(newEngine.getTranslog());
     }
 
     /**
@@ -1162,7 +1175,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             boolean wasActive = active.getAndSet(false);
             if (wasActive) {
                 logger.debug("shard is now inactive");
-                indexEventListener.onShardInactive(this);
+                try {
+                    indexEventListener.onShardInactive(this);
+                } catch (Exception e) {
+                    logger.warn("failed to notify index event listener", e);
+                }
             }
         }
     }
@@ -1219,7 +1236,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (engine != null) {
             try {
                 Translog translog = engine.getTranslog();
-                return translog.sizeInBytes() > indexSettings.getFlushThresholdSize().bytes();
+                return translog.sizeInBytes() > indexSettings.getFlushThresholdSize().getBytes();
             } catch (AlreadyClosedException | EngineClosedException ex) {
                 // that's fine we are already close - no need to flush
             }
@@ -1548,8 +1565,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 throw new EngineClosedException(shardId);
             }
             assert this.currentEngineReference.get() == null;
-            this.currentEngineReference.set(newEngine(config));
-
+            Engine engine = newEngine(config);
+            onNewEngine(engine); // call this before we pass the memory barrier otherwise actions that happen
+            // inside the callback are not visible. This one enforces happens-before
+            this.currentEngineReference.set(engine);
         }
 
         // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during which

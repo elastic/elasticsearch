@@ -85,6 +85,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -206,53 +207,6 @@ public class TranslogTests extends ESTestCase {
         return string;
     }
 
-    public void testRead() throws IOException {
-        Location loc0 = translog.getLastWriteLocation();
-        assertNotNull(loc0);
-
-        Translog.Location loc1 = translog.add(new Translog.Index("test", "1", new byte[]{1}));
-        assertThat(loc1, greaterThan(loc0));
-        assertThat(translog.getLastWriteLocation(), greaterThan(loc1));
-        Translog.Location loc2 = translog.add(new Translog.Index("test", "2", new byte[]{2}));
-        assertThat(loc2, greaterThan(loc1));
-        assertThat(translog.getLastWriteLocation(), greaterThan(loc2));
-        assertThat(translog.read(loc1).getSource().source, equalTo(new BytesArray(new byte[]{1})));
-        assertThat(translog.read(loc2).getSource().source, equalTo(new BytesArray(new byte[]{2})));
-
-        Translog.Location lastLocBeforeSync = translog.getLastWriteLocation();
-        translog.sync();
-        assertEquals(lastLocBeforeSync, translog.getLastWriteLocation());
-        assertThat(translog.read(loc1).getSource().source, equalTo(new BytesArray(new byte[]{1})));
-        assertThat(translog.read(loc2).getSource().source, equalTo(new BytesArray(new byte[]{2})));
-
-        Translog.Location loc3 = translog.add(new Translog.Index("test", "2", new byte[]{3}));
-        assertThat(loc3, greaterThan(loc2));
-        assertThat(translog.getLastWriteLocation(), greaterThan(loc3));
-        assertThat(translog.read(loc3).getSource().source, equalTo(new BytesArray(new byte[]{3})));
-
-        lastLocBeforeSync = translog.getLastWriteLocation();
-        translog.sync();
-        assertEquals(lastLocBeforeSync, translog.getLastWriteLocation());
-        assertThat(translog.read(loc3).getSource().source, equalTo(new BytesArray(new byte[]{3})));
-        translog.prepareCommit();
-        /*
-         * The commit adds to the lastWriteLocation even though is isn't really a write. This is just an implementation artifact but it can
-         * safely be ignored because the lastWriteLocation continues to be greater than the Location returned from the last write operation
-         * and less than the location of the next write operation.
-         */
-        assertThat(translog.getLastWriteLocation(), greaterThan(lastLocBeforeSync));
-        assertThat(translog.read(loc3).getSource().source, equalTo(new BytesArray(new byte[]{3})));
-        translog.commit();
-        assertNull(translog.read(loc1));
-        assertNull(translog.read(loc2));
-        assertNull(translog.read(loc3));
-        try {
-            translog.read(new Translog.Location(translog.currentFileGeneration() + 1, 17, 35));
-            fail("generation is greater than the current");
-        } catch (IllegalStateException ex) {
-            // expected
-        }
-    }
 
     public void testSimpleOperations() throws IOException {
         ArrayList<Translog.Operation> ops = new ArrayList<>();
@@ -441,7 +395,7 @@ public class TranslogTests extends ESTestCase {
         assertFalse("translog [" + id + "] still exists", Files.exists(translog.location().resolve(Translog.getFilename(id))));
     }
 
-    static class LocationOperation {
+    static class LocationOperation implements Comparable<LocationOperation> {
         final Translog.Operation operation;
         final Translog.Location location;
 
@@ -450,6 +404,10 @@ public class TranslogTests extends ESTestCase {
             this.location = location;
         }
 
+        @Override
+        public int compareTo(LocationOperation o) {
+            return location.compareTo(o.location);
+        }
     }
 
     public void testConcurrentWritesWithVaryingSize() throws Throwable {
@@ -478,8 +436,12 @@ public class TranslogTests extends ESTestCase {
             threads[i].join(60 * 1000);
         }
 
-        for (LocationOperation locationOperation : writtenOperations) {
-            Translog.Operation op = translog.read(locationOperation.location);
+        List<LocationOperation> collect = writtenOperations.stream().collect(Collectors.toList());
+        Collections.sort(collect);
+        Translog.Snapshot snapshot = translog.newSnapshot();
+        for (LocationOperation locationOperation : collect) {
+            Translog.Operation op = snapshot.next();
+            assertNotNull(op);
             Translog.Operation expectedOp = locationOperation.operation;
             assertEquals(expectedOp.opType(), op.opType());
             switch (op.opType()) {
@@ -505,6 +467,7 @@ public class TranslogTests extends ESTestCase {
             }
 
         }
+        assertNull(snapshot.next());
 
     }
 
@@ -521,13 +484,16 @@ public class TranslogTests extends ESTestCase {
         corruptTranslogs(translogDir);
 
         AtomicInteger corruptionsCaught = new AtomicInteger(0);
+        Translog.Snapshot snapshot = translog.newSnapshot();
         for (Translog.Location location : locations) {
             try {
-                translog.read(location);
+                Translog.Operation next = snapshot.next();
+                assertNotNull(next);
             } catch (TranslogCorruptedException e) {
                 corruptionsCaught.incrementAndGet();
             }
         }
+        expectThrows(TranslogCorruptedException.class, () -> snapshot.next());
         assertThat("at least one corruption was caused and caught", corruptionsCaught.get(), greaterThanOrEqualTo(1));
     }
 
@@ -544,15 +510,12 @@ public class TranslogTests extends ESTestCase {
         truncateTranslogs(translogDir);
 
         AtomicInteger truncations = new AtomicInteger(0);
+        Translog.Snapshot snap = translog.newSnapshot();
         for (Translog.Location location : locations) {
             try {
-                translog.read(location);
-            } catch (ElasticsearchException e) {
-                if (e.getCause() instanceof EOFException) {
-                    truncations.incrementAndGet();
-                } else {
-                    throw e;
-                }
+                assertNotNull(snap.next());
+            } catch (EOFException e) {
+                truncations.incrementAndGet();
             }
         }
         assertThat("at least one truncation was caused and caught", truncations.get(), greaterThanOrEqualTo(1));
@@ -860,8 +823,14 @@ public class TranslogTests extends ESTestCase {
         }
 
         assertEquals(max.generation, translog.currentFileGeneration());
-        final Translog.Operation read = translog.read(max);
-        assertEquals(read.getSource().source.utf8ToString(), Integer.toString(count));
+        Translog.Snapshot snap = translog.newSnapshot();
+        Translog.Operation next;
+        Translog.Operation maxOp = null;
+        while ((next = snap.next()) != null) {
+            maxOp = next;
+        }
+        assertNotNull(maxOp);
+        assertEquals(maxOp.getSource().source.utf8ToString(), Integer.toString(count));
     }
 
     public static Translog.Location max(Translog.Location a, Translog.Location b) {
@@ -884,30 +853,24 @@ public class TranslogTests extends ESTestCase {
             }
         }
         assertEquals(translogOperations, translog.totalOperations());
-        final Translog.Location lastLocation = translog.add(new Translog.Index("test", "" + translogOperations, Integer.toString(translogOperations).getBytes(Charset.forName("UTF-8"))));
+        translog.add(new Translog.Index("test", "" + translogOperations, Integer.toString(translogOperations).getBytes(Charset.forName("UTF-8"))));
 
         final Checkpoint checkpoint = Checkpoint.read(translog.location().resolve(Translog.CHECKPOINT_FILE_NAME));
         try (final TranslogReader reader = translog.openReader(translog.location().resolve(Translog.getFilename(translog.currentFileGeneration())), checkpoint)) {
             assertEquals(lastSynced + 1, reader.totalOperations());
+            Translog.Snapshot snapshot = reader.newSnapshot();
+
             for (int op = 0; op < translogOperations; op++) {
-                Translog.Location location = locations.get(op);
                 if (op <= lastSynced) {
-                    final Translog.Operation read = reader.read(location);
+                    final Translog.Operation read = snapshot.next();
                     assertEquals(Integer.toString(op), read.getSource().source.utf8ToString());
                 } else {
-                    try {
-                        reader.read(location);
-                        fail("read past checkpoint");
-                    } catch (EOFException ex) {
-
-                    }
+                    Translog.Operation next = snapshot.next();
+                    assertNull(next);
                 }
             }
-            try {
-                reader.read(lastLocation);
-                fail("read past checkpoint");
-            } catch (EOFException ex) {
-            }
+            Translog.Operation next = snapshot.next();
+            assertNull(next);
         }
         assertEquals(translogOperations + 1, translog.totalOperations());
         translog.close();
@@ -1617,11 +1580,6 @@ public class TranslogTests extends ESTestCase {
                         }
                     }
                 };
-            }
-
-            @Override
-            protected boolean assertBytesAtLocation(Location location, BytesReference expectedBytes) throws IOException {
-                return true; // we don't wanna fail in the assert
             }
         };
     }

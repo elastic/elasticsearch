@@ -20,7 +20,7 @@ include::key.asciidoc[]
 
 [source,sh]
 -------------------------
-rpm --import https://packages.elastic.co/GPG-KEY-elasticsearch
+rpm --import https://artifacts.elastic.co/GPG-KEY-elasticsearch
 -------------------------
 
 [[rpm-repo]]
@@ -34,9 +34,9 @@ OpenSuSE based distributions, containing:
 --------------------------------------------------
 [elasticsearch-{major-version}]
 name=Elasticsearch repository for {major-version} packages
-baseurl=https://packages.elastic.co/elasticsearch/{major-version}/centos
+baseurl=https://artifacts.elastic.co/packages/{major-version}-prerelease/yum
 gpgcheck=1
-gpgkey=https://packages.elastic.co/GPG-KEY-elasticsearch
+gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
 enabled=1
 autorefresh=1
 type=rpm-md
@@ -61,12 +61,12 @@ The RPM for Elastisearch v{version} can be downloaded from the website and insta
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/rpm/elasticsearch/{version}/elasticsearch-{version}.rpm
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.rpm
 sha1sum elasticsearch-{version}.rpm <1>
 sudo rpm --install elasticsearch-{version}.rpm
 --------------------------------------------
 <1> Compare the SHA produced by `sha1sum` or `shasum` with the
-    https://download.elastics.co/elasticsearch/release/org/elasticsearch/distribution/rpm/elasticsearch/{version}/elasticsearch-{version}.rpm.sha1[published SHA].
+    https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.rpm.sha1[published SHA].
 
 include::init-systemd.asciidoc[]
 

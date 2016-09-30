@@ -142,7 +142,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("foo", "doc", ""+i).setSource("foo", "bar").get();
         }
-        assertNoFailures(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
+        assertNoFailures(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
 
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.builder()

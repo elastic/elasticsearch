@@ -82,9 +82,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
-/**
- *
- */
 public class InternalEngine extends Engine {
     /**
      * When we last pruned expired tombstones from versionMap.deletes:
@@ -119,7 +116,7 @@ public class InternalEngine extends Engine {
     // incoming indexing ops to a single thread:
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
     private final EngineConfig.OpenMode openMode;
-    private final AtomicBoolean allowCommits = new AtomicBoolean(true);
+    private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final CounterMetric numVersionLookups = new CounterMetric();
     private final CounterMetric numIndexVersionsLookups = new CounterMetric();
@@ -166,11 +163,11 @@ public class InternalEngine extends Engine {
             manager = createSearcherManager();
             this.searcherManager = manager;
             this.versionMap.setManager(searcherManager);
+            assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
             // don't allow commits until we are done with recovering
-            allowCommits.compareAndSet(true, openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
+            pendingTranslogRecovery.set(openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
             if (engineConfig.getRefreshListeners() != null) {
                 searcherManager.addListener(engineConfig.getRefreshListeners());
-                engineConfig.getRefreshListeners().setTranslog(translog);
             }
             success = true;
         } finally {
@@ -194,14 +191,14 @@ public class InternalEngine extends Engine {
             if (openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
                 throw new IllegalStateException("Can't recover from translog with open mode: " + openMode);
             }
-            if (allowCommits.get()) {
+            if (pendingTranslogRecovery.get() == false) {
                 throw new IllegalStateException("Engine has already been recovered");
             }
             try {
                 recoverFromTranslog(engineConfig.getTranslogRecoveryPerformer());
             } catch (Exception e) {
                 try {
-                    allowCommits.set(false); // just play safe and never allow commits on this
+                    pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
                     failEngine("failed to recover from translog", e);
                 } catch (Exception inner) {
                     e.addSuppressed(inner);
@@ -225,8 +222,8 @@ public class InternalEngine extends Engine {
         }
         // flush if we recovered something or if we have references to older translogs
         // note: if opsRecovered == 0 and we have older translogs it means they are corrupted or 0 length.
-        assert allowCommits.get() == false : "commits are allowed but shouldn't";
-        allowCommits.set(true); // we are good - now we can commit
+        assert pendingTranslogRecovery.get(): "translogRecovery is not pending but should be";
+        pendingTranslogRecovery.set(false); // we are good - now we can commit
         if (opsRecovered > 0) {
             logger.trace("flushing post recovery from translog. ops recovered [{}]. committed translog id [{}]. current id [{}]",
                 opsRecovered, translogGeneration == null ? null : translogGeneration.translogFileGeneration, translog.currentFileGeneration());
@@ -769,7 +766,7 @@ public class InternalEngine extends Engine {
                     flushLock.lock();
                     logger.trace("acquired flush lock after blocking");
                 } else {
-                    throw new FlushNotAllowedEngineException(shardId, "already flushing...");
+                    return new CommitId(lastCommittedSegmentInfos.getId());
                 }
             } else {
                 logger.trace("acquired flush lock immediately");
@@ -951,7 +948,7 @@ public class InternalEngine extends Engine {
             failEngine("already closed by tragic event on the index writer", tragedy);
         } else if (translog.isOpen() == false && translog.getTragicException() != null) {
             failEngine("already closed by tragic event on the translog", translog.getTragicException());
-        } else {
+        } else if (failedEngine.get() == null) { // we are closed but the engine is not failed yet?
             // this smells like a bug - we only expect ACE if we are in a fatal case ie. either translog or IW is closed by
             // a tragic event or has closed itself. if that is not the case we are in a buggy state and raise an assertion error
             throw new AssertionError("Unexpected AlreadyClosedException", ex);
@@ -1099,7 +1096,7 @@ public class InternalEngine extends Engine {
             mergePolicy = new ElasticsearchMergePolicy(mergePolicy);
             iwc.setMergePolicy(mergePolicy);
             iwc.setSimilarity(engineConfig.getSimilarity());
-            iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().mbFrac());
+            iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
             iwc.setCodec(engineConfig.getCodec());
             iwc.setUseCompoundFile(true); // always use compound on flush - reduces # of file-handles on refresh
             return new IndexWriter(store.directory(), iwc);
@@ -1291,8 +1288,8 @@ public class InternalEngine extends Engine {
         // if we are in this stage we have to prevent flushes from this
         // engine otherwise we might loose documents if the flush succeeds
         // and the translog recover fails we we "commit" the translog on flush.
-        if (allowCommits.get() == false) {
-            throw new FlushNotAllowedEngineException(shardId, "flushes are disabled - pending translog recovery");
+        if (pendingTranslogRecovery.get()) {
+            throw new IllegalStateException(shardId.toString() + " flushes are disabled - pending translog recovery");
         }
     }
 
@@ -1352,5 +1349,10 @@ public class InternalEngine extends Engine {
      */
     boolean indexWriterHasDeletions() {
         return indexWriter.hasDeletions();
+    }
+
+    @Override
+    public boolean isRecovering() {
+        return pendingTranslogRecovery.get();
     }
 }

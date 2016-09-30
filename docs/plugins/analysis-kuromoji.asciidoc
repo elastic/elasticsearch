@@ -175,7 +175,7 @@ PUT kuromoji_sample
   }
 }
 
-POST kuromoji_sample/_analyze
+GET kuromoji_sample/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "東京スカイツリー"
@@ -232,7 +232,7 @@ PUT kuromoji_sample
   }
 }
 
-POST kuromoji_sample/_analyze
+GET kuromoji_sample/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "飲み"
@@ -298,7 +298,7 @@ PUT kuromoji_sample
   }
 }
 
-POST kuromoji_sample/_analyze
+GET kuromoji_sample/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "寿司がおいしいね"
@@ -375,13 +375,13 @@ PUT kuromoji_sample
     }
 }
 
-POST kuromoji_sample/_analyze
+GET kuromoji_sample/_analyze
 {
   "analyzer": "katakana_analyzer",
   "text": "寿司" <1>
 }
 
-POST kuromoji_sample/_analyze
+GET kuromoji_sample/_analyze
 {
   "analyzer": "romaji_analyzer",
   "text": "寿司" <2>
@@ -433,13 +433,13 @@ PUT kuromoji_sample
   }
 }
 
-POST kuromoji_sample/_analyze
+GET kuromoji_sample/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "コピー" <1>
 }
 
-POST kuromoji_sample/_analyze
+GET kuromoji_sample/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "サーバー" <2>
@@ -452,7 +452,7 @@ POST kuromoji_sample/_analyze
 
 
 [[analysis-kuromoji-stop]]
-===== `ja_stop` token filter
+==== `ja_stop` token filter
 
 The `ja_stop` token filter filters out Japanese stopwords (`_japanese_`), and
 any other custom stopwords specified by the user. This filter only supports
@@ -489,7 +489,7 @@ PUT kuromoji_sample
   }
 }
 
-POST kuromoji_sample/_analyze
+GET kuromoji_sample/_analyze
 {
   "analyzer": "analyzer_with_ja_stop",
   "text": "ストップは消える"
@@ -514,7 +514,7 @@ The above request returns:
 // TESTRESPONSE
 
 [[analysis-kuromoji-number]]
-===== `kuromoji_number` token filter
+==== `kuromoji_number` token filter
 
 The `kuromoji_number` token filter normalizes Japanese numbers (kansūji)
 to regular Arabic decimal numbers in half-width characters. For example:
@@ -539,7 +539,7 @@ PUT kuromoji_sample
   }
 }
 
-POST kuromoji_sample/_analyze
+GET kuromoji_sample/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "一〇〇〇"

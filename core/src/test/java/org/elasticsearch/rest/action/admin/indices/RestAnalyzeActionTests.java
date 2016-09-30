@@ -19,25 +19,16 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
-
-import java.util.HashMap;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 public class RestAnalyzeActionTests extends ESTestCase {
 

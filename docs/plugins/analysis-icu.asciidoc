@@ -164,7 +164,7 @@ PUT icu_sample
     }
 }
 
-POST icu_sample/_analyze
+GET icu_sample/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "Elasticsearch. Wow!"

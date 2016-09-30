@@ -57,7 +57,7 @@ public class ClusterInfoTests extends MonitoringIntegTestCase {
     }
 
     public void testClusterInfo() throws Exception {
-        securedEnsureGreen();
+        ensureGreen();
 
         final String clusterUUID = client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID();
         assertTrue(Strings.hasText(clusterUUID));
@@ -136,8 +136,8 @@ public class ClusterInfoTests extends MonitoringIntegTestCase {
         waitForMonitoringTemplates();
 
         // check that the cluster_info is not indexed
-        securedFlush();
-        securedRefresh();
+        flush();
+        refresh();
 
         assertHitCount(client().prepareSearch().setSize(0)
                 .setIndices(dataIndex)

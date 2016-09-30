@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.junit.After;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -63,8 +62,8 @@ public class ShardsTests extends MonitoringIntegTestCase {
             client().prepareIndex(INDEX_PREFIX + i, "foo").setRefreshPolicy(IMMEDIATE).setSource("field1", "value1").get();
         }
 
-        securedFlush();
-        securedRefresh();
+        flush();
+        refresh();
 
         updateMonitoringInterval(3L, TimeUnit.SECONDS);
         waitForMonitoringIndices();

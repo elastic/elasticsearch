@@ -43,6 +43,8 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateAction;
@@ -55,7 +57,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -65,6 +66,8 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
+import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.security.authz.indicesresolver.DefaultIndicesAndAliasesResolver;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
@@ -219,6 +222,41 @@ public class AuthorizationServiceTests extends ESTestCase {
             assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user]"));
             verify(auditTrail).accessDenied(user, "indices:a", request);
             verifyNoMoreInteractions(auditTrail);
+        }
+    }
+
+    public void testSearchAgainstEmptyCluster() {
+        User user = new User("test user", "a_all");
+        when(rolesStore.role("a_all")).thenReturn(Role.builder("a_role").add(IndexPrivilege.ALL, "a").build());
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+        when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
+
+        {
+            //ignore_unavailable set to false, user is not authorized for this index nor does it exist
+            SearchRequest searchRequest = new SearchRequest("does_not_exist")
+                    .indicesOptions(IndicesOptions.fromOptions(false, true, true, false));
+            try {
+                authorizationService.authorize(createAuthentication(user), SearchAction.NAME, searchRequest);
+                fail("indices request for b should be denied since there is no such index");
+            } catch (ElasticsearchSecurityException e) {
+                assertAuthorizationException(e, containsString("action [" + SearchAction.NAME + "] is unauthorized for user [test user]"));
+                verify(auditTrail).accessDenied(user, SearchAction.NAME, searchRequest);
+                verifyNoMoreInteractions(auditTrail);
+            }
+        }
+
+        {
+            //ignore_unavailable and allow_no_indices both set to true, user is not authorized for this index nor does it exist
+            SearchRequest searchRequest = new SearchRequest("does_not_exist")
+                    .indicesOptions(IndicesOptions.fromOptions(true, true, true, false));
+            authorizationService.authorize(createAuthentication(user), SearchAction.NAME, searchRequest);
+            verify(auditTrail).accessGranted(user, SearchAction.NAME, searchRequest);
+            IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationService.INDICES_PERMISSIONS_KEY);
+            IndicesAccessControl.IndexAccessControl indexAccessControl =
+                    indicesAccessControl.getIndexPermissions(DefaultIndicesAndAliasesResolver.NO_INDEX);
+            assertFalse(indexAccessControl.getFieldPermissions().hasFieldLevelSecurity());
+            assertNull(indexAccessControl.getQueries());
         }
     }
 

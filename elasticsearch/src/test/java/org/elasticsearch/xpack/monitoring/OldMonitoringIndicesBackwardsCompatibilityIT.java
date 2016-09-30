@@ -13,7 +13,6 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
@@ -96,19 +95,10 @@ public class OldMonitoringIndicesBackwardsCompatibilityIT extends AbstractOldXPa
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get();
         }
 
-        // Wait for the exporter to come online and add the aliases
-        long end = TimeUnit.SECONDS.toNanos(30) + System.nanoTime();
-        SearchResponse firstIndexStats;
-        while (true) {
-            try {
-                firstIndexStats = search(new IndexStatsResolver(MonitoredSystem.ES, Settings.EMPTY), greaterThanOrEqualTo(10L));
-                break;
-            } catch (IndexNotFoundException e) {
-                if (System.nanoTime() - end > 0) {
-                    throw e;
-                }
-            }
-        }
+        IndexStatsResolver resolver = new IndexStatsResolver(MonitoredSystem.ES, Settings.EMPTY);
+        assertBusy(() -> assertTrue(client().admin().indices().prepareExists(resolver.indexPattern()).get().isExists()));
+        SearchResponse firstIndexStats = search(resolver, greaterThanOrEqualTo(10L));
+
         // All the other aliases should have been created by now so we can assert that we have the data we saved in the bwc indexes
         SearchResponse firstShards = search(new ShardsResolver(MonitoredSystem.ES, Settings.EMPTY), greaterThanOrEqualTo(10L));
         SearchResponse firstIndicesStats = search(new IndicesStatsResolver(MonitoredSystem.ES, Settings.EMPTY), greaterThanOrEqualTo(3L));

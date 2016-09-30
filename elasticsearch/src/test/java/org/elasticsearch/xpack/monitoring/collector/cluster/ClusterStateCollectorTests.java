@@ -52,8 +52,8 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
             client().prepareIndex("test", "test").setSource("num", i).get();
         }
 
-        securedFlush();
-        securedRefresh();
+        flush();
+        refresh();
 
         assertHitCount(client().prepareSearch().setSize(0).get(), nbDocs);
         assertMonitoringDocs(newClusterStateCollector().doCollect(), nbShards);
@@ -79,8 +79,8 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
             }
         }
 
-        securedFlush();
-        securedRefresh();
+        flush();
+        refresh();
 
         for (int i = 0; i < nbIndices; i++) {
             assertHitCount(client().prepareSearch("test-" + i).setSize(0).get(), docsPerIndex[i]);

@@ -12,9 +12,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.collector.AbstractCollector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
@@ -51,43 +49,33 @@ public class IndexStatsCollector extends AbstractCollector {
     @Override
     protected Collection<MonitoringDoc> doCollect() throws Exception {
         List<MonitoringDoc> results = new ArrayList<>();
-        try {
-            IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
-                    .setIndices(monitoringSettings.indices())
-                    .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                    .clear()
-                    .setDocs(true)
-                    .setFieldData(true)
-                    .setIndexing(true)
-                    .setMerge(true)
-                    .setSearch(true)
-                    .setSegments(true)
-                    .setStore(true)
-                    .setRefresh(true)
-                    .setQueryCache(true)
-                    .setRequestCache(true)
-                    .get(monitoringSettings.indexStatsTimeout());
+        IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
+                .setIndices(monitoringSettings.indices())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .clear()
+                .setDocs(true)
+                .setFieldData(true)
+                .setIndexing(true)
+                .setMerge(true)
+                .setSearch(true)
+                .setSegments(true)
+                .setStore(true)
+                .setRefresh(true)
+                .setQueryCache(true)
+                .setRequestCache(true)
+                .get(monitoringSettings.indexStatsTimeout());
 
-            long timestamp = System.currentTimeMillis();
-            String clusterUUID = clusterUUID();
-            DiscoveryNode sourceNode = localNode();
+        long timestamp = System.currentTimeMillis();
+        String clusterUUID = clusterUUID();
+        DiscoveryNode sourceNode = localNode();
 
-            for (IndexStats indexStats : indicesStats.getIndices().values()) {
-                IndexStatsMonitoringDoc indexStatsDoc = new IndexStatsMonitoringDoc(monitoringId(), monitoringVersion());
-                indexStatsDoc.setClusterUUID(clusterUUID);
-                indexStatsDoc.setTimestamp(timestamp);
-                indexStatsDoc.setSourceNode(sourceNode);
-                indexStatsDoc.setIndexStats(indexStats);
-                results.add(indexStatsDoc);
-            }
-        } catch (IndexNotFoundException e) {
-            //TODO this if should go away once the empty cluster / empty set of indices behaviour is fixed in the security plugin
-            if (XPackSettings.SECURITY_ENABLED.get(settings)) {
-                //&& IndexNameExpressionResolver.isAllIndices(Arrays.asList(monitoringSettings.indices()))) {
-                logger.debug("collector [{}] - unable to collect data for missing index [{}]", name(), e.getIndex());
-            } else {
-                throw e;
-            }
+        for (IndexStats indexStats : indicesStats.getIndices().values()) {
+            IndexStatsMonitoringDoc indexStatsDoc = new IndexStatsMonitoringDoc(monitoringId(), monitoringVersion());
+            indexStatsDoc.setClusterUUID(clusterUUID);
+            indexStatsDoc.setTimestamp(timestamp);
+            indexStatsDoc.setSourceNode(sourceNode);
+            indexStatsDoc.setIndexStats(indexStats);
+            results.add(indexStatsDoc);
         }
         return Collections.unmodifiableCollection(results);
     }

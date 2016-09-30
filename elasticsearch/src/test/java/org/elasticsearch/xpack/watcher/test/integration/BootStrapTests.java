@@ -238,9 +238,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         assertThat(response.getWatchesCount(), equalTo((long) numWatches));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/1250")
-    //this test is temporarily disabled. The security plugin honours now ignore_unavailable, but whenever there's a request left
-    //with an empty set of indices it throws exception. This will be fixed once security plugin honours allow_no_indices too.
     @TestLogging("org.elasticsearch.watcher.actions:DEBUG")
     public void testTriggeredWatchLoading() throws Exception {
         createIndex("output");
@@ -298,9 +295,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/1250")
-    //this test is temporarily disabled. The security plugin honours now ignore_unavailable, but whenever there's a request left
-    //with an empty set of indices it throws exception. This will be fixed once security plugin honours allow_no_indices too.
     public void testMixedTriggeredWatchLoading() throws Exception {
         createIndex("output");
         WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();

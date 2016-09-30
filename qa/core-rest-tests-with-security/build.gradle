@@ -7,34 +7,11 @@ dependencies {
 integTest {
   includePackaged true
   systemProperty 'tests.rest.blacklist',
-    ['indices.get/10_basic/*allow_no_indices*',
-     'indices.get/10_basic/Missing index should return empty object if ignore_unavailable',
-     'cat.count/10_basic/Test cat count output',
-     'cat.aliases/10_basic/Empty cluster',
-     'indices.segments/10_basic/no segments test',
-     'indices.clear_cache/10_basic/clear_cache test',
-     'indices.status/10_basic/Indices status test',
-     'cat.indices/10_basic/Test cat indices output',
-     'cat.recovery/10_basic/Test cat recovery output',
-     'cat.shards/10_basic/Test cat shards output',
-     'termvector/20_issue7121/*',
+    ['cat.aliases/10_basic/Empty cluster',
      'index/10_with_id/Index with ID',
-     'indices.get_alias/20_emtpy/*',
-     'cat.segments/10_basic/Test cat segments output',
-     'indices.put_settings/10_basic/Test indices settings allow_no_indices',
-     'indices.put_settings/10_basic/Test indices settings ignore_unavailable',
-     'indices.refresh/10_basic/Indices refresh test no-match wildcard',
-     'indices.stats/10_index/Index - star*',
-     'indices.recovery/10_basic/Indices recovery test*',
-     'indices.shard_stores/10_basic/no indices test',
-     'cat.nodeattrs/10_basic/Test cat nodes attrs output',
-     'bulk/40_fields/Fields',
      'indices.get_alias/10_basic/Get alias against closed indices',
-     'ingest/70_bulk/*',
-     'ingest/10_crud/Check availability of default processors',
-     'search/80_date_math_index_names/Missing index with catch',
      'cat.templates/10_basic/No templates',
-     'cat.templates/10_basic/Sort templates',
+     'cat.templates/10_basic/Sort templates'
     ].join(',')
 
   cluster {

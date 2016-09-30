@@ -10,7 +10,6 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
@@ -41,34 +40,19 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
     public void testEmptyCluster() throws Exception {
         final String node = internalCluster().startNode();
         waitForNoBlocksOnNode(node);
-
-        try {
-            assertThat(newIndexStatsCollector(node).doCollect(), hasSize(0));
-        } catch (IndexNotFoundException e) {
-            fail("IndexNotFoundException has been thrown but it should have been swallowed by the collector");
-        }
+        assertThat(newIndexStatsCollector(node).doCollect(), hasSize(0));
     }
 
     public void testEmptyClusterAllIndices() throws Exception {
         final String node = internalCluster().startNode(Settings.builder().put(MonitoringSettings.INDICES.getKey(), MetaData.ALL));
         waitForNoBlocksOnNode(node);
-
-        try {
-            assertThat(newIndexStatsCollector(node).doCollect(), hasSize(0));
-        } catch (IndexNotFoundException e) {
-            fail("IndexNotFoundException has been thrown but it should have been swallowed by the collector");
-        }
+        assertThat(newIndexStatsCollector(node).doCollect(), hasSize(0));
     }
 
     public void testEmptyClusterMissingIndex() throws Exception {
         final String node = internalCluster().startNode(Settings.builder().put(MonitoringSettings.INDICES.getKey(), "unknown"));
         waitForNoBlocksOnNode(node);
-
-        try {
-            assertThat(newIndexStatsCollector(node).doCollect(), hasSize(0));
-        } catch (IndexNotFoundException e) {
-            fail("IndexNotFoundException has been thrown but it should have been swallowed by the collector");
-        }
+        assertThat(newIndexStatsCollector(node).doCollect(), hasSize(0));
     }
 
     public void testIndexStatsCollectorOneIndex() throws Exception {
@@ -77,15 +61,15 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
 
         final String indexName = "one-index";
         createIndex(indexName);
-        securedEnsureGreen(indexName);
+        ensureGreen(indexName);
 
         final int nbDocs = randomIntBetween(1, 20);
         for (int i = 0; i < nbDocs; i++) {
             client().prepareIndex(indexName, "test").setSource("num", i).get();
         }
 
-        securedFlush();
-        securedRefresh();
+        flush();
+        refresh();
 
         assertHitCount(client().prepareSearch().setSize(0).get(), nbDocs);
 
@@ -127,7 +111,7 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
         for (int i = 0; i < nbIndices; i++) {
             String index = indexPrefix + i;
             createIndex(index);
-            securedEnsureGreen(index);
+            ensureGreen(index);
 
             docsPerIndex[i] = randomIntBetween(1, 20);
             for (int j = 0; j < docsPerIndex[i]; j++) {
@@ -135,8 +119,8 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
             }
         }
 
-        securedFlush();
-        securedRefresh();
+        flush();
+        refresh();
 
         for (int i = 0; i < nbIndices; i++) {
             assertHitCount(client().prepareSearch(indexPrefix + i).setSize(0).get(), docsPerIndex[i]);

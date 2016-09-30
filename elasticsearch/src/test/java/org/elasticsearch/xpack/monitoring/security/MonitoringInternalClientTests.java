@@ -5,12 +5,9 @@
  */
 package org.elasticsearch.xpack.monitoring.security;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.elasticsearch.xpack.security.InternalClient;
@@ -18,7 +15,6 @@ import org.elasticsearch.xpack.security.InternalClient;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.is;
 
 public class MonitoringInternalClientTests extends MonitoringIntegTestCase {
 
@@ -60,26 +56,8 @@ public class MonitoringInternalClientTests extends MonitoringIntegTestCase {
         assertAccessIsAllowed(internalClient.admin().cluster().prepareGetRepositories());
     }
 
-    public void assertAccessIsAllowed(ActionRequestBuilder request) {
-        try {
-            request.get();
-        } catch (IndexNotFoundException e) {
-            // Ok
-        } catch (ElasticsearchSecurityException e) {
-            fail("unexpected security exception: " + e.getMessage());
-        }
-    }
-
-    public void assertAccessIsDenied(ActionRequestBuilder request) {
-        try {
-            request.get();
-            fail("expected a security exception");
-        } catch (IndexNotFoundException e) {
-            // Ok
-        } catch (ElasticsearchSecurityException e) {
-            // expected
-            assertThat(e.status(), is(RestStatus.FORBIDDEN));
-        }
+    private static void assertAccessIsAllowed(ActionRequestBuilder request) {
+        request.get();
     }
 
     /**

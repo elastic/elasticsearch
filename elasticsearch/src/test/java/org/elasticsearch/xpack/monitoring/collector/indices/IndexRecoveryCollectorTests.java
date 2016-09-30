@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -123,37 +122,21 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
     }
 
     public void testEmptyCluster() throws Exception {
-        final String node = internalCluster().startNode(Settings.builder().put(MonitoringSettings.INDICES.getKey(),
-                Strings.EMPTY_ARRAY));
+        final String node = internalCluster().startNode(Settings.builder().put(MonitoringSettings.INDICES.getKey(), Strings.EMPTY_ARRAY));
         waitForNoBlocksOnNode(node);
-
-        try {
-            assertThat(newIndexRecoveryCollector(node).doCollect(), hasSize(0));
-        } catch (IndexNotFoundException e) {
-            fail("IndexNotFoundException has been thrown but it should have been swallowed by the collector");
-        }
+        assertThat(newIndexRecoveryCollector(node).doCollect(), hasSize(0));
     }
 
     public void testEmptyClusterAllIndices() throws Exception {
         final String node = internalCluster().startNode(Settings.builder().put(MonitoringSettings.INDICES.getKey(), MetaData.ALL));
         waitForNoBlocksOnNode(node);
-
-        try {
-            assertThat(newIndexRecoveryCollector(node).doCollect(), hasSize(0));
-        } catch (IndexNotFoundException e) {
-            fail("IndexNotFoundException has been thrown but it should have been swallowed by the collector");
-        }
+        assertThat(newIndexRecoveryCollector(node).doCollect(), hasSize(0));
     }
 
     public void testEmptyClusterMissingIndex() throws Exception {
         final String node = internalCluster().startNode(Settings.builder().put(MonitoringSettings.INDICES.getKey(), "unknown"));
         waitForNoBlocksOnNode(node);
-
-        try {
-            assertThat(newIndexRecoveryCollector(node).doCollect(), hasSize(0));
-        } catch (IndexNotFoundException e) {
-            fail("IndexNotFoundException has been thrown but it should have been swallowed by the collector");
-        }
+        assertThat(newIndexRecoveryCollector(node).doCollect(), hasSize(0));
     }
 
     private IndexRecoveryCollector newIndexRecoveryCollector(String nodeId) {

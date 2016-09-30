@@ -253,6 +253,15 @@ public class AuthorizationService extends AbstractComponent {
         ClusterState clusterState = clusterService.state();
         Set<String> indexNames = resolveIndices(authentication, action, request, clusterState);
         assert !indexNames.isEmpty() : "every indices request needs to have its indices set thus the resolved indices must not be empty";
+
+        //security plugin is the only responsible for the presence of "-*", as wildcards just got resolved.
+        //'-*' matches no indices, hence we can simply let it go through, it will yield an empty response.
+        if (indexNames.size() == 1 && indexNames.contains(DefaultIndicesAndAliasesResolver.NO_INDEX)) {
+            setIndicesAccessControl(IndicesAccessControl.ALLOW_NO_INDICES);
+            grant(authentication, action, request);
+            return;
+        }
+
         MetaData metaData = clusterState.metaData();
         IndicesAccessControl indicesAccessControl = permission.authorize(action, indexNames, metaData);
         if (!indicesAccessControl.isGranted()) {

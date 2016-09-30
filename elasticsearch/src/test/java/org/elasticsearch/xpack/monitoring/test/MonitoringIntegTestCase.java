@@ -236,15 +236,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     protected void deleteMonitoringIndices() {
-        if (securityEnabled) {
-            try {
-                assertAcked(client().admin().indices().prepareDelete(MONITORING_INDICES_PREFIX + "*"));
-            } catch (IndexNotFoundException e) {
-                // if security couldn't resolve any monitoring index, it'll throw index not found exception.
-            }
-        } else {
-            assertAcked(client().admin().indices().prepareDelete(MONITORING_INDICES_PREFIX + "*"));
-        }
+        assertAcked(client().admin().indices().prepareDelete(MONITORING_INDICES_PREFIX + "*"));
     }
 
     protected void awaitMonitoringDocsCount(Matcher<Long> matcher, String... types) throws Exception {
@@ -252,31 +244,14 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     protected void ensureMonitoringIndicesYellow() {
-        if (securityEnabled) {
-            try {
-                ensureYellow(".monitoring-es-*");
-            } catch (IndexNotFoundException e) {
-                // might happen with security...
-            }
-        } else {
-            ensureYellow(".monitoring-es-*");
-        }
+        ensureYellow(".monitoring-es-*");
     }
 
     protected void assertMonitoringDocsCount(Matcher<Long> matcher, String... types) {
-        try {
-            securedFlushAndRefresh(MONITORING_INDICES_PREFIX + "*");
-            long count = client().prepareSearch(MONITORING_INDICES_PREFIX + "*")
-                    .setSize(0).setTypes(types).get().getHits().totalHits();
-            logger.trace("--> searched for [{}] documents, found [{}]", Strings.arrayToCommaDelimitedString(types), count);
-            assertThat(count, matcher);
-        } catch (IndexNotFoundException e) {
-            if (securityEnabled) {
-                assertThat(0L, matcher);
-            } else {
-                throw e;
-            }
-        }
+        flushAndRefresh(MONITORING_INDICES_PREFIX + "*");
+        long count = client().prepareSearch(MONITORING_INDICES_PREFIX + "*").setSize(0).setTypes(types).get().getHits().totalHits();
+        logger.trace("--> searched for [{}] documents, found [{}]", Strings.arrayToCommaDelimitedString(types), count);
+        assertThat(count, matcher);
     }
 
     protected List<Tuple<String, String>> monitoringTemplates() {
@@ -322,16 +297,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     protected void awaitIndexExists(final String index) throws Exception {
         assertBusy(() -> {
-                try {
-                    assertIndicesExists(index);
-                } catch (IndexNotFoundException e) {
-                    if (securityEnabled) {
-                        // with security we might get that if wildcards were resolved to no indices
-                        fail("IndexNotFoundException when checking for existence of index [" + index + "]");
-                    } else {
-                        throw e;
-                    }
-                }
+            assertIndicesExists(index);
         }, 30, TimeUnit.SECONDS);
     }
 
@@ -346,54 +312,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     protected void updateClusterSettings(Settings settings) {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
-    }
-
-    protected void securedRefresh() {
-        if (securityEnabled) {
-            try {
-                refresh();
-            } catch (IndexNotFoundException e) {
-                // with security we might get that if wildcards were resolved to no indices
-            }
-        } else {
-            refresh();
-        }
-    }
-
-    protected void securedFlush(String... indices) {
-        if (securityEnabled) {
-            try {
-                flush(indices);
-            } catch (IndexNotFoundException e) {
-                // with security we might get that if wildcards were resolved to no indices
-            }
-        } else {
-            flush(indices);
-        }
-    }
-
-    protected void securedFlushAndRefresh(String... indices) {
-        if (securityEnabled) {
-            try {
-                flushAndRefresh(indices);
-            } catch (IndexNotFoundException e) {
-                // with security we might get that if wildcards were resolved to no indices
-            }
-        } else {
-            flushAndRefresh(indices);
-        }
-    }
-
-    protected void securedEnsureGreen(String... indices) {
-        if (securityEnabled) {
-            try {
-                ensureGreen(indices);
-            } catch (IndexNotFoundException e) {
-                // with security we might get that if wildcards were resolved to no indices
-            }
-        } else {
-            ensureGreen(indices);
-        }
     }
 
     /**

@@ -50,8 +50,8 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
         }
 
         waitForRelocation();
-        securedEnsureGreen();
-        securedRefresh();
+        ensureGreen();
+        refresh();
 
         assertHitCount(client().prepareSearch().setSize(0).get(), nbDocs);
 
@@ -108,7 +108,7 @@ public class ShardsCollectorTests extends AbstractCollectorTestCase {
         }
 
         waitForRelocation();
-        securedRefresh();
+        refresh();
 
         int totalShards = 0;
         for (int i = 0; i < nbIndices; i++) {

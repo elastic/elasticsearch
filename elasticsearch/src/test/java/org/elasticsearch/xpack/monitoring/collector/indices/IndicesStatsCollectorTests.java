@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
@@ -41,37 +40,19 @@ public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
     public void testEmptyCluster() throws Exception {
         final String node = internalCluster().startNode();
         waitForNoBlocksOnNode(node);
-
-        try {
-            assertThat(newIndicesStatsCollector(node).doCollect(), hasSize(securityEnabled ? 0 : 1));
-        } catch (IndexNotFoundException e) {
-            fail("IndexNotFoundException has been thrown but it should have been swallowed by the collector");
-        }
+        assertThat(newIndicesStatsCollector(node).doCollect(), hasSize(1));
     }
 
     public void testEmptyClusterAllIndices() throws Exception {
         final String node = internalCluster().startNode(Settings.builder().put(MonitoringSettings.INDICES.getKey(), MetaData.ALL));
         waitForNoBlocksOnNode(node);
-
-        try {
-            assertThat(newIndicesStatsCollector(node).doCollect(), hasSize(securityEnabled ? 0 : 1));
-        } catch (IndexNotFoundException e) {
-            fail("IndexNotFoundException has been thrown but it should have been swallowed by the collector");
-        }
+        assertThat(newIndicesStatsCollector(node).doCollect(), hasSize(1));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/1250")
-    //this test is temporarily disabled. The security plugin honours now ignore_unavailable, but whenever there's a request left
-    //with an empty set of indices it throws exception. This will be fixed once security plugin honours allow_no_indices too.
     public void testEmptyClusterMissingIndex() throws Exception {
         final String node = internalCluster().startNode(Settings.builder().put(MonitoringSettings.INDICES.getKey(), "unknown"));
         waitForNoBlocksOnNode(node);
-
-        try {
-            assertThat(newIndicesStatsCollector(node).doCollect(), hasSize(1));
-        } catch (IndexNotFoundException e) {
-            fail("IndexNotFoundException has been thrown but it should have been swallowed by the collector");
-        }
+        assertThat(newIndicesStatsCollector(node).doCollect(), hasSize(1));
     }
 
     public void testIndicesStatsCollectorOneIndex() throws Exception {
@@ -80,7 +61,7 @@ public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
 
         final String indexName = "one-index";
         createIndex(indexName);
-        securedEnsureGreen(indexName);
+        ensureGreen(indexName);
 
 
         final int nbDocs = randomIntBetween(1, 20);
@@ -88,8 +69,8 @@ public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
             client().prepareIndex(indexName, "test").setSource("num", i).get();
         }
 
-        securedFlush();
-        securedRefresh();
+        flush();
+        refresh();
 
         assertHitCount(client().prepareSearch().setSize(0).get(), nbDocs);
 
@@ -124,7 +105,7 @@ public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
         for (int i = 0; i < nbIndices; i++) {
             String index = indexPrefix + i;
             createIndex(index);
-            securedEnsureGreen(index);
+            ensureGreen(index);
 
             docsPerIndex[i] = randomIntBetween(1, 20);
             for (int j = 0; j < docsPerIndex[i]; j++) {
@@ -132,8 +113,8 @@ public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
             }
         }
 
-        securedFlush();
-        securedRefresh();
+        flush();
+        refresh();
 
         for (int i = 0; i < nbIndices; i++) {
             assertHitCount(client().prepareSearch(indexPrefix + i).setSize(0).get(), docsPerIndex[i]);

@@ -59,8 +59,8 @@ public class IndicesStatsTests extends MonitoringIntegTestCase {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                securedFlush();
-                securedRefresh();
+                flush();
+                refresh();
 
                 for (int i = 0; i < nbIndices; i++) {
                     IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().get();

@@ -67,7 +67,7 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
                 .put("xpack.monitoring.exporters._local.type", LocalExporter.TYPE)
                 .put("xpack.monitoring.exporters._local.enabled", true)
                 .build());
-        securedEnsureGreen();
+        ensureGreen();
 
         logger.debug("--> exporting a single monitoring doc");
         export(Collections.singletonList(newRandomMonitoringDoc()));
@@ -97,7 +97,7 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
         internalCluster().startNode(Settings.builder()
                 .put("xpack.monitoring.exporters._local.type", LocalExporter.TYPE)
                 .build());
-        securedEnsureGreen();
+        ensureGreen();
 
         // start collecting
         updateMonitoringInterval(3L, TimeUnit.SECONDS);
@@ -113,7 +113,7 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
                 .put("xpack.monitoring.exporters._local.type", LocalExporter.TYPE)
                 .put("xpack.monitoring.exporters._local." + LocalExporter.INDEX_NAME_TIME_FORMAT_SETTING, timeFormat)
                 .build());
-        securedEnsureGreen();
+        ensureGreen();
 
         LocalExporter exporter = getLocalExporter("_local");
 
@@ -146,7 +146,7 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
                 .put("xpack.monitoring.exporters._local.type", LocalExporter.TYPE)
                 .put("xpack.monitoring.exporters._local.enabled", true)
                 .build());
-        securedEnsureGreen();
+        ensureGreen();
 
         logger.debug("--> exporting a single monitoring doc");
         export(Collections.singletonList(newRandomMonitoringDoc()));

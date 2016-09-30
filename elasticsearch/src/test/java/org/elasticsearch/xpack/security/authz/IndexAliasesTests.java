@@ -182,15 +182,13 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
             assertThat(e.toString(), containsString("[_all]"));
         }
 
-        try {
-            client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_alias").setIndices("test_*")
-                    .setIndicesOptions(IndicesOptions.strictExpand()).get();
-            fail("get alias should have failed due to missing manage_aliases privileges");
-        } catch(IndexNotFoundException e) {
-            assertThat(e.toString(), containsString("[test_*]"));
-        }
+        GetAliasesResponse getAliasesResponse = client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_alias")
+                .setIndices("test_*").setIndicesOptions(IndicesOptions.strictExpand()).get();
+        assertEquals(0, getAliasesResponse.getAliases().size());
 
         try {
+            //this throws exception no matter what the indices options are because the aliases part cannot be resolved to any alias
+            //and there is no way to "allow_no_aliases" like we can do with indices.
             client().filterWithHeader(headers).admin().indices().prepareGetAliases().get();
             fail("get alias should have failed due to missing manage_aliases privileges");
         } catch(IndexNotFoundException e) {
@@ -202,13 +200,10 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         //user has create permission only: allows to create indices, manage_aliases is required to retrieve aliases though
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only",
                 new SecuredString("test123".toCharArray())));
-        try {
-            client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_1").setIndices("test_1")
-                    .setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
-            fail("get alias should have failed due empty set of indices after indices resolution");
-        } catch(IndexNotFoundException e) {
-            assertEquals("no such index", e.getMessage());
-        }
+
+        GetAliasesResponse getAliasesResponse = client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_1")
+                .setIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
+        assertEquals(0, getAliasesResponse.getAliases().size());
 
         try {
             client().filterWithHeader(headers).admin().indices().prepareGetAliases("_all").setIndices("test_1")
@@ -226,15 +221,13 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
             assertEquals("no such index", e.getMessage());
         }
 
-        try {
-            client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_alias").setIndices("test_*")
-                    .setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
-            fail("get alias should have failed due empty set of indices after indices resolution");
-        } catch(IndexNotFoundException e) {
-            assertThat(e.toString(), containsString("[test_*]"));
-        }
+        getAliasesResponse = client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_alias")
+                .setIndices("test_*").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
+        assertEquals(0, getAliasesResponse.getAliases().size());
 
         try {
+            //this throws exception no matter what the indices options are because the aliases part cannot be resolved to any alias
+            //and there is no way to "allow_no_aliases" like we can do with indices.
             client().filterWithHeader(headers).admin().indices().prepareGetAliases()
                     .setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
             fail("get alias should have failed due to missing manage_aliases privileges");
@@ -518,21 +511,14 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
                     containsString("action [indices:admin/aliases/get] is unauthorized for user [create_test_aliases_alias]"));
         }
 
-        try {
-            //fails: user doesn't have manage_aliases aliases on test_*, no matching indices to replace wildcards
-            client.admin().indices().prepareGetAliases().setIndices("test_*").setAliases("test_alias").get();
-            fail("get alias should have failed due to missing manage_aliases privileges on test_*");
-        } catch(IndexNotFoundException e) {
-            assertThat(e.toString(), containsString("[test_*]"));
-        }
+        //user doesn't have manage_aliases aliases on test_*, no matching indices to replace wildcards
+        GetAliasesResponse getAliasesResponse = client.admin().indices().prepareGetAliases()
+                .setIndices("test_*").setAliases("test_alias").get();
+        assertEquals(0, getAliasesResponse.getAliases().size());
 
-        try {
-            //fails: no existing indices to replace empty indices (thus _all)
-            client.admin().indices().prepareGetAliases().setAliases("test_alias").get();
-            fail("get alias should have failed due to missing manage_aliases privileges on any index");
-        } catch(IndexNotFoundException e) {
-            assertThat(e.toString(), containsString("[_all]"));
-        }
+        //no existing indices to replace empty indices (thus _all)
+        getAliasesResponse = client.admin().indices().prepareGetAliases().setAliases("test_alias").get();
+        assertEquals(0, getAliasesResponse.getAliases().size());
 
         try {
             //fails: no existing aliases to replace wildcards
@@ -712,31 +698,19 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         //user has manage_aliases only permissions on both alias_* and test_*
 
         //ok: manage_aliases on both test_* and alias_*
-        try {
-            client.admin().indices().prepareGetAliases("alias_1")
-                    .addIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
-            fail("Expected IndexNotFoundException");
-        } catch(IndexNotFoundException e) {
-            assertEquals("no such index", e.getMessage());
-        }
+        GetAliasesResponse getAliasesResponse = client.admin().indices().prepareGetAliases("alias_1")
+                .addIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
+        assertEquals(0, getAliasesResponse.getAliases().size());
 
-        try {
-            //fails: no manage_aliases privilege on non_authorized alias
-            client.admin().indices().prepareGetAliases("non_authorized").addIndices("test_1")
-                    .setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
-            fail("Expected IndexNotFoundException");
-        } catch(IndexNotFoundException e) {
-            assertEquals("no such index", e.getMessage());
-        }
+        //no manage_aliases privilege on non_authorized alias
+        getAliasesResponse = client.admin().indices().prepareGetAliases("non_authorized").addIndices("test_1")
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
+        assertEquals(0, getAliasesResponse.getAliases().size());
 
-        try {
-            //fails: no manage_aliases privilege on non_authorized index
-            client.admin().indices().prepareGetAliases("alias_1").addIndices("non_authorized")
-                    .setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
-            fail("Expected IndexNotFoundException");
-        } catch(IndexNotFoundException e) {
-            assertEquals("no such index", e.getMessage());
-        }
+        //no manage_aliases privilege on non_authorized index
+        getAliasesResponse = client.admin().indices().prepareGetAliases("alias_1").addIndices("non_authorized")
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
+        assertEquals(0, getAliasesResponse.getAliases().size());
     }
 
     private static void assertAliases(GetAliasesRequestBuilder getAliasesRequestBuilder, String index, String... aliases) {

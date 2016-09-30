@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.xpack.security.authz.indicesresolver.DefaultIndicesAndAliasesResolver;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 
 import java.util.Collections;
@@ -22,6 +23,9 @@ import static java.util.Collections.unmodifiableSet;
 public class IndicesAccessControl {
 
     public static final IndicesAccessControl ALLOW_ALL = new IndicesAccessControl(true, Collections.emptyMap());
+    public static final IndicesAccessControl ALLOW_NO_INDICES = new IndicesAccessControl(true,
+            Collections.singletonMap(DefaultIndicesAndAliasesResolver.NO_INDEX,
+                    new IndicesAccessControl.IndexAccessControl(true, new FieldPermissions(), null)));
 
     private final boolean granted;
     private final Map<String, IndexAccessControl> indexPermissions;

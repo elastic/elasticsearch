@@ -73,9 +73,6 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
         assertThat(searchResponse.getHits().getTotalHits(), greaterThan(0L));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/1250")
-    //this test is temporarily disabled. The security plugin honours now ignore_unavailable, but whenever there's a request left
-    //with an empty set of indices it throws exception. This will be fixed once security plugin honours allow_no_indices too.
     public void testWatchMetadataAvailableAtExecution() throws Exception {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("foo", "bar");

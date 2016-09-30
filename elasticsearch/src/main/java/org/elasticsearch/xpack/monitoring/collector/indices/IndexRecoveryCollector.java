@@ -10,9 +10,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.collector.AbstractCollector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
@@ -49,29 +47,19 @@ public class IndexRecoveryCollector extends AbstractCollector {
     @Override
     protected Collection<MonitoringDoc> doCollect() throws Exception {
         List<MonitoringDoc> results = new ArrayList<>(1);
-        try {
-            RecoveryResponse recoveryResponse = client.admin().indices().prepareRecoveries()
-                    .setIndices(monitoringSettings.indices())
-                    .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                    .setActiveOnly(monitoringSettings.recoveryActiveOnly())
-                    .get(monitoringSettings.recoveryTimeout());
+        RecoveryResponse recoveryResponse = client.admin().indices().prepareRecoveries()
+                .setIndices(monitoringSettings.indices())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setActiveOnly(monitoringSettings.recoveryActiveOnly())
+                .get(monitoringSettings.recoveryTimeout());
 
-            if (recoveryResponse.hasRecoveries()) {
-                IndexRecoveryMonitoringDoc indexRecoveryDoc = new IndexRecoveryMonitoringDoc(monitoringId(), monitoringVersion());
-                indexRecoveryDoc.setClusterUUID(clusterUUID());
-                indexRecoveryDoc.setTimestamp(System.currentTimeMillis());
-                indexRecoveryDoc.setSourceNode(localNode());
-                indexRecoveryDoc.setRecoveryResponse(recoveryResponse);
-                results.add(indexRecoveryDoc);
-            }
-        } catch (IndexNotFoundException e) {
-            //TODO this if should go away once the empty cluster / empty set of indices behaviour is fixed in the security plugin
-            if (XPackSettings.SECURITY_ENABLED.get(settings)) {
-                //&& IndexNameExpressionResolver.isAllIndices(Arrays.asList(monitoringSettings.indices()))) {
-                logger.debug("collector [{}] - unable to collect data for missing index [{}]", name(), e.getIndex());
-            } else {
-                throw e;
-            }
+        if (recoveryResponse.hasRecoveries()) {
+            IndexRecoveryMonitoringDoc indexRecoveryDoc = new IndexRecoveryMonitoringDoc(monitoringId(), monitoringVersion());
+            indexRecoveryDoc.setClusterUUID(clusterUUID());
+            indexRecoveryDoc.setTimestamp(System.currentTimeMillis());
+            indexRecoveryDoc.setSourceNode(localNode());
+            indexRecoveryDoc.setRecoveryResponse(recoveryResponse);
+            results.add(indexRecoveryDoc);
         }
         return Collections.unmodifiableCollection(results);
     }

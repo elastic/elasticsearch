@@ -391,8 +391,8 @@ public class RecoverySourceHandler {
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("[{}][{}] finalizing recovery to {}", indexName, shardId, request.targetNode());
         cancellableThreads.execute(() -> {
-            RecoveryTarget.FinalizeResponse response = recoveryTarget.finalizeRecovery();
-            shard.markAllocationIdAsInSync(response.getAllocationId(), response.getLocalCheckpoint());
+            recoveryTarget.finalizeRecovery();
+            shard.markAllocationIdAsInSync(recoveryTarget.getTargetAllocationId());
         });
 
         if (request.isPrimaryRelocation()) {

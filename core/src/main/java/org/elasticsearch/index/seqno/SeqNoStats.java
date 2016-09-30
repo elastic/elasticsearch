@@ -79,4 +79,13 @@ public class SeqNoStats implements ToXContent, Writeable {
         builder.endObject();
         return builder;
     }
+
+    @Override
+    public String toString() {
+        return "SeqNoStats{" +
+            "maxSeqNo=" + maxSeqNo +
+            ", localCheckpoint=" + localCheckpoint +
+            ", globalCheckpoint=" + globalCheckpoint +
+            '}';
+    }
 }

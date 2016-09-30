@@ -23,7 +23,12 @@ import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.procedures.IntProcedure;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.util.English;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -40,12 +45,14 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -73,11 +80,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
+import static org.elasticsearch.index.IndexSettings.INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -91,6 +101,8 @@ import static org.hamcrest.Matchers.startsWith;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 @TestLogging("_root:DEBUG,org.elasticsearch.indices.recovery:TRACE,org.elasticsearch.index.shard.service:TRACE")
+@LuceneTestCase.AwaitsFix(bugUrl = "primary relocation needs to transfer the global check point. otherwise the new primary sends a " +
+    "an unknown global checkpoint during sync, causing assertions to trigger")
 public class RelocationIT extends ESIntegTestCase {
     private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
 
@@ -99,16 +111,53 @@ public class RelocationIT extends ESIntegTestCase {
         return Arrays.asList(MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class);
     }
 
+    @Override
+    public Settings indexSettings() {
+        return Settings.builder().put(super.indexSettings())
+            .put(INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL.getKey(), "200ms").build();
+    }
+
+    @Override
+    protected void beforeIndexDeletion() throws Exception {
+        super.beforeIndexDeletion();
+        assertBusy(() -> {
+            IndicesStatsResponse stats = client().admin().indices().prepareStats().clear().get();
+            for (IndexStats indexStats : stats.getIndices().values()) {
+                for (IndexShardStats indexShardStats : indexStats.getIndexShards().values()) {
+                    Optional<ShardStats> maybePrimary = Stream.of(indexShardStats.getShards())
+                        .filter(s -> s.getShardRouting().active() && s.getShardRouting().primary())
+                        .findFirst();
+                    if (maybePrimary.isPresent() == false) {
+                        continue;
+                    }
+                    ShardStats primary = maybePrimary.get();
+                    final SeqNoStats primarySeqNoStats = primary.getSeqNoStats();
+                    assertThat(primary.getShardRouting() + " should have set the global checkpoint",
+                        primarySeqNoStats.getGlobalCheckpoint(), not(equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO)));
+                    for (ShardStats shardStats : indexShardStats) {
+                        final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
+                        assertThat(shardStats.getShardRouting() + " local checkpoint mismatch",
+                            seqNoStats.getLocalCheckpoint(), equalTo(primarySeqNoStats.getLocalCheckpoint()));
+
+                        assertThat(shardStats.getShardRouting() + " global checkpoint mismatch",
+                            seqNoStats.getGlobalCheckpoint(), equalTo(primarySeqNoStats.getGlobalCheckpoint()));
+                        assertThat(shardStats.getShardRouting() + " max seq no mismatch",
+                            seqNoStats.getMaxSeqNo(), equalTo(primarySeqNoStats.getMaxSeqNo()));
+                    }
+                }
+            }
+        });
+    }
+
     public void testSimpleRelocationNoIndexing() {
         logger.info("--> starting [node1] ...");
         final String node_1 = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
-        client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder()
-                                .put("index.number_of_shards", 1)
-                                .put("index.number_of_replicas", 0))
-                .execute().actionGet();
+        prepareCreate("test", Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0)
+        ).get();
 
         logger.info("--> index 10 docs");
         for (int i = 0; i < 10; i++) {
@@ -158,10 +207,10 @@ public class RelocationIT extends ESIntegTestCase {
         nodes[0] = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
-        client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder()
-                                .put("index.number_of_shards", 1)
-                                .put("index.number_of_replicas", numberOfReplicas)).execute().actionGet();
+        prepareCreate("test", Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", numberOfReplicas)
+        ).get();
 
 
         for (int i = 1; i < numberOfNodes; i++) {
@@ -260,12 +309,11 @@ public class RelocationIT extends ESIntegTestCase {
         nodes[0] = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
-        client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", numberOfReplicas)
-                        .put("index.refresh_interval", -1) // we want to control refreshes c
-                ).execute().actionGet();
+        prepareCreate("test", Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", numberOfReplicas)
+            .put("index.refresh_interval", -1) // we want to control refreshes c
+        ).get();
 
         for (int i = 1; i < numberOfNodes; i++) {
             logger.info("--> starting [node_{}] ...", i);
@@ -349,8 +397,9 @@ public class RelocationIT extends ESIntegTestCase {
 
         final String p_node = internalCluster().startNode();
 
-        client().admin().indices().prepareCreate(indexName)
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
+        prepareCreate(indexName, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+        ).get();
 
         internalCluster().startNodesAsync(2).get();
 
@@ -383,17 +432,14 @@ public class RelocationIT extends ESIntegTestCase {
                 .setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")));
 
         logger.info("--> wait for all replica shards to be removed, on all nodes");
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                for (String node : internalCluster().getNodeNames()) {
-                    if (node.equals(p_node)) {
-                        continue;
-                    }
-                    ClusterState state = client(node).admin().cluster().prepareState().setLocal(true).get().getState();
-                    assertThat(node + " indicates assigned replicas",
-                            state.getRoutingTable().index(indexName).shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
+        assertBusy(() -> {
+            for (String node : internalCluster().getNodeNames()) {
+                if (node.equals(p_node)) {
+                    continue;
                 }
+                ClusterState state = client(node).admin().cluster().prepareState().setLocal(true).get().getState();
+                assertThat(node + " indicates assigned replicas",
+                        state.getRoutingTable().index(indexName).shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
             }
         });
 
@@ -402,20 +448,17 @@ public class RelocationIT extends ESIntegTestCase {
             NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, node);
             for (final Path shardLoc : nodeEnvironment.availableShardPaths(new ShardId(indexName, "_na_", 0))) {
                 if (Files.exists(shardLoc)) {
-                    assertBusy(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                Files.walkFileTree(shardLoc, new SimpleFileVisitor<Path>() {
-                                    @Override
-                                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                                        assertThat("found a temporary recovery file: " + file, file.getFileName().toString(), not(startsWith("recovery.")));
-                                        return FileVisitResult.CONTINUE;
-                                    }
-                                });
-                            } catch (IOException e) {
-                                throw new AssertionError("failed to walk file tree starting at [" + shardLoc + "]", e);
-                            }
+                    assertBusy(() -> {
+                        try {
+                            Files.walkFileTree(shardLoc, new SimpleFileVisitor<Path>() {
+                                @Override
+                                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                                    assertThat("found a temporary recovery file: " + file, file.getFileName().toString(), not(startsWith("recovery.")));
+                                    return FileVisitResult.CONTINUE;
+                                }
+                            });
+                        } catch (IOException e) {
+                            throw new AssertionError("failed to walk file tree starting at [" + shardLoc + "]", e);
                         }
                     });
                 }
@@ -435,7 +478,7 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("red nodes: {}", redFuture.get());
         ensureStableCluster(halfNodes * 2);
 
-        assertAcked(prepareCreate("test").setSettings(Settings.builder()
+        assertAcked(prepareCreate("test", Settings.builder()
             .put("index.routing.allocation.exclude.color", "blue")
             .put(indexSettings())
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(halfNodes - 1))

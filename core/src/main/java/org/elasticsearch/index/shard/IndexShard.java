@@ -349,8 +349,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 primaryTerm = newTerm;
             }
         }
-
-
     }
 
     /**
@@ -1366,14 +1364,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * marks the allocationId as "in sync" with the primary shard. see {@link GlobalCheckpointService#markAllocationIdAsInSync(String, long)} for details.
+     * marks the allocationId as "in sync" with the primary shard. see {@link GlobalCheckpointService#markAllocationIdAsInSync(String)}
+     * for details.
      *
      * @param allocationId    allocationId of the recovering shard
-     * @param localCheckpoint the local checkpoint of the shard in question
      */
-    public void markAllocationIdAsInSync(String allocationId, long localCheckpoint) {
+    public void markAllocationIdAsInSync(String allocationId) {
         verifyPrimary();
-        getEngine().seqNoService().markAllocationIdAsInSync(allocationId, localCheckpoint);
+        getEngine().seqNoService().markAllocationIdAsInSync(allocationId);
     }
 
     public long getLocalCheckpoint() {

@@ -109,14 +109,13 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
 
         @Override
-        public FinalizeResponse finalizeRecovery() {
+        public void finalizeRecovery() {
             if (hasBlocked() == false) {
                 // it maybe that not ops have been transferred, block now
                 blockIfNeeded(RecoveryState.Stage.TRANSLOG);
             }
             blockIfNeeded(RecoveryState.Stage.FINALIZE);
-            return super.finalizeRecovery();
+            super.finalizeRecovery();
         }
     }
-
 }

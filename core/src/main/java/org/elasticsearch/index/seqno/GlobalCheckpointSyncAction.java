@@ -96,25 +96,25 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<Globa
         });
     }
 
-    static final class PrimaryRequest extends ReplicationRequest<PrimaryRequest> {
+    public static final class PrimaryRequest extends ReplicationRequest<PrimaryRequest> {
 
         private PrimaryRequest() {
             super();
         }
 
-        PrimaryRequest(ShardId shardId) {
+        public PrimaryRequest(ShardId shardId) {
             super(shardId);
         }
     }
 
-    static final class ReplicaRequest extends ReplicationRequest<GlobalCheckpointSyncAction.ReplicaRequest> {
+    public static final class ReplicaRequest extends ReplicationRequest<GlobalCheckpointSyncAction.ReplicaRequest> {
 
-        public long checkpoint;
+        private long checkpoint;
 
         private ReplicaRequest() {
         }
 
-        ReplicaRequest(PrimaryRequest primaryRequest, long checkpoint) {
+        public ReplicaRequest(PrimaryRequest primaryRequest, long checkpoint) {
             super(primaryRequest.shardId());
             this.checkpoint = checkpoint;
         }
@@ -130,6 +130,9 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<Globa
             super.writeTo(out);
             out.writeZLong(checkpoint);
         }
-    }
 
+        public long getCheckpoint() {
+            return checkpoint;
+        }
+    }
 }

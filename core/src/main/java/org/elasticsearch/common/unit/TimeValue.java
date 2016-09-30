@@ -249,6 +249,12 @@ public class TimeValue implements Writeable {
         return PeriodFormat.getDefault().withParseType(type).print(period);
     }
 
+    /**
+     * Returns a {@link String} representation of the current {@link TimeValue}.
+     *
+     * Note that this method might produce fractional time values (ex 1.6m) which cannot be
+     * parsed by method like {@link TimeValue#parse(String, String, int)}.
+     */
     @Override
     public String toString() {
         if (duration < 0) {

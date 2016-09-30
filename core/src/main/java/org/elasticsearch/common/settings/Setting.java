@@ -636,10 +636,6 @@ public class Setting<T> extends ToXContentToBytes {
         return new Setting<>(key, (s) -> defaultPercentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
     }
 
-    public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, Property... properties) {
-        return timeSetting(key, defaultValue, TimeValue.timeValueMillis(0), properties);
-    }
-
     public static <T> Setting<List<T>> listSetting(String key, List<String> defaultStringValue, Function<String, T> singleValueParser,
                                                    Property... properties) {
         return listSetting(key, (s) -> defaultStringValue, singleValueParser, properties);
@@ -795,9 +791,9 @@ public class Setting<T> extends ToXContentToBytes {
         };
     }
 
-    public static Setting<TimeValue> timeSetting(String key, Function<Settings, String> defaultValue, TimeValue minValue,
+    public static Setting<TimeValue> timeSetting(String key, Function<Settings, TimeValue> defaultValue, TimeValue minValue,
                                                  Property... properties) {
-        return new Setting<>(key, defaultValue, (s) -> {
+        return new Setting<>(key, (s) -> defaultValue.apply(s).getStringRep(), (s) -> {
             TimeValue timeValue = TimeValue.parseTimeValue(s, null, key);
             if (timeValue.millis() < minValue.millis()) {
                 throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
@@ -807,15 +803,19 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, TimeValue minValue, Property... properties) {
-        return timeSetting(key, (s) -> defaultValue.getStringRep(), minValue, properties);
+        return timeSetting(key, (s) -> defaultValue, minValue, properties);
     }
 
     public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, Property... properties) {
-        return new Setting<>(key, (s) -> defaultValue.toString(), (s) -> TimeValue.parseTimeValue(s, key), properties);
+        return new Setting<>(key, (s) -> defaultValue.getStringRep(), (s) -> TimeValue.parseTimeValue(s, key), properties);
     }
 
     public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallbackSetting, Property... properties) {
         return new Setting<>(key, fallbackSetting, (s) -> TimeValue.parseTimeValue(s, key), properties);
+    }
+
+    public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, Property... properties) {
+        return timeSetting(key, defaultValue, TimeValue.timeValueMillis(0), properties);
     }
 
     public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, Property... properties) {

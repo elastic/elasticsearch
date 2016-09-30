@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class SettingTests extends ESTestCase {
@@ -516,5 +517,17 @@ public class SettingTests extends ESTestCase {
         } catch (IllegalArgumentException ex) {
             assertThat(ex.getMessage(), containsString("properties cannot be null for setting"));
         }
+    }
+
+    public void testTimeValue() {
+        final TimeValue random = TimeValue.parseTimeValue(randomTimeValue(), "test");
+
+        Setting<TimeValue> setting = Setting.timeSetting("foo", random);
+        assertThat(setting.get(Settings.EMPTY), equalTo(random));
+
+        final int factor = randomIntBetween(1, 10);
+        setting = Setting.timeSetting("foo", (s) -> TimeValue.timeValueMillis(random.getMillis() * factor), TimeValue.ZERO);
+        assertThat(setting.get(Settings.builder().put("foo", "12h").build()), equalTo(TimeValue.timeValueHours(12)));
+        assertThat(setting.get(Settings.EMPTY).getMillis(), equalTo(random.getMillis() * factor));
     }
 }

@@ -14,6 +14,8 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsAction;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.search.MultiSearchAction;
@@ -1018,6 +1020,23 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
+    }
+
+    public void testIndicesExists() {
+        //verify that the ignore_unavailable and allow_no_indices get replaced like es core does, to make sure that
+        //indices exists api never throws exception due to missing indices, but only returns false instead.
+        {
+            IndicesExistsRequest request = new IndicesExistsRequest();
+            assertNoIndices(request, defaultIndicesResolver.resolve(userNoIndices, IndicesExistsAction.NAME, request, metaData));
+        }
+        {
+            IndicesExistsRequest request = new IndicesExistsRequest("does_not_exist");
+            assertNoIndices(request, defaultIndicesResolver.resolve(user, IndicesExistsAction.NAME, request, metaData));
+        }
+        {
+            IndicesExistsRequest request = new IndicesExistsRequest("does_not_exist_*");
+            assertNoIndices(request, defaultIndicesResolver.resolve(user, IndicesExistsAction.NAME, request, metaData));
+        }
     }
 
     public void testXPackUserHasAccessToSecurityIndex() {

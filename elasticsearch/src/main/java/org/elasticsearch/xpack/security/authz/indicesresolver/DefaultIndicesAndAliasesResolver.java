@@ -10,6 +10,7 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
@@ -98,12 +99,20 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
                     || indicesRequest.indicesOptions().expandWildcardsClosed();
             List<String> authorizedIndicesAndAliases = authzService.authorizedIndicesAndAliases(user, action);
 
+            IndicesOptions indicesOptions = indicesRequest.indicesOptions();
+            if (indicesRequest instanceof IndicesExistsRequest) {
+                //indices exists api should never throw exception, make sure that ignore_unavailable and allow_no_indices are true
+                //we have to mimic what TransportIndicesExistsAction#checkBlock does in es core
+                indicesOptions = IndicesOptions.fromOptions(true, true,
+                        indicesOptions.expandWildcardsOpen(), indicesOptions.expandWildcardsClosed());
+            }
+
             List<String> replacedIndices = new ArrayList<>();
             // check for all and return list of authorized indices
             if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
                 if (replaceWildcards) {
                     for (String authorizedIndex : authorizedIndicesAndAliases) {
-                        if (isIndexVisible(authorizedIndex, indicesRequest.indicesOptions(), metaData)) {
+                        if (isIndexVisible(authorizedIndex, indicesOptions, metaData)) {
                             replacedIndices.add(authorizedIndex);
                         }
                     }
@@ -112,15 +121,15 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
                 // we honour allow_no_indices like es core does.
             } else {
                 replacedIndices = replaceWildcardsWithAuthorizedIndices(indicesRequest.indices(),
-                        indicesRequest.indicesOptions(), metaData, authorizedIndicesAndAliases, replaceWildcards);
-                if (indicesRequest.indicesOptions().ignoreUnavailable()) {
+                        indicesOptions, metaData, authorizedIndicesAndAliases, replaceWildcards);
+                if (indicesOptions.ignoreUnavailable()) {
                     //out of all the explicit names (expanded from wildcards and original ones that were left untouched)
                     //remove all the ones that the current user is not authorized for and ignore them
                     replacedIndices = replacedIndices.stream().filter(authorizedIndicesAndAliases::contains).collect(Collectors.toList());
                 }
             }
             if (replacedIndices.isEmpty()) {
-                if (indicesRequest.indicesOptions().allowNoIndices()) {
+                if (indicesOptions.allowNoIndices()) {
                     //this is how we tell es core to return an empty response, we can let the request through being sure
                     //that the '-*' wildcard expression will be resolved to no indices. We can't let empty indices through
                     //as that would be resolved to _all by es core.

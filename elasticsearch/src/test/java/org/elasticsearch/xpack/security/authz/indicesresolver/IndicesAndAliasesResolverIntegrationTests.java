@@ -191,8 +191,25 @@ public class IndicesAndAliasesResolverIntegrationTests extends SecurityIntegTest
         assertReturnedIndices(searchResponse, "test10");
     }
 
+
     public void testMissingDateMath() {
         expectThrows(IndexNotFoundException.class, () -> client().prepareSearch("<logstash-{now/M}>").get());
+    }
+
+    public void testIndicesExists() {
+        createIndices("test1", "test2", "test3");
+
+        assertEquals(true, client().admin().indices().prepareExists("*").get().isExists());
+
+        assertEquals(true, client().admin().indices().prepareExists("_all").get().isExists());
+
+        assertEquals(true, client().admin().indices().prepareExists("test1", "test2").get().isExists());
+
+        assertEquals(true, client().admin().indices().prepareExists("test*").get().isExists());
+
+        assertEquals(false, client().admin().indices().prepareExists("does_not_exist").get().isExists());
+
+        assertEquals(false, client().admin().indices().prepareExists("does_not_exist*").get().isExists());
     }
 
     public void testMultiSearchUnauthorizedIndex() {

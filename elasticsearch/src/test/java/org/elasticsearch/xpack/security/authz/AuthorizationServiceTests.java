@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsAction;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
@@ -293,7 +294,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testAuthorizeIndicesFailures() {
-        TransportRequest request = new IndicesExistsRequest("b");
+        TransportRequest request = new GetIndexRequest().indices("b");
         ClusterState state = mock(ClusterState.class);
         User user = new User("test user", "a_all");
         when(rolesStore.role("a_all")).thenReturn(Role.builder("a_all").add(IndexPrivilege.ALL, "a").build());
@@ -386,7 +387,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testDenialForAnonymousUser() {
-        TransportRequest request = new IndicesExistsRequest("b");
+        TransportRequest request = new GetIndexRequest().indices("b");
         ClusterState state = mock(ClusterState.class);
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "a_all").build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
@@ -411,7 +412,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testDenialForAnonymousUserAuthorizationExceptionDisabled() {
-        TransportRequest request = new IndicesExistsRequest("b");
+        TransportRequest request = new GetIndexRequest().indices("b");
         ClusterState state = mock(ClusterState.class);
         Settings settings = Settings.builder()
                 .put(AnonymousUser.ROLES_SETTING.getKey(), "a_all")
@@ -472,8 +473,8 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testRunAsRequestWithRunAsUserWithoutPermission() {
-        TransportRequest request = new IndicesExistsRequest("a");
-        User user = new User("test user", new String[] { "can run as" }, new User("run as me", new String[] { "b" }));
+        TransportRequest request = new GetIndexRequest().indices("a");
+        User user = new User("test user", new String[] { "can run as" }, new User("run as me", "b"));
         assertThat(user.runAs(), is(notNullValue()));
         when(rolesStore.role("can run as")).thenReturn(Role
                 .builder("can run as")
@@ -507,7 +508,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testRunAsRequestWithValidPermissions() {
-        TransportRequest request = new IndicesExistsRequest("b");
+        TransportRequest request = new GetIndexRequest().indices("b");
         User user = new User("test user", new String[] { "can run as" }, new User("run as me", new String[] { "b" }));
         assertThat(user.runAs(), is(notNullValue()));
         when(rolesStore.role("can run as")).thenReturn(Role

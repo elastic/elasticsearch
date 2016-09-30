@@ -184,7 +184,8 @@ public class RolloverIT extends ESIntegTestCase {
         ensureGreen(index);
         // now we modify the provided name such that we can test that the pattern is carried on
         client().admin().indices().prepareClose(index).get();
-        client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder().put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME,
+        client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder()
+            .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME,
             "<test-{now/M{YYYY.MM}}-1>")).get();
 
         client().admin().indices().prepareOpen(index).get();

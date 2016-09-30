@@ -425,7 +425,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 IndexTemplateMetaData templateMetaData = cursor.value;
                 builder.startObject(templateMetaData.name());
 
-                builder.field("template", templateMetaData.template());
+                builder.field("index_patterns", templateMetaData.patterns());
                 builder.field("order", templateMetaData.order());
 
                 builder.startObject("settings");

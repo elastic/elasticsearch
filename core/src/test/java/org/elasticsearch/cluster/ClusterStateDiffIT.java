@@ -553,7 +553,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             public IndexTemplateMetaData randomCreate(String name) {
                 IndexTemplateMetaData.Builder builder = IndexTemplateMetaData.builder(name);
                 builder.order(randomInt(1000))
-                        .template(randomName("temp"))
+                        .patterns(Collections.singletonList(randomName("temp")))
                         .settings(randomSettings(Settings.EMPTY));
                 int aliasCount = randomIntBetween(0, 10);
                 for (int i = 0; i < aliasCount; i++) {

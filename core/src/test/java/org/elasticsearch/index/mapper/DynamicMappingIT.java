@@ -29,6 +29,7 @@ import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -129,7 +130,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
     public void testAutoCreateWithDisabledDynamicMappings() throws Exception {
         assertAcked(client().admin().indices().preparePutTemplate("my_template")
             .setCreate(true)
-            .setTemplate("index_*")
+            .setPatterns(Collections.singletonList("index_*"))
             .addMapping("foo", "field", "type=keyword")
             .setSettings(Settings.builder().put("index.mapper.dynamic", false).build())
             .get());

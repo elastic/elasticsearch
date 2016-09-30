@@ -78,6 +78,13 @@ import static org.hamcrest.Matchers.instanceOf;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
 @TestLogging("_root:DEBUG")
 public class RareClusterStateIT extends ESIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen").build();
+    }
+
     @Override
     protected int numberOfShards() {
         return 1;

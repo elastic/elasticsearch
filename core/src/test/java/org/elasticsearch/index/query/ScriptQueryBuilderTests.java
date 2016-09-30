@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.InlineScriptLookup;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -37,7 +38,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     protected ScriptQueryBuilder doCreateTestQueryBuilder() {
         String script = "1";
         Map<String, Object> params = Collections.emptyMap();
-        return new ScriptQueryBuilder(ScriptInput.create(Script.ScriptType.INLINE, MockScriptEngine.NAME, script, null, params));
+        return new ScriptQueryBuilder(ScriptInput.inline(MockScriptEngine.NAME, script, params));
     }
 
     @Override
@@ -66,7 +67,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
         ScriptQueryBuilder parsed = (ScriptQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
 
-        assertEquals(json, "mockscript", parsed.script().lookup.getLang());
+        assertEquals(json, "mockscript", ((InlineScriptLookup)parsed.script().lookup).lang);
     }
 
     public void testFromJson() throws IOException {
@@ -80,7 +81,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
                         "}";
 
         ScriptQueryBuilder parsed = (ScriptQueryBuilder) parseQuery(json);
-        assertEquals(json, "5", parsed.script().lookup.getIdOrCode());
+        assertEquals(json, "5", ((InlineScriptLookup)parsed.script().lookup).code);
     }
 
     @Override

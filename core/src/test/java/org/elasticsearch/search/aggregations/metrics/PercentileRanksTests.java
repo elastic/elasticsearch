@@ -52,10 +52,10 @@ public class PercentileRanksTests extends BaseAggregationTestCase<PercentileRank
             break;
         case 1:
             factory.field(field);
-            factory.script(ScriptInput.create("_value + 1"));
+            factory.script(ScriptInput.inline("_value + 1"));
             break;
         case 2:
-            factory.script(ScriptInput.create("doc[" + field + "] + 1"));
+            factory.script(ScriptInput.inline("doc[" + field + "] + 1"));
             break;
         }
         if (randomBoolean()) {

@@ -684,7 +684,7 @@ public class IndexLookupIT extends ESIntegTestCase {
     }
 
     private ScriptInput createScript(String script) {
-        return ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, script, null, null);
+        return ScriptInput.inline(CustomScriptPlugin.NAME, script, Collections.emptyMap());
     }
 
     public void testFlags() throws Exception {

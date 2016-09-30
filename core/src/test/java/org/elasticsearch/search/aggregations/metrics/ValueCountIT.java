@@ -158,7 +158,7 @@ public class ValueCountIT extends ESIntegTestCase {
 
     public void testSingleValuedScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(ScriptInput.create(Script.ScriptType.INLINE, FieldValueScriptEngine.NAME, "value", null, null))).execute().actionGet();
+                .addAggregation(count("count").script(ScriptInput.inline(FieldValueScriptEngine.NAME, "value", Collections.emptyMap()))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -170,7 +170,7 @@ public class ValueCountIT extends ESIntegTestCase {
 
     public void testMultiValuedScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(ScriptInput.create(Script.ScriptType.INLINE, FieldValueScriptEngine.NAME, "values", null, null))).execute().actionGet();
+                .addAggregation(count("count").script(ScriptInput.inline(FieldValueScriptEngine.NAME, "values", Collections.emptyMap()))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -183,7 +183,7 @@ public class ValueCountIT extends ESIntegTestCase {
     public void testSingleValuedScriptWithParams() throws Exception {
         Map<String, Object> params = Collections.singletonMap("s", "value");
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(ScriptInput.create(Script.ScriptType.INLINE, FieldValueScriptEngine.NAME, "", null, params))).execute().actionGet();
+                .addAggregation(count("count").script(ScriptInput.inline(FieldValueScriptEngine.NAME, "", params))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -196,7 +196,7 @@ public class ValueCountIT extends ESIntegTestCase {
     public void testMultiValuedScriptWithParams() throws Exception {
         Map<String, Object> params = Collections.singletonMap("s", "values");
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(ScriptInput.create(Script.ScriptType.INLINE, FieldValueScriptEngine.NAME, "", null, params))).execute().actionGet();
+                .addAggregation(count("count").script(ScriptInput.inline(FieldValueScriptEngine.NAME, "", params))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 

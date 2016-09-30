@@ -122,7 +122,7 @@ public class SearchStatsIT extends ESIntegTestCase {
                     .setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2")
                     .highlighter(new HighlightBuilder().field("field"))
                     .addScriptField("script1",
-                        ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.field", null, null))
+                        ScriptInput.inline(CustomScriptPlugin.NAME, "_source.field", Collections.emptyMap()))
                     .setSize(100)
                     .execute().actionGet();
             assertHitCount(searchResponse, docsTest1 + docsTest2);

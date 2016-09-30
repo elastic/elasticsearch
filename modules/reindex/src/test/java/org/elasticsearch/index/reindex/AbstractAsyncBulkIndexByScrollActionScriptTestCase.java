@@ -47,7 +47,7 @@ public abstract class AbstractAsyncBulkIndexByScrollActionScriptTestCase<
                 Response extends BulkIndexByScrollResponse>
         extends AbstractAsyncBulkIndexByScrollActionTestCase<Request, Response> {
 
-    private static final ScriptInput EMPTY_SCRIPT = ScriptInput.create("");
+    private static final ScriptInput EMPTY_SCRIPT = ScriptInput.inline("");
 
     protected ScriptService scriptService;
 

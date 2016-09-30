@@ -28,6 +28,7 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ExecutableScriptBinding;
+import org.elasticsearch.script.Script.InlineScriptLookup;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -85,7 +86,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(templateString).createParser(templateString);
         ScriptInput script = ScriptInput.parse(parser, new ParseFieldMatcher(false), "mustache");
         CompiledScript compiledScript = new CompiledScript(ExecutableScriptBinding.BINDING, Script.ScriptType.INLINE,
-            null, qe, qe.compile(null, script.lookup.getIdOrCode(), Collections.emptyMap()));
+            null, qe, qe.compile(Script.DEFAULT_SCRIPT_NAME, ((InlineScriptLookup)script.lookup).code, Collections.emptyMap()));
         ExecutableScript executableScript = qe.executable(compiledScript, script.params);
         assertThat(((BytesReference) executableScript.run()).utf8ToString(), equalTo("{\"match_all\":{}}"));
     }
@@ -96,7 +97,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(templateString).createParser(templateString);
         ScriptInput script = ScriptInput.parse(parser, new ParseFieldMatcher(false), "mustache");
         CompiledScript compiledScript = new CompiledScript(ExecutableScriptBinding.BINDING, Script.ScriptType.INLINE,
-            null, qe, qe.compile(null, script.lookup.getIdOrCode(), Collections.emptyMap()));
+            null, qe, qe.compile(Script.DEFAULT_SCRIPT_NAME, ((InlineScriptLookup)script.lookup).code, Collections.emptyMap()));
         ExecutableScript executableScript = qe.executable(compiledScript, script.params);
         assertThat(((BytesReference) executableScript.run()).utf8ToString(), equalTo("{ \"match_all\":{} }"));
     }

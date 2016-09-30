@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.script.Script.InlineScriptLookup;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
@@ -57,7 +58,7 @@ public class QueryRewriteContextTests extends ESTestCase {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{\"script\" : {\"script\": \"return true\"}}"));
         queryParseContext = queryRewriteContext.newParseContextWithLegacyScriptLanguage(parser);
         ScriptQueryBuilder queryBuilder = (ScriptQueryBuilder) queryParseContext.parseInnerQueryBuilder().get();
-        assertEquals(defaultLegacyScriptLanguage, queryBuilder.script().lookup.getLang());
+        assertEquals(defaultLegacyScriptLanguage, ((InlineScriptLookup)queryBuilder.script().lookup).lang);
     }
 
 }

@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.bucketselector.BucketSelectorPipelineAggregationBuilder;
@@ -40,14 +41,23 @@ public class BucketSelectorTests extends BasePipelineAggregationTestCase<BucketS
         }
         ScriptInput script;
         if (randomBoolean()) {
-            script = ScriptInput.create("script");
+            script = ScriptInput.inline("script");
         } else {
             Map<String, Object> params = null;
             if (randomBoolean()) {
                 params = new HashMap<String, Object>();
                 params.put("foo", "bar");
             }
-            script = ScriptInput.create(randomFrom(Script.ScriptType.values()), randomFrom("my_lang", null), "script", null, params);
+
+            ScriptType type = randomFrom(ScriptType.values());
+
+            if (type == ScriptType.FILE) {
+                script = ScriptInput.file("script", params);
+            } else if (type == ScriptType.STORED) {
+                script = ScriptInput.stored("script", params);
+            } else {
+                script = ScriptInput.inline(randomFrom("my_lang", Script.DEFAULT_SCRIPT_LANG), "script", params);
+            }
         }
         BucketSelectorPipelineAggregationBuilder factory = new BucketSelectorPipelineAggregationBuilder(name, bucketsPaths, script);
         if (randomBoolean()) {

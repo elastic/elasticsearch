@@ -501,7 +501,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .addAggregation(dateHistogram("histo")
                         .field("date")
                         .script(
-                            ScriptInput.create(Script.ScriptType.INLINE, "native", DateScriptMocks.PlusOneMonthScript.NAME, null, params))
+                            ScriptInput.inline("native", DateScriptMocks.PlusOneMonthScript.NAME, params))
                         .dateHistogramInterval(DateHistogramInterval.MONTH)).execute().actionGet();
 
         assertSearchResponse(response);
@@ -638,7 +638,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 .addAggregation(dateHistogram("histo")
                         .field("dates")
                         .script(
-                            ScriptInput.create(Script.ScriptType.INLINE, "native", DateScriptMocks.PlusOneMonthScript.NAME, null, params))
+                            ScriptInput.inline("native", DateScriptMocks.PlusOneMonthScript.NAME, params))
                         .dateHistogramInterval(DateHistogramInterval.MONTH)).execute().actionGet();
 
         assertSearchResponse(response);
@@ -691,7 +691,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         params.put("fieldname", "date");
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo").script(
-                    ScriptInput.create(Script.ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME, null, params))
+                    ScriptInput.inline("native", DateScriptMocks.ExtractFieldScript.NAME, params))
                     .dateHistogramInterval(DateHistogramInterval.MONTH))
                 .execute().actionGet();
 
@@ -730,7 +730,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         params.put("fieldname", "dates");
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo").script(
-                    ScriptInput.create(Script.ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME, null, params))
+                    ScriptInput.inline("native", DateScriptMocks.ExtractFieldScript.NAME, params))
                     .dateHistogramInterval(DateHistogramInterval.MONTH))
                 .execute().actionGet();
 

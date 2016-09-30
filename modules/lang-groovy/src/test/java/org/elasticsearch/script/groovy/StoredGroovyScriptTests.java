@@ -88,11 +88,8 @@ public class StoredGroovyScriptTests extends ESIntegTestCase {
                 .prepareSearch()
                 .setSource(
                         new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(1)
-                                .scriptField("test1", ScriptInput.create(Script.ScriptType.STORED, GroovyScriptEngineService.NAME,
-                                    "script1", Collections.emptyMap(), null))
-                                .scriptField("test2",
-                                    ScriptInput.create(Script.ScriptType.STORED, GroovyScriptEngineService.NAME,
-                                        "script2", Collections.emptyMap(), script2Params)))
+                                .scriptField("test1", ScriptInput.stored("script1"))
+                                .scriptField("test2", ScriptInput.stored("script2", script2Params)))
                 .setIndices("test").setTypes("scriptTest").get();
         assertHitCount(searchResponse, 5);
         assertTrue(searchResponse.getHits().hits().length == 1);
@@ -117,8 +114,7 @@ public class StoredGroovyScriptTests extends ESIntegTestCase {
                     .prepareSearch()
                     .setSource(
                             new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).scriptField("test_field",
-                                    ScriptInput.create(Script.ScriptType.STORED, GroovyScriptEngineService.NAME,
-                                        "script1", Collections.emptyMap(), null)))
+                                    ScriptInput.stored("script1")))
                                             .setIndices("test_index")
                     .setTypes("test_type").get();
             assertHitCount(searchResponse, 1);
@@ -134,8 +130,7 @@ public class StoredGroovyScriptTests extends ESIntegTestCase {
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         try {
             client().prepareUpdate("test", "scriptTest", "1")
-                    .setScript(ScriptInput.create(Script.ScriptType.STORED, GroovyScriptEngineService.NAME,
-                        "script1", Collections.emptyMap(), null)).get();
+                    .setScript(ScriptInput.stored("script1")).get();
             fail("update script should have been rejected");
         } catch (Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
@@ -155,8 +150,7 @@ public class StoredGroovyScriptTests extends ESIntegTestCase {
                 .prepareSearch("test")
                 .setSource(
                         new SearchSourceBuilder().aggregation(AggregationBuilders.terms("test").script(
-                                ScriptInput.create(Script.ScriptType.STORED, GroovyScriptEngineService.NAME,
-                                    "script1", Collections.emptyMap(), null)))).get();
+                                ScriptInput.stored("script1")))).get();
         assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getAggregations().get("test"), notNullValue());
     }

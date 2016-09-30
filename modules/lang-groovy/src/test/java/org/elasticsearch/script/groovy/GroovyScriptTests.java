@@ -68,8 +68,7 @@ public class GroovyScriptTests extends ESIntegTestCase {
     }
 
     public void assertScript(String scriptString) {
-        ScriptInput script = ScriptInput.create(
-            Script.ScriptType.INLINE, GroovyScriptEngineService.NAME, scriptString, Collections.emptyMap(), null);
+        ScriptInput script = ScriptInput.inline(GroovyScriptEngineService.NAME, scriptString, Collections.emptyMap());
         SearchResponse resp = client().prepareSearch("test")
                 .setSource(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).sort(SortBuilders.
                         scriptSort(script, ScriptSortType.NUMBER)))
@@ -86,8 +85,8 @@ public class GroovyScriptTests extends ESIntegTestCase {
         try {
             client().prepareSearch("test")
                     .setQuery(
-                            constantScoreQuery(scriptQuery(ScriptInput.create(Script.ScriptType.INLINE, GroovyScriptEngineService.NAME,
-                                "1 == not_found", Collections.emptyMap(), null)))).get();
+                            constantScoreQuery(scriptQuery(ScriptInput.inline(
+                                GroovyScriptEngineService.NAME, "1 == not_found", Collections.emptyMap())))).get();
             fail("should have thrown an exception");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString()+ "should not contained NotSerializableTransportException",
@@ -101,8 +100,7 @@ public class GroovyScriptTests extends ESIntegTestCase {
         try {
             client().prepareSearch("test")
                     .setQuery(constantScoreQuery(scriptQuery(
-                            ScriptInput.create(Script.ScriptType.INLINE, GroovyScriptEngineService.NAME,
-                                "null.foo", Collections.emptyMap(), null)))).get();
+                            ScriptInput.inline(GroovyScriptEngineService.NAME, "null.foo", Collections.emptyMap())))).get();
             fail("should have thrown an exception");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString() + "should not contained NotSerializableTransportException",
@@ -122,8 +120,7 @@ public class GroovyScriptTests extends ESIntegTestCase {
 
         // doc[] access
         SearchResponse resp = client().prepareSearch("test").setQuery(functionScoreQuery(scriptFunction(
-                ScriptInput.create(Script.ScriptType.INLINE, GroovyScriptEngineService.NAME,
-                    "doc['bar'].value", Collections.emptyMap(), null)))
+                ScriptInput.inline(GroovyScriptEngineService.NAME, "doc['bar'].value", Collections.emptyMap())))
                         .boostMode(CombineFunction.REPLACE)).get();
 
         assertNoFailures(resp);
@@ -138,8 +135,7 @@ public class GroovyScriptTests extends ESIntegTestCase {
 
         // _score can be accessed
         SearchResponse resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchQuery("foo", "dog"),
-                scriptFunction(ScriptInput.create(Script.ScriptType.INLINE, GroovyScriptEngineService.NAME,
-                    "_score", Collections.emptyMap(), null)))
+                scriptFunction(ScriptInput.inline(GroovyScriptEngineService.NAME, "_score", Collections.emptyMap())))
             .boostMode(CombineFunction.REPLACE)).get();
         assertNoFailures(resp);
         assertSearchHits(resp, "3", "1");
@@ -151,8 +147,7 @@ public class GroovyScriptTests extends ESIntegTestCase {
                 .prepareSearch("test")
                 .setQuery(
                         functionScoreQuery(matchQuery("foo", "dog"), scriptFunction(
-                                ScriptInput.create(Script.ScriptType.INLINE, GroovyScriptEngineService.NAME,
-                                    "_score > 0.0 ? _score : 0", Collections.emptyMap(), null)))
+                                ScriptInput.inline(GroovyScriptEngineService.NAME, "_score > 0.0 ? _score : 0", Collections.emptyMap())))
                                         .boostMode(CombineFunction.REPLACE)).get();
         assertNoFailures(resp);
         assertSearchHits(resp, "3", "1");

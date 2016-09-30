@@ -60,7 +60,7 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("foo", "SETVALUE");
         client().prepareUpdate("test", "type", "1")
-                .setScript(ScriptInput.create(Script.ScriptType.INLINE, NativeScriptEngineService.NAME, "custom", null, params)).get();
+                .setScript(ScriptInput.inline(NativeScriptEngineService.NAME, "custom", params)).get();
 
         Map<String, Object> data = client().prepareGet("test", "type", "1").get().getSource();
         assertThat(data, hasKey("foo"));

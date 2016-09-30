@@ -32,6 +32,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -61,10 +62,10 @@ public class ScriptFieldIT extends ESIntegTestCase {
 
         client().admin().indices().prepareFlush("test").execute().actionGet();
         SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
-                .addScriptField("int", ScriptInput.create(Script.ScriptType.INLINE, "native", "int", null, null))
-                .addScriptField("float", ScriptInput.create(Script.ScriptType.INLINE, "native", "float", null, null))
-                .addScriptField("double", ScriptInput.create(Script.ScriptType.INLINE, "native","double", null, null))
-                .addScriptField("long", ScriptInput.create(Script.ScriptType.INLINE, "native","long", null, null)).execute().actionGet();
+                .addScriptField("int", ScriptInput.inline("native", "int", Collections.emptyMap()))
+                .addScriptField("float", ScriptInput.inline("native", "float", Collections.emptyMap()))
+                .addScriptField("double", ScriptInput.inline("native", "double", Collections.emptyMap()))
+                .addScriptField("long", ScriptInput.inline("native", "long", Collections.emptyMap())).execute().actionGet();
         assertThat(sr.getHits().hits().length, equalTo(6));
         for (SearchHit hit : sr.getHits().getHits()) {
             Object result = hit.getFields().get("int").getValues().get(0);

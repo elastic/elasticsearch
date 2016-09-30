@@ -132,9 +132,9 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
             int scriptFieldsSize = randomInt(25);
             for (int i = 0; i < scriptFieldsSize; i++) {
                 if (randomBoolean()) {
-                    builder.scriptField(randomAsciiOfLengthBetween(5, 50), ScriptInput.create("foo"), randomBoolean());
+                    builder.scriptField(randomAsciiOfLengthBetween(5, 50), ScriptInput.inline("foo"), randomBoolean());
                 } else {
-                    builder.scriptField(randomAsciiOfLengthBetween(5, 50), ScriptInput.create("foo"));
+                    builder.scriptField(randomAsciiOfLengthBetween(5, 50), ScriptInput.inline("foo"));
                 }
             }
         }
@@ -209,7 +209,7 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
                         builder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
                         break;
                     case 3:
-                        builder.sort(SortBuilders.scriptSort(ScriptInput.create("foo"),
+                        builder.sort(SortBuilders.scriptSort(ScriptInput.inline("foo"),
                                 ScriptSortBuilder.ScriptSortType.NUMBER).order(randomFrom(SortOrder.values())));
                         break;
                     case 4:

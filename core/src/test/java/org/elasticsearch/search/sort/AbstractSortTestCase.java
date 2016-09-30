@@ -57,7 +57,9 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.InlineScriptLookup;
 import org.elasticsearch.script.Script.ScriptBinding;
+import org.elasticsearch.script.Script.ScriptLookup;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
@@ -103,9 +105,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         scriptService = new ScriptService(baseSettings, environment,
                 new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
-            public CompiledScript getInlineScript(
-                ScriptContext context, ScriptBinding binding, String lang, String code, Map<String, String> options) {
-                return new CompiledScript(binding, Script.ScriptType.INLINE, "mockName", null, options) {
+            public CompiledScript getInlineScript(ScriptContext context, ScriptBinding binding, InlineScriptLookup lookup) {
+                return new CompiledScript(binding, Script.ScriptType.INLINE, "mockName", null, null) {
                     @Override
                     public String lang() {
                         return "test";

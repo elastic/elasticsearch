@@ -57,8 +57,7 @@ public class StoredExpressionTests extends ESIntegTestCase {
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         try {
             client().prepareUpdate("test", "scriptTest", "1")
-                    .setScript(ScriptInput.create(Script.ScriptType.STORED, ExpressionScriptEngineService.NAME,
-                        "script1", Collections.emptyMap(), null)).get();
+                    .setScript(ScriptInput.stored("script1")).get();
             fail("update script should have been rejected");
         } catch(Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
@@ -68,7 +67,7 @@ public class StoredExpressionTests extends ESIntegTestCase {
             client().prepareSearch()
                     .setSource(
                             new SearchSourceBuilder().scriptField("test1",
-                                ScriptInput.create(Script.ScriptType.STORED, "expression", "script1", Collections.emptyMap(), null)))
+                                ScriptInput.stored("script1")))
                     .setIndices("test").setTypes("scriptTest").get();
             fail("search script should have been rejected");
         } catch(Exception e) {
@@ -78,8 +77,7 @@ public class StoredExpressionTests extends ESIntegTestCase {
             client().prepareSearch("test")
                     .setSource(
                             new SearchSourceBuilder().aggregation(AggregationBuilders.terms("test").script(
-                                    ScriptInput.create(Script.ScriptType.STORED, "expression",
-                                        "script1", Collections.emptyMap(), null)))).get();
+                                    ScriptInput.stored("script1")))).get();
         } catch (Exception e) {
             assertThat(e.toString(), containsString("scripts of type [stored], operation [aggs] and lang [expression] are disabled"));
         }

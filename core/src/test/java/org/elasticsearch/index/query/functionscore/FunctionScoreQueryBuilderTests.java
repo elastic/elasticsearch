@@ -167,8 +167,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         case 2:
             String script = "1";
             Map<String, Object> params = Collections.emptyMap();
-            functionBuilder = new ScriptScoreFunctionBuilder(
-                    ScriptInput.create(Script.ScriptType.INLINE, MockScriptEngine.NAME, script, null, params));
+            functionBuilder = new ScriptScoreFunctionBuilder(ScriptInput.inline(MockScriptEngine.NAME, script, params));
             break;
         case 3:
             RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilderWithFixedSeed();

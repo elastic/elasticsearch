@@ -392,7 +392,7 @@ public class RangeIT extends ESIntegTestCase {
                 .addAggregation(
                         range("range")
                                 .field(SINGLE_VALUED_FIELD_NAME)
-                                .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", null, null))
+                                .script(ScriptInput.inline(CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))
                                 .addUnboundedTo(3)
                                 .addRange(3, 6)
                                 .addUnboundedFrom(6))
@@ -512,7 +512,7 @@ public class RangeIT extends ESIntegTestCase {
                 .addAggregation(
                         range("range")
                                 .field(MULTI_VALUED_FIELD_NAME)
-                                .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", null, null))
+                                .script(ScriptInput.inline(CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))
                                 .addUnboundedTo(3)
                                 .addRange(3, 6)
                                 .addUnboundedFrom(6))
@@ -573,8 +573,8 @@ public class RangeIT extends ESIntegTestCase {
      */
 
     public void testScriptSingleValue() throws Exception {
-        ScriptInput script = ScriptInput.create(
-            ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", null, null);
+        ScriptInput script =
+            ScriptInput.inline(CustomScriptPlugin.NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", Collections.emptyMap());
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -660,7 +660,7 @@ public class RangeIT extends ESIntegTestCase {
 
     public void testScriptMultiValued() throws Exception {
         ScriptInput script =
-            ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "'].values", null, null);
+            ScriptInput.inline(CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "'].values", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")

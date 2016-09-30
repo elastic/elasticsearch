@@ -284,7 +284,7 @@ public final class Script {
             StoredScriptSource that = (StoredScriptSource)o;
 
             if (template != that.template) return false;
-            if (binding != null ? !binding.equals(that.binding) : that.binding != null) return false;
+            if (!binding.equals(that.binding)) return false;
             if (!lang.equals(that.lang)) return false;
             if (!code.equals(that.code)) return false;
             return options.equals(that.options);
@@ -294,7 +294,7 @@ public final class Script {
         @Override
         public int hashCode() {
             int result = (template ? 1 : 0);
-            result = 31 * result + (binding != null ? binding.hashCode() : 0);
+            result = 31 * result + binding.hashCode();
             result = 31 * result + lang.hashCode();
             result = 31 * result + code.hashCode();
             result = 31 * result + options.hashCode();
@@ -317,6 +317,10 @@ public final class Script {
 
         public static ScriptInput inline(String code) {
             return inline(DEFAULT_SCRIPT_LANG, code, Collections.emptyMap(), Collections.emptyMap());
+        }
+
+        public static ScriptInput inline(String lang, String code, Map<String, Object> params) {
+            return inline(lang, code, Collections.emptyMap(), params);
         }
 
         public static ScriptInput inline(String lang, String code, Map<String, String> options, Map<String, Object> params) {
@@ -682,13 +686,13 @@ public final class Script {
 
         public final String id;
 
-        private FileScriptLookup(String id) {
+        FileScriptLookup(String id) {
             this.id = Objects.requireNonNull(id);
         }
 
         @Override
         public CompiledScript getCompiled(ScriptService service, ScriptContext context, ScriptBinding binding) {
-            return service.getFileScript(context, binding, id);
+            return service.getFileScript(context, binding, this);
         }
 
         @Override
@@ -735,13 +739,13 @@ public final class Script {
 
         public final String id;
 
-        private StoredScriptLookup(String id) {
+        StoredScriptLookup(String id) {
             this.id = Objects.requireNonNull(id);
         }
 
         @Override
         public CompiledScript getCompiled(ScriptService service, ScriptContext context, ScriptBinding binding) {
-            return service.getStoredScript(context, binding, id);
+            return service.getStoredScript(context, binding, this);
         }
 
         @Override
@@ -798,7 +802,7 @@ public final class Script {
         public final String code;
         public final Map<String, String> options;
 
-        private InlineScriptLookup(String lang, String code, Map<String, String> options) {
+        InlineScriptLookup(String lang, String code, Map<String, String> options) {
             this.lang = Objects.requireNonNull(lang);
             this.code = Objects.requireNonNull(code);
             this.options = Collections.unmodifiableMap(new HashMap<>(Objects.requireNonNull(options)));
@@ -806,7 +810,7 @@ public final class Script {
 
         @Override
         public CompiledScript getCompiled(ScriptService service, ScriptContext context, ScriptBinding binding) {
-            return service.getInlineScript(context, binding, lang, code, options);
+            return service.getInlineScript(context, binding, this);
         }
 
         @Override
@@ -931,6 +935,7 @@ public final class Script {
 
     public static final String DEFAULT_SCRIPT_LANG = "painless";
     public static final ScriptType DEFAULT_SCRIPT_TYPE = INLINE;
+    public static final String DEFAULT_SCRIPT_NAME = "<inline>";
 
     public static final String CONTENT_TYPE_OPTION = "content_type";
 

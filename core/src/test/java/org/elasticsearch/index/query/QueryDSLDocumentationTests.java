@@ -291,12 +291,12 @@ public class QueryDSLDocumentationTests extends ESTestCase {
 
     public void testScript() {
         scriptQuery(
-                ScriptInput.create("doc['num1'].value > 1")
+                ScriptInput.inline("doc['num1'].value > 1")
             );
 
         Map<String, Object> parameters = new HashMap<>();
         parameters.put("param1", 5);
-        scriptQuery(ScriptInput.create(Script.ScriptType.FILE, "groovy", "mygroovyscript", null, parameters));
+        scriptQuery(ScriptInput.file("mygroovyscript", parameters));
     }
 
     public void testSimpleQueryString() {

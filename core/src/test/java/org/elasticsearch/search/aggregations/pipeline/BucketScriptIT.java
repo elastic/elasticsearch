@@ -164,9 +164,9 @@ public class BucketScriptIT extends ESIntegTestCase {
                                 .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                                 .subAggregation(
                                         bucketScript("seriesArithmetic",
-                                                ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME,
-                                                    "_value0 + _value1 + _value2", Collections.emptyMap(), null)
-                                                , "field2Sum", "field3Sum", "field4Sum")))
+                                                ScriptInput.inline(CustomScriptPlugin.NAME,
+                                                    "_value0 + _value1 + _value2", Collections.emptyMap()),
+                                            "field2Sum", "field3Sum", "field4Sum")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -211,9 +211,9 @@ public class BucketScriptIT extends ESIntegTestCase {
                                 .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                                 .subAggregation(
                                         bucketScript("seriesArithmetic",
-                                                ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME,
-                                                    "_value0 + _value1 / _value2", Collections.emptyMap(), null),
-                                                "field2Sum", "field3Sum", "field4Sum")))
+                                                ScriptInput.inline(CustomScriptPlugin.NAME,
+                                                    "_value0 + _value1 / _value2", Collections.emptyMap()),
+                                            "field2Sum", "field3Sum", "field4Sum")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -258,9 +258,9 @@ public class BucketScriptIT extends ESIntegTestCase {
                     .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                     .subAggregation(
                         bucketScript("seriesArithmetic",
-                            ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME,
-                                "_value0 + _value1 + _value2", Collections.emptyMap(), null)
-                            , "field2Sum", "field3Sum", "field4Sum")))
+                                ScriptInput.inline(CustomScriptPlugin.NAME,
+                                    "_value0 + _value1 + _value2", Collections.emptyMap()),
+                            "field2Sum", "field3Sum", "field4Sum")))
             .execute().actionGet();
 
         assertSearchResponse(response);
@@ -303,9 +303,8 @@ public class BucketScriptIT extends ESIntegTestCase {
                                 .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                                 .subAggregation(
                                         bucketScript("seriesArithmetic",
-                                                ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME,
-                                                    "_value0", Collections.emptyMap(), null),
-                                                "field2Sum")))
+                                                ScriptInput.inline(CustomScriptPlugin.NAME, "_value0", Collections.emptyMap()),
+                                            "field2Sum")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -348,8 +347,7 @@ public class BucketScriptIT extends ESIntegTestCase {
                                 .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                                 .subAggregation(
                                         bucketScript("seriesArithmetic", bucketsPathsMap,
-                                                ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME,
-                                                    "foo + bar + baz", Collections.emptyMap(), null))))
+                                                ScriptInput.inline(CustomScriptPlugin.NAME, "foo + bar + baz", Collections.emptyMap()))))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -386,8 +384,7 @@ public class BucketScriptIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("factor", 3);
 
-        ScriptInput script = ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME,
-            "(_value0 + _value1 + _value2) * factor", Collections.emptyMap(), params);
+        ScriptInput script = ScriptInput.inline(CustomScriptPlugin.NAME, "(_value0 + _value1 + _value2) * factor", params);
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -443,8 +440,8 @@ public class BucketScriptIT extends ESIntegTestCase {
                                 .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                                 .subAggregation(
                                         bucketScript("seriesArithmetic",
-                                                ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME,
-                                                    "_value0 + _value1 + _value2", Collections.emptyMap(), null),
+                                                ScriptInput.inline(CustomScriptPlugin.NAME,
+                                                    "_value0 + _value1 + _value2", Collections.emptyMap()),
                                                 "field2Sum", "field3Sum", "field4Sum").gapPolicy(GapPolicy.INSERT_ZEROS)))
                 .execute().actionGet();
 
@@ -497,8 +494,7 @@ public class BucketScriptIT extends ESIntegTestCase {
                                 .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                                 .subAggregation(
                                         bucketScript("seriesArithmetic",
-                                                ScriptInput.create(Script.ScriptType.STORED, CustomScriptPlugin.NAME,
-                                                    "my_script", Collections.emptyMap(), null),
+                                                ScriptInput.stored("my_script"),
                                                 "field2Sum", "field3Sum", "field4Sum"))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -543,9 +539,9 @@ public class BucketScriptIT extends ESIntegTestCase {
                                 .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                                 .subAggregation(
                                         bucketScript("seriesArithmetic",
-                                                ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME,
-                                                    "_value0 + _value1 + _value2", Collections.emptyMap(), null),
-                                                "field2Sum", "field3Sum", "field4Sum")))
+                                                ScriptInput.inline(CustomScriptPlugin.NAME,
+                                                    "_value0 + _value1 + _value2", Collections.emptyMap()),
+                                            "field2Sum", "field3Sum", "field4Sum")))
                                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -568,9 +564,9 @@ public class BucketScriptIT extends ESIntegTestCase {
                                 .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
                                 .subAggregation(
                                         bucketScript("seriesArithmetic",
-                                                ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME,
-                                                    "_value0 + _value1 + _value2", Collections.emptyMap(), null),
-                                                "field2Sum", "field3Sum", "field4Sum"))).execute().actionGet();
+                                                ScriptInput.inline(
+                                                    CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
+                                            "field2Sum", "field3Sum", "field4Sum"))).execute().actionGet();
 
         assertSearchResponse(response);
 

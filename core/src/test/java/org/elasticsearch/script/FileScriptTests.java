@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.MockScriptEngine.MockCompiledScript;
 import org.elasticsearch.script.Script.ExecutableScriptBinding;
+import org.elasticsearch.script.Script.FileScriptLookup;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.test.ESTestCase;
 
@@ -57,7 +58,7 @@ public class FileScriptTests extends ESTestCase {
             .put("script.engine." + MockScriptEngine.NAME + ".file.aggs", "false").build();
         ScriptService scriptService = makeScriptService(settings);
         CompiledScript compiledScript =
-            scriptService.getFileScript(ScriptContext.Standard.SEARCH, ExecutableScriptBinding.BINDING, "script1");
+            scriptService.getFileScript(ScriptContext.Standard.SEARCH, ExecutableScriptBinding.BINDING, new FileScriptLookup("script1"));
         assertNotNull(compiledScript);
         MockCompiledScript executable = (MockCompiledScript) compiledScript.compiled();
         assertEquals("script1.mockscript", executable.getName());
@@ -73,7 +74,7 @@ public class FileScriptTests extends ESTestCase {
         ScriptService scriptService = makeScriptService(settings);
         for (ScriptContext context : ScriptContext.Standard.values()) {
             try {
-                scriptService.getFileScript(context, ExecutableScriptBinding.BINDING, "script1");
+                scriptService.getFileScript(context, ExecutableScriptBinding.BINDING, new FileScriptLookup("script1"));
                 fail(context.getKey() + " script should have been rejected");
             } catch(Exception e) {
                 assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [file], operation [" + context.getKey() + "] and lang [" + MockScriptEngine.NAME + "] are disabled"));

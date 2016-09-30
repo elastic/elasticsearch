@@ -50,7 +50,7 @@ UpdateByQueryRequestBuilder updateByQuery = UpdateByQueryAction.INSTANCE.newRequ
 updateByQuery.source("source_index")
         .filter(termQuery("level", "awesome"))
         .size(1000)
-        .script(ScriptInput.create("ctx._source.awesome = 'absolutely'", ScriptType.INLINE, "painless", emptyMap()));
+        .script(ScriptInput.inline("painless", "ctx._source.awesome = 'absolutely'", emptyMap()));
 
 BulkIndexByScrollResponse response = updateByQuery.get();
 --------------------------------------------------
@@ -89,13 +89,13 @@ script to change the action, similar to the Update API:
 UpdateByQueryRequestBuilder updateByQuery = UpdateByQueryAction.INSTANCE.newRequestBuilder(client);
 
 updateByQuery.source("source_index")
-        .script(ScriptInput.create(
+        .script(ScriptInput.inline("painless",
             "if (ctx._source.awesome == 'absolutely) {"
           + "  ctx.op='noop'
           + "} else if (ctx._source.awesome == 'lame') {"
           + "  ctx.op='delete'"
           + "} else {"
-          + "ctx._source.awesome = 'absolutely'}", ScriptType.INLINE, "painless", emptyMap()));
+          + "ctx._source.awesome = 'absolutely'}", emptyMap()));
 
 BulkIndexByScrollResponse response = updateByQuery.get();
 --------------------------------------------------

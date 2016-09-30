@@ -121,7 +121,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
             assertThat(bulkItemResponse.getIndex(), equalTo("test"));
         }
 
-        final ScriptInput script = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx._source.field += 1", null, null);
+        final ScriptInput script = ScriptInput.inline(CustomScriptPlugin.NAME, "ctx._source.field += 1", Collections.emptyMap());
 
         bulkResponse = client().prepareBulk()
                 .add(client().prepareUpdate().setIndex(indexOrAlias()).setType("type1").setId("1").setScript(script))
@@ -258,14 +258,14 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
         bulkResponse = client().prepareBulk()
                 .add(client().prepareUpdate().setIndex("test").setType("type1").setId("1").setFields("field")
-                        .setScript(ScriptInput.create(
-                            ScriptType.INLINE, CustomScriptPlugin.NAME, "throw script exception on unknown var", null, null)))
+                        .setScript(ScriptInput.inline(
+                            CustomScriptPlugin.NAME, "throw script exception on unknown var", Collections.emptyMap())))
                 .add(client().prepareUpdate().setIndex("test").setType("type1").setId("2").setFields("field")
-                        .setScript(ScriptInput.create(
-                            ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx._source.field += 1", null, null)))
+                        .setScript(ScriptInput.inline(
+                            CustomScriptPlugin.NAME, "ctx._source.field += 1", Collections.emptyMap())))
                 .add(client().prepareUpdate().setIndex("test").setType("type1").setId("3").setFields("field")
-                        .setScript(ScriptInput.create(
-                            ScriptType.INLINE, CustomScriptPlugin.NAME, "throw script exception on unknown var", null, null)))
+                        .setScript(ScriptInput.inline(
+                            CustomScriptPlugin.NAME, "throw script exception on unknown var", Collections.emptyMap())))
                 .execute().actionGet();
 
         assertThat(bulkResponse.hasFailures(), equalTo(true));
@@ -293,7 +293,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
             numDocs++; // this test needs an even num of docs
         }
 
-        final ScriptInput script = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx._source.counter += 1", null, null);
+        final ScriptInput script = ScriptInput.inline(CustomScriptPlugin.NAME, "ctx._source.counter += 1", Collections.emptyMap());
 
         BulkRequestBuilder builder = client().prepareBulk();
         for (int i = 0; i < numDocs; i++) {
@@ -382,7 +382,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         builder = client().prepareBulk();
         for (int i = 0; i < numDocs; i++) {
             builder.add(client().prepareUpdate().setIndex("test").setType("type1").setId(Integer.toString(i))
-                    .setScript(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx.op = \"none\"", null, null)));
+                    .setScript(ScriptInput.inline(CustomScriptPlugin.NAME, "ctx.op = \"none\"", Collections.emptyMap())));
         }
         response = builder.execute().actionGet();
         assertThat(response.buildFailureMessage(), response.hasFailures(), equalTo(false));
@@ -398,7 +398,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         builder = client().prepareBulk();
         for (int i = 0; i < numDocs; i++) {
             builder.add(client().prepareUpdate().setIndex("test").setType("type1").setId(Integer.toString(i))
-                    .setScript(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx.op = \"delete\"", null, null)));
+                    .setScript(ScriptInput.inline(CustomScriptPlugin.NAME, "ctx.op = \"delete\"", Collections.emptyMap())));
         }
         response = builder.execute().actionGet();
         assertThat(response.hasFailures(), equalTo(false));

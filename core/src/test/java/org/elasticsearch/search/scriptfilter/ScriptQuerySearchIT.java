@@ -104,11 +104,9 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
 
         logger.info("running doc['num1'].value > 1");
         SearchResponse response = client().prepareSearch()
-                .setQuery(scriptQuery(ScriptInput.create(
-                    Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1", null, null)))
+                .setQuery(scriptQuery(ScriptInput.inline(CustomScriptPlugin.NAME, "doc['num1'].value > 1", Collections.emptyMap())))
                 .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", ScriptInput.create(
-                    Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", null, null))
+                .addScriptField("sNum1", ScriptInput.inline(CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
                 .get();
 
         assertThat(response.getHits().totalHits(), equalTo(2L));
@@ -123,11 +121,9 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
         logger.info("running doc['num1'].value > param1");
         response = client()
                 .prepareSearch()
-                .setQuery(scriptQuery(ScriptInput.create(
-                    Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > param1", null, params)))
+                .setQuery(scriptQuery(ScriptInput.inline(CustomScriptPlugin.NAME, "doc['num1'].value > param1", params)))
                 .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", ScriptInput.create(
-                    Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", null, null))
+                .addScriptField("sNum1", ScriptInput.inline(CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
                 .get();
 
         assertThat(response.getHits().totalHits(), equalTo(1L));
@@ -139,11 +135,9 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
         logger.info("running doc['num1'].value > param1");
         response = client()
                 .prepareSearch()
-                .setQuery(scriptQuery(ScriptInput.create(
-                    Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > param1", null, params)))
+                .setQuery(scriptQuery(ScriptInput.inline(CustomScriptPlugin.NAME, "doc['num1'].value > param1", params)))
                 .addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", ScriptInput.create(
-                    Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", null, null))
+                .addScriptField("sNum1", ScriptInput.inline(CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
                 .get();
 
         assertThat(response.getHits().totalHits(), equalTo(3L));

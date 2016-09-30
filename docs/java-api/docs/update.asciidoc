@@ -22,7 +22,7 @@ Or you can use `prepareUpdate()` method:
 [source,java]
 --------------------------------------------------
 client.prepareUpdate("ttl", "doc", "1")
-        .setScript(ScriptInput.create("ctx._source.gender = \"male\"" <1>))
+        .setScript(ScriptInput.inline("ctx._source.gender = \"male\"" <1>))
         .get();
 
 client.prepareUpdate("ttl", "doc", "1")
@@ -46,7 +46,7 @@ The update API allows to update a document based on a script provided:
 [source,java]
 --------------------------------------------------
 UpdateRequest updateRequest = new UpdateRequest("ttl", "doc", "1")
-        .script(ScriptInput.create("ctx._source.gender = \"male\""));
+        .script(ScriptInput.inline("ctx._source.gender = \"male\""));
 client.update(updateRequest).get();
 --------------------------------------------------
 

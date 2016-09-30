@@ -49,8 +49,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.Script.FileScriptLookup;
+import org.elasticsearch.script.Script.InlineScriptLookup;
 import org.elasticsearch.script.Script.ScriptBinding;
 import org.elasticsearch.script.Script.ScriptType;
+import org.elasticsearch.script.Script.StoredScriptLookup;
 import org.elasticsearch.script.Script.StoredScriptSource;
 import org.elasticsearch.script.Script.UnknownScriptBinding;
 import org.elasticsearch.watcher.FileChangesListener;
@@ -71,97 +74,17 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.script.Script.DEFAULT_SCRIPT_NAME;
 import static org.elasticsearch.script.Script.ScriptType.FILE;
 import static org.elasticsearch.script.Script.ScriptType.INLINE;
 import static org.elasticsearch.script.Script.ScriptType.STORED;
 
 public class ScriptService extends AbstractComponent implements Closeable, ClusterStateListener {
 
-    private static final class FileCacheKey {
-        private final String id;
-
-        private FileCacheKey(String id) {
-            this.id = id;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            FileCacheKey that = (FileCacheKey)o;
-
-            return id.equals(that.id);
-
-        }
-
-        @Override
-        public int hashCode() {
-            return id.hashCode();
-        }
-    }
-
-    private static final class StoredCacheKey {
-        private final String id;
-
-        private StoredCacheKey(String id) {
-            this.id = id;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            StoredCacheKey that = (StoredCacheKey)o;
-
-            return id.equals(that.id);
-
-        }
-
-        @Override
-        public int hashCode() {
-            return id.hashCode();
-        }
-    }
-
-    private static final class InlineCacheKey {
-        private final String lang;
-        private final String code;
-        private final Map<String, String> options;
-
-        private InlineCacheKey(String lang, String code, Map<String, String> options) {
-            this.lang = lang;
-            this.code = code;
-            this.options = options;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            InlineCacheKey that = (InlineCacheKey)o;
-
-            if (!lang.equals(that.lang)) return false;
-            if (!code.equals(that.code)) return false;
-            return options.equals(that.options);
-
-        }
-
-        @Override
-        public int hashCode() {
-            int result = lang.hashCode();
-            result = 31 * result + code.hashCode();
-            result = 31 * result + options.hashCode();
-            return result;
-        }
-    }
-
     private class ScriptChangesListener implements FileChangesListener {
 
         private static final int ID = 0;
-        private static final int CONTEXT = 1;
+        private static final int BINDING = 1;
         private static final int EXT = 1;
 
         private String[] splitScriptPath(Path file) {
@@ -183,7 +106,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             int contextIndex = scriptPath.toString().lastIndexOf('.', extIndex);
 
             if (contextIndex > 0) {
-                split[CONTEXT] = scriptPath.toString().substring(contextIndex + 1, extIndex);
+                split[BINDING] = scriptPath.toString().substring(contextIndex + 1, extIndex);
             }
 
             split[ID] = scriptPath.toString().substring(0, extIndex).replace(scriptPath.getFileSystem().getSeparator(), "_");
@@ -218,9 +141,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8);
                 String code = Streams.copyToString(reader);
                 CompiledScript compiled =
-                    compile(null, UnknownScriptBinding.BINDING, FILE, split[ID], engine.getType(), code, Collections.emptyMap());
+                    compile(UnknownScriptBinding.BINDING, FILE, split[ID], engine.getType(), code, Collections.emptyMap());
 
-                FileCacheKey key = new FileCacheKey(split[ID]);
+                FileScriptLookup key = new FileScriptLookup(split[ID]);
                 fileCache.put(key, compiled);
             } catch (Exception exception) {
                 logger.warn((Supplier<?>) () ->
@@ -244,14 +167,14 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
             logger.info("removing script file [{}]", file.toAbsolutePath());
 
-            FileCacheKey key = new FileCacheKey(split[ID]);
+            FileScriptLookup key = new FileScriptLookup(split[ID]);
             fileCache.remove(key);
         }
     }
 
-    private class StoredCacheRemovalListener implements RemovalListener<StoredCacheKey, CompiledScript> {
+    private class StoredCacheRemovalListener implements RemovalListener<StoredScriptLookup, CompiledScript> {
         @Override
-        public void onRemoval(RemovalNotification<StoredCacheKey, CompiledScript> notification) {
+        public void onRemoval(RemovalNotification<StoredScriptLookup, CompiledScript> notification) {
             if (logger.isDebugEnabled()) {
                 logger.debug("removed [{}] from stored cache, reason [{}]", notification.getValue(), notification.getRemovalReason());
             }
@@ -260,9 +183,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
     }
 
-    private class InlineCacheRemovalListener implements RemovalListener<InlineCacheKey, CompiledScript> {
+    private class InlineCacheRemovalListener implements RemovalListener<InlineScriptLookup, CompiledScript> {
         @Override
-        public void onRemoval(RemovalNotification<InlineCacheKey, CompiledScript> notification) {
+        public void onRemoval(RemovalNotification<InlineScriptLookup, CompiledScript> notification) {
             if (logger.isDebugEnabled()) {
                 logger.debug("removed [{}] from inline cache, reason [{}]", notification.getValue(), notification.getRemovalReason());
             }
@@ -291,10 +214,10 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     private final Map<String, ScriptEngineService> scriptEnginesByExt;
 
     private final Path fileScriptsDirectory;
-    private final ConcurrentMap<FileCacheKey, CompiledScript> fileCache = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<FileScriptLookup, CompiledScript> fileCache = ConcurrentCollections.newConcurrentMap();
 
-    private final Cache<StoredCacheKey, CompiledScript> storedCache;
-    private final Cache<InlineCacheKey, CompiledScript> inlineCache;
+    private final Cache<StoredScriptLookup, CompiledScript> storedCache;
+    private final Cache<InlineScriptLookup, CompiledScript> inlineCache;
 
     private ClusterState clusterState;
 
@@ -346,8 +269,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             fileWatcher.init();
         }
 
-        CacheBuilder<StoredCacheKey, CompiledScript> storedCacheBuilder = CacheBuilder.builder();
-        CacheBuilder<InlineCacheKey, CompiledScript> inlineCacheBuilder = CacheBuilder.builder();
+        CacheBuilder<StoredScriptLookup, CompiledScript> storedCacheBuilder = CacheBuilder.builder();
+        CacheBuilder<InlineScriptLookup, CompiledScript> inlineCacheBuilder = CacheBuilder.builder();
         int cacheMaxSize = SCRIPT_CACHE_SIZE_SETTING.get(settings);
         TimeValue cacheExpire = SCRIPT_CACHE_EXPIRE_SETTING.get(settings);
 
@@ -486,7 +409,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         getScriptEngineServiceForLang(source.lang);
         canExecuteScriptInAnyContext(STORED, source.lang);
-        compile(null, UnknownScriptBinding.BINDING, STORED, id, source.lang, source.code, source.options);
+        compile(UnknownScriptBinding.BINDING, STORED, id, source.lang, source.code, source.options);
 
         clusterService.submitStateUpdateTask("put-script-" + request.id(),
             new AckedClusterStateUpdateTask<PutStoredScriptResponse>(request, listener) {
@@ -524,20 +447,18 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return ScriptMetaData.getScript(state, request.id());
     }
 
-    protected CompiledScript getInlineScript(
-        ScriptContext context, ScriptBinding binding, String lang, String code, Map<String, String> options) {
-        canExecuteScriptInSpecificContext(context, INLINE, lang);
+    protected CompiledScript getInlineScript(ScriptContext context, ScriptBinding binding, InlineScriptLookup lookup) {
+        canExecuteScriptInSpecificContext(context, INLINE, lookup.lang);
 
-        InlineCacheKey key = new InlineCacheKey(lang, code, options);
-        CompiledScript compiled = inlineCache.get(key);
+        CompiledScript compiled = inlineCache.get(lookup);
 
         if (compiled == null) {
             synchronized (this) {
-                compiled = inlineCache.get(key);
+                compiled = inlineCache.get(lookup);
 
                 if (compiled == null) {
-                    compiled = compile(context, binding, INLINE, null, lang, code, options);
-                    inlineCache.put(key, compiled);
+                    compiled = compile(binding, INLINE, DEFAULT_SCRIPT_NAME, lookup.lang, lookup.code, lookup.options);
+                    inlineCache.put(lookup, compiled);
                 }
             }
         }
@@ -545,27 +466,26 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return compiled;
     }
 
-    protected CompiledScript getStoredScript(ScriptContext context, ScriptBinding binding, String id) {
-        StoredCacheKey key = new StoredCacheKey(id);
-        CompiledScript compiled = storedCache.get(key);
+    protected CompiledScript getStoredScript(ScriptContext context, ScriptBinding binding, StoredScriptLookup lookup) {
+        CompiledScript compiled = storedCache.get(lookup);
         boolean check = true;
 
         if (compiled == null) {
             synchronized(this) {
-                compiled = storedCache.get(key);
+                compiled = storedCache.get(lookup);
 
                 if (compiled == null) {
-                    StoredScriptSource source = ScriptMetaData.getScript(clusterState, id);
+                    StoredScriptSource source = ScriptMetaData.getScript(clusterState, lookup.id);
 
                     if (source == null) {
-                        throw new ResourceNotFoundException("stored script [" + id + "] does not exist");
+                        throw new ResourceNotFoundException("stored script [" + lookup.id + "] does not exist");
                     }
 
                     canExecuteScriptInSpecificContext(context, STORED, source.lang);
                     check = false;
 
-                    compiled = compile(context, binding, STORED, id, source.lang, source.code, source.options);
-                    storedCache.put(key, compiled);
+                    compiled = compile(binding, STORED, lookup.id, source.lang, source.code, source.options);
+                    storedCache.put(lookup, compiled);
                 }
             }
         }
@@ -577,12 +497,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return compiled;
     }
 
-    protected CompiledScript getFileScript(ScriptContext context, ScriptBinding binding, String id) {
-        FileCacheKey key = new FileCacheKey(id);
-        CompiledScript compiled = fileCache.get(key);
+    protected CompiledScript getFileScript(ScriptContext context, ScriptBinding binding, FileScriptLookup lookup) {
+        CompiledScript compiled = fileCache.get(lookup);
 
         if (compiled == null) {
-            throw new ResourceNotFoundException("file script [" + id + "] does not exist");
+            throw new ResourceNotFoundException("file script [" + lookup.id + "] does not exist");
         }
 
         canExecuteScriptInSpecificContext(context, FILE, compiled.lang());
@@ -590,10 +509,10 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return compiled;
     }
 
-    private CompiledScript compile(ScriptContext context, ScriptBinding binding, ScriptType type,
+    private CompiledScript compile(ScriptBinding binding, ScriptType type,
                                    String id, String lang, String code, Map<String, String> options) {
         if (logger.isTraceEnabled()) {
-            logger.trace("compiling script with context [{}], type [{}], lang [{}], options [{}]", context, type, lang, options);
+            logger.trace("compiling script with binding [{}], type [{}], lang [{}], options [{}]", binding, type, lang, options);
         }
 
         try {

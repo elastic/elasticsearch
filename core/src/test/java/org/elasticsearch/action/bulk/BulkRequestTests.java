@@ -31,6 +31,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.InlineScriptLookup;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.test.ESTestCase;
 
@@ -90,8 +91,8 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).index(), equalTo("index1"));
         ScriptInput script = ((UpdateRequest) bulkRequest.requests().get(1)).script();
         assertThat(script, notNullValue());
-        assertThat(script.lookup.getIdOrCode(), equalTo("counter += param1"));
-        assertThat(script.lookup.getLang(), equalTo("javascript"));
+        assertThat(((InlineScriptLookup)script.lookup).code, equalTo("counter += param1"));
+        assertThat(((InlineScriptLookup)script.lookup).lang, equalTo("javascript"));
         Map<String, Object> scriptParams = script.params;
         assertThat(scriptParams, notNullValue());
         assertThat(scriptParams.size(), equalTo(1));

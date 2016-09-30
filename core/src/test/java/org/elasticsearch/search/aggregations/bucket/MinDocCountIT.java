@@ -152,8 +152,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
         YES {
             @Override
             TermsAggregationBuilder apply(TermsAggregationBuilder builder, String field) {
-                return builder.script(ScriptInput.create(
-                    ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + field + "'].values", null, null));
+                return builder.script(ScriptInput.inline(CustomScriptPlugin.NAME, "doc['" + field + "'].values", Collections.emptyMap()));
             }
         };
         abstract TermsAggregationBuilder apply(TermsAggregationBuilder builder, String field);

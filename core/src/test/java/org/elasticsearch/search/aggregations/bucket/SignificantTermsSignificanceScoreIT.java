@@ -55,6 +55,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -514,9 +515,9 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             Map<String, Object> params = null;
             params = new HashMap<>();
             params.put("param", randomIntBetween(1, 100));
-            script = ScriptInput.create(Script.ScriptType.INLINE, "native", "native_significance_score_script_with_params", null, params);
+            script = ScriptInput.inline("native", "native_significance_score_script_with_params", params);
         } else {
-            script = ScriptInput.create(Script.ScriptType.INLINE, "native", "native_significance_score_script_no_params", null, null);
+            script = ScriptInput.inline("native", "native_significance_score_script_no_params", Collections.emptyMap());
         }
         return new ScriptHeuristic(script);
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.InlineScriptLookup;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
@@ -34,6 +35,7 @@ import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -46,7 +48,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
 
     public static ScriptSortBuilder randomScriptSortBuilder() {
         ScriptSortType type = randomBoolean() ? ScriptSortType.NUMBER : ScriptSortType.STRING;
-        ScriptSortBuilder builder = new ScriptSortBuilder(ScriptInput.create(randomAsciiOfLengthBetween(5, 10)),
+        ScriptSortBuilder builder = new ScriptSortBuilder(ScriptInput.inline(randomAsciiOfLengthBetween(5, 10)),
                 type);
         if (randomBoolean()) {
                 builder.order(randomFrom(SortOrder.values()));
@@ -79,7 +81,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             ScriptInput script = original.script();
             ScriptSortType type = original.type();
             if (randomBoolean()) {
-                result = new ScriptSortBuilder(ScriptInput.create(script.lookup.getIdOrCode() + "_suffix"), type);
+                result = new ScriptSortBuilder(ScriptInput.inline(((InlineScriptLookup)script.lookup).code + "_suffix"), type);
             } else {
                 result = new ScriptSortBuilder(script, type.equals(ScriptSortType.NUMBER) ? ScriptSortType.STRING : ScriptSortType.NUMBER);
             }
@@ -181,10 +183,11 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
 
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(context, null);
-        assertEquals("doc['field_name'].value * factor", builder.script().lookup.getIdOrCode());
-        assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().lookup.getLang());
+        assertEquals(Script.ScriptType.INLINE, builder.script().type);
+        InlineScriptLookup lookup = (InlineScriptLookup)builder.script().lookup;
+        assertEquals("doc['field_name'].value * factor", lookup.code);
+        assertEquals(Script.DEFAULT_SCRIPT_LANG, lookup.lang);
         assertEquals(1.1, builder.script().params.get("factor"));
-        assertEquals(Script.ScriptType.INLINE, builder.script().lookup.getType());
         assertEquals(ScriptSortType.NUMBER, builder.type());
         assertEquals(SortOrder.ASC, builder.order());
         assertEquals(SortMode.MAX, builder.sortMode());
@@ -207,10 +210,11 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
 
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(context, null);
-        assertEquals("doc['field_name'].value", builder.script().lookup.getIdOrCode());
-        assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().lookup.getLang());
-        assertNull(builder.script().params);
-        assertEquals(Script.ScriptType.INLINE, builder.script().lookup.getType());
+        assertEquals(Script.ScriptType.INLINE, builder.script().type);
+        InlineScriptLookup lookup = (InlineScriptLookup)builder.script().lookup;
+        assertEquals("doc['field_name'].value", lookup.code);
+        assertEquals(Script.DEFAULT_SCRIPT_LANG, lookup.lang);
+        assertEquals(Collections.emptyMap(), builder.script().params);
         assertEquals(ScriptSortType.NUMBER, builder.type());
         assertEquals(SortOrder.ASC, builder.order());
         assertEquals(SortMode.MAX, builder.sortMode());
@@ -262,7 +266,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
      * script sort of type {@link ScriptSortType} does not work with {@link SortMode#AVG}, {@link SortMode#MEDIAN} or {@link SortMode#SUM}
      */
     public void testBadSortMode() throws IOException {
-        ScriptSortBuilder builder = new ScriptSortBuilder(ScriptInput.create("something"), ScriptSortType.STRING);
+        ScriptSortBuilder builder = new ScriptSortBuilder(ScriptInput.inline("something"), ScriptSortType.STRING);
         exceptionRule.expect(IllegalArgumentException.class);
         exceptionRule.expectMessage("script sort of type [string] doesn't support mode");
         builder.sortMode(SortMode.fromString(randomFrom(new String[]{"avg", "median", "sum"})));

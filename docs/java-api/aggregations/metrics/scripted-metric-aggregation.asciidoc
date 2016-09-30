@@ -30,7 +30,7 @@ MetricsAggregationBuilder aggregation =
         AggregationBuilders
                 .scriptedMetric("agg")
                 .initScript("_agg['heights'] = []")
-                .mapScript(ScriptInput.create("if (doc['gender'].value == \"male\") " +
+                .mapScript(ScriptInput.inline("if (doc['gender'].value == \"male\") " +
                         "{ _agg.heights.add(doc['height'].value) } " +
                         "else " +
                         "{ _agg.heights.add(-1 * doc['height'].value) }"));
@@ -43,12 +43,12 @@ You can also specify a `combine` script which will be executed on each shard:
 MetricsAggregationBuilder aggregation =
         AggregationBuilders
                 .scriptedMetric("agg")
-                .initScript(ScriptInput.create("_agg['heights'] = []"))
-                .mapScript(ScriptInput.create("if (doc['gender'].value == \"male\") " +
+                .initScript(ScriptInput.inline("_agg['heights'] = []"))
+                .mapScript(ScriptInput.inline("if (doc['gender'].value == \"male\") " +
                         "{ _agg.heights.add(doc['height'].value) } " +
                         "else " +
                         "{ _agg.heights.add(-1 * doc['height'].value) }"))
-                .combineScript(ScriptInput.create("heights_sum = 0; for (t in _agg.heights) { heights_sum += t }; return heights_sum"));
+                .combineScript(ScriptInput.inline("heights_sum = 0; for (t in _agg.heights) { heights_sum += t }; return heights_sum"));
 --------------------------------------------------
 
 You can also specify a `reduce` script which will be executed on the node which gets the request:
@@ -58,13 +58,13 @@ You can also specify a `reduce` script which will be executed on the node which 
 MetricsAggregationBuilder aggregation =
         AggregationBuilders
                 .scriptedMetric("agg")
-                .initScript(ScriptInput.create("_agg['heights'] = []"))
-                .mapScript(ScriptInput.create("if (doc['gender'].value == \"male\") " +
+                .initScript(ScriptInput.inline("_agg['heights'] = []"))
+                .mapScript(ScriptInput.inline("if (doc['gender'].value == \"male\") " +
                         "{ _agg.heights.add(doc['height'].value) } " +
                         "else " +
                         "{ _agg.heights.add(-1 * doc['height'].value) }"))
-                .combineScript(ScriptInput.create("heights_sum = 0; for (t in _agg.heights) { heights_sum += t }; return heights_sum"))
-                .reduceScript(ScriptInput.create("heights_sum = 0; for (a in _aggs) { heights_sum += a }; return heights_sum"));
+                .combineScript(ScriptInput.inline("heights_sum = 0; for (t in _agg.heights) { heights_sum += t }; return heights_sum"))
+                .reduceScript(ScriptInput.inline("heights_sum = 0; for (a in _aggs) { heights_sum += a }; return heights_sum"));
 --------------------------------------------------
 
 

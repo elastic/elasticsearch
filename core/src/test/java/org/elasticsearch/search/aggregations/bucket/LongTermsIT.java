@@ -442,7 +442,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", null, null)))
+                        .script(ScriptInput.inline(CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -495,7 +495,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value - 1", null, null)))
+                                .script(ScriptInput.inline(CustomScriptPlugin.NAME, "_value - 1", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -525,7 +525,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                         .field(MULTI_VALUED_FIELD_NAME)
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                                 .script(
-                                    ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "floor(_value / 1000 + 1)", null, null)))
+                                    ScriptInput.inline(CustomScriptPlugin.NAME, "floor(_value / 1000 + 1)", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -562,7 +562,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testScriptSingleValue() throws Exception {
         ScriptInput script =
-            ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", null, null);
+            ScriptInput.inline(CustomScriptPlugin.NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", Collections.emptyMap());
 
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
@@ -589,7 +589,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testScriptMultiValued() throws Exception {
         ScriptInput script =
-            ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "']", null, null);
+            ScriptInput.inline(CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "']", Collections.emptyMap());
 
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")

@@ -104,8 +104,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
 
     @Override
     protected TemplateQueryBuilder doCreateTestQueryBuilder() {
-        return new TemplateQueryBuilder(ScriptInput.create(
-            Script.ScriptType.INLINE, "mustache", templateBase.toString(), Collections.emptyMap(), null));
+        return new TemplateQueryBuilder(ScriptInput.inline("mustache", templateBase.toString(), Collections.emptyMap()));
     }
 
     @Override
@@ -168,7 +167,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
     @Override
     public void testMustRewrite() throws IOException {
         String query = "{ \"match_all\" : {}}";
-        QueryBuilder builder = new TemplateQueryBuilder(ScriptInput.create(Script.ScriptType.INLINE, "mockscript", query,
+        QueryBuilder builder = new TemplateQueryBuilder(ScriptInput.inline("mockscript", query,
             Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()), Collections.emptyMap()));
         try {
             builder.toQuery(createShardContext());
@@ -181,11 +180,11 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
 
     public void testRewriteWithInnerName() throws IOException {
         final String query = "{ \"match_all\" : {\"_name\" : \"foobar\"}}";
-        QueryBuilder builder = new TemplateQueryBuilder(ScriptInput.create(Script.ScriptType.INLINE, "mockscript", query,
+        QueryBuilder builder = new TemplateQueryBuilder(ScriptInput.inline("mockscript", query,
             Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()), Collections.emptyMap()));
         assertEquals(new MatchAllQueryBuilder().queryName("foobar"), builder.rewrite(createShardContext()));
 
-        builder = new TemplateQueryBuilder(ScriptInput.create(Script.ScriptType.INLINE, "mockscript", query,
+        builder = new TemplateQueryBuilder(ScriptInput.inline("mockscript", query,
             Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()),
             Collections.emptyMap())).queryName("outer");
         assertEquals(new BoolQueryBuilder().must(new MatchAllQueryBuilder().queryName("foobar")).queryName("outer"),
@@ -194,11 +193,11 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
 
     public void testRewriteWithInnerBoost() throws IOException {
         final TermQueryBuilder query = new TermQueryBuilder("foo", "bar").boost(2);
-        QueryBuilder builder = new TemplateQueryBuilder(ScriptInput.create(Script.ScriptType.INLINE, "mockscript", query.toString(),
+        QueryBuilder builder = new TemplateQueryBuilder(ScriptInput.inline("mockscript", query.toString(),
             Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()), Collections.emptyMap()));
         assertEquals(query, builder.rewrite(createShardContext()));
 
-        builder = new TemplateQueryBuilder(ScriptInput.create(Script.ScriptType.INLINE, "mockscript", query.toString(),
+        builder = new TemplateQueryBuilder(ScriptInput.inline( "mockscript", query.toString(),
             Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()), Collections.emptyMap())).boost(3);
         assertEquals(new BoolQueryBuilder().must(query).boost(3), builder.rewrite(createShardContext()));
     }

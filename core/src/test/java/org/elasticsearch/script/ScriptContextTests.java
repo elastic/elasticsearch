@@ -28,6 +28,7 @@ import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.script.Script.StoredScriptSource;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.Mock;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -69,8 +70,17 @@ public class ScriptContextTests extends ESTestCase {
         ScriptService scriptService = makeScriptService();
         for (ScriptType scriptType : Script.ScriptType.values()) {
             try {
-                ScriptInput script = ScriptInput.create(scriptType, MockScriptEngine.NAME, "1", null, null);
-                script.lookup.getCompiled(scriptService,
+                ScriptInput input;
+
+                if (scriptType == ScriptType.FILE) {
+                    input = ScriptInput.file("1");
+                } else if (scriptType == ScriptType.STORED) {
+                    input = ScriptInput.stored("1");
+                } else {
+                    input = ScriptInput.inline(MockScriptEngine.NAME, "1", Collections.emptyMap());
+                }
+
+                input.lookup.getCompiled(scriptService,
                     new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"), ExecutableScriptBinding.BINDING);
                 fail("script compilation should have been rejected");
             } catch (IllegalStateException e) {
@@ -81,7 +91,7 @@ public class ScriptContextTests extends ESTestCase {
 
     public void testCustomScriptContextSettings() throws Exception {
         ScriptService scriptService = makeScriptService();
-        ScriptInput script = ScriptInput.create(Script.ScriptType.INLINE, MockScriptEngine.NAME, "1", null, null);
+        ScriptInput script = ScriptInput.inline(MockScriptEngine.NAME, "1", Collections.emptyMap());
         try {
             script.lookup.getCompiled(scriptService, new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"), ExecutableScriptBinding.BINDING);
             fail("script compilation should have been rejected");
@@ -99,8 +109,17 @@ public class ScriptContextTests extends ESTestCase {
         ScriptService scriptService = makeScriptService();
         for (ScriptType scriptType : Script.ScriptType.values()) {
             try {
-                ScriptInput script = ScriptInput.create(scriptType, MockScriptEngine.NAME, "1", null, null);
-                script.lookup.getCompiled(scriptService, new ScriptContext.Plugin(PLUGIN_NAME, "unknown"), ExecutableScriptBinding.BINDING);
+                ScriptInput input;
+
+                if (scriptType == ScriptType.FILE) {
+                    input = ScriptInput.file("1");
+                } else if (scriptType == ScriptType.STORED) {
+                    input = ScriptInput.stored("1");
+                } else {
+                    input = ScriptInput.inline(MockScriptEngine.NAME, "1", Collections.emptyMap());
+                }
+
+                input.lookup.getCompiled(scriptService, new ScriptContext.Plugin(PLUGIN_NAME, "unknown"), ExecutableScriptBinding.BINDING);
                 fail("script compilation should have been rejected");
             } catch (IllegalArgumentException e) {
                 assertTrue(e.getMessage(), e.getMessage().contains("script context [" + PLUGIN_NAME + "_unknown] not supported"));
@@ -118,8 +137,17 @@ public class ScriptContextTests extends ESTestCase {
         ScriptService scriptService = makeScriptService();
         for (ScriptType scriptType : Script.ScriptType.values()) {
             try {
-                ScriptInput script = ScriptInput.create(scriptType, MockScriptEngine.NAME, "1", null, null);
-                script.lookup.getCompiled(scriptService, context, ExecutableScriptBinding.BINDING);
+                ScriptInput input;
+
+                if (scriptType == ScriptType.FILE) {
+                    input = ScriptInput.file("1");
+                } else if (scriptType == ScriptType.STORED) {
+                    input = ScriptInput.stored("1");
+                } else {
+                    input = ScriptInput.inline(MockScriptEngine.NAME, "1", Collections.emptyMap());
+                }
+
+                input.lookup.getCompiled(scriptService, context, ExecutableScriptBinding.BINDING);
                 fail("script compilation should have been rejected");
             } catch (IllegalArgumentException e) {
                 assertTrue(e.getMessage(), e.getMessage().contains("script context [test] not supported"));

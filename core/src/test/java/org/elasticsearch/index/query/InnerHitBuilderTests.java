@@ -374,9 +374,18 @@ public class InnerHitBuilderTests extends ESTestCase {
                 randomMap.put(String.valueOf(i), randomAsciiOfLength(16));
             }
         }
-        ScriptInput script = ScriptInput.create(randomScriptType,
-            randomScriptType == ScriptType.INLINE ? randomAsciiOfLengthBetween(1, 4) : null, randomAsciiOfLength(128), null, randomMap);
-        return new SearchSourceBuilder.ScriptField(randomAsciiOfLengthBetween(1, 32), script, randomBoolean());
+
+        ScriptInput input;
+
+        if (randomScriptType == ScriptType.FILE) {
+            input = ScriptInput.file(randomAsciiOfLengthBetween(1, 4), randomMap);
+        } else if (randomScriptType == ScriptType.STORED) {
+            input = ScriptInput.stored(randomAsciiOfLengthBetween(1, 4), randomMap);
+        } else {
+            input = ScriptInput.inline(randomAsciiOfLengthBetween(1, 4), randomAsciiOfLength(128), randomMap);
+        }
+
+        return new SearchSourceBuilder.ScriptField(randomAsciiOfLengthBetween(1, 32), input, randomBoolean());
     }
 
     static <T> List<T> randomListStuff(int maxSize, Supplier<T> valueSupplier) {

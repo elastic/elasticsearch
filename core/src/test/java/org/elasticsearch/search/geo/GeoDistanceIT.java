@@ -38,6 +38,7 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -117,7 +118,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         // Test doc['location'].arcDistance(lat, lon)
         SearchResponse searchResponse1 = client().prepareSearch().addStoredField("_source")
-                .addScriptField("distance", ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "arcDistance", null, null))
+                .addScriptField("distance", ScriptInput.inline(CustomScriptPlugin.NAME, "arcDistance", Collections.emptyMap()))
                 .get();
         Double resultDistance1 = searchResponse1.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance1,
@@ -126,7 +127,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         // Test doc['location'].planeDistance(lat, lon)
         SearchResponse searchResponse2 = client().prepareSearch().addStoredField("_source")
                 .addScriptField("distance",
-                    ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "planeDistance", null, null)).get();
+                    ScriptInput.inline(CustomScriptPlugin.NAME, "planeDistance", Collections.emptyMap())).get();
         Double resultDistance2 = searchResponse2.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance2,
                 closeTo(GeoUtils.planeDistance(src_lat, src_lon, tgt_lat, tgt_lon), 0.01d));
@@ -134,7 +135,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         // Test doc['location'].geohashDistance(lat, lon)
         SearchResponse searchResponse4 = client().prepareSearch().addStoredField("_source")
                 .addScriptField("distance",
-                    ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "geohashDistance", null, null)).get();
+                    ScriptInput.inline(CustomScriptPlugin.NAME, "geohashDistance", Collections.emptyMap())).get();
         Double resultDistance4 = searchResponse4.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance4,
                 closeTo(GeoUtils.arcDistance(src_lat, src_lon, GeoHashUtils.decodeLatitude(tgt_geohash),
@@ -143,7 +144,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         // Test doc['location'].arcDistance(lat, lon + 360)/1000d
         SearchResponse searchResponse5 = client().prepareSearch().addStoredField("_source")
                 .addScriptField("distance",
-                    ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "arcDistance(lat, lon + 360)/1000d", null, null)).get();
+                    ScriptInput.inline(CustomScriptPlugin.NAME, "arcDistance(lat, lon + 360)/1000d", Collections.emptyMap())).get();
         Double resultArcDistance5 = searchResponse5.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultArcDistance5,
                 closeTo(GeoUtils.arcDistance(src_lat, src_lon, tgt_lat, tgt_lon)/1000d, 0.01d));
@@ -151,7 +152,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         // Test doc['location'].arcDistance(lat + 360, lon)/1000d
         SearchResponse searchResponse6 = client().prepareSearch().addStoredField("_source")
                 .addScriptField("distance",
-                    ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "arcDistance(lat + 360, lon)/1000d", null, null)).get();
+                    ScriptInput.inline(CustomScriptPlugin.NAME, "arcDistance(lat + 360, lon)/1000d", Collections.emptyMap())).get();
         Double resultArcDistance6 = searchResponse6.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultArcDistance6,
                 closeTo(GeoUtils.arcDistance(src_lat, src_lon, tgt_lat, tgt_lon)/1000d, 0.01d));

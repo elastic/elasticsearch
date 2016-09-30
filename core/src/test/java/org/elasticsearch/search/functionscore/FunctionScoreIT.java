@@ -94,8 +94,8 @@ public class FunctionScoreIT extends ESIntegTestCase {
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
 
-        ScriptInput scriptOne = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "1", null, null);
-        ScriptInput scriptTwo = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", null, null);
+        ScriptInput scriptOne = ScriptInput.inline(CustomScriptPlugin.NAME, "1", Collections.emptyMap());
+        ScriptInput scriptTwo = ScriptInput.inline(CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
 
         SearchResponse response = client().search(
                 searchRequest().source(
@@ -118,7 +118,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
 
-        ScriptInput script = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", null, null);
+        ScriptInput script = ScriptInput.inline(CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
 
         SearchResponse response = client().search(
                 searchRequest().source(
@@ -146,7 +146,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
         refresh();
         ensureYellow();
 
-        ScriptInput script = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['random_score']", null, null);
+        ScriptInput script = ScriptInput.inline(CustomScriptPlugin.NAME, "doc['random_score']", Collections.emptyMap());
         SearchResponse searchResponse = client().search(
                 searchRequest().source(searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore)))
         ).actionGet();
@@ -178,7 +178,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
             docs.add(client().prepareIndex(INDEX, TYPE, Integer.toString(i)).setSource("num", i + scoreOffset));
         }
         indexRandom(true, docs);
-        ScriptInput script = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "return (doc['num'].value)", null, null);
+        ScriptInput script = ScriptInput.inline(CustomScriptPlugin.NAME, "return (doc['num'].value)", Collections.emptyMap());
         int numMatchingDocs = numDocs + scoreOffset - minScore;
         if (numMatchingDocs < 0) {
             numMatchingDocs = 0;

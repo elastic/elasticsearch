@@ -575,7 +575,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                                 .executionHint(randomExecutionHint())
                                 .field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "'foo_' + _value", null, null)))
+                                .script(ScriptInput.inline(CustomScriptPlugin.NAME, "'foo_' + _value", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -602,8 +602,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                                 .executionHint(randomExecutionHint())
                                 .field(MULTI_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(
-                                    ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value.substring(0,3)", null, null)))
+                                .script(ScriptInput.inline(CustomScriptPlugin.NAME, "_value.substring(0,3)", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -653,8 +652,8 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 .addAggregation(
                         terms("terms")
                             .executionHint(randomExecutionHint())
-                            .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME,
-                                "doc['" + MULTI_VALUED_FIELD_NAME + "']", null, null))
+                            .script(ScriptInput.inline(
+                                CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "']", Collections.emptyMap()))
                             .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .get();
 
@@ -686,7 +685,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                                 .executionHint(randomExecutionHint())
                                 .field(MULTI_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "'foo_' + _value", null, null)))
+                                .script(ScriptInput.inline(CustomScriptPlugin.NAME, "'foo_' + _value", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);
@@ -722,7 +721,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
     public void testScriptSingleValue() throws Exception {
         ScriptInput script =
-            ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", null, null);
+            ScriptInput.inline(CustomScriptPlugin.NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -751,7 +750,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
     public void testScriptSingleValueExplicitSingleValue() throws Exception {
         ScriptInput script =
-            ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", null, null);
+            ScriptInput.inline(CustomScriptPlugin.NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -786,8 +785,8 @@ public class StringTermsIT extends AbstractTermsTestCase {
                         terms("terms")
                             .collectMode(randomFrom(SubAggCollectionMode.values()))
                             .executionHint(randomExecutionHint())
-                            .script(ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME,
-                                "doc['" + MULTI_VALUED_FIELD_NAME + "']", null, null)))
+                            .script(ScriptInput.inline(
+                                CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "']", Collections.emptyMap())))
                 .get();
 
         assertSearchResponse(response);

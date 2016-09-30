@@ -87,8 +87,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         req.setQuery(QueryBuilders.matchAllQuery())
                 .addSort(SortBuilders.fieldSort("_uid")
                         .order(SortOrder.ASC))
-                .addScriptField("foo", ScriptInput.create(
-                    Script.ScriptType.INLINE, "expression", script, Collections.emptyMap(), paramsMap));
+                .addScriptField("foo", ScriptInput.inline("expression", script, paramsMap));
         return req;
     }
 
@@ -128,7 +127,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
                 client().prepareIndex("test", "doc", "2").setSource("text", "hello hello hello goodbye"),
                 client().prepareIndex("test", "doc", "3").setSource("text", "hello hello goodebye"));
         ScoreFunctionBuilder<?> score = ScoreFunctionBuilders.scriptFunction(
-            ScriptInput.create(Script.ScriptType.INLINE, "expression", "1 / _score", Collections.emptyMap(), null));
+            ScriptInput.inline("expression", "1 / _score", Collections.emptyMap()));
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("text", "hello"), score).boostMode(CombineFunction.REPLACE));
         req.setSearchType(SearchType.DFS_QUERY_THEN_FETCH); // make sure DF is consistent
@@ -433,16 +432,13 @@ public class MoreExpressionTests extends ESIntegTestCase {
         req.setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(
                         AggregationBuilders.stats("int_agg").field("x")
-                                .script(ScriptInput.create(Script.ScriptType.INLINE, ExpressionScriptEngineService.NAME,
-                                    "_value * 3", Collections.emptyMap(), null)))
+                                .script(ScriptInput.inline(ExpressionScriptEngineService.NAME, "_value * 3", Collections.emptyMap())))
                 .addAggregation(
                         AggregationBuilders.stats("double_agg").field("y")
-                                .script(ScriptInput.create( Script.ScriptType.INLINE, ExpressionScriptEngineService.NAME,
-                                    "_value - 1.1", Collections.emptyMap(), null)))
+                                .script(ScriptInput.inline(ExpressionScriptEngineService.NAME, "_value - 1.1", Collections.emptyMap())))
                 .addAggregation(
                         AggregationBuilders.stats("const_agg").field("x") // specifically to test a script w/o _value
-                                .script(ScriptInput.create(Script.ScriptType.INLINE, ExpressionScriptEngineService.NAME,
-                                    "3.0", Collections.emptyMap(), null))
+                                .script(ScriptInput.inline(ExpressionScriptEngineService.NAME, "3.0", Collections.emptyMap()))
                 );
 
         SearchResponse rsp = req.get();
@@ -476,8 +472,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         req.setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(
                         AggregationBuilders.terms("term_agg").field("text")
-                                .script(ScriptInput.create(Script.ScriptType.INLINE, ExpressionScriptEngineService.NAME,
-                                    "_value", Collections.emptyMap(), null)));
+                                .script(ScriptInput.inline(ExpressionScriptEngineService.NAME, "_value", Collections.emptyMap())));
 
         String message;
         try {
@@ -567,8 +562,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
             UpdateRequestBuilder urb = client().prepareUpdate().setIndex("test_index");
             urb.setType("doc");
             urb.setId("1");
-            urb.setScript(ScriptInput.create(
-                Script.ScriptType.INLINE, ExpressionScriptEngineService.NAME, "0", Collections.emptyMap(), null));
+            urb.setScript(ScriptInput.inline(ExpressionScriptEngineService.NAME, "0", Collections.emptyMap()));
             urb.get();
             fail("Expression scripts should not be allowed to run as update scripts.");
         } catch (Exception e) {
@@ -599,8 +593,8 @@ public class MoreExpressionTests extends ESIntegTestCase {
                                 .subAggregation(sum("threeSum").field("three"))
                                 .subAggregation(sum("fourSum").field("four"))
                                 .subAggregation(bucketScript("totalSum",
-                                    ScriptInput.create(Script.ScriptType.INLINE, ExpressionScriptEngineService.NAME,
-                                        "_value0 + _value1 + _value2", Collections.emptyMap(), null),
+                                    ScriptInput.inline(
+                                        ExpressionScriptEngineService.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
                                     "twoSum", "threeSum", "fourSum")))
                 .execute().actionGet();
 

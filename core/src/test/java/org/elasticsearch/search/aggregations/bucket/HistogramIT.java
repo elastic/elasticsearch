@@ -561,8 +561,7 @@ public class HistogramIT extends ESIntegTestCase {
                 .addAggregation(
                         histogram("histo")
                                 .field(SINGLE_VALUED_FIELD_NAME)
-                                .script(ScriptInput.create(
-                                    Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", null, emptyMap()))
+                                .script(ScriptInput.inline(CustomScriptPlugin.NAME, "_value + 1", emptyMap()))
                                 .interval(interval))
                 .execute().actionGet();
 
@@ -639,8 +638,7 @@ public class HistogramIT extends ESIntegTestCase {
                 .addAggregation(
                         histogram("histo")
                                 .field(MULTI_VALUED_FIELD_NAME)
-                                .script(ScriptInput.create(
-                                    Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", null, emptyMap()))
+                                .script(ScriptInput.inline(CustomScriptPlugin.NAME, "_value + 1", emptyMap()))
                                 .interval(interval))
                 .execute().actionGet();
 
@@ -676,8 +674,7 @@ public class HistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
                         histogram("histo")
-                            .script(ScriptInput.create(
-                                Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['l_value'].value", null, emptyMap()))
+                            .script(ScriptInput.inline(CustomScriptPlugin.NAME, "doc['l_value'].value", emptyMap()))
                             .interval(interval))
                 .execute().actionGet();
 
@@ -701,8 +698,7 @@ public class HistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
                         histogram("histo")
-                                .script(ScriptInput.create(
-                                    Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['l_values']", null, emptyMap()))
+                                .script(ScriptInput.inline(CustomScriptPlugin.NAME, "doc['l_values']", emptyMap()))
                                 .interval(interval))
                 .execute().actionGet();
 

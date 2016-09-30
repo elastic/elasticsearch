@@ -183,7 +183,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         // STRING script
         int size = 1 + random.nextInt(10);
 
-        ScriptInput script = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['str_value'].value", null, null);
+        ScriptInput script = ScriptInput.inline(CustomScriptPlugin.NAME, "doc['str_value'].value", Collections.emptyMap());
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -275,7 +275,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         // test the long values
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "get min long", null, null))
+                .addScriptField("min", ScriptInput.inline(CustomScriptPlugin.NAME, "get min long", Collections.emptyMap()))
                 .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long"))
                 .setSize(10)
                 .get();
@@ -291,7 +291,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         // test the double values
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "get min double", null, null))
+                .addScriptField("min", ScriptInput.inline(CustomScriptPlugin.NAME, "get min double", Collections.emptyMap()))
                 .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long"))
                 .setSize(10)
                 .get();
@@ -307,7 +307,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         // test the string values
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "get min string", null, null))
+                .addScriptField("min", ScriptInput.inline(CustomScriptPlugin.NAME, "get min string", Collections.emptyMap()))
                 .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long"))
                 .setSize(10)
                 .get();
@@ -323,7 +323,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         // test the geopoint values
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "get min geopoint lon", null, null))
+                .addScriptField("min", ScriptInput.inline(CustomScriptPlugin.NAME, "get min geopoint lon", Collections.emptyMap()))
                 .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long"))
                 .setSize(10)
                 .get();
@@ -381,7 +381,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         flush();
         refresh();
 
-        ScriptInput scripField = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['id'].value", null, null);
+        ScriptInput scripField = ScriptInput.inline(CustomScriptPlugin.NAME, "doc['id'].value", Collections.emptyMap());
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -398,7 +398,7 @@ public class SimpleSortIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("id", ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['id'].values[0]", null, null))
+                .addScriptField("id", ScriptInput.inline(CustomScriptPlugin.NAME, "doc['id'].values[0]", Collections.emptyMap()))
                 .addSort("svalue", SortOrder.ASC)
                 .get();
 
@@ -466,7 +466,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         }
         refresh();
 
-        ScriptInput sortScript = ScriptInput.create(ScriptType.INLINE, CustomScriptPlugin.NAME, "\u0027\u0027", null, null);
+        ScriptInput sortScript = ScriptInput.inline(CustomScriptPlugin.NAME, "\u0027\u0027", Collections.emptyMap());
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(scriptSort(sortScript, ScriptSortType.STRING))

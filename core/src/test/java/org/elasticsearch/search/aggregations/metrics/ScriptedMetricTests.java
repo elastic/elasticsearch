@@ -25,6 +25,7 @@ import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricAggregationBuilder;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -53,10 +54,17 @@ public class ScriptedMetricTests extends BaseAggregationTestCase<ScriptedMetricA
 
     private ScriptInput randomScript(String script) {
         if (randomBoolean()) {
-            return ScriptInput.create(script);
+            return ScriptInput.inline(script);
         } else {
             ScriptType type = randomFrom(Script.ScriptType.values());
-            return ScriptInput.create(type, type == ScriptType.INLINE ? randomFrom("my_lang", null) : null, script, null, null);
+
+            if (type == ScriptType.FILE) {
+                return ScriptInput.inline(randomFrom("my_lang", Script.DEFAULT_SCRIPT_LANG), script, Collections.emptyMap());
+            } else if (type == ScriptType.STORED) {
+                return ScriptInput.stored(script);
+            } else {
+                return ScriptInput.file(script);
+            }
         }
     }
 

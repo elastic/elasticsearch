@@ -121,8 +121,7 @@ public class DateRangeIT extends ESIntegTestCase {
         if (randomBoolean()) {
             rangeBuilder.field("date");
         } else {
-            rangeBuilder.script(ScriptInput.create(
-                Script.ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME, null, params));
+            rangeBuilder.script(ScriptInput.inline("native", DateScriptMocks.ExtractFieldScript.NAME, params));
         }
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -544,8 +543,7 @@ public class DateRangeIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
                         .field("dates")
-                                .script(ScriptInput.create(
-                                    Script.ScriptType.INLINE, "native", DateScriptMocks.PlusOneMonthScript.NAME, null, params))
+                                .script(ScriptInput.inline("native", DateScriptMocks.PlusOneMonthScript.NAME, params))
                                 .addUnboundedTo(date(2, 15)).addRange(date(2, 15), date(3, 15)).addUnboundedFrom(date(3, 15))).execute()
                 .actionGet();
 
@@ -601,8 +599,7 @@ public class DateRangeIT extends ESIntegTestCase {
         params.put("fieldname", "date");
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateRange("range")
-                        .script(ScriptInput.create(
-                            Script.ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME, null, params))
+                        .script(ScriptInput.inline("native", DateScriptMocks.ExtractFieldScript.NAME, params))
                         .addUnboundedTo(date(2, 15))
                         .addRange(date(2, 15), date(3, 15))
                         .addUnboundedFrom(date(3, 15)))
@@ -664,8 +661,7 @@ public class DateRangeIT extends ESIntegTestCase {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        dateRange("range").script(ScriptInput.create(
-                            Script.ScriptType.INLINE, "native", DateScriptMocks.ExtractFieldScript.NAME, null, params))
+                        dateRange("range").script(ScriptInput.inline("native", DateScriptMocks.ExtractFieldScript.NAME, params))
                         .addUnboundedTo(date(2, 15)).addRange(date(2, 15), date(3, 15))
                         .addUnboundedFrom(date(3, 15))).execute().actionGet();
 

@@ -90,9 +90,9 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
             int scriptFieldsSize = randomInt(25);
             for (int i = 0; i < scriptFieldsSize; i++) {
                 if (randomBoolean()) {
-                    factory.scriptField(randomAsciiOfLengthBetween(5, 50), ScriptInput.create("foo"), randomBoolean());
+                    factory.scriptField(randomAsciiOfLengthBetween(5, 50), ScriptInput.inline("foo"), randomBoolean());
                 } else {
-                    factory.scriptField(randomAsciiOfLengthBetween(5, 50), ScriptInput.create("foo"));
+                    factory.scriptField(randomAsciiOfLengthBetween(5, 50), ScriptInput.inline("foo"));
                 }
             }
         }
@@ -147,7 +147,7 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
                     factory.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
                     break;
                 case 3:
-                    factory.sort(SortBuilders.scriptSort(ScriptInput.create("foo"),
+                    factory.sort(SortBuilders.scriptSort(ScriptInput.inline("foo"),
                         ScriptSortType.NUMBER).order(randomFrom(SortOrder.values())));
                     break;
                 case 4:

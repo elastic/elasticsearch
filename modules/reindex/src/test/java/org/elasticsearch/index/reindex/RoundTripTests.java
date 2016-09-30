@@ -38,6 +38,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -202,15 +203,14 @@ public class RoundTripTests extends ESTestCase {
 
     private ScriptInput randomScript() {
         ScriptType type = randomFrom(ScriptType.values());
-        String lang = type == ScriptType.INLINE ? randomSimpleString(random()) : null;
-        String idOrCode = randomSimpleString(random());
 
-        return ScriptInput.create(
-                type, // Type
-                lang, // Language
-                idOrCode, // Id or Code
-                emptyMap(), // Options
-                emptyMap()); // Params
+        if (type == ScriptType.FILE) {
+            return ScriptInput.file(randomSimpleString(random()));
+        } else if (type == ScriptType.STORED) {
+            return ScriptInput.stored(randomSimpleString(random()));
+        } else {
+            return ScriptInput.inline(randomSimpleString(random()), randomSimpleString(random()), Collections.emptyMap());
+        }
     }
 
     private void assertResponseEquals(BulkIndexByScrollResponse expected, BulkIndexByScrollResponse actual) {

@@ -110,7 +110,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
 
         // Update-becomes-delete with RefreshPolicy.WAIT_UNTIL
         update = client().prepareUpdate("test", "test", "2")
-            .setScript(ScriptInput.create(Script.ScriptType.INLINE, "native", "delete_plz", null, emptyMap()))
+            .setScript(ScriptInput.inline("native", "delete_plz", emptyMap()))
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
         assertEquals(2, update.getVersion());
         assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());

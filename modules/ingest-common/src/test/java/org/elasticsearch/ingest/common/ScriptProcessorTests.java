@@ -49,7 +49,7 @@ public class ScriptProcessorTests extends ESTestCase {
         int randomBytesTotal = randomBytesIn + randomBytesOut;
 
         ScriptService scriptService = mock(ScriptService.class);
-        ScriptInput script = ScriptInput.create("_script");
+        ScriptInput script = ScriptInput.inline("_script");
         ExecutableScript executableScript = mock(ExecutableScript.class);
         when(ExecutableScriptBinding.bind(scriptService, any(), any(), any())).thenReturn(executableScript);
 

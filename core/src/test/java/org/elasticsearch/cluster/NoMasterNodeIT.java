@@ -117,12 +117,12 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         checkWriteAction(
                 false, timeout,
                 client().prepareUpdate("test", "type1", "1")
-                        .setScript(ScriptInput.create(Script.ScriptType.INLINE, null, "test script", null, null)).setTimeout(timeout));
+                        .setScript(ScriptInput.inline("test script")).setTimeout(timeout));
 
         checkWriteAction(
                 autoCreateIndex, timeout,
                 client().prepareUpdate("no_index", "type1", "1")
-                        .setScript(ScriptInput.create(Script.ScriptType.INLINE, null, "test script", null, null)).setTimeout(timeout));
+                        .setScript(ScriptInput.inline("test script")).setTimeout(timeout));
 
 
         checkWriteAction(false, timeout,

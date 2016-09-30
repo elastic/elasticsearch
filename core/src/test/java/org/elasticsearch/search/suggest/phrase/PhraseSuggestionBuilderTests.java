@@ -20,7 +20,11 @@
 package org.elasticsearch.search.suggest.phrase;
 
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.Script.FileScriptLookup;
+import org.elasticsearch.script.Script.InlineScriptLookup;
 import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.Script.ScriptType;
+import org.elasticsearch.script.Script.StoredScriptLookup;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 
 import java.io.IOException;
@@ -112,7 +116,11 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         case 6:
             ScriptInput collateQuery = builder.collateQuery();
             if (collateQuery != null) {
-                builder.collateQuery(randomValueOtherThan(collateQuery.lookup.getIdOrCode(), () -> randomAsciiOfLengthBetween(3, 20)));
+                String otherThan = collateQuery.type == ScriptType.FILE ? ((FileScriptLookup)collateQuery.lookup).id :
+                    collateQuery.type == ScriptType.STORED ? ((StoredScriptLookup)collateQuery.lookup).id :
+                        ((InlineScriptLookup)collateQuery.lookup).code;
+
+                builder.collateQuery(randomValueOtherThan(otherThan, () -> randomAsciiOfLengthBetween(3, 20)));
             } else {
                 builder.collateQuery(randomAsciiOfLengthBetween(3, 20));
             }

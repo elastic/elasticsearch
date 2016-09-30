@@ -27,6 +27,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.Script.StoredScriptSource;
+import org.elasticsearch.script.Script.UnknownScriptBinding;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
@@ -176,8 +177,8 @@ public class BucketSelectorIT extends ESIntegTestCase {
     }
 
     public void testInlineScript() {
-        ScriptInput script = ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME,
-            "Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)", null, null);
+        ScriptInput script = ScriptInput.inline(
+            CustomScriptPlugin.NAME, "Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)", Collections.emptyMap());
 
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(FIELD_1_NAME).interval(interval)
@@ -205,8 +206,8 @@ public class BucketSelectorIT extends ESIntegTestCase {
     }
 
     public void testInlineScriptNoBucketsPruned() {
-        ScriptInput script = ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME,
-            "Double.isNaN(_value0) ? true : (_value0 < 10000)", null, null);
+        ScriptInput script = ScriptInput.inline(
+            CustomScriptPlugin.NAME, "Double.isNaN(_value0) ? true : (_value0 < 10000)", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -239,8 +240,8 @@ public class BucketSelectorIT extends ESIntegTestCase {
     }
 
     public void testInlineScriptNoBucketsLeft() {
-        ScriptInput script = ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME,
-            "Double.isNaN(_value0) ? false : (_value0 > 10000)", null, null);
+        ScriptInput script = ScriptInput.inline(
+            CustomScriptPlugin.NAME, "Double.isNaN(_value0) ? false : (_value0 > 10000)", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -263,8 +264,8 @@ public class BucketSelectorIT extends ESIntegTestCase {
     }
 
     public void testInlineScript2() {
-        ScriptInput script = ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME,
-            "Double.isNaN(_value0) ? false : (_value0 < _value1)", null, null);
+        ScriptInput script = ScriptInput.inline(
+            CustomScriptPlugin.NAME, "Double.isNaN(_value0) ? false : (_value0 < _value1)", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -297,8 +298,8 @@ public class BucketSelectorIT extends ESIntegTestCase {
     }
 
     public void testInlineScriptSingleVariable() {
-        ScriptInput script = ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME,
-            "Double.isNaN(_value0) ? false : (_value0 > 100)", null, null);
+        ScriptInput script =
+            ScriptInput.inline(CustomScriptPlugin.NAME, "Double.isNaN(_value0) ? false : (_value0 > 100)", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -327,8 +328,8 @@ public class BucketSelectorIT extends ESIntegTestCase {
     }
 
     public void testInlineScriptNamedVars() {
-        ScriptInput script = ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME,
-            "Double.isNaN(my_value1) ? false : (my_value1 + my_value2 > 100)", null, null);
+        ScriptInput script = ScriptInput.inline(
+            CustomScriptPlugin.NAME, "Double.isNaN(my_value1) ? false : (my_value1 + my_value2 > 100)", Collections.emptyMap());
 
         Map<String, String> bucketPathsMap = new HashMap<>();
         bucketPathsMap.put("my_value1", "field2Sum");
@@ -364,8 +365,8 @@ public class BucketSelectorIT extends ESIntegTestCase {
     }
 
     public void testInlineScriptWithParams() {
-        ScriptInput script = ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME,
-            "Double.isNaN(_value0) ? false : (_value0 + _value1 > threshold)", null, Collections.singletonMap("threshold", 100));
+        ScriptInput script = ScriptInput.inline(CustomScriptPlugin.NAME,
+            "Double.isNaN(_value0) ? false : (_value0 + _value1 > threshold)", Collections.singletonMap("threshold", 100));
 
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
@@ -397,7 +398,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
     }
 
     public void testInlineScriptInsertZeros() {
-        ScriptInput script = ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME, "_value0 + _value1 > 100", null, null);
+        ScriptInput script = ScriptInput.inline(CustomScriptPlugin.NAME, "_value0 + _value1 > 100", Collections.emptyMap());
 
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
@@ -433,10 +434,10 @@ public class BucketSelectorIT extends ESIntegTestCase {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("my_script")
                 // Source is not interpreted but my_script is defined in CustomScriptPlugin
-                .setSource(new StoredScriptSource(false, null, CustomScriptPlugin.NAME,
+                .setSource(new StoredScriptSource(false, UnknownScriptBinding.NAME, CustomScriptPlugin.NAME,
                     "Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)", Collections.emptyMap())));
 
-        ScriptInput script = ScriptInput.create(Script.ScriptType.STORED, CustomScriptPlugin.NAME, "my_script", null, null);
+        ScriptInput script = ScriptInput.stored("my_script");
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -469,8 +470,8 @@ public class BucketSelectorIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        ScriptInput script = ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME,
-            "Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)", null, null);
+        ScriptInput script = ScriptInput.inline(CustomScriptPlugin.NAME,
+            "Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)", Collections.emptyMap());
 
         SearchResponse response = client().prepareSearch("idx_unmapped")
                 .addAggregation(
@@ -491,8 +492,8 @@ public class BucketSelectorIT extends ESIntegTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        ScriptInput script = ScriptInput.create(Script.ScriptType.INLINE, CustomScriptPlugin.NAME,
-            "Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)", null, null);
+        ScriptInput script = ScriptInput.inline(
+            CustomScriptPlugin.NAME, "Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)", Collections.emptyMap());
 
         SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
                 .addAggregation(

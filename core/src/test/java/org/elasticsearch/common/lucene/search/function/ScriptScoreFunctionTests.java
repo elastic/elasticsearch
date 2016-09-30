@@ -36,7 +36,7 @@ public class ScriptScoreFunctionTests extends ESTestCase {
      */
     public void testScriptScoresReturnsNaN() throws IOException {
         // script that always returns NaN
-        ScoreFunction scoreFunction = new ScriptScoreFunction(ScriptInput.create("Double.NaN"), new SearchScript() {
+        ScoreFunction scoreFunction = new ScriptScoreFunction(ScriptInput.inline("Double.NaN"), new SearchScript() {
             @Override
             public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
                 return new AbstractDoubleSearchScript() {

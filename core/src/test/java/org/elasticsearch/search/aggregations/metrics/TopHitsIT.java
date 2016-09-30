@@ -582,7 +582,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                             .explain(true)
                                             .storedField("text")
                                             .fieldDataField("field1")
-                                            .scriptField("script", ScriptInput.create(Script.ScriptType.INLINE, MockScriptEngine.NAME, "5", null, Collections.emptyMap()))
+                                            .scriptField("script", ScriptInput.inline(MockScriptEngine.NAME, "5", Collections.emptyMap()))
                                             .fetchSource("text", null)
                                             .version(true)
                                 )
@@ -864,7 +864,7 @@ public class TopHitsIT extends ESIntegTestCase {
                         nested("to-comments", "comments").subAggregation(
                                 topHits("top-comments").size(1).highlighter(new HighlightBuilder().field(hlField)).explain(true)
                                                 .fieldDataField("comments.user")
-                                        .scriptField("script", ScriptInput.create(Script.ScriptType.INLINE, MockScriptEngine.NAME, "5", null, Collections.emptyMap())).fetchSource("comments.message", null)
+                                        .scriptField("script", ScriptInput.inline(MockScriptEngine.NAME, "5", Collections.emptyMap())).fetchSource("comments.message", null)
                                         .version(true).sort("comments.date", SortOrder.ASC))).get();
         assertHitCount(searchResponse, 2);
         Nested nested = searchResponse.getAggregations().get("to-comments");

@@ -62,10 +62,10 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
             break;
         case 1:
             factory.field(field);
-            factory.script(ScriptInput.create("_value + 1"));
+            factory.script(ScriptInput.inline("_value + 1"));
             break;
         case 2:
-            factory.script(ScriptInput.create("doc[" + field + "] + 1"));
+            factory.script(ScriptInput.inline("doc[" + field + "] + 1"));
             break;
         default:
             fail();
@@ -180,7 +180,7 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
                 significanceHeuristic = new MutualInformation(randomBoolean(), randomBoolean());
                 break;
             case 4:
-                significanceHeuristic = new ScriptHeuristic(ScriptInput.create("foo"));
+                significanceHeuristic = new ScriptHeuristic(ScriptInput.inline("foo"));
                 break;
             case 5:
                 significanceHeuristic = new JLHScore();

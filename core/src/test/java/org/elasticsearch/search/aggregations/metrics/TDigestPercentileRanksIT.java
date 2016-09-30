@@ -239,8 +239,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         randomCompression(
                                 percentileRanks("percentile_ranks"))
                                 .field("value")
-                                .script(ScriptInput.create(
-                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", null, emptyMap()))
+                                .script(ScriptInput.inline( AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap()))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -261,8 +260,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         randomCompression(
                                 percentileRanks("percentile_ranks"))
                                 .field("value")
-                                .script(ScriptInput.create(
-                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", null, params))
+                                .script(ScriptInput.inline(AggregationTestScriptsPlugin.NAME, "_value - dec", params))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -297,8 +295,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         randomCompression(
                                 percentileRanks("percentile_ranks"))
                                 .field("values")
-                                .script(ScriptInput.create(
-                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", null, emptyMap()))
+                                .script(ScriptInput.inline(AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap()))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -316,8 +313,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         randomCompression(
                                 percentileRanks("percentile_ranks"))
                                 .field("values")
-                                .script(ScriptInput.create(
-                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value * -1", null, emptyMap()))
+                                .script(ScriptInput.inline(AggregationTestScriptsPlugin.NAME, "_value * -1", emptyMap()))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -338,8 +334,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                         randomCompression(
                                 percentileRanks("percentile_ranks"))
                                 .field("values")
-                                .script(ScriptInput.create(
-                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", null, params))
+                                .script(ScriptInput.inline(AggregationTestScriptsPlugin.NAME, "_value - dec", params))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -357,8 +352,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                 .addAggregation(
                         randomCompression(
                                 percentileRanks("percentile_ranks"))
-                                .script(ScriptInput.create(
-                                    Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value", null, emptyMap()))
+                                .script(ScriptInput.inline(AggregationTestScriptsPlugin.NAME, "doc['value'].value", emptyMap()))
                                 .values(pcts))
                 .execute().actionGet();
 
@@ -373,8 +367,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
 
-        ScriptInput script = ScriptInput.create(
-            Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value - dec", null, params);
+        ScriptInput script = ScriptInput.inline( AggregationTestScriptsPlugin.NAME, "doc['value'].value - dec", params);
 
         final double[] pcts = randomPercents(minValue - 1, maxValue - 1);
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -395,8 +388,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
     @Override
     public void testScriptMultiValued() throws Exception {
         final double[] pcts = randomPercents(minValues, maxValues);
-        ScriptInput script = ScriptInput.create(
-            Script.ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values'].values", null, emptyMap());
+        ScriptInput script = ScriptInput.inline(AggregationTestScriptsPlugin.NAME, "doc['values'].values", emptyMap());
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(

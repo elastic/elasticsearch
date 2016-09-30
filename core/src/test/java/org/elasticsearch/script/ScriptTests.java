@@ -88,9 +88,16 @@ public class ScriptTests extends ESTestCase {
             options.put(Script.CONTENT_TYPE_OPTION, xContent.type().mediaType());
         }
 
-        return ScriptInput.create(
-            scriptType, scriptType == ScriptType.INLINE ? randomFrom("_lang1", "_lang2", null) : null, script, options, params);
+        ScriptInput input;
+
+        if (scriptType == ScriptType.FILE) {
+            input = ScriptInput.file(script, params);
+        } else if (scriptType == ScriptType.STORED) {
+            input = ScriptInput.stored(script, params);
+        } else {
+            input = ScriptInput.inline(randomFrom("_lang1", "_lang2", Script.DEFAULT_SCRIPT_LANG), script, options, params);
+        }
+
+        return input;
     }
-
-
 }

@@ -6,7 +6,7 @@ See {ref}/query-dsl-script-query.html[Script Query]
 [source,java]
 --------------------------------------------------
 QueryBuilder qb = scriptQuery(
-    ScriptInput.create("doc['num1'].value > 1") <1>
+    ScriptInput.inline("doc['num1'].value > 1") <1>
 );
 --------------------------------------------------
 <1> inlined script
@@ -24,16 +24,12 @@ You can use it then with:
 [source,java]
 --------------------------------------------------
 QueryBuilder qb = scriptQuery(
-    ScriptInput.create(
-        ScriptType.FILE,                     <1>
-        null                                 <2>
-        "myscript",                          <3>
-        null,                                <4>
-        ImmutableMap.of("param1", 5))        <5>
+    ScriptInput.inline(
+        null                                 <1>
+        "my_script_code",                    <2>
+        ImmutableMap.of("param1", 5))        <3>
 );
 --------------------------------------------------
-<1> Script type: either `ScriptType.FILE`, `ScriptType.INLINE` or `ScriptType.INDEXED`
-<2> Script lang: only used for ScriptType.INLINE, otherwise null as the lang is already specified
-<3> Script name: or script code for ScriptType.INLINE
-<4> Compiler options: currently only used to describe template content type
-<5> Parameters as a `Map` of `<String, Object>`
+<1> Script lang: language the script will be compiled in, null for default (painless)
+<2> Script code: the code to compile
+<3> Parameters as a `Map` of `<String, Object>`

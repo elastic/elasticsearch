@@ -66,7 +66,6 @@ final class BootstrapCheck {
     static void check(final Settings settings, final BoundTransportAddress boundTransportAddress) throws NodeValidationException {
         check(
                 enforceLimits(boundTransportAddress),
-                BootstrapSettings.IGNORE_SYSTEM_BOOTSTRAP_CHECKS.get(settings),
                 checks(settings),
                 Node.NODE_NAME_SETTING.get(settings));
     }
@@ -77,18 +76,15 @@ final class BootstrapCheck {
      *
      * @param enforceLimits      true if the checks should be enforced or
      *                           otherwise warned
-     * @param ignoreSystemChecks true if system checks should be enforced
-     *                           or otherwise warned
      * @param checks             the checks to execute
      * @param nodeName           the node name to be used as a logging prefix
      */
     // visible for testing
     static void check(
         final boolean enforceLimits,
-        final boolean ignoreSystemChecks,
         final List<Check> checks,
         final String nodeName) throws NodeValidationException {
-        check(enforceLimits, ignoreSystemChecks, checks, Loggers.getLogger(BootstrapCheck.class, nodeName));
+        check(enforceLimits, checks, Loggers.getLogger(BootstrapCheck.class, nodeName));
     }
 
     /**
@@ -97,14 +93,11 @@ final class BootstrapCheck {
      *
      * @param enforceLimits      true if the checks should be enforced or
      *                           otherwise warned
-     * @param ignoreSystemChecks true if system checks should be enforced
-     *                           or otherwise warned
      * @param checks             the checks to execute
      * @param logger             the logger to
      */
     static void check(
             final boolean enforceLimits,
-            final boolean ignoreSystemChecks,
             final List<Check> checks,
             final Logger logger) throws NodeValidationException {
         final List<String> errors = new ArrayList<>();
@@ -113,13 +106,10 @@ final class BootstrapCheck {
         if (enforceLimits) {
             logger.info("bound or publishing to a non-loopback or non-link-local address, enforcing bootstrap checks");
         }
-        if (enforceLimits && ignoreSystemChecks) {
-            logger.warn("enforcing bootstrap checks but ignoring system bootstrap checks, consider not ignoring system checks");
-        }
 
         for (final Check check : checks) {
             if (check.check()) {
-                if ((!enforceLimits || (check.isSystemCheck() && ignoreSystemChecks)) && !check.alwaysEnforce()) {
+                if (!enforceLimits && !check.alwaysEnforce()) {
                     ignoredErrors.add(check.errorMessage());
                 } else {
                     errors.add(check.errorMessage());
@@ -201,14 +191,6 @@ final class BootstrapCheck {
          */
         String errorMessage();
 
-        /**
-         * test if the check is a system-level check
-         *
-         * @return true if the check is a system-level check as opposed
-         * to an Elasticsearch-level check
-         */
-        boolean isSystemCheck();
-
         default boolean alwaysEnforce() {
             return false;
         }
@@ -243,11 +225,6 @@ final class BootstrapCheck {
         // visible for testing
         long getMaxHeapSize() {
             return JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
-        }
-
-        @Override
-        public final boolean isSystemCheck() {
-            return false;
         }
 
     }
@@ -299,11 +276,6 @@ final class BootstrapCheck {
             return ProcessProbe.getInstance().getMaxFileDescriptorCount();
         }
 
-        @Override
-        public final boolean isSystemCheck() {
-            return true;
-        }
-
     }
 
     static class MlockallCheck implements Check {
@@ -327,11 +299,6 @@ final class BootstrapCheck {
         // visible for testing
         boolean isMemoryLocked() {
             return Natives.isMemoryLocked();
-        }
-
-        @Override
-        public final boolean isSystemCheck() {
-            return true;
         }
 
     }
@@ -360,11 +327,6 @@ final class BootstrapCheck {
             return JNANatives.MAX_NUMBER_OF_THREADS;
         }
 
-        @Override
-        public final boolean isSystemCheck() {
-            return true;
-        }
-
     }
 
     static class MaxSizeVirtualMemoryCheck implements Check {
@@ -391,11 +353,6 @@ final class BootstrapCheck {
         // visible for testing
         long getMaxSizeVirtualMemory() {
             return JNANatives.MAX_SIZE_VIRTUAL_MEMORY;
-        }
-
-        @Override
-        public final boolean isSystemCheck() {
-            return true;
         }
 
     }
@@ -465,11 +422,6 @@ final class BootstrapCheck {
             return Long.parseLong(procSysVmMaxMapCount);
         }
 
-        @Override
-        public final boolean isSystemCheck() {
-            return true;
-        }
-
     }
 
     static class ClientJvmCheck implements BootstrapCheck.Check {
@@ -490,11 +442,6 @@ final class BootstrapCheck {
                     Locale.ROOT,
                     "JVM is using the client VM [%s] but should be using a server VM for the best performance",
                     getVmName());
-        }
-
-        @Override
-        public final boolean isSystemCheck() {
-            return false;
         }
 
     }
@@ -524,11 +471,6 @@ final class BootstrapCheck {
                 JvmInfo.jvmInfo().getVmName());
         }
 
-        @Override
-        public boolean isSystemCheck() {
-            return false;
-        }
-
     }
 
     abstract static class MightForkCheck implements BootstrapCheck.Check {
@@ -545,11 +487,6 @@ final class BootstrapCheck {
 
         // visible for testing
         abstract boolean mightFork();
-
-        @Override
-        public final boolean isSystemCheck() {
-            return false;
-        }
 
         @Override
         public final boolean alwaysEnforce() {

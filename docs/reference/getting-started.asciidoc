@@ -118,6 +118,7 @@ Let's download the Elasticsearch {version} tar as follows (Windows users should 
 --------------------------------------------------
 curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.tar.gz
 --------------------------------------------------
+// NOTCONSOLE
 
 Then extract it as follows (Windows users should unzip the zip package):
 
@@ -144,7 +145,6 @@ If everything goes well, you should see a bunch of messages that look like below
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-./elasticsearch
 [2016-09-16T14:17:51,251][INFO ][o.e.n.Node               ] [] initializing ...
 [2016-09-16T14:17:51,329][INFO ][o.e.e.NodeEnvironment    ] [6-bjhwl] using [1] data paths, mounts [[/ (/dev/sda1)]], net usable_space [317.7gb], net total_space [453.6gb], spins? [no], types [ext4]
 [2016-09-16T14:17:51,330][INFO ][o.e.e.NodeEnvironment    ] [6-bjhwl] heap size [1.9gb], compressed ordinary object pointers [true]
@@ -200,18 +200,20 @@ Let's start with a basic health check, which we can use to see how our cluster i
 
 To check the cluster health, we will be using the <<cat,`_cat` API>>. Remember previously that our node HTTP endpoint is available at port `9200`:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl 'localhost:9200/_cat/health?v'
+GET /_cat/health?v
 --------------------------------------------------
+// CONSOLE
 
 And the response:
 
-[source,sh]
+[source,txt]
 --------------------------------------------------
-epoch      timestamp cluster       status node.total node.data shards pri relo init unassign
-1394735289 14:28:09  elasticsearch green           1         1      0   0    0    0        0
+epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+1475247709 17:01:49  elasticsearch green           1         1      0   0    0    0        0             0                  -                100.0%
 --------------------------------------------------
+// TESTRESPONSE[s/1475247709 17:01:49  elasticsearch/\\d+ \\d+:\\d+:\\d+ docs_integTest/ _cat]
 
 We can see that our cluster named "elasticsearch" is up with a green status.
 
@@ -221,19 +223,21 @@ Also from the above response, we can see and total of 1 node and that we have 0 
 
 We can also get a list of nodes in our cluster as follows:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl 'localhost:9200/_cat/nodes?v'
+GET /_cat/nodes?v
 --------------------------------------------------
+// CONSOLE
 
 And the response:
 
-[source,sh]
+[source,txt]
 --------------------------------------------------
-curl 'localhost:9200/_cat/nodes?v'
-host         ip        heap.percent ram.percent load node.role master name
-mwubuntu1    127.0.1.1            8           4 0.00 d         *      I8hydUG
+ip        heap.percent ram.percent cpu load_1m load_5m load_15m node.role master name
+127.0.0.1           10           5   5    4.46                        mdi      *      PB2SGZY
 --------------------------------------------------
+// TESTRESPONSE[s/10           5   5    4.46/\\d+ \\d+ \\d+ \\d+\\.\\d+ (\\d+\\.\\d+)? (\\d+\.\\d+)?/]
+// TESTRESPONSE[s/[*]/[*]/ s/PB2SGZY/.+/ _cat]
 
 Here, we can see our one node named "I8hydUG", which is the single node that is currently in our cluster.
 
@@ -241,18 +245,19 @@ Here, we can see our one node named "I8hydUG", which is the single node that is 
 
 Now let's take a peek at our indices:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl 'localhost:9200/_cat/indices?v'
+GET /_cat/indices?v
 --------------------------------------------------
+// CONSOLE
 
 And the response:
 
-[source,sh]
+[source,txt]
 --------------------------------------------------
-curl 'localhost:9200/_cat/indices?v'
-health index pri rep docs.count docs.deleted store.size pri.store.size
+health status index uuid pri rep docs.count docs.deleted store.size pri.store.size
 --------------------------------------------------
+// TESTRESPONSE[_cat]
 
 Which simply means we have no indices yet in the cluster.
 
@@ -260,28 +265,23 @@ Which simply means we have no indices yet in the cluster.
 
 Now let's create an index named "customer" and then list all the indexes again:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/customer?pretty'
-curl 'localhost:9200/_cat/indices?v'
+PUT /customer?pretty
+GET /_cat/indices?v
 --------------------------------------------------
+// CONSOLE
 
 The first command creates the index named "customer" using the PUT verb. We simply append `pretty` to the end of the call to tell it to pretty-print the JSON response (if any).
 
 And the response:
 
-[source,sh]
+[source,txt]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/customer?pretty'
-{
-  "acknowledged" : true,
-  "shards_acknowledged": true
-}
-
-curl 'localhost:9200/_cat/indices?v'
-health index    pri rep docs.count docs.deleted store.size pri.store.size
-yellow customer   5   1          0            0       495b           495b
+health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+yellow open   customer 95SQ4TSUT7mWBT7VNHH67A   5   1          0            0       260b           260b
 --------------------------------------------------
+// TESTRESPONSE[s/95SQ4TSUT7mWBT7VNHH67A/.+/ s/260b/\\d+b/ _cat]
 
 The results of the second command tells us that we now have 1 index named customer and it has 5 primary shards and 1 replica (the defaults) and it contains 0 documents in it.
 
@@ -293,24 +293,19 @@ Let's now put something into our customer index. Remember previously that in ord
 
 Let's index a simple customer document into the customer index, "external" type, with an ID of 1 as follows:
 
-Our JSON document: { "name": "John Doe" }
-
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
+PUT /customer/external/1?pretty
 {
   "name": "John Doe"
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 And the response:
 
 [source,sh]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
-{
-  "name": "John Doe"
-}'
 {
   "_index" : "customer",
   "_type" : "external",
@@ -325,6 +320,7 @@ curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
   "created" : true
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 From the above, we can see that a new customer document was successfully created inside the customer index and the external type. The document also has an internal id of 1 which we specified at index time.
 
@@ -332,16 +328,17 @@ It is important to note that Elasticsearch does not require you to explicitly cr
 
 Let's now retrieve that document that we just indexed:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/customer/external/1?pretty'
+GET /customer/external/1?pretty
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 And the response:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/customer/external/1?pretty'
 {
   "_index" : "customer",
   "_type" : "external",
@@ -351,6 +348,7 @@ curl -XGET 'localhost:9200/customer/external/1?pretty'
   "_source" : { "name": "John Doe" }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 Nothing out of the ordinary here other than a field, `found`, stating that we found a document with the requested ID 1 and another field, `_source`, which returns the full JSON document that we indexed from the previous step.
 
@@ -358,45 +356,44 @@ Nothing out of the ordinary here other than a field, `found`, stating that we fo
 
 Now let's delete the index that we just created and then list all the indexes again:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XDELETE 'localhost:9200/customer?pretty'
-curl 'localhost:9200/_cat/indices?v'
+DELETE /customer?pretty
+GET /_cat/indices?v
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 And the response:
 
-[source,sh]
+[source,txt]
 --------------------------------------------------
-curl -XDELETE 'localhost:9200/customer?pretty'
-{
-  "acknowledged" : true
-}
-curl 'localhost:9200/_cat/indices?v'
-health index pri rep docs.count docs.deleted store.size pri.store.size
+health status index uuid pri rep docs.count docs.deleted store.size pri.store.size
 --------------------------------------------------
+// TESTRESPONSE[_cat]
 
 Which means that the index was deleted successfully and we are now back to where we started with nothing in our cluster.
 
 Before we move on, let's take a closer look again at some of the API commands that we have learned so far:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/customer'
-curl -XPUT 'localhost:9200/customer/external/1' -d '
+PUT /customer
+PUT /customer/external/1
 {
   "name": "John Doe"
-}'
-curl 'localhost:9200/customer/external/1'
-curl -XDELETE 'localhost:9200/customer'
+}
+GET /customer/external/1
+DELETE /customer
 --------------------------------------------------
 
 If we study the above commands carefully, we can actually see a pattern of how we access data in Elasticsearch. That pattern can be summarized as follows:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -X<REST Verb> <Node>:<Port>/<Index>/<Type>/<ID>
+<REST Verb> /<Index>/<Type>/<ID>
 --------------------------------------------------
+// NOTCONSOLE
 
 This REST access pattern is pervasive throughout all the API commands that if you can simply remember it, you will have a good head start at mastering Elasticsearch.
 
@@ -409,33 +406,38 @@ Elasticsearch provides data manipulation and search capabilities in near real ti
 
 We've previously seen how we can index a single document. Let's recall that command again:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
+PUT /customer/external/1?pretty
 {
   "name": "John Doe"
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 Again, the above will index the specified document into the customer index, external type, with the ID of 1. If we then executed the above command again with a different (or same) document, Elasticsearch will replace (i.e. reindex) a new document on top of the existing one with the ID of 1:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
+PUT /customer/external/1?pretty
 {
   "name": "Jane Doe"
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 The above changes the name of the document with the ID of 1 from "John Doe" to "Jane Doe". If, on the other hand, we use a different ID, a new document will be indexed and the existing document(s) already in the index remains untouched.
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/customer/external/2?pretty' -d '
+PUT /customer/external/2?pretty
 {
   "name": "Jane Doe"
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 The above indexes a new document with an ID of 2.
 
@@ -443,13 +445,15 @@ When indexing, the ID part is optional. If not specified, Elasticsearch will gen
 
 This example shows how to index a document without an explicit ID:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/customer/external?pretty' -d '
+POST /customer/external?pretty
 {
   "name": "Jane Doe"
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 Note that in the above case, we are using the POST verb instead of PUT since we didn't specify an ID.
 
@@ -459,33 +463,39 @@ In addition to being able to index and replace documents, we can also update doc
 
 This example shows how to update our previous document (ID of 1) by changing the name field to "Jane Doe":
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/customer/external/1/_update?pretty' -d '
+POST /customer/external/1/_update?pretty
 {
   "doc": { "name": "Jane Doe" }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 This example shows how to update our previous document (ID of 1) by changing the name field to "Jane Doe" and at the same time add an age field to it:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/customer/external/1/_update?pretty' -d '
+POST /customer/external/1/_update?pretty
 {
   "doc": { "name": "Jane Doe", "age": 20 }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
-Updates can also be performed by using simple scripts. Note that dynamic scripts like the following are disabled by default as of `1.4.3`, have a look at the <<modules-scripting,scripting docs>> for more details. This example uses a script to increment the age by 5:
+Updates can also be performed by using simple scripts. This example uses a script to increment the age by 5:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/customer/external/1/_update?pretty' -d '
+POST /customer/external/1/_update?pretty
 {
   "script" : "ctx._source.age += 5"
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 In the above example, `ctx._source` refers to the current source document that is about to be updated.
 
@@ -495,12 +505,16 @@ Note that as of this writing, updates can only be performed on a single document
 
 Deleting a document is fairly straightforward. This example shows how to delete our previous customer with the ID of 2:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XDELETE 'localhost:9200/customer/external/2?pretty'
+DELETE /customer/external/2?pretty
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
-The `delete-by-query` plugin can delete all documents matching a specific query.
+See the <<docs-delete-by-query>> to delete all documents matching a specific query.
+It is worth noting that it is much more efficient to delete a whole index
+instead of deleting all documents with the Delete By Query API.
 
 === Batch Processing
 
@@ -508,26 +522,27 @@ In addition to being able to index, update, and delete individual documents, Ela
 
 As a quick example, the following call indexes two documents (ID 1 - John Doe and ID 2 - Jane Doe) in one bulk operation:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/customer/external/_bulk?pretty' -d '
+POST /customer/external/_bulk?pretty
 {"index":{"_id":"1"}}
 {"name": "John Doe" }
 {"index":{"_id":"2"}}
 {"name": "Jane Doe" }
-'
 --------------------------------------------------
+// CONSOLE
 
 This example updates the first document (ID of 1) and then deletes the second document (ID of 2) in one bulk operation:
 
 [source,sh]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/customer/external/_bulk?pretty' -d '
+POST /customer/external/_bulk?pretty
 {"update":{"_id":"1"}}
 {"doc": { "name": "John Doe becomes Jane Doe" } }
 {"delete":{"_id":"2"}}
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 Note above that for the delete action, there is no corresponding source document after it since deletes only require the ID of the document to be deleted.
 

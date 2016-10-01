@@ -189,9 +189,6 @@ public class WatchStore extends AbstractComponent {
         // even if the watch was not found in the watch map, we should still try to delete it
         // from the index, just to make sure we don't leave traces of it
         DeleteRequest request = new DeleteRequest(INDEX, DOC_TYPE, id);
-        if (watch != null) {
-            request.version(watch.version());
-        }
         DeleteResponse response = client.delete(request);
         // Another operation may hold the Watch instance, so lets set the version for consistency:
         if (watch != null) {

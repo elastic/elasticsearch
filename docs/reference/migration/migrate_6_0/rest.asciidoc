@@ -10,4 +10,4 @@ has been removed in Elasticsearch 6.0.0.
 
 ==== Analyze API changes
 
-The deprecated request parameters and plain text in request body has been removed, use JSON in request body.
+The deprecated request parameters and plain text in request body has been removed. Use JSON in request body.

@@ -399,7 +399,8 @@ Returns:
       "index.number_of_shards": "1",
       "index.creation_date": "1474389951325",
       "index.uuid": "n6gzFZTgS664GUfx0Xrpjw",
-      "index.version.created": ...
+      "index.version.created": ...,
+      "index.provided_name" : "twitter"
     }
   }
 }
@@ -432,7 +433,8 @@ Returns:
         "uuid": "n6gzFZTgS664GUfx0Xrpjw",
         "version": {
           "created": ...
-        }
+        },
+        "provided_name" : "twitter"
       }
     }
   }

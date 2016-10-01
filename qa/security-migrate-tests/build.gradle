@@ -1,14 +1,14 @@
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
-  testCompile project(path: ':x-plugins:elasticsearch:x-pack-transport', configuration: 'runtime')
+  testCompile project(path: ':x-plugins:elasticsearch', configuration: 'runtime')
+  testCompile project(path: ':x-plugins:elasticsearch-transport-client', configuration: 'runtime')
 }
 
 integTest {
   cluster {
     setting 'script.inline', 'true'
-    plugin ':x-plugins:elasticsearch:x-pack'
+    plugin ':x-plugins:elasticsearch'
     extraConfigFile 'x-pack/roles.yml', 'roles.yml'
     [
       test_admin: 'superuser',

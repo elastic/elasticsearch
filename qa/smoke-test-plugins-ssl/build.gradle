@@ -13,13 +13,13 @@ import java.security.SecureRandom
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
+  testCompile project(path: ':x-plugins:elasticsearch', configuration: 'runtime')
 }
 
 String outputDir = "generated-resources/${project.name}"
 task copyXPackPluginProps(type: Copy) {
-  from project(':x-plugins:elasticsearch:x-pack').file('src/main/plugin-metadata')
-  from project(':x-plugins:elasticsearch:x-pack').tasks.pluginProperties
+  from project(':x-plugins:elasticsearch').file('src/main/plugin-metadata')
+  from project(':x-plugins:elasticsearch').tasks.pluginProperties
   into outputDir
 }
 project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
@@ -175,7 +175,7 @@ integTest {
     setting 'xpack.ssl.keystore.path', nodeKeystore.name
     setting 'xpack.ssl.keystore.password', 'keypass'
 
-    plugin ':x-plugins:elasticsearch:x-pack'
+    plugin ':x-plugins:elasticsearch'
 
     // copy keystores into config/
     extraConfigFile nodeKeystore.name, nodeKeystore

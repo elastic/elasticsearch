@@ -1,15 +1,15 @@
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
-  testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'testArtifacts')
+  testCompile project(path: ':x-plugins:elasticsearch', configuration: 'runtime')
+  testCompile project(path: ':x-plugins:elasticsearch', configuration: 'testArtifacts')
   testCompile project(path: ':modules:reindex')
 }
 
 integTest {
   cluster {
     setting 'script.inline', 'true'
-    plugin ':x-plugins:elasticsearch:x-pack'
+    plugin ':x-plugins:elasticsearch'
     // Whitelist reindexing from the local node so we can test it.
     setting 'reindex.remote.whitelist', 'myself'
     extraConfigFile 'x-pack/roles.yml', 'roles.yml'

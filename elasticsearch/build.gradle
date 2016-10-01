@@ -66,21 +66,6 @@ dependencies {
   testCompile 'com.squareup.okio:okio:1.6.0'
 }
 
-// we keep the source directories in the original structure of split plugins,
-// in order to facilitate backports to 2.x.  TODO: remove after 5.0 release
-for (String module : ['', 'license-plugin/', 'security/', 'watcher/', 'monitoring/', 'graph/']) {
-  sourceSets {
-    main {
-      java.srcDir("${module}src/main/java")
-      resources.srcDir("${module}src/main/resources")
-    }
-    test {
-      java.srcDir("${module}src/test/java")
-      resources.srcDir("${module}src/test/resources")
-    }
-  }
-}
-
 // make LicenseSigner available for testing signed licenses
 sourceSets.test.java {
   srcDir '../license-tools/src/main/java'
@@ -101,9 +86,9 @@ processResources {
   }
   boolean snapshot = "true".equals(System.getProperty("build.snapshot", "true"))
   if (snapshot) {
-    from 'license-plugin/keys/dev/public.key'
+    from 'keys/dev/public.key'
   } else {
-    from 'license-plugin/keys/prod/public.key'
+    from 'keys/prod/public.key'
   }
 }
 
@@ -125,14 +110,8 @@ bundlePlugin {
   from('bin/x-pack') {
     into 'bin'
   }
-  from('security/bin/x-pack') {
-    into 'bin'
-  }
-  from('security/config/x-pack') {
+  from('config/x-pack') {
     into 'config'
-  }
-  from('watcher/bin/x-pack') {
-    into 'bin'
   }
 }
 
@@ -146,10 +125,11 @@ project.afterEvaluate {
       String apiFileName = jarFile.fileName.toString().replace(project.version, "api-${project.version}")
       Files.copy(jarFile, jarFile.resolveSibling(apiFileName), StandardCopyOption.REPLACE_EXISTING)
 
-      String pomFileName = jarFile.fileName.toString().replace('.jar', '.pom')
+      /*String pomFileName = jarFile.fileName.toString().replace('.jar', '.pom')
       String apiPomFileName = apiFileName.replace('.jar', '.pom')
       Files.copy(jarFile.resolveSibling(pomFileName), jarFile.resolveSibling(apiPomFileName),
                  StandardCopyOption.REPLACE_EXISTING)
+      */
     }
   }
   assemble.dependsOn(apiJar)
@@ -157,7 +137,7 @@ project.afterEvaluate {
     publications {
       apijar(MavenPublication) {
         from project.components.java
-        artifactId = artifactId + '-api'
+        artifactId = 'x-pack-api'
         pom.withXml { XmlProvider xml ->
           Node root = xml.asNode()
           root.appendNode('name', project.pluginProperties.extension.name)

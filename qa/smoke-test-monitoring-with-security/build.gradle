@@ -2,13 +2,13 @@ subprojects {
   apply plugin: 'elasticsearch.rest-test'
 
   dependencies {
-    testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
+    testCompile project(path: ':x-plugins:elasticsearch', configuration: 'runtime')
   }
 
   // bring in monitoring rest test suite
   task copyMonitoringRestTests(type: Copy) {
     into project.sourceSets.test.output.resourcesDir
-    from project(':x-plugins:elasticsearch:x-pack').sourceSets.test.resources.srcDirs
+    from project(':x-plugins:elasticsearch').sourceSets.test.resources.srcDirs
     include 'rest-api-spec/test/monitoring/**'
   }
 
@@ -17,7 +17,7 @@ subprojects {
 
     cluster {
       systemProperty 'es.logger.level', 'TRACE'
-      plugin ':x-plugins:elasticsearch:x-pack'
+      plugin ':x-plugins:elasticsearch'
       setting 'xpack.monitoring.collection.interval', '3s'
       extraConfigFile 'x-pack/roles.yml', '../roles.yml'
       setupCommand 'setupTestAdminUser',

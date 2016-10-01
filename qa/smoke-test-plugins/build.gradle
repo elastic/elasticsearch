@@ -3,7 +3,7 @@ import org.elasticsearch.gradle.MavenFilteringHack
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
+  testCompile project(path: ':x-plugins:elasticsearch', configuration: 'runtime')
 }
 
 ext.pluginsCount = 1 // we install xpack explicitly
@@ -15,7 +15,7 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each
 
 integTest {
   cluster {
-    plugin ':x-plugins:elasticsearch:x-pack'
+    plugin ':x-plugins:elasticsearch'
 
     setupCommand 'setupDummyUser',
                  'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'

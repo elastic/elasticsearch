@@ -16,9 +16,9 @@ subprojects {
 
 task bundlePack(type: Zip) {
   onlyIf { project('kibana').bundlePlugin.enabled }
-  dependsOn 'elasticsearch:x-pack:bundlePlugin'
+  dependsOn 'elasticsearch:bundlePlugin'
   dependsOn 'kibana:bundlePlugin'
-  from { zipTree(project('elasticsearch:x-pack').bundlePlugin.outputs.files.singleFile) }
+  from { zipTree(project('elasticsearch').bundlePlugin.outputs.files.singleFile) }
   from { zipTree(project('kibana').bundlePlugin.outputs.files.singleFile) }
   destinationDir file('build/distributions')
   baseName = 'x-pack'
@@ -55,5 +55,5 @@ subprojects {
     approvedLicenses = ['Elasticsearch Confidential']
     additionalLicense 'ESCON', 'Elasticsearch Confidential', 'ELASTICSEARCH CONFIDENTIAL'
   }
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-api:${version}": ':x-plugins:elasticsearch:x-pack' ]
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-api:${version}": ':x-plugins:elasticsearch' ]
 }

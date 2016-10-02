@@ -87,27 +87,6 @@ curl -XPOST localhost:9200/test -d '{
 --------------------------------------------------
 
 [float]
-[[warmers]]
-=== Warmers
-
-The create index API allows also to provide a set of <<indices-warmers,warmers>>:
-
-[source,js]
---------------------------------------------------
-curl -XPUT localhost:9200/test -d '{
-    "warmers" : {
-        "warmer_1" : {
-            "source" : {
-                "query" : {
-                    ...
-                }
-            }
-        }
-    }
-}'
---------------------------------------------------
-
-[float]
 [[create-index-aliases]]
 === Aliases
 

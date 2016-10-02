@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,9 +38,7 @@ import java.io.IOException;
  * Stores information about failures that occurred during shard snapshotting process
  */
 public class SnapshotShardFailure implements ShardOperationFailedException {
-    private String index;
-
-    private int shardId;
+    private ShardId shardId;
 
     private String reason;
 
@@ -56,13 +55,11 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
      * Constructs new snapshot shard failure object
      *
      * @param nodeId  node where failure occurred
-     * @param index   index which the shard belongs to
      * @param shardId shard id
      * @param reason  failure reason
      */
-    public SnapshotShardFailure(@Nullable String nodeId, String index, int shardId, String reason) {
+    public SnapshotShardFailure(@Nullable String nodeId, ShardId shardId, String reason) {
         this.nodeId = nodeId;
-        this.index = index;
         this.shardId = shardId;
         this.reason = reason;
         status = RestStatus.INTERNAL_SERVER_ERROR;
@@ -75,7 +72,7 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
      */
     @Override
     public String index() {
-        return this.index;
+        return this.shardId.getIndexName();
     }
 
     /**
@@ -85,7 +82,7 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
      */
     @Override
     public int shardId() {
-        return this.shardId;
+        return this.shardId.id();
     }
 
     /**
@@ -110,7 +107,7 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
 
     @Override
     public Throwable getCause() {
-        return new IndexShardSnapshotFailedException(new ShardId(index, shardId), reason);
+        return new IndexShardSnapshotFailedException(shardId, reason);
     }
 
     /**
@@ -138,8 +135,7 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         nodeId = in.readOptionalString();
-        index = in.readString();
-        shardId = in.readVInt();
+        shardId = ShardId.readShardId(in);
         reason = in.readString();
         status = RestStatus.readFrom(in);
     }
@@ -147,15 +143,14 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(nodeId);
-        out.writeString(index);
-        out.writeVInt(shardId);
+        shardId.writeTo(out);
         out.writeString(reason);
         RestStatus.writeTo(out, status);
     }
 
     @Override
     public String toString() {
-        return "[" + index + "][" + shardId + "] failed, reason [" + reason + "]";
+        return shardId + " failed, reason [" + reason + "]";
     }
 
     /**
@@ -181,6 +176,9 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
         SnapshotShardFailure snapshotShardFailure = new SnapshotShardFailure();
 
         XContentParser.Token token = parser.currentToken();
+        String index = null;
+        String index_uuid = IndexMetaData.INDEX_UUID_NA_VALUE;
+        int shardId = -1;
         if (token == XContentParser.Token.START_OBJECT) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -188,13 +186,15 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
                     token = parser.nextToken();
                     if (token.isValue()) {
                         if ("index".equals(currentFieldName)) {
-                            snapshotShardFailure.index = parser.text();
+                            index = parser.text();
+                        } else if ("index_uuid".equals(currentFieldName)) {
+                            index_uuid = parser.text();
                         } else if ("node_id".equals(currentFieldName)) {
                             snapshotShardFailure.nodeId = parser.text();
                         } else if ("reason".equals(currentFieldName)) {
                             snapshotShardFailure.reason = parser.text();
                         } else if ("shard_id".equals(currentFieldName)) {
-                            snapshotShardFailure.shardId = parser.intValue();
+                            shardId = parser.intValue();
                         } else if ("status".equals(currentFieldName)) {
                             snapshotShardFailure.status = RestStatus.valueOf(parser.text());
                         } else {
@@ -208,13 +208,21 @@ public class SnapshotShardFailure implements ShardOperationFailedException {
         } else {
             throw new ElasticsearchParseException("unexpected token [{}]", token);
         }
+        if (index == null) {
+            throw new ElasticsearchParseException("index name was not set");
+        }
+        if (shardId == -1) {
+            throw new ElasticsearchParseException("index shard was not set");
+        }
+        snapshotShardFailure.shardId = new ShardId(index, index_uuid, shardId);
         return snapshotShardFailure;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("index", index);
-        builder.field("shard_id", shardId);
+        builder.field("index", shardId.getIndexName());
+        builder.field("index_uuid", shardId.getIndexName());
+        builder.field("shard_id", shardId.id());
         builder.field("reason", reason);
         if (nodeId != null) {
             builder.field("node_id", nodeId);

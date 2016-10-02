@@ -22,7 +22,7 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -42,8 +42,6 @@ public class MultiGetShardRequestTests extends ESTestCase {
         if (randomBoolean()) {
             multiGetRequest.refresh(true);
         }
-        multiGetRequest.ignoreErrorsOnGeneratedFields(randomBoolean());
-
         MultiGetShardRequest multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, "index", 0);
         int numItems = iterations(10, 30);
         for (int i = 0; i < numItems; i++) {
@@ -54,7 +52,7 @@ public class MultiGetShardRequestTests extends ESTestCase {
                 for (int j = 0; j < fields.length; j++) {
                     fields[j] = randomAsciiOfLength(randomIntBetween(1, 10));
                 }
-                item.fields(fields);
+                item.storedFields(fields);
             }
             if (randomBoolean()) {
                 item.version(randomIntBetween(1, Integer.MAX_VALUE));
@@ -70,7 +68,7 @@ public class MultiGetShardRequestTests extends ESTestCase {
         out.setVersion(randomVersion(random()));
         multiGetShardRequest.writeTo(out);
 
-        StreamInput in = StreamInput.wrap(out.bytes());
+        StreamInput in = out.bytes().streamInput();
         in.setVersion(out.getVersion());
         MultiGetShardRequest multiGetShardRequest2 = new MultiGetShardRequest();
         multiGetShardRequest2.readFrom(in);
@@ -79,7 +77,6 @@ public class MultiGetShardRequestTests extends ESTestCase {
         assertThat(multiGetShardRequest2.preference(), equalTo(multiGetShardRequest.preference()));
         assertThat(multiGetShardRequest2.realtime(), equalTo(multiGetShardRequest.realtime()));
         assertThat(multiGetShardRequest2.refresh(), equalTo(multiGetShardRequest.refresh()));
-        assertThat(multiGetShardRequest2.ignoreErrorsOnGeneratedFields(), equalTo(multiGetShardRequest.ignoreErrorsOnGeneratedFields()));
         assertThat(multiGetShardRequest2.items.size(), equalTo(multiGetShardRequest.items.size()));
         for (int i = 0; i < multiGetShardRequest2.items.size(); i++) {
             MultiGetRequest.Item item = multiGetShardRequest.items.get(i);
@@ -87,7 +84,7 @@ public class MultiGetShardRequestTests extends ESTestCase {
                 assertThat(item2.index(), equalTo(item.index()));
             assertThat(item2.type(), equalTo(item.type()));
             assertThat(item2.id(), equalTo(item.id()));
-            assertThat(item2.fields(), equalTo(item.fields()));
+            assertThat(item2.storedFields(), equalTo(item.storedFields()));
             assertThat(item2.version(), equalTo(item.version()));
             assertThat(item2.versionType(), equalTo(item.versionType()));
             assertThat(item2.fetchSourceContext(), equalTo(item.fetchSourceContext()));

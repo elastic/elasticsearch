@@ -22,54 +22,91 @@ package org.elasticsearch.monitor.os;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class OsProbeTests extends ESTestCase {
-    OsProbe probe = OsProbe.getInstance();
+    private final OsProbe probe = OsProbe.getInstance();
 
     public void testOsInfo() {
-        OsInfo info = probe.osInfo();
+        int allocatedProcessors = randomIntBetween(1, Runtime.getRuntime().availableProcessors());
+        long refreshInterval = randomBoolean() ? -1 : randomPositiveLong();
+        OsInfo info = probe.osInfo(refreshInterval, allocatedProcessors);
         assertNotNull(info);
-        assertThat(info.getRefreshInterval(), anyOf(equalTo(-1L), greaterThanOrEqualTo(0L)));
-        assertThat(info.getName(), equalTo(Constants.OS_NAME));
-        assertThat(info.getArch(), equalTo(Constants.OS_ARCH));
-        assertThat(info.getVersion(), equalTo(Constants.OS_VERSION));
-        assertThat(info.getAvailableProcessors(), equalTo(Runtime.getRuntime().availableProcessors()));
+        assertEquals(refreshInterval, info.getRefreshInterval());
+        assertEquals(Constants.OS_NAME, info.getName());
+        assertEquals(Constants.OS_ARCH, info.getArch());
+        assertEquals(Constants.OS_VERSION, info.getVersion());
+        assertEquals(allocatedProcessors, info.getAllocatedProcessors());
+        assertEquals(Runtime.getRuntime().availableProcessors(), info.getAvailableProcessors());
     }
 
     public void testOsStats() {
         OsStats stats = probe.osStats();
         assertNotNull(stats);
         assertThat(stats.getTimestamp(), greaterThan(0L));
-        assertThat(stats.getCpu().getPercent(), anyOf(equalTo((short) -1), is(both(greaterThanOrEqualTo((short) 0)).and(lessThanOrEqualTo((short) 100)))));
+        assertThat(stats.getCpu().getPercent(), anyOf(equalTo((short) -1),
+                is(both(greaterThanOrEqualTo((short) 0)).and(lessThanOrEqualTo((short) 100)))));
+        double[] loadAverage = stats.getCpu().getLoadAverage();
+        if (loadAverage != null) {
+            assertThat(loadAverage.length, equalTo(3));
+        }
         if (Constants.WINDOWS) {
-            // Load average is always -1 on Windows platforms
-            assertThat(stats.getCpu().getLoadAverage(), equalTo((double) -1));
+            // load average is unavailable on Windows
+            assertNull(loadAverage);
+        } else if (Constants.LINUX) {
+            // we should be able to get the load average
+            assertNotNull(loadAverage);
+            assertThat(loadAverage[0], greaterThanOrEqualTo((double) 0));
+            assertThat(loadAverage[1], greaterThanOrEqualTo((double) 0));
+            assertThat(loadAverage[2], greaterThanOrEqualTo((double) 0));
+        } else if (Constants.FREE_BSD) {
+            // five- and fifteen-minute load averages not available if linprocfs is not mounted at /compat/linux/proc
+            assertNotNull(loadAverage);
+            assertThat(loadAverage[0], greaterThanOrEqualTo((double) 0));
+            assertThat(loadAverage[1], anyOf(equalTo((double) -1), greaterThanOrEqualTo((double) 0)));
+            assertThat(loadAverage[2], anyOf(equalTo((double) -1), greaterThanOrEqualTo((double) 0)));
+        } else if (Constants.MAC_OS_X) {
+            // one minute load average is available, but 10-minute and 15-minute load averages are not
+            assertNotNull(loadAverage);
+            assertThat(loadAverage[0], greaterThanOrEqualTo((double) 0));
+            assertThat(loadAverage[1], equalTo((double) -1));
+            assertThat(loadAverage[2], equalTo((double) -1));
         } else {
-            // Load average can be negative if not available or not computed yet, otherwise it should be >= 0
-            assertThat(stats.getCpu().getLoadAverage(), anyOf(lessThan((double) 0), greaterThanOrEqualTo((double) 0)));
+            // unknown system, but the best case is that we have the one-minute load average
+            if (loadAverage != null) {
+                assertThat(loadAverage[0], anyOf(equalTo((double) -1), greaterThanOrEqualTo((double) 0)));
+                assertThat(loadAverage[1], equalTo((double) -1));
+                assertThat(loadAverage[2], equalTo((double) -1));
+            }
         }
 
         assertNotNull(stats.getMem());
-        assertThat(stats.getMem().getTotal().bytes(), greaterThan(0L));
-        assertThat(stats.getMem().getFree().bytes(), greaterThan(0L));
+        assertThat(stats.getMem().getTotal().getBytes(), greaterThan(0L));
+        assertThat(stats.getMem().getFree().getBytes(), greaterThan(0L));
         assertThat(stats.getMem().getFreePercent(), allOf(greaterThanOrEqualTo((short) 0), lessThanOrEqualTo((short) 100)));
-        assertThat(stats.getMem().getUsed().bytes(), greaterThan(0L));
+        assertThat(stats.getMem().getUsed().getBytes(), greaterThan(0L));
         assertThat(stats.getMem().getUsedPercent(), allOf(greaterThanOrEqualTo((short) 0), lessThanOrEqualTo((short) 100)));
 
         assertNotNull(stats.getSwap());
         assertNotNull(stats.getSwap().getTotal());
 
-        long total = stats.getSwap().getTotal().bytes();
+        long total = stats.getSwap().getTotal().getBytes();
         if (total > 0) {
-            assertThat(stats.getSwap().getTotal().bytes(), greaterThan(0L));
-            assertThat(stats.getSwap().getFree().bytes(), greaterThan(0L));
-            assertThat(stats.getSwap().getUsed().bytes(), greaterThanOrEqualTo(0L));
+            assertThat(stats.getSwap().getTotal().getBytes(), greaterThan(0L));
+            assertThat(stats.getSwap().getFree().getBytes(), greaterThan(0L));
+            assertThat(stats.getSwap().getUsed().getBytes(), greaterThanOrEqualTo(0L));
         } else {
             // On platforms with no swap
-            assertThat(stats.getSwap().getTotal().bytes(), equalTo(0L));
-            assertThat(stats.getSwap().getFree().bytes(), equalTo(0L));
-            assertThat(stats.getSwap().getUsed().bytes(), equalTo(0L));
+            assertThat(stats.getSwap().getTotal().getBytes(), equalTo(0L));
+            assertThat(stats.getSwap().getFree().getBytes(), equalTo(0L));
+            assertThat(stats.getSwap().getUsed().getBytes(), equalTo(0L));
         }
     }
 }

@@ -6,13 +6,13 @@
                     "match":"multi*",
                     "mapping":{
                         "type":"{dynamic_type}",
-                        "index":"analyzed",
-                        "store":"yes",
+                        "index":true,
+                        "store":true,
                         "fields":{
                             "org":{
-                                "type":"{dynamic_type}",
-                                "index":"not_analyzed",
-                                "store":"yes"
+                                "type":"keyword",
+                                "index":true,
+                                "store":true
                             }
                         }
                     }
@@ -23,8 +23,7 @@
                     "match":"*",
                     "match_mapping_type":"string",
                     "mapping":{
-                        "type":"string",
-                        "index":"not_analyzed"
+                        "type":"keyword"
                     }
                 }
             }

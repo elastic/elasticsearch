@@ -59,16 +59,14 @@ public class MessageDigestsTests extends ESTestCase {
     }
 
     public void testToHexString() throws Exception {
-        for (int i = 0; i < 1024; i++) {
-            BigInteger expected = BigInteger.probablePrime(256, random());
-            byte[] bytes = expected.toByteArray();
-            String hex = MessageDigests.toHexString(bytes);
-            String zeros = new String(new char[2 * bytes.length]).replace("\0", "0");
-            String expectedAsString = expected.toString(16);
-            String expectedHex = zeros.substring(expectedAsString.length()) + expectedAsString;
-            assertEquals(expectedHex, hex);
-            BigInteger actual = new BigInteger(hex, 16);
-            assertEquals(expected, actual);
-        }
+        BigInteger expected = BigInteger.probablePrime(256, random());
+        byte[] bytes = expected.toByteArray();
+        String hex = MessageDigests.toHexString(bytes);
+        String zeros = new String(new char[2 * bytes.length]).replace("\0", "0");
+        String expectedAsString = expected.toString(16);
+        String expectedHex = zeros.substring(expectedAsString.length()) + expectedAsString;
+        assertEquals(expectedHex, hex);
+        BigInteger actual = new BigInteger(hex, 16);
+        assertEquals(expected, actual);
     }
 }

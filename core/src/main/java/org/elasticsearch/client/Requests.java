@@ -22,6 +22,9 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -43,9 +46,10 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
@@ -57,7 +61,6 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.common.xcontent.XContentType;
 
 /**
@@ -104,7 +107,7 @@ public class Requests {
     }
 
     /**
-     * Creats a new bulk request.
+     * Creates a new bulk request.
      */
     public static BulkRequest bulkRequest() {
         return new BulkRequest();
@@ -122,16 +125,6 @@ public class Requests {
         return new GetRequest(index);
     }
 
-    /**
-     * Creates a suggest request for getting suggestions from provided <code>indices</code>.
-     * The suggest query has to be set using the JSON source using {@link org.elasticsearch.action.suggest.SuggestRequest#suggest(org.elasticsearch.common.bytes.BytesReference)}.
-     * @param indices The indices to suggest from. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
-     * @see org.elasticsearch.client.Client#suggest(org.elasticsearch.action.suggest.SuggestRequest)
-     */
-    public static SuggestRequest suggestRequest(String... indices) {
-        return new SuggestRequest(indices);
-    }
-    
     /**
      * Creates a search request against one or more indices. Note, the search source must be set either using the
      * actual JSON search source, or the {@link org.elasticsearch.search.builder.SearchSourceBuilder}.
@@ -266,6 +259,17 @@ public class Requests {
     }
 
     /**
+     * Creates a synced flush indices request.
+     *
+     * @param indices The indices to sync flush. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @return The synced flush request
+     * @see org.elasticsearch.client.IndicesAdminClient#syncedFlush(SyncedFlushRequest)
+     */
+    public static SyncedFlushRequest syncedFlushRequest(String... indices) {
+        return new SyncedFlushRequest(indices);
+    }
+
+    /**
      * Creates a force merge request.
      *
      * @param indices The indices to force merge. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
@@ -328,7 +332,8 @@ public class Requests {
     /**
      * Creates a cluster health request.
      *
-     * @param indices The indices to provide additional cluster health information for. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @param indices The indices to provide additional cluster health information for.
+     *                Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
      * @return The cluster health request
      * @see org.elasticsearch.client.ClusterAdminClient#health(org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest)
      */
@@ -390,6 +395,36 @@ public class Requests {
      */
     public static ClusterStatsRequest clusterStatsRequest() {
         return new ClusterStatsRequest();
+    }
+
+    /**
+     * Creates a nodes tasks request against all the nodes.
+     *
+     * @return The nodes tasks request
+     * @see org.elasticsearch.client.ClusterAdminClient#listTasks(ListTasksRequest)
+     */
+    public static ListTasksRequest listTasksRequest() {
+        return new ListTasksRequest();
+    }
+
+    /**
+     * Creates a get task request.
+     *
+     * @return The nodes tasks request
+     * @see org.elasticsearch.client.ClusterAdminClient#getTask(GetTaskRequest)
+     */
+    public static GetTaskRequest getTaskRequest() {
+        return new GetTaskRequest();
+    }
+
+    /**
+     * Creates a nodes tasks request against one or more nodes. Pass <tt>null</tt> or an empty array for all nodes.
+     *
+     * @return The nodes tasks request
+     * @see org.elasticsearch.client.ClusterAdminClient#cancelTasks(CancelTasksRequest)
+     */
+    public static CancelTasksRequest cancelTasksRequest() {
+        return new CancelTasksRequest();
     }
 
     /**

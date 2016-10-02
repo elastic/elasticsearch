@@ -1,10 +1,9 @@
 {
-    person:{
-        properties:{
+    "person":{
+        "properties":{
             "name":{
-                type:"string",
-                index:"analyzed",
-                store:"yes"
+                "type": "text",
+                "store":true
             }
         }
     }

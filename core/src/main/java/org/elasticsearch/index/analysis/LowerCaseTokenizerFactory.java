@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class LowerCaseTokenizerFactory extends AbstractTokenizerFactory {
+public class LowerCaseTokenizerFactory extends AbstractTokenizerFactory implements MultiTermAwareComponent {
 
     public LowerCaseTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -37,5 +37,10 @@ public class LowerCaseTokenizerFactory extends AbstractTokenizerFactory {
     @Override
     public Tokenizer create() {
         return new LowerCaseTokenizer();
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }

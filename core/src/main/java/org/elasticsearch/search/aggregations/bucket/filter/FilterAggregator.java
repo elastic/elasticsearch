@@ -19,13 +19,11 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -45,13 +43,13 @@ public class FilterAggregator extends SingleBucketAggregator {
     private final Weight filter;
 
     public FilterAggregator(String name,
-                            Query filter,
+                            Weight filter,
                             AggregatorFactories factories,
                             AggregationContext aggregationContext,
                             Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                             Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
-        this.filter = aggregationContext.searchContext().searcher().createNormalizedWeight(filter, false);
+        this.filter = filter;
     }
 
     @Override
@@ -78,23 +76,6 @@ public class FilterAggregator extends SingleBucketAggregator {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalFilter(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
-    }
-
-    public static class Factory extends AggregatorFactory {
-
-        private final Query filter;
-
-        public Factory(String name, Query filter) {
-            super(name, InternalFilter.TYPE.name());
-            this.filter = filter;
-        }
-
-        @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new FilterAggregator(name, filter, factories, context, parent, pipelineAggregators, metaData);
-        }
-
     }
 }
 

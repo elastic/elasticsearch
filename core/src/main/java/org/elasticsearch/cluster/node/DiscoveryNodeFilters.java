@@ -33,12 +33,10 @@ import java.util.Map;
  */
 public class DiscoveryNodeFilters {
 
-    public static enum OpType {
+    public enum OpType {
         AND,
         OR
     }
-
-    ;
 
     public static DiscoveryNodeFilters buildFromSettings(OpType opType, String prefix, Settings settings) {
         return buildFromKeyValue(opType, settings.getByPrefix(prefix).getAsMap());
@@ -84,8 +82,8 @@ public class DiscoveryNodeFilters {
             if ("_ip".equals(attr)) {
                 // We check both the host_ip or the publish_ip
                 String publishAddress = null;
-                if (node.address() instanceof InetSocketTransportAddress) {
-                    publishAddress = NetworkAddress.format(((InetSocketTransportAddress) node.address()).address().getAddress());
+                if (node.getAddress() instanceof InetSocketTransportAddress) {
+                    publishAddress = NetworkAddress.format(((InetSocketTransportAddress) node.getAddress()).address().getAddress());
                 }
 
                 boolean match = matchByIP(values, node.getHostAddress(), publishAddress);
@@ -118,8 +116,8 @@ public class DiscoveryNodeFilters {
             } else if ("_publish_ip".equals(attr)) {
                 // We check explicitly only the publish_ip
                 String address = null;
-                if (node.address() instanceof InetSocketTransportAddress) {
-                    address = NetworkAddress.format(((InetSocketTransportAddress) node.address()).address().getAddress());
+                if (node.getAddress() instanceof InetSocketTransportAddress) {
+                    address = NetworkAddress.format(((InetSocketTransportAddress) node.getAddress()).address().getAddress());
                 }
 
                 boolean match = matchByIP(values, address, null);
@@ -157,7 +155,7 @@ public class DiscoveryNodeFilters {
                 }
             } else if ("_id".equals(attr)) {
                 for (String value : values) {
-                    if (node.id().equals(value)) {
+                    if (node.getId().equals(value)) {
                         if (opType == OpType.OR) {
                             return true;
                         }
@@ -169,7 +167,7 @@ public class DiscoveryNodeFilters {
                 }
             } else if ("_name".equals(attr) || "name".equals(attr)) {
                 for (String value : values) {
-                    if (Regex.simpleMatch(value, node.name())) {
+                    if (Regex.simpleMatch(value, node.getName())) {
                         if (opType == OpType.OR) {
                             return true;
                         }
@@ -180,7 +178,7 @@ public class DiscoveryNodeFilters {
                     }
                 }
             } else {
-                String nodeAttributeValue = node.attributes().get(attr);
+                String nodeAttributeValue = node.getAttributes().get(attr);
                 if (nodeAttributeValue == null) {
                     if (opType == OpType.AND) {
                         return false;

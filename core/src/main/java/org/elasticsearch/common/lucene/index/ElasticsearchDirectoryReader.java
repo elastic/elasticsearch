@@ -18,7 +18,10 @@
  */
 package org.elasticsearch.common.lucene.index;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -63,7 +66,7 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
         return new ElasticsearchDirectoryReader(reader, new SubReaderWrapper(shardId), shardId);
     }
 
-    private final static class SubReaderWrapper extends FilterDirectoryReader.SubReaderWrapper {
+    private static final class SubReaderWrapper extends FilterDirectoryReader.SubReaderWrapper {
         private final ShardId shardId;
         SubReaderWrapper(ShardId shardId) {
             this.shardId = shardId;

@@ -1,0 +1,42 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+apply plugin: 'elasticsearch.build'
+
+versions << [
+  'hadoop2': '2.7.1'
+]
+
+// we create MiniHdfsCluster with the hadoop artifact
+dependencies {
+  compile "org.apache.hadoop:hadoop-minicluster:${versions.hadoop2}"
+}
+
+// for testing, until fixtures are actually debuggable.
+// gradle hides *EVERYTHING* so you have no clue what went wrong.
+task hdfs(type: JavaExec) {
+  classpath = sourceSets.test.compileClasspath + sourceSets.test.output
+  main = "hdfs.MiniHDFS"
+  args = [ 'build/fixtures/hdfsFixture' ]
+}
+
+// just a test fixture: we aren't using jars in releases
+thirdPartyAudit.enabled = false
+// TODO: add a simple HDFS client test for this fixture
+test.enabled = false

@@ -24,16 +24,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class JsonSettingsLoaderTests extends ESTestCase {
+
     public void testSimpleJsonSettings() throws Exception {
-        String json = "/org/elasticsearch/common/settings/loader/test-settings.json";
-        Settings settings = settingsBuilder()
+        final String json = "/org/elasticsearch/common/settings/loader/test-settings.json";
+        final Settings settings = Settings.builder()
                 .loadFromStream(json, getClass().getResourceAsStream(json))
                 .build();
 
@@ -50,15 +48,23 @@ public class JsonSettingsLoaderTests extends ESTestCase {
     }
 
     public void testDuplicateKeysThrowsException() {
-        String json = "{\"foo\":\"bar\",\"foo\":\"baz\"}";
-        try {
-            settingsBuilder()
-                    .loadFromSource(json)
-                    .build();
-            fail("expected exception");
-        } catch (SettingsException e) {
-            assertEquals(e.getCause().getClass(), ElasticsearchParseException.class);
-            assertTrue(e.toString().contains("duplicate settings key [foo] found at line number [1], column number [13], previous value [bar], current value [baz]"));
-        }
+        final String json = "{\"foo\":\"bar\",\"foo\":\"baz\"}";
+        final SettingsException e = expectThrows(SettingsException.class, () -> Settings.builder().loadFromSource(json).build());
+        assertEquals(e.getCause().getClass(), ElasticsearchParseException.class);
+        assertThat(
+                e.toString(),
+                containsString("duplicate settings key [foo] " +
+                        "found at line number [1], " +
+                        "column number [20], " +
+                        "previous value [bar], " +
+                        "current value [baz]"));
     }
+
+    public void testNullValuedSettingThrowsException() {
+        final String json = "{\"foo\":null}";
+        final ElasticsearchParseException e =
+                expectThrows(ElasticsearchParseException.class, () -> new JsonSettingsLoader(false).load(json));
+        assertThat(e.toString(), containsString("null-valued setting found for key [foo] found at line number [1], column number [8]"));
+    }
+
 }

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -31,7 +30,7 @@ import java.util.Map;
  */
 public abstract class MetadataFieldMapper extends FieldMapper {
 
-    public static interface TypeParser extends Mapper.TypeParser {
+    public interface TypeParser extends Mapper.TypeParser {
 
         @Override
         MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;
@@ -51,8 +50,8 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     public abstract static class Builder<T extends Builder, Y extends MetadataFieldMapper> extends FieldMapper.Builder<T, Y> {
-        public Builder(String name, MappedFieldType fieldType) {
-            super(name, fieldType);
+        public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
+            super(name, fieldType, defaultFieldType);
         }
     }
 
@@ -70,4 +69,8 @@ public abstract class MetadataFieldMapper extends FieldMapper {
      */
     public abstract void postParse(ParseContext context) throws IOException;
 
+    @Override
+    public MetadataFieldMapper merge(Mapper mergeWith, boolean updateAllTypes) {
+        return (MetadataFieldMapper) super.merge(mergeWith, updateAllTypes);
+    }
 }

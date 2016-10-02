@@ -53,7 +53,7 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
 
     private XContentBuilder getMappingForType(String type) throws IOException {
         return jsonBuilder().startObject().startObject(type).startObject("properties")
-                .startObject("field1").field("type", "string").endObject()
+                .startObject("field1").field("type", "text").endObject()
                 .endObject().endObject().endObject();
     }
 

@@ -10,7 +10,5 @@
                     name        .+   \n
                     component   .+   \n
                     version     .+   \n
-                    type        .+   \n
-                    url         .+   \n
                     description .+   \n
                $/

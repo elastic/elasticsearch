@@ -111,3 +111,35 @@ Zone:: 'Z' outputs offset without a colon, 'ZZ' outputs the offset with a colon,
 Zone names:: Time zone names ('z') cannot be parsed.
 
 Any characters in the pattern that are not in the ranges of ['a'..'z'] and ['A'..'Z'] will be treated as quoted text. For instance, characters like ':', '.', ' ', '#' and '?' will appear in the resulting time text even they are not embraced within single quotes.
+
+[[time-zones]]
+==== Time zone in date range aggregations
+
+Dates can be converted from another time zone to UTC by specifying the `time_zone` parameter.
+
+Time zones may either be specified as an ISO 8601 UTC offset (e.g. +01:00 or -08:00) or as one of
+the http://www.joda.org/joda-time/timezones.html[time zone ids] from the TZ database.
+
+The `time_zone` parameter is also applied to rounding in date math expressions. As an example,
+to round to the beginning of the day in the CET time zone, you can do the following:
+
+[source,js]
+--------------------------------------------------
+{
+   "aggs": {
+           "range": {
+               "date_range": {
+                   "field": "date",
+                   "time_zone": "CET",
+                   "ranges": [
+                      { "to": "2016-02-15/d" }, <1>
+                      { "from": "2016-02-15/d", "to" : "now/d" <2>},
+                      { "from": "now/d" },
+                  ]
+              }
+          }
+      }
+  }
+--------------------------------------------------
+<1> This date will be converted to `2016-02-15T00:00:00.000+01:00`.
+<2> `now/d` will be rounded to the beginning of the day in the CET time zone.

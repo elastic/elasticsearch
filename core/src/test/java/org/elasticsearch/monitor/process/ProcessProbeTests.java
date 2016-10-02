@@ -33,14 +33,15 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ProcessProbeTests extends ESTestCase {
-    ProcessProbe probe = ProcessProbe.getInstance();
+    private final ProcessProbe probe = ProcessProbe.getInstance();
 
     public void testProcessInfo() {
-        ProcessInfo info = probe.processInfo();
+        long refreshInterval = randomPositiveLong();
+        ProcessInfo info = probe.processInfo(refreshInterval);
         assertNotNull(info);
-        assertThat(info.getRefreshInterval(), greaterThanOrEqualTo(0L));
-        assertThat(info.getId(), equalTo(jvmInfo().pid()));
-        assertThat(info.isMlockall(), equalTo(BootstrapInfo.isMemoryLocked()));
+        assertEquals(refreshInterval, info.getRefreshInterval());
+        assertEquals(jvmInfo().pid(), info.getId());
+        assertEquals(BootstrapInfo.isMemoryLocked(), info.isMlockall());
     }
 
     public void testProcessStats() {
@@ -63,12 +64,12 @@ public class ProcessProbeTests extends ESTestCase {
         // CPU percent can be negative if the system recent cpu usage is not available
         assertThat(cpu.getPercent(), anyOf(lessThan((short) 0), allOf(greaterThanOrEqualTo((short) 0), lessThanOrEqualTo((short) 100))));
 
-        // CPU time can return -1 if the the platform does not support this operation, let's see which platforms fail
-        assertThat(cpu.total, greaterThan(0L));
+        // CPU time can return -1 if the platform does not support this operation, let's see which platforms fail
+        assertThat(cpu.getTotal().millis(), greaterThan(0L));
 
         ProcessStats.Mem mem = stats.getMem();
         assertNotNull(mem);
         // Commited total virtual memory can return -1 if not supported, let's see which platforms fail
-        assertThat(mem.totalVirtual, greaterThan(0L));
+        assertThat(mem.getTotalVirtual().getBytes(), greaterThan(0L));
     }
 }

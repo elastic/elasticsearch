@@ -20,6 +20,7 @@ package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -36,20 +37,24 @@ public class SuggestionSearchContext {
     public Map<String, SuggestionContext> suggestions() {
         return suggestions;
     }
-    
-    public static class SuggestionContext {
-        
+
+    public abstract static class SuggestionContext {
+
         private BytesRef text;
         private BytesRef prefix;
         private BytesRef regex;
-        private final Suggester suggester;
         private String field;
         private Analyzer analyzer;
         private int size = 5;
         private int shardSize = -1;
-        private int shardId;
-        private String index;
-        
+        private QueryShardContext shardContext;
+        private Suggester<?> suggester;
+
+        protected SuggestionContext(Suggester<?> suggester, QueryShardContext shardContext) {
+            this.suggester = suggester;
+            this.shardContext = shardContext;
+        }
+
         public BytesRef getText() {
             return text;
         }
@@ -74,12 +79,8 @@ public class SuggestionSearchContext {
             this.regex = regex;
         }
 
-        public SuggestionContext(Suggester suggester) {
-            this.suggester = suggester;
-        }
-
         public Suggester<SuggestionContext> getSuggester() {
-            return this.suggester;
+            return ((Suggester<SuggestionContext>) suggester);
         }
 
         public Analyzer getAnalyzer() {
@@ -119,21 +120,24 @@ public class SuggestionSearchContext {
             }
             this.shardSize = shardSize;
         }
-        
-        public void setShard(int shardId) {
-            this.shardId = shardId;
+
+        public QueryShardContext getShardContext() {
+            return this.shardContext;
         }
 
-        public void setIndex(String index) {
-            this.index = index;
-        }
-        
-        public String getIndex() {
-            return index;
-        }
-        
-        public int getShard() {
-            return shardId;
+        @Override
+        public String toString() {
+            return "[" +
+                       "text=" + text +
+                       ",field=" + field +
+                       ",prefix=" + prefix +
+                       ",regex=" + regex +
+                       ",size=" + size +
+                       ",shardSize=" + shardSize +
+                       ",suggester=" + suggester +
+                       ",analyzer=" + analyzer +
+                       ",shardContext=" + shardContext +
+                   "]";
         }
     }
 

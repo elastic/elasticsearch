@@ -20,11 +20,12 @@ package org.elasticsearch.gradle.test
 
 import org.gradle.api.GradleException
 import org.gradle.api.Project
-import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 
 /** Configuration for an elasticsearch cluster, used for integration tests. */
 class ClusterConfiguration {
+
+    private final Project project
 
     @Input
     String distribution = 'integ-test-zip'
@@ -33,10 +34,27 @@ class ClusterConfiguration {
     int numNodes = 1
 
     @Input
+    int numBwcNodes = 0
+
+    @Input
+    String bwcVersion = null
+
+    @Input
     int httpPort = 0
 
     @Input
     int transportPort = 0
+
+    /**
+     * An override of the data directory. This may only be used with a single node.
+     * The value is lazily evaluated at runtime as a String path.
+     */
+    @Input
+    Object dataDir = null
+
+    /** Optional override of the cluster name. */
+    @Input
+    String clusterName = null
 
     @Input
     boolean daemonize = true
@@ -45,7 +63,29 @@ class ClusterConfiguration {
     boolean debug = false
 
     @Input
-    String jvmArgs = System.getProperty('tests.jvm.argline', '')
+    String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
+            " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
+            " " + System.getProperty('tests.jvm.argline', '')
+
+    /**
+     * A closure to call which returns the unicast host to connect to for cluster formation.
+     *
+     * This allows multi node clusters, or a new cluster to connect to an existing cluster.
+     * The closure takes two arguments, the NodeInfo for the first node in the cluster, and
+     * an AntBuilder which may be used to wait on conditions before returning.
+     */
+    @Input
+    Closure unicastTransportUri = { NodeInfo seedNode, NodeInfo node, AntBuilder ant ->
+        if (seedNode == node) {
+            return null
+        }
+        ant.waitfor(maxwait: '20', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond') {
+            resourceexists {
+                file(file: seedNode.transportPortsFile.toString())
+            }
+        }
+        return seedNode.transportUri()
+    }
 
     /**
      * A closure to call before the cluster is considered ready. The closure is passed the node info,
@@ -55,11 +95,19 @@ class ClusterConfiguration {
     @Input
     Closure waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://${node.httpUri()}",
+        ant.echo("==> [${new Date()}] checking health: http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}")
+        // checking here for wait_for_nodes to be >= the number of nodes because its possible
+        // this cluster is attempting to connect to nodes created by another task (same cluster name),
+        // so there will be more nodes in that case in the cluster state
+        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}",
                 dest: tmpFile.toString(),
                 ignoreerrors: true, // do not fail on error, so logging buffers can be flushed by the wait task
                 retries: 10)
         return tmpFile.exists()
+    }
+
+    public ClusterConfiguration(Project project) {
+        this.project = project
     }
 
     Map<String, String> systemProperties = new HashMap<>()
@@ -69,7 +117,7 @@ class ClusterConfiguration {
     // map from destination path, to source file
     Map<String, Object> extraConfigFiles = new HashMap<>()
 
-    LinkedHashMap<String, Object> plugins = new LinkedHashMap<>()
+    LinkedHashMap<String, Project> plugins = new LinkedHashMap<>()
 
     List<Project> modules = new ArrayList<>()
 
@@ -86,13 +134,9 @@ class ClusterConfiguration {
     }
 
     @Input
-    void plugin(String name, FileCollection file) {
-        plugins.put(name, file)
-    }
-
-    @Input
-    void plugin(String name, Project pluginProject) {
-        plugins.put(name, pluginProject)
+    void plugin(String path) {
+        Project pluginProject = project.project(path)
+        plugins.put(pluginProject.name, pluginProject)
     }
 
     /** Add a module to the cluster. The project must be an esplugin and have a single zip default artifact. */

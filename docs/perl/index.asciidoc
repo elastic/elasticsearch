@@ -104,21 +104,21 @@ please use `Search::Elasticsearch::Client::0_90::Direct` as follows:
 
 == Reporting issues
 
-The GitHub repository is http://github.com/elasticsearch/elasticsearch-perl
+The GitHub repository is https://github.com/elastic/elasticsearch-perl
 and any issues can be reported on the issues list at
-http://github.com/elasticsearch/elasticsearch-perl/issues.
+https://github.com/elastic/elasticsearch-perl/issues.
 
 == Contributing
 
 Open source contributions are welcome. Please read our
-https://github.com/elasticsearch/elasticsearch-perl/blob/master/CONTRIBUTING.asciidoc[guide to contributing].
+https://github.com/elastic/elasticsearch-perl/blob/master/CONTRIBUTING.asciidoc[guide to contributing].
 
 == Copyright and License
 
-This software is Copyright (c) 2013-2015 by Elasticsearch BV.
+This software is Copyright (c) 2013-2016 by Elasticsearch BV.
 
 This is free software, licensed under:
-https://github.com/elasticsearch/elasticsearch-perl/blob/master/LICENSE.txt[The Apache License Version 2.0].
+https://github.com/elastic/elasticsearch-perl/blob/master/LICENSE.txt[The Apache License Version 2.0].
 
 
 

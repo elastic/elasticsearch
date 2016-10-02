@@ -3,7 +3,7 @@
 The `elasticsearch` http://rubygems.org/gems/elasticsearch[Rubygem] provides a low-level client
 for communicating with an Elasticsearch cluster, fully compatible with other official clients.
 
-Full documentation is hosted at http://github.com/elasticsearch/elasticsearch-ruby[Github]
+Full documentation is hosted at https://github.com/elastic/elasticsearch-ruby[Github]
 and http://rubydoc.info/gems/elasticsearch[RubyDoc]
 -- this documentation provides only an overview of features.
 
@@ -83,10 +83,10 @@ client.search index: 'my-index', body: { query: { match: { title: 'test' } } }
 
 The `elasticsearch` gem combines two separate Rubygems:
 
-* https://github.com/elasticsearch/elasticsearch-ruby/tree/master/elasticsearch-transport[`elasticsearch-transport`]
+* https://github.com/elastic/elasticsearch-ruby/tree/master/elasticsearch-transport[`elasticsearch-transport`]
 provides a HTTP Ruby client for connecting to the Elasticsearch cluster,
 
-* https://github.com/elasticsearch/elasticsearch-ruby/tree/master/elasticsearch-api[`elasticsearch-api`]
+* https://github.com/elastic/elasticsearch-ruby/tree/master/elasticsearch-api[`elasticsearch-api`]
 provides a Ruby API for the Elasticsearch RESTful API.
 
 Please see their respective documentation for configuration options and technical details.
@@ -100,10 +100,10 @@ persistent ("keep-alive") HTTP connections.
 
 === Extensions
 
-The https://github.com/elasticsearch/elasticsearch-ruby/tree/master/elasticsearch-extensions[`elasticsearch-extensions`]
+The https://github.com/elastic/elasticsearch-ruby/tree/master/elasticsearch-extensions[`elasticsearch-extensions`]
 Rubygem provides a number of extensions to the core client, such as an API to programatically launch
 Elasticsearch clusters (eg. for testing purposes), and more.
 
 Please see its
-https://github.com/elasticsearch/elasticsearch-ruby/tree/master/elasticsearch-extensions[documentation]
+https://github.com/elastic/elasticsearch-ruby/tree/master/elasticsearch-extensions[documentation]
 for more information.

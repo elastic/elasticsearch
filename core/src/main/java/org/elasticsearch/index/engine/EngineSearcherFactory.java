@@ -22,7 +22,6 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherFactory;
-import org.elasticsearch.index.engine.EngineConfig;
 
 import java.io.IOException;
 

@@ -1,0 +1,75 @@
+---
+"Sliced scroll":
+  - do:
+      indices.create:
+        index: test_sliced_scroll
+
+  - do:
+      index:
+        index:  test_sliced_scroll
+        type:   test
+        id:     42
+        body:   { foo: 1 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_sliced_scroll
+        size: 1
+        scroll: 1m
+        sort: foo
+        body:
+          slice: {
+            id: 0,
+            max: 3
+          }
+          query:
+            match_all: {}
+
+  - set: {_scroll_id: scroll_id}
+
+  - do:
+        clear_scroll:
+          scroll_id: $scroll_id
+
+  - do:
+        catch:  /query_phase_execution_exception.*The number of slices.*index.max_slices_per_scroll/
+        search:
+          index: test_sliced_scroll
+          size: 1
+          scroll: 1m
+          body:
+            slice: {
+              id: 0,
+              max: 1025
+            }
+            query:
+              match_all: {}
+
+  - do:
+        indices.put_settings:
+          index: test_sliced_scroll
+          body:
+            index.max_slices_per_scroll: 1025
+
+  - do:
+        search:
+          index: test_sliced_scroll
+          size: 1
+          scroll: 1m
+          body:
+            slice: {
+              id: 0,
+              max: 1025
+            }
+            query:
+              match_all: {}
+
+  - set: {_scroll_id: scroll_id}
+
+  - do:
+        clear_scroll:
+          scroll_id: $scroll_id
+

@@ -32,8 +32,10 @@ public class SnapshotUtilsTests extends ESTestCase {
     public void testIndexNameFiltering() {
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{}, new String[]{"foo", "bar", "baz"});
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{"*"}, new String[]{"foo", "bar", "baz"});
+        assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{"_all"}, new String[]{"foo", "bar", "baz"});
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{"foo", "bar", "baz"}, new String[]{"foo", "bar", "baz"});
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{"foo"}, new String[]{"foo"});
+        assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{"baz", "not_available"}, new String[]{"baz"});
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{"ba*", "-bar", "-baz"}, new String[]{});
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{"-bar"}, new String[]{"foo", "baz"});
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{"-ba*"}, new String[]{"foo"});

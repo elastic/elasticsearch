@@ -1,0 +1,46 @@
+---
+"Basic percolation highlight query test":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+            mappings:
+                type_1:
+                    properties:
+                        foo:
+                            type: text
+                queries:
+                    properties:
+                      query:
+                        type: percolator
+
+  - do:
+      index:
+        index: test_index
+        type: queries
+        id:  test_percolator
+        body:
+          query:
+            match:
+              foo: bar
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      percolate:
+        index: test_index
+        type:  type_1
+        body:
+          doc:
+              foo: "bar foo"
+          size: 1
+          highlight:
+              fields:
+                foo:
+                    highlight_query:
+                      match:
+                          foo: foo
+
+  - match: {'total': 1}

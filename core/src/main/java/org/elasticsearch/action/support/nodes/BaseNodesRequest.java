@@ -21,7 +21,8 @@ package org.elasticsearch.action.support.nodes;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -31,11 +32,25 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class BaseNodesRequest<T extends BaseNodesRequest> extends ActionRequest<T> {
+public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>> extends ActionRequest<Request> {
 
-    public static String[] ALL_NODES = Strings.EMPTY_ARRAY;
-
+    /**
+     * the list of nodesIds that will be used to resolve this request and {@link #concreteNodes}
+     * will be populated. Note that if {@link #concreteNodes} is not null, it will be used and nodeIds
+     * will be ignored.
+     *
+     * See {@link DiscoveryNodes#resolveNodes} for a full description of the options.
+     *
+     * TODO: once we stop using the transport client as a gateway to the cluster, we can get rid of this and resolve it to concrete nodes
+     * in the rest layer
+     **/
     private String[] nodesIds;
+
+    /**
+     * once {@link #nodesIds} are resolved this will contain the concrete nodes that are part of this request. If set, {@link #nodesIds}
+     * will be ignored and this will be used.
+     * */
+    private DiscoveryNode[] concreteNodes;
 
     private TimeValue timeout;
 
@@ -43,13 +58,13 @@ public abstract class BaseNodesRequest<T extends BaseNodesRequest> extends Actio
 
     }
 
-    protected BaseNodesRequest(ActionRequest request, String... nodesIds) {
-        super(request);
+    protected BaseNodesRequest(String... nodesIds) {
         this.nodesIds = nodesIds;
     }
 
-    protected BaseNodesRequest(String... nodesIds) {
-        this.nodesIds = nodesIds;
+    protected BaseNodesRequest(DiscoveryNode... concreteNodes) {
+        this.nodesIds = null;
+        this.concreteNodes = concreteNodes;
     }
 
     public final String[] nodesIds() {
@@ -57,9 +72,9 @@ public abstract class BaseNodesRequest<T extends BaseNodesRequest> extends Actio
     }
 
     @SuppressWarnings("unchecked")
-    public final T nodesIds(String... nodesIds) {
+    public final Request nodesIds(String... nodesIds) {
         this.nodesIds = nodesIds;
-        return (T) this;
+        return (Request) this;
     }
 
     public TimeValue timeout() {
@@ -67,15 +82,22 @@ public abstract class BaseNodesRequest<T extends BaseNodesRequest> extends Actio
     }
 
     @SuppressWarnings("unchecked")
-    public final T timeout(TimeValue timeout) {
+    public final Request timeout(TimeValue timeout) {
         this.timeout = timeout;
-        return (T) this;
+        return (Request) this;
     }
 
     @SuppressWarnings("unchecked")
-    public final T timeout(String timeout) {
+    public final Request timeout(String timeout) {
         this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
-        return (T) this;
+        return (Request) this;
+    }
+    public DiscoveryNode[] concreteNodes() {
+        return concreteNodes;
+    }
+
+    public void setConcreteNodes(DiscoveryNode[] concreteNodes) {
+        this.concreteNodes = concreteNodes;
     }
 
     @Override
@@ -87,20 +109,15 @@ public abstract class BaseNodesRequest<T extends BaseNodesRequest> extends Actio
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         nodesIds = in.readStringArray();
-        if (in.readBoolean()) {
-            timeout = TimeValue.readTimeValue(in);
-        }
+        concreteNodes = in.readOptionalArray(DiscoveryNode::new, DiscoveryNode[]::new);
+        timeout = in.readOptionalWriteable(TimeValue::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(nodesIds);
-        if (timeout == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            timeout.writeTo(out);
-        }
+        out.writeOptionalArray(concreteNodes);
+        out.writeOptionalWriteable(timeout);
     }
 }

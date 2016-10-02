@@ -54,7 +54,7 @@ public class MoreLikeThisQueryTests extends ESTestCase {
         document.add(new TextField("text", "lucene release", Field.Store.YES));
         indexWriter.addDocument(document);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         MoreLikeThisQuery mltQuery = new MoreLikeThisQuery("lucene", new String[]{"text"}, Lucene.STANDARD_ANALYZER);
@@ -62,7 +62,7 @@ public class MoreLikeThisQueryTests extends ESTestCase {
         mltQuery.setMinTermFrequency(1);
         mltQuery.setMinDocFreq(1);
         long count = searcher.count(mltQuery);
-        assertThat(count, equalTo(2l));
+        assertThat(count, equalTo(2L));
 
         reader.close();
         indexWriter.close();

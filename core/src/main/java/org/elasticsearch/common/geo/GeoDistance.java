@@ -31,16 +31,19 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
+
 import java.io.IOException;
 import java.util.Locale;
 
 /**
  * Geo distance calculation.
  */
-public enum GeoDistance implements Writeable<GeoDistance> {
+public enum GeoDistance implements Writeable {
     /**
      * Calculates distance as points on a plane. Faster, but less accurate than {@link #ARC}.
+     * @deprecated use {@link GeoUtils#planeDistance}
      */
+    @Deprecated
     PLANE {
         @Override
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
@@ -62,7 +65,11 @@ public enum GeoDistance implements Writeable<GeoDistance> {
 
     /**
      * Calculates distance factor.
+     * Note: {@code calculate} is simply returning the RHS of the spherical law of cosines from 2 lat,lon points.
+     * {@code normalize} also returns the RHS of the spherical law of cosines for a given distance
+     * @deprecated use {@link SloppyMath#haversinMeters} to get distance in meters, law of cosines is being removed
      */
+    @Deprecated
     FACTOR {
         @Override
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
@@ -79,23 +86,19 @@ public enum GeoDistance implements Writeable<GeoDistance> {
 
         @Override
         public FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
-            return new FactorFixedSourceDistance(sourceLatitude, sourceLongitude, unit);
+            return new FactorFixedSourceDistance(sourceLatitude, sourceLongitude);
         }
     },
     /**
      * Calculates distance as points on a globe.
+     * @deprecated use {@link GeoUtils#arcDistance}
      */
+    @Deprecated
     ARC {
         @Override
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
-            double x1 = sourceLatitude * Math.PI / 180D;
-            double x2 = targetLatitude * Math.PI / 180D;
-            double h1 = 1D - Math.cos(x1 - x2);
-            double h2 = 1D - Math.cos((sourceLongitude - targetLongitude) * Math.PI / 180D);
-            double h = (h1 + Math.cos(x1) * Math.cos(x2) * h2) / 2;
-            double averageLatitude = (x1 + x2) / 2;
-            double diameter = GeoUtils.earthDiameter(averageLatitude);
-            return unit.fromMeters(diameter * Math.asin(Math.min(1, Math.sqrt(h))));
+            double result = SloppyMath.haversinMeters(sourceLatitude, sourceLongitude, targetLatitude, targetLongitude);
+            return unit.fromMeters(result);
         }
 
         @Override
@@ -112,6 +115,7 @@ public enum GeoDistance implements Writeable<GeoDistance> {
      * Calculates distance as points on a globe in a sloppy way. Close to the pole areas the accuracy
      * of this function decreases.
      */
+    @Deprecated
     SLOPPY_ARC {
 
         @Override
@@ -121,7 +125,7 @@ public enum GeoDistance implements Writeable<GeoDistance> {
 
         @Override
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
-            return unit.fromMeters(SloppyMath.haversin(sourceLatitude, sourceLongitude, targetLatitude, targetLongitude) * 1000.0);
+            return unit.fromMeters(SloppyMath.haversinMeters(sourceLatitude, sourceLongitude, targetLatitude, targetLongitude));
         }
 
         @Override
@@ -130,18 +134,12 @@ public enum GeoDistance implements Writeable<GeoDistance> {
         }
     };
 
-    /** Returns a GeoDistance object as read from the StreamInput. */
-    @Override
-    public GeoDistance readFrom(StreamInput in) throws IOException {
+    public static GeoDistance readFromStream(StreamInput in) throws IOException {
         int ord = in.readVInt();
         if (ord < 0 || ord >= values().length) {
             throw new IOException("Unknown GeoDistance ordinal [" + ord + "]");
         }
         return GeoDistance.values()[ord];
-    }
-
-    public static GeoDistance readGeoDistanceFrom(StreamInput in) throws IOException {
-        return DEFAULT.readFrom(in);
     }
 
     @Override
@@ -153,6 +151,7 @@ public enum GeoDistance implements Writeable<GeoDistance> {
      * Default {@link GeoDistance} function. This method should be used, If no specific function has been selected.
      * This is an alias for <code>SLOPPY_ARC</code>
      */
+    @Deprecated
     public static final GeoDistance DEFAULT = SLOPPY_ARC;
 
     public abstract double normalize(double distance, DistanceUnit unit);
@@ -227,12 +226,12 @@ public enum GeoDistance implements Writeable<GeoDistance> {
         throw new IllegalArgumentException("No geo distance for [" + name + "]");
     }
 
-    public static interface FixedSourceDistance {
+    public interface FixedSourceDistance {
 
         double calculate(double targetLatitude, double targetLongitude);
     }
 
-    public static interface DistanceBoundingCheck {
+    public interface DistanceBoundingCheck {
 
         boolean isWithin(double targetLatitude, double targetLongitude);
 
@@ -341,7 +340,7 @@ public enum GeoDistance implements Writeable<GeoDistance> {
         private final double sinA;
         private final double cosA;
 
-        public FactorFixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
+        public FactorFixedSourceDistance(double sourceLatitude, double sourceLongitude) {
             this.sourceLongitude = sourceLongitude;
             this.a = Math.toRadians(90D - sourceLatitude);
             this.sinA = Math.sin(a);
@@ -360,7 +359,7 @@ public enum GeoDistance implements Writeable<GeoDistance> {
      * Basic implementation of {@link FixedSourceDistance}. This class keeps the basic parameters for a distance
      * functions based on a fixed source. Namely latitude, longitude and unit.
      */
-    public static abstract class FixedSourceDistanceBase implements FixedSourceDistance {
+    public abstract static class FixedSourceDistanceBase implements FixedSourceDistance {
         protected final double sourceLatitude;
         protected final double sourceLongitude;
         protected final DistanceUnit unit;

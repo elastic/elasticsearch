@@ -18,7 +18,6 @@
                     "type": "ja_stop",
                     "stopwords": ["_japanese_", "スピード"]
                 }
-                
             },
 
             "char_filter":{
@@ -48,6 +47,19 @@
                 "kuromoji_user_dict" : {
                     "type":"kuromoji_tokenizer",
                     "user_dictionary":"user_dict.txt"
+                },
+                "kuromoji_nbest_cost" : {
+                    "type": "kuromoji_tokenizer",
+                    "nbest_cost" : "2000"
+                },
+                "kuromoji_nbest_examples" : {
+                    "type": "kuromoji_tokenizer",
+                    "nbest_examples" : "/鳩山積み-鳩山/鳩山積み-鳩/"
+                },
+                "kuromoji_nbest_both" : {
+                    "type": "kuromoji_tokenizer",
+                    "nbest_examples" : "/鳩山積み-鳩山/鳩山積み-鳩/",
+                    "nbest_cost" : "1000"
                 }
             },
             "analyzer" : {

@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.warmer.IndexWarmersMetaData.Entry;
 import org.elasticsearch.test.ESBackcompatTestCase;
 
 import java.util.List;
@@ -88,21 +87,4 @@ public class GetIndexBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertThat(settings.get("index.number_of_shards"), equalTo("1"));
     }
 
-    public void testGetWarmers() throws Exception {
-        createIndex("test");
-        ensureSearchable("test");
-        assertAcked(client().admin().indices().preparePutWarmer("warmer1").setSearchRequest(client().prepareSearch("test")).get());
-        ensureSearchable("test");
-        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices("test").addFeatures(Feature.WARMERS)
-                .execute().actionGet();
-        ImmutableOpenMap<String, List<Entry>> warmersMap = getIndexResponse.warmers();
-        assertThat(warmersMap, notNullValue());
-        assertThat(warmersMap.size(), equalTo(1));
-        List<Entry> warmersList = warmersMap.get("test");
-        assertThat(warmersList, notNullValue());
-        assertThat(warmersList.size(), equalTo(1));
-        Entry warmer = warmersList.get(0);
-        assertThat(warmer, notNullValue());
-        assertThat(warmer.name(), equalTo("warmer1"));
-    }
 }

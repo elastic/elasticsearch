@@ -21,8 +21,8 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.TypeTokenFilter;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 import java.util.Arrays;
@@ -32,7 +32,7 @@ import java.util.Set;
 /**
  * A {@link TokenFilterFactory} for {@link TypeTokenFilter}. This filter only
  * keep tokens that are contained in the set configured via
- * {@value #KEEP_TYPES_KEY} setting. 
+ * {@value #KEEP_TYPES_KEY} setting.
  * <p>
  * Configuration options:
  * <ul>

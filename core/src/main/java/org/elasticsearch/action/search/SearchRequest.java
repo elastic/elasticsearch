@@ -29,13 +29,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
-
-import static org.elasticsearch.search.Scroll.readScroll;
+import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * A request to execute search against one or more indices (or all). Best created using
@@ -48,11 +47,11 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest extends ActionRequest<SearchRequest> implements IndicesRequest.Replaceable {
+public final class SearchRequest extends ActionRequest<SearchRequest> implements IndicesRequest.Replaceable {
 
     private SearchType searchType = SearchType.DEFAULT;
 
-    private String[] indices;
+    private String[] indices = Strings.EMPTY_ARRAY;
 
     @Nullable
     private String routing;
@@ -71,36 +70,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
-    private Template template;
-
     public SearchRequest() {
-    }
-
-    /**
-     * Copy constructor that creates a new search request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    public SearchRequest(SearchRequest searchRequest, ActionRequest originalRequest) {
-        super(originalRequest);
-        this.searchType = searchRequest.searchType;
-        this.indices = searchRequest.indices;
-        this.routing = searchRequest.routing;
-        this.preference = searchRequest.preference;
-        this.template = searchRequest.template;
-        this.source = searchRequest.source;
-        this.requestCache = searchRequest.requestCache;
-        this.scroll = searchRequest.scroll;
-        this.types = searchRequest.types;
-        this.indicesOptions = searchRequest.indicesOptions;
-    }
-
-    /**
-     * Constructs a new search request starting from the provided request, meaning that it will
-     * inherit its headers and context
-     */
-    public SearchRequest(ActionRequest request) {
-        super(request);
-        this.source = new SearchSourceBuilder();
     }
 
     /**
@@ -124,12 +94,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        // no need to check, we resolve to match all query
-//        if (source == null && extraSource == null) {
-//            validationException = addValidationError("search source is missing", validationException);
-//        }
-        return validationException;
+        return null;
     }
 
     /**
@@ -137,14 +102,9 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      */
     @Override
     public SearchRequest indices(String... indices) {
-        if (indices == null) {
-            throw new IllegalArgumentException("indices must not be null");
-        } else {
-            for (int i = 0; i < indices.length; i++) {
-                if (indices[i] == null) {
-                    throw new IllegalArgumentException("indices[" + i + "] must not be null");
-                }
-            }
+        Objects.requireNonNull(indices, "indices must not be null");
+        for (String index : indices) {
+            Objects.requireNonNull(index, "index must not be null");
         }
         this.indices = indices;
         return this;
@@ -156,7 +116,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     }
 
     public SearchRequest indicesOptions(IndicesOptions indicesOptions) {
-        this.indicesOptions = indicesOptions;
+        this.indicesOptions = Objects.requireNonNull(indicesOptions, "indicesOptions must not be null");
         return this;
     }
 
@@ -173,6 +133,10 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * all types.
      */
     public SearchRequest types(String... types) {
+        Objects.requireNonNull(types, "types must not be null");
+        for (String type : types) {
+            Objects.requireNonNull(type, "type must not be null");
+        }
         this.types = types;
         return this;
     }
@@ -218,7 +182,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * The search type to execute, defaults to {@link SearchType#DEFAULT}.
      */
     public SearchRequest searchType(SearchType searchType) {
-        this.searchType = searchType;
+        this.searchType = Objects.requireNonNull(searchType, "searchType must not be null");
         return this;
     }
 
@@ -235,10 +199,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * The source of the search request.
      */
     public SearchRequest source(SearchSourceBuilder sourceBuilder) {
-        if (sourceBuilder == null) {
-            throw new IllegalArgumentException("source must not be null");
-        }
-        this.source = sourceBuilder;
+        this.source = Objects.requireNonNull(sourceBuilder, "source must not be null");
         return this;
     }
 
@@ -247,21 +208,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      */
     public SearchSourceBuilder source() {
         return source;
-    }
-
-
-    /**
-     * The stored template
-     */
-    public void template(Template template) {
-        this.template = template;
-    }
-
-    /**
-     * The stored template
-     */
-    public Template template() {
-        return template;
     }
 
     /**
@@ -322,61 +268,84 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         return this.requestCache;
     }
 
+    /**
+     * @return true if the request only has suggest
+     */
+    public boolean isSuggestOnly() {
+        return source != null && source.isSuggestOnly();
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         searchType = SearchType.fromId(in.readByte());
-
         indices = new String[in.readVInt()];
         for (int i = 0; i < indices.length; i++) {
             indices[i] = in.readString();
         }
-
         routing = in.readOptionalString();
         preference = in.readOptionalString();
-
-        if (in.readBoolean()) {
-            scroll = readScroll(in);
-        }
-        if (in.readBoolean()) {
-            source = SearchSourceBuilder.readSearchSourceFrom(in);
-        }
-
+        scroll = in.readOptionalWriteable(Scroll::new);
+        source = in.readOptionalWriteable(SearchSourceBuilder::new);
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-
         requestCache = in.readOptionalBoolean();
-        template = in.readOptionalStreamable(Template::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeByte(searchType.id());
-
         out.writeVInt(indices.length);
         for (String index : indices) {
             out.writeString(index);
         }
-
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-
-        if (scroll == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            scroll.writeTo(out);
-        }
-        if (source == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            source.writeTo(out);
-        }
+        out.writeOptionalWriteable(scroll);
+        out.writeOptionalWriteable(source);
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
-        out.writeOptionalStreamable(template);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        SearchRequest that = (SearchRequest) o;
+        return searchType == that.searchType &&
+                Arrays.equals(indices, that.indices) &&
+                Objects.equals(routing, that.routing) &&
+                Objects.equals(preference, that.preference) &&
+                Objects.equals(source, that.source) &&
+                Objects.equals(requestCache, that.requestCache)  &&
+                Objects.equals(scroll, that.scroll) &&
+                Arrays.equals(types, that.types) &&
+                Objects.equals(indicesOptions, that.indicesOptions);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
+                scroll, Arrays.hashCode(types), indicesOptions);
+    }
+
+    @Override
+    public String toString() {
+        return "SearchRequest{" +
+                "searchType=" + searchType +
+                ", indices=" + Arrays.toString(indices) +
+                ", indicesOptions=" + indicesOptions +
+                ", types=" + Arrays.toString(types) +
+                ", routing='" + routing + '\'' +
+                ", preference='" + preference + '\'' +
+                ", requestCache=" + requestCache +
+                ", scroll=" + scroll +
+                ", source=" + source + '}';
     }
 }

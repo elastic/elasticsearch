@@ -1,1 +1,2 @@
 org.apache.lucene.search.suggest.document.Completion50PostingsFormat
+org.elasticsearch.search.suggest.completion2x.Completion090PostingsFormat

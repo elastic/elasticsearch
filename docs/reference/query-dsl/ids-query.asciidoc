@@ -6,13 +6,17 @@ uses the <<mapping-uid-field,_uid>> field.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "ids" : {
-        "type" : "my_type",
-        "values" : ["1", "4", "100"]
+    "query": {
+        "ids" : {
+            "type" : "my_type",
+            "values" : ["1", "4", "100"]
+        }
     }
 }    
 --------------------------------------------------
+// CONSOLE
 
 The `type` is optional and can be omitted, and can also accept an array
 of values. If no type is specified, all types defined in the index mapping are tried.

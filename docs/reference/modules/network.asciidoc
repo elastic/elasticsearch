@@ -20,15 +20,16 @@ Never expose an unprotected node to the public internet.
 `network.host`::
 
 The node will bind to this hostname or IP address and _publish_ (advertise)
-this host to other nodes in the cluster. Accepts an IP address, hostname, or a
-<<network-interface-values,special value>>.
+this host to other nodes in the cluster. Accepts an IP address, hostname, a
+<<network-interface-values,special value>>, or an array of any combination
+of these.
 +
 Defaults to `_local_`.
 
 `discovery.zen.ping.unicast.hosts`::
 
 In order to join a cluster, a node needs to know the hostname or IP address of
-at least some of the other nodes in the cluster.  This settting provides the
+at least some of the other nodes in the cluster.  This setting provides the
 initial list of other nodes that this node will try to contact. Accepts IP
 addresses or hostnames.
 +
@@ -114,7 +115,7 @@ The publish host is the single interface that the node advertises to other
 nodes in the cluster, so that those nodes can connect to it.   Currently an
 elasticsearch node may be bound to multiple addresses, but only publishes one.
 If not specified, this defaults to the ``best'' address from
-`network.bind_host`, sorted by IPv4/IPv6 stack preference, then by
+`network.host`, sorted by IPv4/IPv6 stack preference, then by
 reachability.
 
 Both of the above settings can be configured just like `network.host` -- they
@@ -162,9 +163,8 @@ settings, but may be further configured independently:
 
 TCP Transport::
 
-Used for communication between nodes in the cluster and by the Java
-{javaclient}/node-client.html[Node client],
-{javaclient}/transport-client.html[Transport client], and by the
+Used for communication between nodes in the cluster, by the Java
+{javaclient}/transport-client.html[Transport client] and by the
 <<modules-tribe,Tribe node>>.  See the <<modules-transport,Transport module>>
 for more information.
 

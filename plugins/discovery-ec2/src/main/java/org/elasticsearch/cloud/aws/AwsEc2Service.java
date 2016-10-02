@@ -19,49 +19,185 @@
 
 package org.elasticsearch.cloud.aws;
 
+import com.amazonaws.Protocol;
 import com.amazonaws.services.ec2.AmazonEC2;
-import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 
-public interface AwsEc2Service extends LifecycleComponent<AwsEc2Service> {
-    final class CLOUD_AWS {
-        public static final String KEY = "cloud.aws.access_key";
-        public static final String SECRET = "cloud.aws.secret_key";
-        public static final String PROTOCOL = "cloud.aws.protocol";
-        public static final String PROXY_HOST = "cloud.aws.proxy.host";
-        public static final String PROXY_PORT = "cloud.aws.proxy.port";
-        public static final String PROXY_USERNAME = "cloud.aws.proxy.username";
-        public static final String PROXY_PASSWORD = "cloud.aws.proxy.password";
-        public static final String SIGNER = "cloud.aws.signer";
-        public static final String REGION = "cloud.aws.region";
-        @Deprecated
-        public static final String DEPRECATED_PROXY_HOST = "cloud.aws.proxy_host";
-        @Deprecated
-        public static final String DEPRECATED_PROXY_PORT = "cloud.aws.proxy_port";
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.function.Function;
+
+public interface AwsEc2Service {
+    Setting<Boolean> AUTO_ATTRIBUTE_SETTING = Setting.boolSetting("cloud.node.auto_attributes", false, Property.NodeScope);
+
+    // Global AWS settings (shared between discovery-ec2 and repository-s3)
+    // Each setting starting with `cloud.aws` also exists in repository-s3 project. Don't forget to update
+    // the code there if you change anything here.
+    /**
+     * cloud.aws.access_key: AWS Access key. Shared with repository-s3 plugin
+     */
+    Setting<String> KEY_SETTING =
+        Setting.simpleString("cloud.aws.access_key", Property.NodeScope, Property.Filtered, Property.Shared);
+    /**
+     * cloud.aws.secret_key: AWS Secret key. Shared with repository-s3 plugin
+     */
+    Setting<String> SECRET_SETTING =
+        Setting.simpleString("cloud.aws.secret_key", Property.NodeScope, Property.Filtered, Property.Shared);
+    /**
+     * cloud.aws.protocol: Protocol for AWS API: http or https. Defaults to https. Shared with repository-s3 plugin
+     */
+    Setting<Protocol> PROTOCOL_SETTING = new Setting<>("cloud.aws.protocol", "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)),
+        Property.NodeScope, Property.Shared);
+    /**
+     * cloud.aws.proxy.host: In case of proxy, define its hostname/IP. Shared with repository-s3 plugin
+     */
+    Setting<String> PROXY_HOST_SETTING = Setting.simpleString("cloud.aws.proxy.host", Property.NodeScope, Property.Shared);
+    /**
+     * cloud.aws.proxy.port: In case of proxy, define its port. Defaults to 80. Shared with repository-s3 plugin
+     */
+    Setting<Integer> PROXY_PORT_SETTING = Setting.intSetting("cloud.aws.proxy.port", 80, 0, 1<<16, Property.NodeScope,
+        Property.Shared);
+    /**
+     * cloud.aws.proxy.username: In case of proxy with auth, define the username. Shared with repository-s3 plugin
+     */
+    Setting<String> PROXY_USERNAME_SETTING = Setting.simpleString("cloud.aws.proxy.username", Property.NodeScope, Property.Shared);
+    /**
+     * cloud.aws.proxy.password: In case of proxy with auth, define the password. Shared with repository-s3 plugin
+     */
+    Setting<String> PROXY_PASSWORD_SETTING =
+        Setting.simpleString("cloud.aws.proxy.password", Property.NodeScope, Property.Filtered, Property.Shared);
+    /**
+     * cloud.aws.signer: If you are using an old AWS API version, you can define a Signer. Shared with repository-s3 plugin
+     */
+    Setting<String> SIGNER_SETTING = Setting.simpleString("cloud.aws.signer", Property.NodeScope, Property.Shared);
+    /**
+     * cloud.aws.region: Region. Shared with repository-s3 plugin
+     */
+    Setting<String> REGION_SETTING =
+        new Setting<>("cloud.aws.region", "", s -> s.toLowerCase(Locale.ROOT), Property.NodeScope, Property.Shared);
+
+    /**
+     * Defines specific ec2 settings starting with cloud.aws.ec2.
+     */
+    interface CLOUD_EC2 {
+        /**
+         * cloud.aws.ec2.access_key: AWS Access key specific for EC2 API calls. Defaults to cloud.aws.access_key.
+         * @see AwsEc2Service#KEY_SETTING
+         */
+        Setting<String> KEY_SETTING = new Setting<>("cloud.aws.ec2.access_key", AwsEc2Service.KEY_SETTING, Function.identity(),
+            Property.NodeScope, Property.Filtered);
+        /**
+         * cloud.aws.ec2.secret_key: AWS Secret key specific for EC2 API calls. Defaults to cloud.aws.secret_key.
+         * @see AwsEc2Service#SECRET_SETTING
+         */
+        Setting<String> SECRET_SETTING = new Setting<>("cloud.aws.ec2.secret_key", AwsEc2Service.SECRET_SETTING, Function.identity(),
+            Property.NodeScope, Property.Filtered);
+        /**
+         * cloud.aws.ec2.protocol: Protocol for AWS API specific for EC2 API calls: http or https.  Defaults to cloud.aws.protocol.
+         * @see AwsEc2Service#PROTOCOL_SETTING
+         */
+        Setting<Protocol> PROTOCOL_SETTING = new Setting<>("cloud.aws.ec2.protocol", AwsEc2Service.PROTOCOL_SETTING,
+            s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope);
+        /**
+         * cloud.aws.ec2.proxy.host: In case of proxy, define its hostname/IP specific for EC2 API calls. Defaults to cloud.aws.proxy.host.
+         * @see AwsEc2Service#PROXY_HOST_SETTING
+         */
+        Setting<String> PROXY_HOST_SETTING = new Setting<>("cloud.aws.ec2.proxy.host", AwsEc2Service.PROXY_HOST_SETTING,
+            Function.identity(), Property.NodeScope);
+        /**
+         * cloud.aws.ec2.proxy.port: In case of proxy, define its port specific for EC2 API calls.  Defaults to cloud.aws.proxy.port.
+         * @see AwsEc2Service#PROXY_PORT_SETTING
+         */
+        Setting<Integer> PROXY_PORT_SETTING = new Setting<>("cloud.aws.ec2.proxy.port", AwsEc2Service.PROXY_PORT_SETTING,
+            s -> Setting.parseInt(s, 0, 1<<16, "cloud.aws.ec2.proxy.port"), Property.NodeScope);
+        /**
+         * cloud.aws.ec2.proxy.username: In case of proxy with auth, define the username specific for EC2 API calls.
+         * Defaults to cloud.aws.proxy.username.
+         * @see AwsEc2Service#PROXY_USERNAME_SETTING
+         */
+        Setting<String> PROXY_USERNAME_SETTING = new Setting<>("cloud.aws.ec2.proxy.username", AwsEc2Service.PROXY_USERNAME_SETTING,
+            Function.identity(), Property.NodeScope);
+        /**
+         * cloud.aws.ec2.proxy.password: In case of proxy with auth, define the password specific for EC2 API calls.
+         * Defaults to cloud.aws.proxy.password.
+         * @see AwsEc2Service#PROXY_PASSWORD_SETTING
+         */
+        Setting<String> PROXY_PASSWORD_SETTING = new Setting<>("cloud.aws.ec2.proxy.password", AwsEc2Service.PROXY_PASSWORD_SETTING,
+            Function.identity(), Property.NodeScope, Property.Filtered);
+        /**
+         * cloud.aws.ec2.signer: If you are using an old AWS API version, you can define a Signer. Specific for EC2 API calls.
+         * Defaults to cloud.aws.signer.
+         * @see AwsEc2Service#SIGNER_SETTING
+         */
+        Setting<String> SIGNER_SETTING = new Setting<>("cloud.aws.ec2.signer", AwsEc2Service.SIGNER_SETTING, Function.identity(),
+            Property.NodeScope);
+        /**
+         * cloud.aws.ec2.region: Region specific for EC2 API calls. Defaults to cloud.aws.region.
+         * @see AwsEc2Service#REGION_SETTING
+         */
+        Setting<String> REGION_SETTING = new Setting<>("cloud.aws.ec2.region", AwsEc2Service.REGION_SETTING,
+            s -> s.toLowerCase(Locale.ROOT), Property.NodeScope);
+        /**
+         * cloud.aws.ec2.endpoint: Endpoint. If not set, endpoint will be guessed based on region setting.
+         */
+        Setting<String> ENDPOINT_SETTING = Setting.simpleString("cloud.aws.ec2.endpoint", Property.NodeScope);
     }
 
-    final class CLOUD_EC2 {
-        public static final String KEY = "cloud.aws.ec2.access_key";
-        public static final String SECRET = "cloud.aws.ec2.secret_key";
-        public static final String PROTOCOL = "cloud.aws.ec2.protocol";
-        public static final String PROXY_HOST = "cloud.aws.ec2.proxy.host";
-        public static final String PROXY_PORT = "cloud.aws.ec2.proxy.port";
-        public static final String PROXY_USERNAME = "cloud.aws.ec2.proxy.username";
-        public static final String PROXY_PASSWORD = "cloud.aws.ec2.proxy.password";
-        public static final String SIGNER = "cloud.aws.ec2.signer";
-        public static final String ENDPOINT = "cloud.aws.ec2.endpoint";
-        @Deprecated
-        public static final String DEPRECATED_PROXY_HOST = "cloud.aws.ec2.proxy_host";
-        @Deprecated
-        public static final String DEPRECATED_PROXY_PORT = "cloud.aws.ec2.proxy_port";
-    }
+    /**
+     * Defines discovery settings for ec2. Starting with discovery.ec2.
+     */
+    interface DISCOVERY_EC2 {
+        enum HostType {
+            PRIVATE_IP,
+            PUBLIC_IP,
+            PRIVATE_DNS,
+            PUBLIC_DNS
+        }
 
-    final class DISCOVERY_EC2 {
-        public static final String HOST_TYPE = "discovery.ec2.host_type";
-        public static final String ANY_GROUP = "discovery.ec2.any_group";
-        public static final String GROUPS = "discovery.ec2.groups";
-        public static final String TAG_PREFIX = "discovery.ec2.tag.";
-        public static final String AVAILABILITY_ZONES = "discovery.ec2.availability_zones";
-        public static final String NODE_CACHE_TIME = "discovery.ec2.node_cache_time";
+        /**
+         * discovery.ec2.host_type: The type of host type to use to communicate with other instances.
+         * Can be one of private_ip, public_ip, private_dns, public_dns. Defaults to private_ip.
+         */
+        Setting<HostType> HOST_TYPE_SETTING =
+            new Setting<>("discovery.ec2.host_type", HostType.PRIVATE_IP.name(), s -> HostType.valueOf(s.toUpperCase(Locale.ROOT)),
+                Property.NodeScope);
+        /**
+         * discovery.ec2.any_group: If set to false, will require all security groups to be present for the instance to be used for the
+         * discovery. Defaults to true.
+         */
+        Setting<Boolean> ANY_GROUP_SETTING =
+            Setting.boolSetting("discovery.ec2.any_group", true, Property.NodeScope);
+        /**
+         * discovery.ec2.groups: Either a comma separated list or array based list of (security) groups. Only instances with the provided
+         * security groups will be used in the cluster discovery. (NOTE: You could provide either group NAME or group ID.)
+         */
+        Setting<List<String>> GROUPS_SETTING =
+            Setting.listSetting("discovery.ec2.groups", new ArrayList<>(), s -> s.toString(), Property.NodeScope);
+        /**
+         * discovery.ec2.availability_zones: Either a comma separated list or array based list of availability zones. Only instances within
+         * the provided availability zones will be used in the cluster discovery.
+         */
+        Setting<List<String>> AVAILABILITY_ZONES_SETTING =
+            Setting.listSetting("discovery.ec2.availability_zones", Collections.emptyList(), s -> s.toString(),
+                Property.NodeScope);
+        /**
+         * discovery.ec2.node_cache_time: How long the list of hosts is cached to prevent further requests to the AWS API. Defaults to 10s.
+         */
+        Setting<TimeValue> NODE_CACHE_TIME_SETTING =
+            Setting.timeSetting("discovery.ec2.node_cache_time", TimeValue.timeValueSeconds(10), Property.NodeScope);
+
+        /**
+         * discovery.ec2.tag.*: The ec2 discovery can filter machines to include in the cluster based on tags (and not just groups).
+         * The settings to use include the discovery.ec2.tag. prefix. For example, setting discovery.ec2.tag.stage to dev will only filter
+         * instances with a tag key set to stage, and a value of dev. Several tags set will require all of those tags to be set for the
+         * instance to be included.
+         */
+        Setting<Settings> TAG_SETTING = Setting.groupSetting("discovery.ec2.tag.", Property.NodeScope);
     }
 
     AmazonEC2 client();

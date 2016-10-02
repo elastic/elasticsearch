@@ -50,12 +50,11 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
                         .field("type", randomFrom(new String[]{"short", "float", "long", "integer", "double"}))
                         .endObject()
                         .startObject("body")
-                        .field("type", "string")
+                        .field("type", "text")
                         .endObject()
                         .endObject()
                         .endObject()
                         .endObject()).get());
-        ensureYellow();
 
         client().prepareIndex("test", "type1", "1").setSource("test", 5, "body", "foo").get();
         client().prepareIndex("test", "type1", "2").setSource("test", 17, "body", "foo").get();

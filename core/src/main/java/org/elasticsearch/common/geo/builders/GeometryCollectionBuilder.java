@@ -19,27 +19,50 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.spatial4j.core.shape.Shape;
-import org.elasticsearch.common.geo.XShapeCollection;
+import org.locationtech.spatial4j.shape.Shape;
+
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.geo.XShapeCollection;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class GeometryCollectionBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.GEOMETRYCOLLECTION;
 
-    protected final ArrayList<ShapeBuilder> shapes = new ArrayList<>();
+    /**
+     * List of shapes. Package scope for testing.
+     */
+    final List<ShapeBuilder> shapes = new ArrayList<>();
 
+    /**
+     * Build and empty GeometryCollectionBuilder.
+     */
     public GeometryCollectionBuilder() {
-        this(Orientation.RIGHT);
     }
 
-    public GeometryCollectionBuilder(Orientation orientation) {
-        super(orientation);
+    /**
+     * Read from a stream.
+     */
+    public GeometryCollectionBuilder(StreamInput in) throws IOException {
+        int shapes = in.readVInt();
+        for (int i = 0; i < shapes; i++) {
+            shape(in.readNamedWriteable(ShapeBuilder.class));
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(shapes.size());
+        for (ShapeBuilder shape : shapes) {
+            out.writeNamedWriteable(shape);
+        }
     }
 
     public GeometryCollectionBuilder shape(ShapeBuilder shape) {
@@ -132,4 +155,20 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
         //note: ShapeCollection is probably faster than a Multi* geom.
     }
 
+    @Override
+    public int hashCode() {
+        return Objects.hash(shapes);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        GeometryCollectionBuilder other = (GeometryCollectionBuilder) obj;
+        return Objects.equals(shapes, other.shapes);
+    }
 }

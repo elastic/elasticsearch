@@ -18,11 +18,17 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.elasticsearch.cluster.*;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +44,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -45,7 +52,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -53,21 +59,22 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
             // Rebalancing is causing some checks after restore to randomly fail
             // due to https://github.com/elastic/elasticsearch/issues/9421
-            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
             .build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockRepository.Plugin.class);
+        return Arrays.asList(MockRepository.Plugin.class);
     }
 
     public static long getFailureCount(String repository) {
         long failureCount = 0;
-        for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+        for (RepositoriesService repositoriesService :
+            internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class)) {
             MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
             failureCount += mockRepository.getFailureCount();
         }
@@ -87,7 +94,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public static void stopNode(final String node) throws IOException {
-        internalCluster().stopRandomNode(settings -> settings.get("name").equals(node));
+        internalCluster().stopRandomNode(settings -> settings.get("node.name").equals(node));
     }
 
     public void waitForBlock(String node, String repository, TimeValue timeout) throws InterruptedException {
@@ -103,18 +110,29 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         fail("Timeout!!!");
     }
 
-    public SnapshotInfo waitForCompletion(String repository, String snapshot, TimeValue timeout) throws InterruptedException {
+    public SnapshotInfo waitForCompletion(String repository, String snapshotName, TimeValue timeout) throws InterruptedException {
         long start = System.currentTimeMillis();
-        SnapshotId snapshotId = new SnapshotId(repository, snapshot);
         while (System.currentTimeMillis() - start < timeout.millis()) {
-            List<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots(repository).setSnapshots(snapshot).get().getSnapshots();
+            List<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots(repository).setSnapshots(snapshotName).get().getSnapshots();
             assertThat(snapshotInfos.size(), equalTo(1));
             if (snapshotInfos.get(0).state().completed()) {
                 // Make sure that snapshot clean up operations are finished
                 ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
                 SnapshotsInProgress snapshotsInProgress = stateResponse.getState().custom(SnapshotsInProgress.TYPE);
-                if (snapshotsInProgress == null || snapshotsInProgress.snapshot(snapshotId) == null) {
+                if (snapshotsInProgress == null) {
                     return snapshotInfos.get(0);
+                } else {
+                    boolean found = false;
+                    for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
+                        final Snapshot curr = entry.snapshot();
+                        if (curr.getRepository().equals(repository) && curr.getSnapshotId().getName().equals(snapshotName)) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (found == false) {
+                        return snapshotInfos.get(0);
+                    }
                 }
             }
             Thread.sleep(100);
@@ -123,17 +141,44 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return null;
     }
 
-    public static String blockNodeWithIndex(String index) {
-        for(String node : internalCluster().nodesInclude("test-idx")) {
-            ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository("test-repo")).blockOnDataFiles(true);
+    public static String blockNodeWithIndex(final String repositoryName, final String indexName) {
+        for(String node : internalCluster().nodesInclude(indexName)) {
+            ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repositoryName))
+                .blockOnDataFiles(true);
             return node;
         }
-        fail("No nodes for the index " + index + " found");
+        fail("No nodes for the index " + indexName + " found");
         return null;
     }
 
-    public static void unblockNode(String node) {
-        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository("test-repo")).unblock();
+    public static void blockAllDataNodes(String repository) {
+        for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+            ((MockRepository)repositoriesService.repository(repository)).blockOnDataFiles(true);
+        }
+    }
+
+    public static void unblockAllDataNodes(String repository) {
+        for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+            ((MockRepository)repositoriesService.repository(repository)).unblock();
+        }
+    }
+
+    public void waitForBlockOnAnyDataNode(String repository, TimeValue timeout) throws InterruptedException {
+        if (false == awaitBusy(() -> {
+            for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+                MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
+                if (mockRepository.blocked()) {
+                    return true;
+                }
+            }
+            return false;
+        }, timeout.millis(), TimeUnit.MILLISECONDS)) {
+            fail("Timeout waiting for repository block on any data node!!!");
+        }
+    }
+
+    public static void unblockNode(final String repository, final String node) {
+        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
     }
 
     protected void assertBusyPendingTasks(final String taskPrefix, final int expectedCount) throws Exception {
@@ -171,7 +216,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         private long stopWaitingAt = -1;
 
         public BlockingClusterStateListener(ClusterService clusterService, String blockOn, String countOn, Priority passThroughPriority) {
-            this(clusterService, blockOn, countOn, passThroughPriority, TimeValue.timeValueMinutes(1));
+            // Waiting for the 70 seconds here to make sure that the last check at 65 sec mark in assertBusyPendingTasks has a chance
+            // to finish before we timeout on the cluster state block. Otherwise the last check in assertBusyPendingTasks kicks in
+            // after the cluster state block clean up takes place and it's assert doesn't reflect the actual failure
+            this(clusterService, blockOn, countOn, passThroughPriority, TimeValue.timeValueSeconds(70));
         }
 
         public BlockingClusterStateListener(ClusterService clusterService, final String blockOn, final String countOn, Priority passThroughPriority, TimeValue timeout) {
@@ -234,8 +282,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.warn("failed to execute [{}]", t, source);
+                public void onFailure(String source, Exception e) {
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to execute [{}]", source), e);
                 }
             });
 

@@ -26,7 +26,7 @@ import org.elasticsearch.index.IndexSettings;
 
 import java.io.Reader;
 
-public class KuromojiIterationMarkCharFilterFactory extends AbstractCharFilterFactory {
+public class KuromojiIterationMarkCharFilterFactory extends AbstractCharFilterFactory implements MultiTermAwareComponent {
 
     private final boolean normalizeKanji;
     private final boolean normalizeKana;
@@ -40,5 +40,10 @@ public class KuromojiIterationMarkCharFilterFactory extends AbstractCharFilterFa
     @Override
     public Reader create(Reader reader) {
         return new JapaneseIterationMarkCharFilter(reader, normalizeKanji, normalizeKana);
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }

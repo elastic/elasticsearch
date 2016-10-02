@@ -33,16 +33,18 @@ import java.io.IOException;
  */
 public class BytesStreamOutput extends StreamOutput implements BytesStream {
 
-    protected final BigArrays bigarrays;
+    protected final BigArrays bigArrays;
 
     protected ByteArray bytes;
     protected int count;
 
     /**
-     * Create a non recycling {@link BytesStreamOutput} with 1 initial page acquired.
+     * Create a non recycling {@link BytesStreamOutput} with an initial capacity of 0.
      */
     public BytesStreamOutput() {
-        this(BigArrays.PAGE_SIZE_IN_BYTES);
+        // since this impl is not recycling anyway, don't bother aligning to
+        // the page size, this will even save memory
+        this(0);
     }
 
     /**
@@ -55,9 +57,9 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
         this(expectedSize, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
-    protected BytesStreamOutput(int expectedSize, BigArrays bigarrays) {
-        this.bigarrays = bigarrays;
-        this.bytes = bigarrays.newByteArray(expectedSize);
+    protected BytesStreamOutput(int expectedSize, BigArrays bigArrays) {
+        this.bigArrays = bigArrays;
+        this.bytes = bigArrays.newByteArray(expectedSize);
     }
 
     @Override
@@ -98,7 +100,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
     public void reset() {
         // shrink list of pages
         if (bytes.size() > BigArrays.PAGE_SIZE_IN_BYTES) {
-            bytes = bigarrays.resize(bytes, BigArrays.PAGE_SIZE_IN_BYTES);
+            bytes = bigArrays.resize(bytes, BigArrays.PAGE_SIZE_IN_BYTES);
         }
 
         // go back to start
@@ -143,7 +145,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
 
     @Override
     public BytesReference bytes() {
-        return new PagedBytesReference(bigarrays, bytes, count);
+        return new PagedBytesReference(bigArrays, bytes, count);
     }
 
     /**
@@ -155,7 +157,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
     }
 
     private void ensureCapacity(int offset) {
-        bytes = bigarrays.grow(bytes, offset);
+        bytes = bigArrays.grow(bytes, offset);
     }
 
 }

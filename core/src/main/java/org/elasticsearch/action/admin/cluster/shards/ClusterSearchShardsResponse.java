@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  */
@@ -62,7 +61,7 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
         }
         nodes = new DiscoveryNode[in.readVInt()];
         for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = DiscoveryNode.readNode(in);
+            nodes[i] = new DiscoveryNode(in);
         }
 
     }

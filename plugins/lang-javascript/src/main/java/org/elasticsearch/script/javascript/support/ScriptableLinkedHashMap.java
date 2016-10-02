@@ -33,8 +33,6 @@ import java.util.Map;
  *
  */
 public class ScriptableLinkedHashMap<K, V> extends LinkedHashMap<K, V> implements ScriptableMap<K, V> {
-    private static final long serialVersionUID = 3774167893214964123L;
-
     private Scriptable parentScope;
     private Scriptable prototype;
 
@@ -53,6 +51,7 @@ public class ScriptableLinkedHashMap<K, V> extends LinkedHashMap<K, V> implement
     /**
      * @see org.mozilla.javascript.Scriptable#getClassName()
      */
+    @Override
     public String getClassName() {
         return "ScriptableMap";
     }
@@ -60,6 +59,7 @@ public class ScriptableLinkedHashMap<K, V> extends LinkedHashMap<K, V> implement
     /**
      * @see org.mozilla.javascript.Scriptable#get(java.lang.String, org.mozilla.javascript.Scriptable)
      */
+    @Override
     public Object get(String name, Scriptable start) {
         // get the property from the underlying QName map
         if ("length".equals(name)) {
@@ -72,10 +72,11 @@ public class ScriptableLinkedHashMap<K, V> extends LinkedHashMap<K, V> implement
     /**
      * @see org.mozilla.javascript.Scriptable#get(int, org.mozilla.javascript.Scriptable)
      */
+    @Override
     public Object get(int index, Scriptable start) {
         Object value = null;
         int i = 0;
-        Iterator itrValues = this.values().iterator();
+        Iterator<V> itrValues = this.values().iterator();
         while (i++ <= index && itrValues.hasNext()) {
             value = itrValues.next();
         }
@@ -85,6 +86,7 @@ public class ScriptableLinkedHashMap<K, V> extends LinkedHashMap<K, V> implement
     /**
      * @see org.mozilla.javascript.Scriptable#has(java.lang.String, org.mozilla.javascript.Scriptable)
      */
+    @Override
     public boolean has(String name, Scriptable start) {
         // locate the property in the underlying map
         return containsKey(name);
@@ -93,6 +95,7 @@ public class ScriptableLinkedHashMap<K, V> extends LinkedHashMap<K, V> implement
     /**
      * @see org.mozilla.javascript.Scriptable#has(int, org.mozilla.javascript.Scriptable)
      */
+    @Override
     public boolean has(int index, Scriptable start) {
         return (index >= 0 && this.values().size() > index);
     }
@@ -100,6 +103,7 @@ public class ScriptableLinkedHashMap<K, V> extends LinkedHashMap<K, V> implement
     /**
      * @see org.mozilla.javascript.Scriptable#put(java.lang.String, org.mozilla.javascript.Scriptable, java.lang.Object)
      */
+    @Override
     @SuppressWarnings("unchecked")
     public void put(String name, Scriptable start, Object value) {
         // add the property to the underlying QName map
@@ -109,6 +113,7 @@ public class ScriptableLinkedHashMap<K, V> extends LinkedHashMap<K, V> implement
     /**
      * @see org.mozilla.javascript.Scriptable#put(int, org.mozilla.javascript.Scriptable, java.lang.Object)
      */
+    @Override
     public void put(int index, Scriptable start, Object value) {
         // TODO: implement?
     }
@@ -116,6 +121,7 @@ public class ScriptableLinkedHashMap<K, V> extends LinkedHashMap<K, V> implement
     /**
      * @see org.mozilla.javascript.Scriptable#delete(java.lang.String)
      */
+    @Override
     public void delete(String name) {
         // remove the property from the underlying QName map
         remove(name);
@@ -124,9 +130,10 @@ public class ScriptableLinkedHashMap<K, V> extends LinkedHashMap<K, V> implement
     /**
      * @see org.mozilla.javascript.Scriptable#delete(int)
      */
+    @Override
     public void delete(int index) {
         int i = 0;
-        Iterator itrKeys = this.keySet().iterator();
+        Iterator<K> itrKeys = this.keySet().iterator();
         while (i <= index && itrKeys.hasNext()) {
             Object key = itrKeys.next();
             if (i == index) {
@@ -139,6 +146,7 @@ public class ScriptableLinkedHashMap<K, V> extends LinkedHashMap<K, V> implement
     /**
      * @see org.mozilla.javascript.Scriptable#getPrototype()
      */
+    @Override
     public Scriptable getPrototype() {
         return this.prototype;
     }
@@ -146,6 +154,7 @@ public class ScriptableLinkedHashMap<K, V> extends LinkedHashMap<K, V> implement
     /**
      * @see org.mozilla.javascript.Scriptable#setPrototype(org.mozilla.javascript.Scriptable)
      */
+    @Override
     public void setPrototype(Scriptable prototype) {
         this.prototype = prototype;
     }
@@ -153,6 +162,7 @@ public class ScriptableLinkedHashMap<K, V> extends LinkedHashMap<K, V> implement
     /**
      * @see org.mozilla.javascript.Scriptable#getParentScope()
      */
+    @Override
     public Scriptable getParentScope() {
         return this.parentScope;
     }
@@ -160,6 +170,7 @@ public class ScriptableLinkedHashMap<K, V> extends LinkedHashMap<K, V> implement
     /**
      * @see org.mozilla.javascript.Scriptable#setParentScope(org.mozilla.javascript.Scriptable)
      */
+    @Override
     public void setParentScope(Scriptable parent) {
         this.parentScope = parent;
     }
@@ -167,6 +178,7 @@ public class ScriptableLinkedHashMap<K, V> extends LinkedHashMap<K, V> implement
     /**
      * @see org.mozilla.javascript.Scriptable#getIds()
      */
+    @Override
     public Object[] getIds() {
         return keySet().toArray();
     }
@@ -174,13 +186,15 @@ public class ScriptableLinkedHashMap<K, V> extends LinkedHashMap<K, V> implement
     /**
      * @see org.mozilla.javascript.Scriptable#getDefaultValue(java.lang.Class)
      */
-    public Object getDefaultValue(Class hint) {
+    @Override
+    public Object getDefaultValue(Class<?> hint) {
         return null;
     }
 
     /**
      * @see org.mozilla.javascript.Scriptable#hasInstance(org.mozilla.javascript.Scriptable)
      */
+    @Override
     public boolean hasInstance(Scriptable instance) {
         return instance instanceof ScriptableLinkedHashMap;
     }

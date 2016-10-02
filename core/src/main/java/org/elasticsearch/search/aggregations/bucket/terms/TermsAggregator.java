@@ -21,8 +21,12 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
@@ -36,111 +40,143 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public abstract class TermsAggregator extends BucketsAggregator {
 
-    public static class BucketCountThresholds {
-        private Explicit<Long> minDocCount;
-        private Explicit<Long> shardMinDocCount;
-        private Explicit<Integer> requiredSize;
-        private Explicit<Integer> shardSize;
+    public static class BucketCountThresholds implements Writeable, ToXContent {
+        private long minDocCount;
+        private long shardMinDocCount;
+        private int requiredSize;
+        private int shardSize;
 
         public BucketCountThresholds(long minDocCount, long shardMinDocCount, int requiredSize, int shardSize) {
-            this.minDocCount = new Explicit<>(minDocCount, false);
-            this.shardMinDocCount =  new Explicit<>(shardMinDocCount, false);
-            this.requiredSize = new Explicit<>(requiredSize, false);
-            this.shardSize = new Explicit<>(shardSize, false);
+            this.minDocCount = minDocCount;
+            this.shardMinDocCount = shardMinDocCount;
+            this.requiredSize = requiredSize;
+            this.shardSize = shardSize;
         }
-        public BucketCountThresholds() {
-            this(-1, -1, -1, -1);
+
+        /**
+         * Read from a stream.
+         */
+        public BucketCountThresholds(StreamInput in) throws IOException {
+            requiredSize = in.readInt();
+            shardSize = in.readInt();
+            minDocCount = in.readLong();
+            shardMinDocCount = in.readLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeInt(requiredSize);
+            out.writeInt(shardSize);
+            out.writeLong(minDocCount);
+            out.writeLong(shardMinDocCount);
         }
 
         public BucketCountThresholds(BucketCountThresholds bucketCountThresholds) {
-            this(bucketCountThresholds.minDocCount.value(), bucketCountThresholds.shardMinDocCount.value(), bucketCountThresholds.requiredSize.value(), bucketCountThresholds.shardSize.value());
+            this(bucketCountThresholds.minDocCount, bucketCountThresholds.shardMinDocCount, bucketCountThresholds.requiredSize,
+                    bucketCountThresholds.shardSize);
         }
 
         public void ensureValidity() {
 
-            if (shardSize.value() == 0) {
-                setShardSize(Integer.MAX_VALUE);
-            }
-
-            if (requiredSize.value() == 0) {
-                setRequiredSize(Integer.MAX_VALUE);
-            }
             // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
-            if (shardSize.value() < requiredSize.value()) {
-                setShardSize(requiredSize.value());
+            if (shardSize < requiredSize) {
+                setShardSize(requiredSize);
             }
 
             // shard_min_doc_count should not be larger than min_doc_count because this can cause buckets to be removed that would match the min_doc_count criteria
-            if (shardMinDocCount.value() > minDocCount.value()) {
-                setShardMinDocCount(minDocCount.value());
+            if (shardMinDocCount > minDocCount) {
+                setShardMinDocCount(minDocCount);
             }
 
-            if (requiredSize.value() < 0 || minDocCount.value() < 0) {
-                throw new ElasticsearchException("parameters [requiredSize] and [minDocCount] must be >=0 in terms aggregation.");
+            if (requiredSize <= 0 || shardSize <= 0) {
+                throw new ElasticsearchException("parameters [required_size] and [shard_size] must be >0 in terms aggregation.");
+            }
+
+            if (minDocCount < 0 || shardMinDocCount < 0) {
+                throw new ElasticsearchException("parameter [min_doc_count] and [shardMinDocCount] must be >=0 in terms aggregation.");
             }
         }
 
         public long getShardMinDocCount() {
-            return shardMinDocCount.value();
+            return shardMinDocCount;
         }
 
         public void setShardMinDocCount(long shardMinDocCount) {
-            this.shardMinDocCount = new Explicit<>(shardMinDocCount, true);
+            this.shardMinDocCount = shardMinDocCount;
         }
 
         public long getMinDocCount() {
-            return minDocCount.value();
+            return minDocCount;
         }
 
         public void setMinDocCount(long minDocCount) {
-            this.minDocCount = new Explicit<>(minDocCount, true);
+            this.minDocCount = minDocCount;
         }
 
         public int getRequiredSize() {
-            return requiredSize.value();
+            return requiredSize;
         }
 
         public void setRequiredSize(int requiredSize) {
-            this.requiredSize = new Explicit<>(requiredSize, true);
+            this.requiredSize = requiredSize;
         }
 
         public int getShardSize() {
-            return shardSize.value();
+            return shardSize;
         }
 
         public void setShardSize(int shardSize) {
-            this.shardSize = new Explicit<>(shardSize, true);
+            this.shardSize = shardSize;
         }
 
-        public void toXContent(XContentBuilder builder) throws IOException {
-            if (requiredSize.explicit()) {
-                builder.field(AbstractTermsParametersParser.REQUIRED_SIZE_FIELD_NAME.getPreferredName(), requiredSize.value());
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(TermsAggregationBuilder.REQUIRED_SIZE_FIELD_NAME.getPreferredName(), requiredSize);
+            builder.field(TermsAggregationBuilder.SHARD_SIZE_FIELD_NAME.getPreferredName(), shardSize);
+            builder.field(TermsAggregationBuilder.MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), minDocCount);
+            builder.field(TermsAggregationBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), shardMinDocCount);
+            return builder;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(requiredSize, shardSize, minDocCount, shardMinDocCount);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
             }
-            if (shardSize.explicit()) {
-                builder.field(AbstractTermsParametersParser.SHARD_SIZE_FIELD_NAME.getPreferredName(), shardSize.value());
+            if (getClass() != obj.getClass()) {
+                return false;
             }
-            if (minDocCount.explicit()) {
-                builder.field(AbstractTermsParametersParser.MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), minDocCount.value());
-            }
-            if (shardMinDocCount.explicit()) {
-                builder.field(AbstractTermsParametersParser.SHARD_MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), shardMinDocCount.value());
-            }
+            BucketCountThresholds other = (BucketCountThresholds) obj;
+            return Objects.equals(requiredSize, other.requiredSize)
+                    && Objects.equals(shardSize, other.shardSize)
+                    && Objects.equals(minDocCount, other.minDocCount)
+                    && Objects.equals(shardMinDocCount, other.shardMinDocCount);
         }
     }
 
+    protected final DocValueFormat format;
     protected final BucketCountThresholds bucketCountThresholds;
     protected final Terms.Order order;
     protected final Set<Aggregator> aggsUsedForSorting = new HashSet<>();
     protected final SubAggCollectionMode collectMode;
 
-    public TermsAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent, BucketCountThresholds bucketCountThresholds, Terms.Order order, SubAggCollectionMode collectMode, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    public TermsAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
+            BucketCountThresholds bucketCountThresholds, Terms.Order order, DocValueFormat format, SubAggCollectionMode collectMode,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         this.bucketCountThresholds = bucketCountThresholds;
         this.order = InternalOrder.validate(order, this);
+        this.format = format;
         this.collectMode = collectMode;
         // Don't defer any child agg if we are dependent on it for pruning results
         if (order instanceof Aggregation){
@@ -160,7 +196,6 @@ public abstract class TermsAggregator extends BucketsAggregator {
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
         return collectMode == SubAggCollectionMode.BREADTH_FIRST
-                && aggregator.needsScores() == false
                 && !aggsUsedForSorting.contains(aggregator);
     }
 

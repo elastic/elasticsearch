@@ -29,4 +29,6 @@ include::has-child-query.asciidoc[]
 
 include::has-parent-query.asciidoc[]
 
+include::parent-id-query.asciidoc[]
+
 

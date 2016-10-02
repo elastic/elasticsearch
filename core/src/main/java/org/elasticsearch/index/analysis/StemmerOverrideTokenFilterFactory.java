@@ -23,8 +23,8 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.StemmerOverrideFilter;
 import org.apache.lucene.analysis.miscellaneous.StemmerOverrideFilter.StemmerOverrideMap;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactor
         if (rules == null) {
             throw new IllegalArgumentException("stemmer override filter requires either `rules` or `rules_path` to be configured");
         }
-        
+
         StemmerOverrideFilter.Builder builder = new StemmerOverrideFilter.Builder(false);
         parseRules(rules, builder, "=>");
         overrideMap = builder.build();

@@ -11,7 +11,6 @@
         nodes.info: {}
 
     - match:  { nodes.$master.modules.0.name: lang-mustache  }
-    - match:  { nodes.$master.modules.0.jvm: true  }
 
 ---
 "Indexed template":
@@ -20,7 +19,7 @@
       put_template:
         id: "1"
         body: { "template": { "query": { "match_all": {}}, "size": "{{my_size}}" } }
-  - match: { _id: "1" }
+  - match: { acknowledged: true }
 
   - do:
       get_template:
@@ -28,7 +27,6 @@
   - match: { found: true }
   - match: { lang: mustache }
   - match: { _id: "1" }
-  - match: { _version: 1 }
   - match: { template: /.*query\S\S\S\Smatch_all.*/ }
 
   - do:
@@ -38,25 +36,16 @@
   - match: { found: false }
   - match: { lang: mustache }
   - match: { _id: "2" }
-  - is_false: _version
-  - is_false: template
 
   - do:
       delete_template:
         id: "1"
-  - match: { found: true }
-  - match: { _index: ".scripts" }
-  - match: { _id: "1" }
-  - match: { _version: 2}
+  - match: { acknowledged: true }
 
   - do:
       catch: missing
       delete_template:
         id: "non_existing"
-  - match: { found: false }
-  - match: { _index: ".scripts" }
-  - match: { _id: "non_existing" }
-  - match: { _version: 1 }
 
   - do:
       catch: request

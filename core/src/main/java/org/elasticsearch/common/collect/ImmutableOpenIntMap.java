@@ -19,7 +19,13 @@
 
 package org.elasticsearch.common.collect;
 
-import com.carrotsearch.hppc.*;
+import com.carrotsearch.hppc.IntCollection;
+import com.carrotsearch.hppc.IntContainer;
+import com.carrotsearch.hppc.IntLookupContainer;
+import com.carrotsearch.hppc.IntObjectAssociativeContainer;
+import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectMap;
+import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
@@ -126,7 +132,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
             }
 
             @Override
-            public final void remove() {
+            public void remove() {
                 throw new UnsupportedOperationException();
             }
         };
@@ -156,7 +162,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
             }
 
             @Override
-            public final void remove() {
+            public void remove() {
                 throw new UnsupportedOperationException();
             }
         };

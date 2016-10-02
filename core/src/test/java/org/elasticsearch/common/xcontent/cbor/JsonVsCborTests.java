@@ -48,8 +48,10 @@ public class JsonVsCborTests extends ESTestCase {
         xsonGen.writeStringField("test", "value");
         jsonGen.writeStringField("test", "value");
 
-        xsonGen.writeArrayFieldStart("arr");
-        jsonGen.writeArrayFieldStart("arr");
+        xsonGen.writeFieldName("arr");
+        xsonGen.writeStartArray();
+        jsonGen.writeFieldName("arr");
+        jsonGen.writeStartArray();
         xsonGen.writeNumber(1);
         jsonGen.writeNumber(1);
         xsonGen.writeNull();
@@ -63,7 +65,8 @@ public class JsonVsCborTests extends ESTestCase {
         xsonGen.close();
         jsonGen.close();
 
-        verifySameTokens(XContentFactory.xContent(XContentType.JSON).createParser(jsonOs.bytes().toBytes()), XContentFactory.xContent(XContentType.CBOR).createParser(xsonOs.bytes().toBytes()));
+        verifySameTokens(XContentFactory.xContent(XContentType.JSON).createParser(jsonOs.bytes()),
+            XContentFactory.xContent(XContentType.CBOR).createParser(xsonOs.bytes()));
     }
 
     private void verifySameTokens(XContentParser parser1, XContentParser parser2) throws IOException {

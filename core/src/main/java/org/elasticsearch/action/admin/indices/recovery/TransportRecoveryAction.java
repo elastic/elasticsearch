@@ -22,13 +22,13 @@ package org.elasticsearch.action.admin.indices.recovery;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -75,7 +75,7 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
             if (recoveryState == null) {
                 continue;
             }
-            String indexName = recoveryState.getShardId().getIndex();
+            String indexName = recoveryState.getShardId().getIndexName();
             if (!shardResponses.containsKey(indexName)) {
                 shardResponses.put(indexName, new ArrayList<>());
             }

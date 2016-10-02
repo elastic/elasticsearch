@@ -85,7 +85,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
      * Sets the source containing the transient settings to be updated. They will not survive a full cluster restart
      */
     public ClusterUpdateSettingsRequest transientSettings(String source) {
-        this.transientSettings = Settings.settingsBuilder().loadFromSource(source).build();
+        this.transientSettings = Settings.builder().loadFromSource(source).build();
         return this;
     }
 
@@ -124,7 +124,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
      * Sets the source containing the persistent settings to be updated. They will get applied cross restarts
      */
     public ClusterUpdateSettingsRequest persistentSettings(String source) {
-        this.persistentSettings = Settings.settingsBuilder().loadFromSource(source).build();
+        this.persistentSettings = Settings.builder().loadFromSource(source).build();
         return this;
     }
 

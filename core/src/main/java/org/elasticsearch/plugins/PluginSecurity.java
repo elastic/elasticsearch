@@ -19,8 +19,9 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.cli.Terminal.Verbosity;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -38,7 +39,7 @@ import java.util.Comparator;
 import java.util.List;
 
 class PluginSecurity {
-    
+
     /**
      * Reads plugin policy, prints/confirms exceptions
      */
@@ -46,10 +47,10 @@ class PluginSecurity {
         PermissionCollection permissions = parsePermissions(terminal, file, environment.tmpFile());
         List<Permission> requested = Collections.list(permissions.elements());
         if (requested.isEmpty()) {
-            terminal.print(Verbosity.VERBOSE, "plugin has a policy file with no additional permissions");
+            terminal.println(Verbosity.VERBOSE, "plugin has a policy file with no additional permissions");
             return;
         }
-        
+
         // sort permissions in a reasonable order
         Collections.sort(requested, new Comparator<Permission>() {
             @Override
@@ -80,29 +81,29 @@ class PluginSecurity {
                 return cmp;
             }
         });
-        
+
         terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
         terminal.println(Verbosity.NORMAL, "@     WARNING: plugin requires additional permissions     @");
         terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
         // print all permissions:
         for (Permission permission : requested) {
-            terminal.println(Verbosity.NORMAL, "* %s", formatPermission(permission));
+            terminal.println(Verbosity.NORMAL, "* " + formatPermission(permission));
         }
         terminal.println(Verbosity.NORMAL, "See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
         terminal.println(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");
         if (!batch) {
-            terminal.println(Verbosity.NORMAL);
+            terminal.println(Verbosity.NORMAL, "");
             String text = terminal.readText("Continue with installation? [y/N]");
             if (!text.equalsIgnoreCase("y")) {
                 throw new RuntimeException("installation aborted by user");
             }
         }
     }
-    
+
     /** Format permission type, name, and actions into a string */
     static String formatPermission(Permission permission) {
         StringBuilder sb = new StringBuilder();
-        
+
         String clazz = null;
         if (permission instanceof UnresolvedPermission) {
             clazz = ((UnresolvedPermission) permission).getUnresolvedType();
@@ -110,7 +111,7 @@ class PluginSecurity {
             clazz = permission.getClass().getName();
         }
         sb.append(clazz);
-        
+
         String name = null;
         if (permission instanceof UnresolvedPermission) {
             name = ((UnresolvedPermission) permission).getUnresolvedName();
@@ -121,7 +122,7 @@ class PluginSecurity {
             sb.append(' ');
             sb.append(name);
         }
-        
+
         String actions = null;
         if (permission instanceof UnresolvedPermission) {
             actions = ((UnresolvedPermission) permission).getUnresolvedActions();
@@ -134,7 +135,7 @@ class PluginSecurity {
         }
         return sb.toString();
     }
-    
+
     /**
      * Parses plugin policy into a set of permissions
      */
@@ -151,8 +152,8 @@ class PluginSecurity {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
-        PluginManager.tryToDeletePath(terminal, emptyPolicyFile);
-        
+        IOUtils.rm(emptyPolicyFile);
+
         // parse the plugin's policy file into a set of permissions
         final Policy policy;
         try {

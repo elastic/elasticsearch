@@ -22,8 +22,6 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.apache.lucene.analysis.standard.std40.StandardTokenizer40;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -41,14 +39,8 @@ public class StandardTokenizerFactory extends AbstractTokenizerFactory {
 
     @Override
     public Tokenizer create() {
-        if (version.onOrAfter(Version.LUCENE_4_7_0)) {
-            StandardTokenizer tokenizer = new StandardTokenizer();
-            tokenizer.setMaxTokenLength(maxTokenLength);
-            return tokenizer;
-        } else {
-            StandardTokenizer40 tokenizer = new StandardTokenizer40();
-            tokenizer.setMaxTokenLength(maxTokenLength);
-            return tokenizer;
-        }
+        StandardTokenizer tokenizer = new StandardTokenizer();
+        tokenizer.setMaxTokenLength(maxTokenLength);
+        return tokenizer;
     }
 }

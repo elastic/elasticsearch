@@ -16,7 +16,7 @@
           "type" : "string",
           "description" : "The name of the analyzer to use"
         },
-        "char_filters": {
+        "char_filter": {
           "type" : "list",
           "description" : "A comma-separated list of character filters to use for the analysis"
         },
@@ -24,7 +24,7 @@
           "type" : "string",
           "description" : "Use the analyzer configured for this field (instead of passing the analyzer name)"
         },
-        "filters": {
+        "filter": {
           "type" : "list",
           "description" : "A comma-separated list of filters to use for the analysis"
         },
@@ -44,13 +44,13 @@
           "type" : "string",
           "description" : "The name of the tokenizer to use for the analysis"
         },
-        "detail": {
+        "explain": {
           "type" : "boolean",
           "description" : "With `true`, outputs more advanced details. (default: false)"
         },
         "attributes": {
           "type" : "list",
-          "description" : "A comma-separated list of token attributes to output, this parameter works only with `detail=true`"
+          "description" : "A comma-separated list of token attributes to output, this parameter works only with `explain=true`"
         },
         "format": {
           "type": "enum",

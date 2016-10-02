@@ -19,24 +19,25 @@
 
 package org.elasticsearch.repositories.uri;
 
-import org.elasticsearch.cluster.metadata.SnapshotId;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.url.URLBlobStore;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.URIPattern;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.repositories.RepositoryName;
-import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Read-only URL-based implementation of the BlobStoreRepository
@@ -49,15 +50,21 @@ import java.util.List;
  */
 public class URLRepository extends BlobStoreRepository {
 
-    public final static String TYPE = "url";
+    public static final String TYPE = "url";
 
-    public final static String[] DEFAULT_SUPPORTED_PROTOCOLS = {"http", "https", "ftp", "file", "jar"};
+    public static final Setting<List<String>> SUPPORTED_PROTOCOLS_SETTING =
+        Setting.listSetting("repositories.url.supported_protocols", Arrays.asList("http", "https", "ftp", "file", "jar"),
+            Function.identity(), Property.NodeScope);
 
-    public final static String SUPPORTED_PROTOCOLS_SETTING = "repositories.url.supported_protocols";
+    public static final Setting<List<URIPattern>> ALLOWED_URLS_SETTING =
+        Setting.listSetting("repositories.url.allowed_urls", Collections.emptyList(), URIPattern::new, Property.NodeScope);
 
-    public final static String ALLOWED_URLS_SETTING = "repositories.url.allowed_urls";
+    public static final Setting<URL> URL_SETTING = new Setting<>("url", "http:", URLRepository::parseURL, Property.NodeScope);
+    public static final Setting<URL> REPOSITORIES_URL_SETTING =
+        new Setting<>("repositories.url.url", (s) -> s.get("repositories.uri.url", "http:"), URLRepository::parseURL,
+            Property.NodeScope);
 
-    private final String[] supportedProtocols;
+    private final List<String> supportedProtocols;
 
     private final URIPattern[] urlWhiteList;
 
@@ -67,41 +74,25 @@ public class URLRepository extends BlobStoreRepository {
 
     private final BlobPath basePath;
 
-    private boolean listDirectories;
-
     /**
-     * Constructs new read-only URL-based repository
-     *
-     * @param name                 repository name
-     * @param repositorySettings   repository settings
-     * @param indexShardRepository shard repository
+     * Constructs a read-only URL-based repository
      */
-    @Inject
-    public URLRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository, Environment environment) throws IOException {
-        super(name.getName(), repositorySettings, indexShardRepository);
-        URL url;
-        String path = repositorySettings.settings().get("url", settings.get("repositories.url.url", settings.get("repositories.uri.url")));
-        if (path == null) {
-            throw new RepositoryException(name.name(), "missing url");
-        } else {
-            url = new URL(path);
+    public URLRepository(RepositoryMetaData metadata, Environment environment) throws IOException {
+        super(metadata, environment.settings());
+
+        if (URL_SETTING.exists(metadata.settings()) == false && REPOSITORIES_URL_SETTING.exists(settings) ==  false) {
+            throw new RepositoryException(metadata.name(), "missing url");
         }
-        supportedProtocols = settings.getAsArray(SUPPORTED_PROTOCOLS_SETTING, DEFAULT_SUPPORTED_PROTOCOLS);
-        String[] urlWhiteList = settings.getAsArray(ALLOWED_URLS_SETTING, Strings.EMPTY_ARRAY);
-        this.urlWhiteList = new URIPattern[urlWhiteList.length];
-        for (int i = 0; i < urlWhiteList.length; i++) {
-            this.urlWhiteList[i] = new URIPattern(urlWhiteList[i]);
-        }
+        supportedProtocols = SUPPORTED_PROTOCOLS_SETTING.get(settings);
+        urlWhiteList = ALLOWED_URLS_SETTING.get(settings).toArray(new URIPattern[]{});
         this.environment = environment;
-        listDirectories = repositorySettings.settings().getAsBoolean("list_directories", settings.getAsBoolean("repositories.uri.list_directories", true));
+
+        URL url = URL_SETTING.exists(metadata.settings()) ? URL_SETTING.get(metadata.settings()) : REPOSITORIES_URL_SETTING.get(settings);
         URL normalizedURL = checkURL(url);
         blobStore = new URLBlobStore(settings, normalizedURL);
         basePath = BlobPath.cleanPath();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     protected BlobStore blobStore() {
         return blobStore;
@@ -112,26 +103,13 @@ public class URLRepository extends BlobStoreRepository {
         return basePath;
     }
 
-    @Override
-    public List<SnapshotId> snapshots() {
-        if (listDirectories) {
-            return super.snapshots();
-        } else {
-            try {
-                return readSnapshotList();
-            } catch (IOException ex) {
-                throw new RepositoryException(repositoryName, "failed to get snapshot list in repository", ex);
-            }
-        }
-    }
-
     /**
      * Makes sure that the url is white listed or if it points to the local file system it matches one on of the root path in path.repo
      */
     private URL checkURL(URL url) {
         String protocol = url.getProtocol();
         if (protocol == null) {
-            throw new RepositoryException(repositoryName, "unknown url protocol from URL [" + url + "]");
+            throw new RepositoryException(getMetadata().name(), "unknown url protocol from URL [" + url + "]");
         }
         for (String supportedProtocol : supportedProtocols) {
             if (supportedProtocol.equals(protocol)) {
@@ -142,23 +120,30 @@ public class URLRepository extends BlobStoreRepository {
                     }
                 } catch (URISyntaxException ex) {
                     logger.warn("cannot parse the specified url [{}]", url);
-                    throw new RepositoryException(repositoryName, "cannot parse the specified url [" + url + "]");
+                    throw new RepositoryException(getMetadata().name(), "cannot parse the specified url [" + url + "]");
                 }
                 // We didn't match white list - try to resolve against path.repo
                 URL normalizedUrl = environment.resolveRepoURL(url);
                 if (normalizedUrl == null) {
-                    logger.warn("The specified url [{}] doesn't start with any repository paths specified by the path.repo setting: [{}] or by repositories.url.allowed_urls setting: [{}] ", url, environment.repoFiles());
-                    throw new RepositoryException(repositoryName, "file url [" + url + "] doesn't match any of the locations specified by path.repo or repositories.url.allowed_urls");
+                    logger.warn("The specified url [{}] doesn't start with any repository paths specified by the path.repo setting or by {} setting: [{}] ", url, ALLOWED_URLS_SETTING.getKey(), environment.repoFiles());
+                    throw new RepositoryException(getMetadata().name(), "file url [" + url + "] doesn't match any of the locations specified by path.repo or " + ALLOWED_URLS_SETTING.getKey());
                 }
                 return normalizedUrl;
             }
         }
-        throw new RepositoryException(repositoryName, "unsupported url protocol [" + protocol + "] from URL [" + url + "]");
+        throw new RepositoryException(getMetadata().name(), "unsupported url protocol [" + protocol + "] from URL [" + url + "]");
     }
 
     @Override
-    public boolean readOnly() {
+    public boolean isReadOnly() {
         return true;
     }
 
+    private static URL parseURL(String s) {
+        try {
+            return new URL(s);
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException("Unable to parse URL repository setting", e);
+        }
+    }
 }

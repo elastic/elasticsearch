@@ -40,18 +40,7 @@ import java.io.IOException;
 public class FlushRequest extends BroadcastRequest<FlushRequest> {
 
     private boolean force = false;
-    private boolean waitIfOngoing = false;
-
-    public FlushRequest() {
-    }
-
-    /**
-     * Copy constructor that creates a new flush request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    public FlushRequest(ActionRequest originalRequest) {
-        super(originalRequest);
-    }
+    private boolean waitIfOngoing = true;
 
     /**
      * Constructs a new flush request against one or more indices. If nothing is provided, all indices will
@@ -72,6 +61,7 @@ public class FlushRequest extends BroadcastRequest<FlushRequest> {
     /**
      * if set to <tt>true</tt> the flush will block
      * if a another flush operation is already running until the flush can be performed.
+     * The default is <code>true</code>
      */
     public FlushRequest waitIfOngoing(boolean waitIfOngoing) {
         this.waitIfOngoing = waitIfOngoing;

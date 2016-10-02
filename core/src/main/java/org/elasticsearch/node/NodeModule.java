@@ -19,49 +19,26 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.monitor.MonitorService;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.node.settings.NodeSettingsService;
 
-/**
- *
- */
 public class NodeModule extends AbstractModule {
 
     private final Node node;
-    private final NodeSettingsService nodeSettingsService;
     private final MonitorService monitorService;
 
-    // pkg private so tests can mock
-    Class<? extends PageCacheRecycler> pageCacheRecyclerImpl = PageCacheRecycler.class;
-    Class<? extends BigArrays> bigArraysImpl = BigArrays.class;
-
-    public NodeModule(Node node, NodeSettingsService nodeSettingsService, MonitorService monitorService) {
+    public NodeModule(Node node, MonitorService monitorService) {
         this.node = node;
-        this.nodeSettingsService = nodeSettingsService;
         this.monitorService = monitorService;
     }
 
     @Override
     protected void configure() {
-        if (pageCacheRecyclerImpl == PageCacheRecycler.class) {
-            bind(PageCacheRecycler.class).asEagerSingleton();
-        } else {
-            bind(PageCacheRecycler.class).to(pageCacheRecyclerImpl).asEagerSingleton();
-        }
-        if (bigArraysImpl == BigArrays.class) {
-            bind(BigArrays.class).asEagerSingleton();
-        } else {
-            bind(BigArrays.class).to(bigArraysImpl).asEagerSingleton();
-        }
-
         bind(Node.class).toInstance(node);
-        bind(NodeSettingsService.class).toInstance(nodeSettingsService);
         bind(MonitorService.class).toInstance(monitorService);
         bind(NodeService.class).asEagerSingleton();
+        bind(DiskThresholdMonitor.class).asEagerSingleton();
     }
 }

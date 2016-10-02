@@ -76,13 +76,8 @@ public class MultiGetRequestBuilder extends ActionRequestBuilder<MultiGetRequest
         return this;
     }
 
-    public MultiGetRequestBuilder setRealtime(Boolean realtime) {
+    public MultiGetRequestBuilder setRealtime(boolean realtime) {
         request.realtime(realtime);
-        return this;
-    }
-
-    public MultiGetRequestBuilder setIgnoreErrorsOnGeneratedFields(boolean ignoreErrorsOnGeneratedFields) {
-        request.ignoreErrorsOnGeneratedFields(ignoreErrorsOnGeneratedFields);
         return this;
     }
 }

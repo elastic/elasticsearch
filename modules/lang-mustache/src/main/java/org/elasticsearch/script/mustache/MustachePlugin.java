@@ -19,22 +19,42 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ScriptEngineService;
 
-public class MustachePlugin extends Plugin {
+import java.util.Arrays;
+import java.util.List;
+
+import static java.util.Collections.singletonList;
+
+public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin, SearchPlugin {
 
     @Override
-    public String name() {
-        return "lang-mustache";
+    public ScriptEngineService getScriptEngineService(Settings settings) {
+        return new MustacheScriptEngineService(settings);
     }
 
     @Override
-    public String description() {
-        return "Mustache scripting integration for Elasticsearch";
+    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+        return Arrays.asList(new ActionHandler<>(SearchTemplateAction.INSTANCE, TransportSearchTemplateAction.class),
+                new ActionHandler<>(MultiSearchTemplateAction.INSTANCE, TransportMultiSearchTemplateAction.class));
     }
 
-    public void onModule(ScriptModule module) {
-        module.addScriptEngine(MustacheScriptEngineService.class);
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        return singletonList(new QuerySpec<>(TemplateQueryBuilder.NAME, TemplateQueryBuilder::new, TemplateQueryBuilder::fromXContent));
+    }
+
+    @Override
+    public List<Class<? extends RestHandler>> getRestHandlers() {
+        return Arrays.asList(RestSearchTemplateAction.class, RestMultiSearchTemplateAction.class, RestGetSearchTemplateAction.class,
+                RestPutSearchTemplateAction.class, RestDeleteSearchTemplateAction.class, RestRenderSearchTemplateAction.class);
     }
 }

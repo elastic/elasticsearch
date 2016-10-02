@@ -56,7 +56,7 @@ the cluster every minute:
 
 [source,js]
 --------------------------------------------------
-PUT /_cluster/settings
+PUT _cluster/settings
 {
   "transient": {
     "cluster.routing.allocation.disk.watermark.low": "80%",
@@ -65,7 +65,7 @@ PUT /_cluster/settings
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 NOTE: Prior to 2.0.0, when using multiple data paths, the disk threshold
 decider only factored in the usage across all data paths (if you had two
@@ -73,4 +73,3 @@ data paths, one with 50b out of 100b free (50% used) and another with
 40b out of 50b free (80% used) it would see the node's disk usage as 90b
 out of 150b). In 2.0.0, the minimum and maximum disk usages are tracked
 separately.
-

@@ -35,6 +35,10 @@ public class PortsRange {
         this.portRange = portRange;
     }
 
+    public String getPortRangeString() {
+        return portRange;
+    }
+
     public int[] ports() throws NumberFormatException {
         final IntArrayList ports = new IntArrayList();
         iterate(new PortCallback() {
@@ -76,7 +80,7 @@ public class PortsRange {
         return success;
     }
 
-    public static interface PortCallback {
+    public interface PortCallback {
         boolean onPortNumber(int portNumber);
     }
 }

@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -55,7 +54,7 @@ public class ClearScrollResponse extends ActionResponse implements StatusToXCont
     }
 
     /**
-     * @return The number of seach contexts that were freed. If this is <code>0</code> the assumption can be made,
+     * @return The number of search contexts that were freed. If this is <code>0</code> the assumption can be made,
      * that the scroll id specified in the request did not exist. (never existed, was expired, or completely consumed)
      */
     public int getNumFreed() {
@@ -89,8 +88,8 @@ public class ClearScrollResponse extends ActionResponse implements StatusToXCont
     }
 
     static final class Fields {
-        static final XContentBuilderString SUCCEEDED = new XContentBuilderString("succeeded");
-        static final XContentBuilderString NUMFREED = new XContentBuilderString("num_freed");
+        static final String SUCCEEDED = "succeeded";
+        static final String NUMFREED = "num_freed";
     }
 
 }

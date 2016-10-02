@@ -22,8 +22,6 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.UAX29URLEmailTokenizer;
-import org.apache.lucene.analysis.standard.std40.UAX29URLEmailTokenizer40;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -42,14 +40,8 @@ public class UAX29URLEmailTokenizerFactory extends AbstractTokenizerFactory {
 
     @Override
     public Tokenizer create() {
-        if (version.onOrAfter(Version.LUCENE_4_7)) {
-            UAX29URLEmailTokenizer tokenizer = new UAX29URLEmailTokenizer();
-            tokenizer.setMaxTokenLength(maxTokenLength);
-            return tokenizer;
-        } else {
-            UAX29URLEmailTokenizer40 tokenizer = new UAX29URLEmailTokenizer40();
-            tokenizer.setMaxTokenLength(maxTokenLength);
-            return tokenizer;
-        }
+        UAX29URLEmailTokenizer tokenizer = new UAX29URLEmailTokenizer();
+        tokenizer.setMaxTokenLength(maxTokenLength);
+        return tokenizer;
     }
 }

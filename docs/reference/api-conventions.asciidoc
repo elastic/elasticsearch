@@ -19,7 +19,7 @@ API, unless otherwise specified.
 
 Most APIs that refer to an `index` parameter support execution across multiple indices,
 using simple `test1,test2,test3` notation (or `_all` for all indices). It also
-support wildcards, for example: `test*`, and the ability to "add" (`+`)
+support wildcards, for example: `test*` or `*test` or `te*t` or `*test*`, and the ability to "add" (`+`)
 and "remove" (`-`), for example: `+test*,-test3`.
 
 All multi indices API support the following url query string parameters:
@@ -88,24 +88,32 @@ You must enclose date math index name expressions within angle brackets. For exa
 
 [source,js]
 ----------------------------------------------------------------------
-curl -XGET 'localhost:9200/<logstash-{now/d-2d}>/_search' {
+GET /<logstash-{now%2Fd}>/_search
+{
   "query" : {
-    ...
+    "match": {
+      "test": "data"
+    }
   }
 }
 ----------------------------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT logstash-2016.09.20\n/]
+// TEST[s/\{now/{2016.09.20||/]
+
+NOTE: The `/` used for date rounding must be url encoded as `%2F` in any url.
 
 The following example shows different forms of date math index names and the final index names
 they resolve to given the current time is 22rd March 2024 noon utc.
 
 [options="header"]
 |======
-| Expression                		      |Resolves to
-| `<logstash-{now/d}>`      		      | `logstash-2024.03.22`
-| `<logstash-{now/M}>`      		      | `logstash-2024.03.01`
-| `<logstash-{now/M{YYYY.MM}}>`           | `logstash-2024.03`
-| `<logstash-{now/M-1M{YYYY.MM}}>`        | `logstash-2024.02`
-| `<logstash-{now/d{YYYY.MM.dd\|+12:00}}`  | `logstash-2024.03.23`
+| Expression                                |Resolves to
+| `<logstash-{now/d}>`                      | `logstash-2024.03.22`
+| `<logstash-{now/M}>`                      | `logstash-2024.03.01`
+| `<logstash-{now/M{YYYY.MM}}>`             | `logstash-2024.03`
+| `<logstash-{now/M-1M{YYYY.MM}}>`          | `logstash-2024.02`
+| `<logstash-{now/d{YYYY.MM.dd\|+12:00}}>`  | `logstash-2024.03.23`
 |======
 
 To use the characters `{` and `}` in the static part of an index name template, escape them
@@ -119,12 +127,18 @@ three days, assuming the indices use the default Logstash index name format,
 
 [source,js]
 ----------------------------------------------------------------------
-curl -XGET 'localhost:9200/<logstash-{now/d-2d}>,<logstash-{now/d-1d}>,<logstash-{now/d}>/_search' {
+GET /<logstash-{now%2Fd-2d}>,<logstash-{now%2Fd-1d}>,<logstash-{now%2Fd}>/_search
+{
   "query" : {
-    ...
+    "match": {
+      "test": "data"
+    }
   }
 }
 ----------------------------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT logstash-2016.09.20\nPUT logstash-2016.09.19\nPUT logstash-2016.09.18\n/]
+// TEST[s/\{now/{2016.09.20||/]
 
 [[common-options]]
 == Common options
@@ -169,8 +183,18 @@ one or more maths expressions:
 * `-1d` - subtract one day
 * `/d`  - round down to the nearest day
 
-The supported <<time-units,time units>> are: `y` (year), `M` (month), `w` (week),
-`d` (day), `h` (hour), `m` (minute), and `s` (second).
+The supported time units differ than those supported by <<time-units, time units>> for durations.
+The supported units are:
+
+[horizontal]
+`y`:: years
+`M`:: months
+`w`:: weeks
+`d`:: days
+`h`:: hours
+`H`:: hours
+`m`:: minutes
+`s`:: seconds
 
 Some examples are:
 
@@ -187,82 +211,134 @@ All REST APIs accept a `filter_path` parameter that can be used to reduce
 the response returned by elasticsearch. This parameter takes a comma
 separated list of filters expressed with the dot notation:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/_search?pretty&filter_path=took,hits.hits._id,hits.hits._score'
+GET /_search?q=elasticsearch&filter_path=took,hits.hits._id,hits.hits._score
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+Responds:
+
+[source,js]
+--------------------------------------------------
 {
   "took" : 3,
   "hits" : {
     "hits" : [
       {
-        "_id" : "3640",
-        "_score" : 1.0
-      },
-      {
-        "_id" : "3642",
-        "_score" : 1.0
+        "_id" : "0",
+        "_score" : 1.6375021
       }
     ]
   }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"took" : 3/"took" : $body.took/]
+// TESTRESPONSE[s/1.6375021/$body.hits.hits.0._score/]
 
 It also supports the `*` wildcard character to match any field or part
 of a field's name:
 
 [source,sh]
 --------------------------------------------------
-curl -XGET 'localhost:9200/_nodes/stats?filter_path=nodes.*.ho*'
+GET /_cluster/state?filter_path=metadata.indices.*.stat*
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT twitter\n/]
+
+Responds:
+
+[source,sh]
+--------------------------------------------------
 {
-  "nodes" : {
-    "lvJHed8uQQu4brS-SXKsNA" : {
-      "host" : "portable"
+  "metadata" : {
+    "indices" : {
+      "twitter": {"state": "open"}
     }
   }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 And the `**` wildcard can be used to include fields without knowing the
 exact path of the field. For example, we can return the Lucene version
 of every segment with this request:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl 'localhost:9200/_segments?pretty&filter_path=indices.**.version'
+GET /_cluster/state?filter_path=routing_table.indices.**.state
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT twitter\n/]
+
+Responds:
+
+[source,js]
+--------------------------------------------------
 {
-  "indices" : {
-    "movies" : {
-      "shards" : {
-        "0" : [ {
-          "segments" : {
-            "_0" : {
-              "version" : "5.2.0"
-            }
-          }
-        } ],
-        "2" : [ {
-          "segments" : {
-            "_0" : {
-              "version" : "5.2.0"
-            }
-          }
-        } ]
-      }
-    },
-    "books" : {
-      "shards" : {
-        "0" : [ {
-          "segments" : {
-            "_0" : {
-              "version" : "5.2.0"
-            }
-          }
-        } ]
+  "routing_table": {
+    "indices": {
+      "twitter": {
+        "shards": {
+          "0": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
+          "1": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
+          "2": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
+          "3": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
+          "4": [{"state": "STARTED"}, {"state": "UNASSIGNED"}]
+        }
       }
     }
   }
 }
 --------------------------------------------------
+// TESTRESPONSE
+
+It is also possible to exclude one or more fields by prefixing the filter with the char `-`:
+
+[source,js]
+--------------------------------------------------
+GET /_count?filter_path=-_shards
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+Responds:
+
+[source,js]
+--------------------------------------------------
+{
+  "count" : 5
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+And for more control, both inclusive and exclusive filters can be combined in the same expression. In
+this case, the exclusive filters will be applied first and the result will be filtered again using the
+inclusive filters:
+
+[source,js]
+--------------------------------------------------
+GET /_cluster/state?filter_path=metadata.indices.*.state,-metadata.indices.logstash-*
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT index-1\nPUT index-2\nPUT index-3\nPUT logstash-2016.01\n/]
+
+Responds:
+
+[source,js]
+--------------------------------------------------
+{
+  "metadata" : {
+    "indices" : {
+      "index-1" : {"state" : "open"},
+      "index-2" : {"state" : "open"},
+      "index-3" : {"state" : "open"}
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
 
 Note that elasticsearch sometimes returns directly the raw value of a field,
 like the `_source` field. If you want to filter `_source` fields, you should
@@ -270,21 +346,33 @@ consider combining the already existing `_source` parameter (see
 <<get-source-filtering,Get API>> for more details) with the `filter_path`
 parameter like this:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/_search?pretty&filter_path=hits.hits._source&_source=title'
+POST /library/book?refresh
+{"title": "Book #1", "rating": 200.1}
+POST /library/book?refresh
+{"title": "Book #2", "rating": 1.7}
+POST /library/book?refresh
+{"title": "Book #3", "rating": 0.1}
+GET /_search?filter_path=hits.hits._source&_source=title&sort=rating:desc
+--------------------------------------------------
+// CONSOLE
+
+[source,js]
+--------------------------------------------------
 {
   "hits" : {
     "hits" : [ {
-      "_source":{"title":"Book #2"}
-    }, {
       "_source":{"title":"Book #1"}
+    }, {
+      "_source":{"title":"Book #2"}
     }, {
       "_source":{"title":"Book #3"}
     } ]
   }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 
 [float]
@@ -295,30 +383,64 @@ The `flat_settings` flag affects rendering of the lists of settings. When
 
 [source,js]
 --------------------------------------------------
+GET twitter/_settings?flat_settings=true
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+Returns:
+
+[source,js]
+--------------------------------------------------
 {
-  "persistent" : { },
-  "transient" : {
-    "discovery.zen.minimum_master_nodes" : "1"
+  "twitter" : {
+    "settings": {
+      "index.number_of_replicas": "1",
+      "index.number_of_shards": "1",
+      "index.creation_date": "1474389951325",
+      "index.uuid": "n6gzFZTgS664GUfx0Xrpjw",
+      "index.version.created": ...
+    }
   }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/1474389951325/$body.twitter.settings.index\\\\.creation_date/]
+// TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.twitter.settings.index\\\\.uuid/]
+// TESTRESPONSE[s/"index.version.created": \.\.\./"index.version.created": $body.twitter.settings.index\\\\.version\\\\.created/]
 
 When the `flat_settings` flag is `false` settings are returned in a more
 human readable structured format:
 
 [source,js]
 --------------------------------------------------
+GET twitter/_settings?flat_settings=false
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+Returns:
+
+[source,js]
+--------------------------------------------------
 {
-  "persistent" : { },
-  "transient" : {
-    "discovery" : {
-      "zen" : {
-        "minimum_master_nodes" : "1"
+  "twitter" : {
+    "settings" : {
+      "index" : {
+        "number_of_replicas": "1",
+        "number_of_shards": "1",
+        "creation_date": "1474389951325",
+        "uuid": "n6gzFZTgS664GUfx0Xrpjw",
+        "version": {
+          "created": ...
+        }
       }
     }
   }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/1474389951325/$body.twitter.settings.index.creation_date/]
+// TESTRESPONSE[s/n6gzFZTgS664GUfx0Xrpjw/$body.twitter.settings.index.uuid/]
+// TESTRESPONSE[s/"created": \.\.\./"created": $body.twitter.settings.index.version.created/]
 
 By default the `flat_settings` is set to `false`.
 
@@ -346,25 +468,23 @@ of supporting the native JSON number types.
 [float]
 === Time units
 
-Whenever durations need to be specified, eg for a `timeout` parameter, the
-duration must specify the unit, like `2d` for 2 days.  The supported units
-are:
+Whenever durations need to be specified, e.g. for a `timeout` parameter, the duration must specify
+the unit, like `2d` for 2 days.  The supported units are:
 
 [horizontal]
-`y`::   Year
-`M`::   Month
-`w`::   Week
-`d`::   Day
-`h`::   Hour
-`m`::   Minute
-`s`::   Second
-`ms`::  Milli-second
+`d`::       days
+`h`::       hours
+`m`::       minutes
+`s`::       seconds
+`ms`::      milliseconds
+`micros`::  microseconds
+`nanos`::   nanoseconds
 
-[[size-units]]
+[[byte-units]]
 [float]
-=== Data size units
+=== Byte size units
 
-Whenever the size of data needs to be specified, eg when setting a buffer size
+Whenever the byte size of data needs to be specified, eg when setting a buffer size
 parameter, the value must specify the unit, like `10kb` for 10 kilobytes.  The
 supported units are:
 
@@ -375,6 +495,23 @@ supported units are:
 `gb`::  Gigabytes
 `tb`::  Terabytes
 `pb`::  Petabytes
+
+[[size-units]]
+[float]
+=== Unit-less quantities
+
+Unit-less quantities means that they don't have a "unit" like "bytes" or "Hertz" or "meter" or "long tonne".
+
+If one of these quantities is large we'll print it out like 10m for 10,000,000 or 7k for 7,000. We'll still print 87
+when we mean 87 though. These are the supported multipliers:
+
+[horizontal]
+``::   Single
+`k`::  Kilo
+`m`::  Mega
+`g`::  Giga
+`t`::  Tera
+`p`::  Peta
 
 [[distance-units]]
 [float]
@@ -398,36 +535,14 @@ Centimeter::    `cm` or `centimeters`
 Millimeter::    `mm` or `millimeters`
 Nautical mile:: `NM`, `nmi` or `nauticalmiles`
 
-The `precision` parameter in the <<query-dsl-geohash-cell-query>> accepts
-distances with the above units, but if no unit is specified, then the
-precision is interpreted as the length of the geohash.
-
 [[fuzziness]]
 [float]
 === Fuzziness
 
 Some queries and APIs support parameters to allow inexact _fuzzy_ matching,
-using the `fuzziness` parameter. The `fuzziness` parameter is context
-sensitive which means that it depends on the type of the field being queried:
+using the `fuzziness` parameter.
 
-[float]
-==== Numeric, date and IPv4 fields
-
-When querying numeric, date and IPv4 fields, `fuzziness` is interpreted as a
-`+/-` margin. It behaves like a <<query-dsl-range-query>> where:
-
-    -fuzziness <= field value <= +fuzziness
-
-The `fuzziness` parameter should be set to a numeric value, eg `2` or `2.0`. A
-`date` field interprets a long as milliseconds, but also accepts a string
-containing a time value -- `"1h"` -- as explained in <<time-units>>. An `ip`
-field accepts a long or another IPv4 address (which will be converted into a
-long).
-
-[float]
-==== String fields
-
-When querying `string` fields, `fuzziness` is interpreted as a
+When querying `text` or `keyword` fields, `fuzziness` is interpreted as a
 http://en.wikipedia.org/wiki/Levenshtein_distance[Levenshtein Edit Distance]
 -- the number of one character changes that need to be made to one string to
 make it the same as another string.

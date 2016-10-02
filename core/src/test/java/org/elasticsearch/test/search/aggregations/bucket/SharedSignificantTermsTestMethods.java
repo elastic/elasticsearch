@@ -23,10 +23,8 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
@@ -40,6 +38,8 @@ import static org.elasticsearch.test.ESIntegTestCase.client;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 
 public class SharedSignificantTermsTestMethods {
     public static final String INDEX_NAME = "testidx";
@@ -48,7 +48,7 @@ public class SharedSignificantTermsTestMethods {
     public static final String CLASS_FIELD = "class";
 
     public static void aggregateAndCheckFromSeveralShards(ESIntegTestCase testCase) throws ExecutionException, InterruptedException {
-        String type = ESTestCase.randomBoolean() ? "string" : "long";
+        String type = ESTestCase.randomBoolean() ? "text" : "keyword";
         String settings = "{\"index.number_of_shards\": 5, \"index.number_of_replicas\": 0}";
         index01Docs(type, settings, testCase);
         testCase.ensureGreen();
@@ -57,13 +57,9 @@ public class SharedSignificantTermsTestMethods {
     }
 
     private static void checkSignificantTermsAggregationCorrect(ESIntegTestCase testCase) {
-
-        SearchResponse response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
-                .addAggregation(new TermsBuilder("class").field(CLASS_FIELD).subAggregation(
-                        new SignificantTermsBuilder("sig_terms")
-                                .field(TEXT_FIELD)))
-                .execute()
-                .actionGet();
+        SearchResponse response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE).addAggregation(
+                terms("class").field(CLASS_FIELD).subAggregation(significantTerms("sig_terms").field(TEXT_FIELD)))
+                .execute().actionGet();
         assertSearchResponse(response);
         StringTerms classes = response.getAggregations().get("class");
         Assert.assertThat(classes.getBuckets().size(), equalTo(2));
@@ -80,8 +76,12 @@ public class SharedSignificantTermsTestMethods {
     }
 
     public static void index01Docs(String type, String settings, ESIntegTestCase testCase) throws ExecutionException, InterruptedException {
-        String mappings = "{\"doc\": {\"properties\":{\"text\": {\"type\":\"" + type + "\"}}}}";
-        assertAcked(testCase.prepareCreate(INDEX_NAME).setSettings(settings).addMapping("doc", mappings));
+        String textMappings = "type=" + type;
+        if (type.equals("text")) {
+            textMappings += ",fielddata=true";
+        }
+        assertAcked(testCase.prepareCreate(INDEX_NAME).setSettings(settings)
+                .addMapping("doc", "text", textMappings, CLASS_FIELD, "type=keyword"));
         String[] gb = {"0", "1"};
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
         indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "1")

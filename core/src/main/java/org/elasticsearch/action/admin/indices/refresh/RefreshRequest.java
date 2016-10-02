@@ -33,17 +33,6 @@ import org.elasticsearch.action.support.broadcast.BroadcastRequest;
  */
 public class RefreshRequest extends BroadcastRequest<RefreshRequest> {
 
-    public RefreshRequest() {
-    }
-
-    /**
-     * Copy constructor that creates a new refresh request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    public RefreshRequest(ActionRequest originalRequest) {
-        super(originalRequest);
-    }
-
     public RefreshRequest(String... indices) {
         super(indices);
     }

@@ -19,39 +19,66 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.index.*;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.SnapshotDeletionPolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherManager;
-import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
+import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.*;
+import java.nio.file.NoSuchFileException;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
@@ -60,15 +87,12 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 
-/**
- *
- */
 public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";
 
     protected final ShardId shardId;
-    protected final ESLogger logger;
+    protected final Logger logger;
     protected final EngineConfig engineConfig;
     protected final Store store;
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
@@ -78,7 +102,7 @@ public abstract class Engine implements Closeable {
     protected final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     protected final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
     protected final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
-    protected volatile Throwable failedEngine = null;
+    protected final SetOnce<Exception> failedEngine = new SetOnce<>();
     /*
      * on <tt>lastWriteNanos</tt> we use System.nanoTime() to initialize this since:
      *  - we use the value for figuring out if the shard / engine is active so if we startup and no write has happened yet we still consider it active
@@ -160,10 +184,10 @@ public abstract class Engine implements Closeable {
      * is enabled
      */
     protected static final class IndexThrottle {
-
+        private final CounterMetric throttleTimeMillisMetric = new CounterMetric();
+        private volatile long startOfThrottleNS;
         private static final ReleasableLock NOOP_LOCK = new ReleasableLock(new NoOpLock());
         private final ReleasableLock lockReference = new ReleasableLock(new ReentrantLock());
-
         private volatile ReleasableLock lock = NOOP_LOCK;
 
         public Releasable acquireThrottle() {
@@ -173,6 +197,7 @@ public abstract class Engine implements Closeable {
         /** Activate throttling, which switches the lock to be a real lock */
         public void activate() {
             assert lock == NOOP_LOCK : "throttling activated while already active";
+            startOfThrottleNS = System.nanoTime();
             lock = lockReference;
         }
 
@@ -180,7 +205,45 @@ public abstract class Engine implements Closeable {
         public void deactivate() {
             assert lock != NOOP_LOCK : "throttling deactivated but not active";
             lock = NOOP_LOCK;
+
+            assert startOfThrottleNS > 0 : "Bad state of startOfThrottleNS";
+            long throttleTimeNS = System.nanoTime() - startOfThrottleNS;
+            if (throttleTimeNS >= 0) {
+                // Paranoia (System.nanoTime() is supposed to be monotonic): time slip may have occurred but never want to add a negative number
+                throttleTimeMillisMetric.inc(TimeValue.nsecToMSec(throttleTimeNS));
+            }
         }
+
+        long getThrottleTimeInMillis() {
+            long currentThrottleNS = 0;
+            if (isThrottled() && startOfThrottleNS != 0) {
+                currentThrottleNS +=  System.nanoTime() - startOfThrottleNS;
+                if (currentThrottleNS < 0) {
+                    // Paranoia (System.nanoTime() is supposed to be monotonic): time slip must have happened, have to ignore this value
+                    currentThrottleNS = 0;
+                }
+            }
+            return throttleTimeMillisMetric.count() + TimeValue.nsecToMSec(currentThrottleNS);
+        }
+
+        boolean isThrottled() {
+            return lock != NOOP_LOCK;
+        }
+    }
+
+    /**
+     * Returns the number of milliseconds this engine was under index throttling.
+     */
+    public long getIndexThrottleTimeInMillis() {
+        return 0;
+    }
+
+    /**
+     * Returns the <code>true</code> iff this engine is currently under index throttling.
+     * @see #getIndexThrottleTimeInMillis()
+     */
+    public boolean isThrottled() {
+        return false;
     }
 
     /** A Lock implementation that always allows the lock to be acquired */
@@ -214,7 +277,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract boolean index(Index operation) throws EngineException;
+    public abstract void index(Index operation) throws EngineException;
 
     public abstract void delete(Delete delete) throws EngineException;
 
@@ -234,12 +297,12 @@ public abstract class Engine implements Closeable {
         PENDING_OPERATIONS
     }
 
-    final protected GetResult getFromSearcher(Get get, Function<String, Searcher> searcherFactory) throws EngineException {
+    protected final GetResult getFromSearcher(Get get, Function<String, Searcher> searcherFactory) throws EngineException {
         final Searcher searcher = searcherFactory.apply("get");
         final Versions.DocIdAndVersion docIdAndVersion;
         try {
             docIdAndVersion = Versions.loadDocIdAndVersion(searcher.reader(), get.uid());
-        } catch (Throwable e) {
+        } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
             //TODO: A better exception goes here
             throw new EngineException(shardId, "Couldn't resolve version", e);
@@ -299,9 +362,9 @@ public abstract class Engine implements Closeable {
             }
         } catch (EngineClosedException ex) {
             throw ex;
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             ensureOpen(); // throw EngineCloseException here if we are already closed
-            logger.error("failed to acquire searcher, source {}", ex, source);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
             throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
         } finally {
             if (!success) {  // release the ref in the case of an error...
@@ -315,7 +378,7 @@ public abstract class Engine implements Closeable {
 
     protected void ensureOpen() {
         if (isClosed.get()) {
-            throw new EngineClosedException(shardId, failedEngine);
+            throw new EngineClosedException(shardId, failedEngine.get());
         }
     }
 
@@ -348,7 +411,7 @@ public abstract class Engine implements Closeable {
     /**
      * Global stats on segments.
      */
-    public final SegmentsStats segmentsStats() {
+    public final SegmentsStats segmentsStats(boolean includeSegmentFileSizes) {
         ensureOpen();
         try (final Searcher searcher = acquireSearcher("segments_stats")) {
             SegmentsStats stats = new SegmentsStats();
@@ -359,22 +422,100 @@ public abstract class Engine implements Closeable {
                 stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
                 stats.addTermVectorsMemoryInBytes(guardedRamBytesUsed(segmentReader.getTermVectorsReader()));
                 stats.addNormsMemoryInBytes(guardedRamBytesUsed(segmentReader.getNormsReader()));
+                stats.addPointsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPointsReader()));
                 stats.addDocValuesMemoryInBytes(guardedRamBytesUsed(segmentReader.getDocValuesReader()));
+
+                if (includeSegmentFileSizes) {
+                    // TODO: consider moving this to StoreStats
+                    stats.addFileSizes(getSegmentFileSizes(segmentReader));
+                }
             }
             writerSegmentStats(stats);
             return stats;
         }
     }
 
+    private ImmutableOpenMap<String, Long> getSegmentFileSizes(SegmentReader segmentReader) {
+        Directory directory = null;
+        SegmentCommitInfo segmentCommitInfo = segmentReader.getSegmentInfo();
+        boolean useCompoundFile = segmentCommitInfo.info.getUseCompoundFile();
+        if (useCompoundFile) {
+            try {
+                directory = engineConfig.getCodec().compoundFormat().getCompoundReader(segmentReader.directory(), segmentCommitInfo.info, IOContext.READ);
+            } catch (IOException e) {
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Error when opening compound reader for Directory [{}] and SegmentCommitInfo [{}]", segmentReader.directory(), segmentCommitInfo), e);
+
+                return ImmutableOpenMap.of();
+            }
+        } else {
+            directory = segmentReader.directory();
+        }
+
+        assert directory != null;
+
+        String[] files;
+        if (useCompoundFile) {
+            try {
+                files = directory.listAll();
+            } catch (IOException e) {
+                final Directory finalDirectory = directory;
+                logger.warn(
+                    (Supplier<?>) () -> new ParameterizedMessage("Couldn't list Compound Reader Directory [{}]", finalDirectory), e);
+                return ImmutableOpenMap.of();
+            }
+        } else {
+            try {
+                files = segmentReader.getSegmentInfo().files().toArray(new String[]{});
+            } catch (IOException e) {
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Couldn't list Directory from SegmentReader [{}] and SegmentInfo [{}]", segmentReader, segmentReader.getSegmentInfo()), e);
+                return ImmutableOpenMap.of();
+            }
+        }
+
+        ImmutableOpenMap.Builder<String, Long> map = ImmutableOpenMap.builder();
+        for (String file : files) {
+            String extension = IndexFileNames.getExtension(file);
+            long length = 0L;
+            try {
+                length = directory.fileLength(file);
+            } catch (NoSuchFileException | FileNotFoundException e) {
+                final Directory finalDirectory = directory;
+                logger.warn((Supplier<?>)
+                    () -> new ParameterizedMessage("Tried to query fileLength but file is gone [{}] [{}]", finalDirectory, file), e);
+            } catch (IOException e) {
+                final Directory finalDirectory = directory;
+                logger.warn(
+                    (Supplier<?>)
+                        () -> new ParameterizedMessage("Error when trying to query fileLength [{}] [{}]", finalDirectory, file), e);
+            }
+            if (length == 0L) {
+                continue;
+            }
+            map.put(extension, length);
+        }
+
+        if (useCompoundFile && directory != null) {
+            try {
+                directory.close();
+            } catch (IOException e) {
+                final Directory finalDirectory = directory;
+                logger.warn(
+                    (Supplier<?>)
+                        () -> new ParameterizedMessage("Error when closing compound reader on Directory [{}]", finalDirectory), e);
+            }
+        }
+
+        return map.build();
+    }
+
     protected void writerSegmentStats(SegmentsStats stats) {
         // by default we don't have a writer here... subclasses can override this
         stats.addVersionMapMemoryInBytes(0);
         stats.addIndexWriterMemoryInBytes(0);
-        stats.addIndexWriterMaxMemoryInBytes(0);
     }
 
-    /** How much heap Lucene's IndexWriter is using */
-    abstract public long indexWriterRAMBytesUsed();
+    /** How much heap is used that would be freed by a refresh.  Note that this may throw {@link AlreadyClosedException}. */
+    public abstract  long getIndexBufferRAMBytesUsed();
 
     protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
         ensureOpen();
@@ -395,7 +536,7 @@ public abstract class Engine implements Closeable {
                 try {
                     segment.sizeInBytes = info.sizeInBytes();
                 } catch (IOException e) {
-                    logger.trace("failed to get size for [{}]", e, info.info.name);
+                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
                 }
                 final SegmentReader segmentReader = segmentReader(reader.reader());
                 segment.memoryInBytes = segmentReader.ramBytesUsed();
@@ -425,7 +566,7 @@ public abstract class Engine implements Closeable {
                     try {
                         segment.sizeInBytes = info.sizeInBytes();
                     } catch (IOException e) {
-                        logger.trace("failed to get size for [{}]", e, info.info.name);
+                        logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
                     }
                     segments.put(info.info.name, segment);
                 } else {
@@ -459,7 +600,7 @@ public abstract class Engine implements Closeable {
               the store is closed so we need to make sure we increment it here
              */
             try {
-                return !getSearcherManager().isSearcherCurrent();
+                return getSearcherManager().isSearcherCurrent() == false;
             } catch (IOException e) {
                 logger.error("failed to access searcher manager", e);
                 failEngine("failed to access searcher manager", e);
@@ -472,10 +613,17 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Refreshes the engine for new search operations to reflect the latest
+     * Synchronously refreshes the engine for new search operations to reflect the latest
      * changes.
      */
+    @Nullable
     public abstract void refresh(String source) throws EngineException;
+
+    /**
+     * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.
+     */
+    // NOTE: do NOT rename this to something containing flush or refresh!
+    public abstract void writeIndexingBuffer() throws EngineException;
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory.
@@ -515,27 +663,29 @@ public abstract class Engine implements Closeable {
      *
      * @param flushFirst indicates whether the engine should flush before returning the snapshot
      */
-    public abstract IndexCommit snapshotIndex(boolean flushFirst) throws EngineException;
+    public abstract IndexCommit acquireIndexCommit(boolean flushFirst) throws EngineException;
 
     /**
      * fail engine due to some error. the engine will also be closed.
      * The underlying store is marked corrupted iff failure is caused by index corruption
      */
-    public void failEngine(String reason, @Nullable Throwable failure) {
+    public void failEngine(String reason, @Nullable Exception failure) {
         if (failEngineLock.tryLock()) {
             store.incRef();
             try {
+                if (failedEngine.get() != null) {
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]", reason), failure);
+                    return;
+                }
+                // this must happen before we close IW or Translog such that we can check this state to opt out of failing the engine
+                // again on any caught AlreadyClosedException
+                failedEngine.set((failure != null) ? failure : new IllegalStateException(reason));
                 try {
                     // we just go and close this engine - no way to recover
                     closeNoLock("engine failed on: [" + reason + "]");
                 } finally {
-                    if (failedEngine != null) {
-                        logger.debug("tried to fail engine but engine is already failed. ignoring. [{}]", reason, failure);
-                        return;
-                    }
-                    logger.warn("failed engine [{}]", failure, reason);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed engine [{}]", reason), failure);
                     // we must set a failure exception, generate one if not supplied
-                    failedEngine = (failure != null) ? failure : new IllegalStateException(reason);
                     // we first mark the store as corrupted before we notify any listeners
                     // this must happen first otherwise we might try to reallocate so quickly
                     // on the same node that we don't see the corrupted marker file when
@@ -549,24 +699,22 @@ public abstract class Engine implements Closeable {
                     }
                     eventListener.onFailedEngine(reason, failure);
                 }
-            } catch (Throwable t) {
+            } catch (Exception inner) {
+                if (failure != null) inner.addSuppressed(failure);
                 // don't bubble up these exceptions up
-                logger.warn("failEngine threw exception", t);
+                logger.warn("failEngine threw exception", inner);
             } finally {
                 store.decRef();
             }
         } else {
-            logger.debug("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason, failure);
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason), failure);
         }
     }
 
     /** Check whether the engine should be failed */
-    protected boolean maybeFailEngine(String source, Throwable t) {
-        if (Lucene.isCorruptionException(t)) {
-            failEngine("corrupt file (source: [" + source + "])", t);
-            return true;
-        } else if (ExceptionsHelper.isOOM(t)) {
-            failEngine("out of memory (source: [" + source + "])", t);
+    protected boolean maybeFailEngine(String source, Exception e) {
+        if (Lucene.isCorruptionException(e)) {
+            failEngine("corrupt file (source: [" + source + "])", e);
             return true;
         }
         return false;
@@ -577,7 +725,7 @@ public abstract class Engine implements Closeable {
         /**
          * Called when a fatal exception occurred
          */
-        default void onFailedEngine(String reason, @Nullable Throwable t) {}
+        default void onFailedEngine(String reason, @Nullable Exception e) {}
     }
 
     public static class Searcher implements Releasable {
@@ -618,7 +766,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public static abstract class Operation {
+    public abstract static class Operation {
         private final Term uid;
         private long version;
         private final VersionType versionType;
@@ -635,10 +783,15 @@ public abstract class Engine implements Closeable {
             this.startTime = startTime;
         }
 
-        public static enum Origin {
+        public enum Origin {
             PRIMARY,
             REPLICA,
-            RECOVERY
+            PEER_RECOVERY,
+            LOCAL_TRANSLOG_RECOVERY;
+
+            public boolean isRecovery() {
+                return this == PEER_RECOVERY || this == LOCAL_TRANSLOG_RECOVERY;
+            }
         }
 
         public Origin origin() {
@@ -665,6 +818,16 @@ public abstract class Engine implements Closeable {
             return this.location;
         }
 
+        public int sizeInBytes() {
+            if (location != null) {
+                return location.size;
+            } else {
+                return estimatedSizeInBytes();
+            }
+        }
+
+        protected abstract int estimatedSizeInBytes();
+
         public VersionType versionType() {
             return this.versionType;
         }
@@ -686,33 +849,45 @@ public abstract class Engine implements Closeable {
         public long endTime() {
             return this.endTime;
         }
+
+        abstract String type();
+
+        abstract String id();
     }
 
     public static class Index extends Operation {
 
         private final ParsedDocument doc;
+        private final long autoGeneratedIdTimestamp;
+        private final boolean isRetry;
+        private boolean created;
 
-        public Index(Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime) {
+        public Index(Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime,
+                     long autoGeneratedIdTimestamp, boolean isRetry) {
             super(uid, version, versionType, origin, startTime);
             this.doc = doc;
+            this.isRetry = isRetry;
+            this.autoGeneratedIdTimestamp = autoGeneratedIdTimestamp;
         }
 
         public Index(Term uid, ParsedDocument doc) {
             this(uid, doc, Versions.MATCH_ANY);
-        }
+        } // TEST ONLY
 
-        public Index(Term uid, ParsedDocument doc, long version) {
-            this(uid, doc, version, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
+        Index(Term uid, ParsedDocument doc, long version) {
+            this(uid, doc, version, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime(), -1, false);
         }
 
         public ParsedDocument parsedDoc() {
             return this.doc;
         }
 
+        @Override
         public String type() {
             return this.doc.type();
         }
 
+        @Override
         public String id() {
             return this.doc.id();
         }
@@ -746,9 +921,41 @@ public abstract class Engine implements Closeable {
         public BytesReference source() {
             return this.doc.source();
         }
+
+        public boolean isCreated() {
+            return created;
+        }
+
+        public void setCreated(boolean created) {
+            this.created = created;
+        }
+
+        @Override
+        protected int estimatedSizeInBytes() {
+            return (id().length() + type().length()) * 2 + source().length() + 12;
+        }
+
+        /**
+         * Returns a positive timestamp if the ID of this document is auto-generated by elasticsearch.
+         * if this property is non-negative indexing code might optimize the addition of this document
+         * due to it's append only nature.
+         */
+        public long getAutoGeneratedIdTimestamp() {
+            return autoGeneratedIdTimestamp;
+        }
+
+        /**
+         * Returns <code>true</code> if this index requests has been retried on the coordinating node and can therefor be delivered
+         * multiple times. Note: this might also be set to true if an equivalent event occurred like the replay of the transaction log
+         */
+        public boolean isRetry() {
+            return isRetry;
+        }
+
     }
 
     public static class Delete extends Operation {
+
         private final String type;
         private final String id;
         private boolean found;
@@ -768,10 +975,12 @@ public abstract class Engine implements Closeable {
             this(template.type(), template.id(), template.uid(), template.version(), versionType, template.origin(), template.startTime(), template.found());
         }
 
+        @Override
         public String type() {
             return this.type;
         }
 
+        @Override
         public String id() {
             return this.id;
         }
@@ -784,83 +993,13 @@ public abstract class Engine implements Closeable {
         public boolean found() {
             return this.found;
         }
+
+        @Override
+        protected int estimatedSizeInBytes() {
+            return (uid().field().length() + uid().text().length()) * 2 + 20;
+        }
+
     }
-
-    public static class DeleteByQuery {
-        private final Query query;
-        private final BytesReference source;
-        private final String[] filteringAliases;
-        private final Query aliasFilter;
-        private final String[] types;
-        private final BitSetProducer parentFilter;
-        private final Operation.Origin origin;
-
-        private final long startTime;
-        private long endTime;
-
-        public DeleteByQuery(Query query, BytesReference source, @Nullable String[] filteringAliases, @Nullable Query aliasFilter, BitSetProducer parentFilter, Operation.Origin origin, long startTime, String... types) {
-            this.query = query;
-            this.source = source;
-            this.types = types;
-            this.filteringAliases = filteringAliases;
-            this.aliasFilter = aliasFilter;
-            this.parentFilter = parentFilter;
-            this.startTime = startTime;
-            this.origin = origin;
-        }
-
-        public Query query() {
-            return this.query;
-        }
-
-        public BytesReference source() {
-            return this.source;
-        }
-
-        public String[] types() {
-            return this.types;
-        }
-
-        public String[] filteringAliases() {
-            return filteringAliases;
-        }
-
-        public Query aliasFilter() {
-            return aliasFilter;
-        }
-
-        public boolean nested() {
-            return parentFilter != null;
-        }
-
-        public BitSetProducer parentFilter() {
-            return parentFilter;
-        }
-
-        public Operation.Origin origin() {
-            return this.origin;
-        }
-
-        /**
-         * Returns operation start time in nanoseconds.
-         */
-        public long startTime() {
-            return this.startTime;
-        }
-
-        public DeleteByQuery endTime(long endTime) {
-            this.endTime = endTime;
-            return this;
-        }
-
-        /**
-         * Returns operation end time in nanoseconds.
-         */
-        public long endTime() {
-            return this.endTime;
-        }
-    }
-
 
     public static class Get {
         private final boolean realtime;
@@ -900,29 +1039,26 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public static class GetResult {
+    public static class GetResult implements Releasable {
         private final boolean exists;
         private final long version;
-        private final Translog.Source source;
         private final Versions.DocIdAndVersion docIdAndVersion;
         private final Searcher searcher;
 
-        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null);
+        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null);
 
-        public GetResult(boolean exists, long version, @Nullable Translog.Source source) {
-            this.source = source;
+        private GetResult(boolean exists, long version, Versions.DocIdAndVersion docIdAndVersion, Searcher searcher) {
             this.exists = exists;
             this.version = version;
-            this.docIdAndVersion = null;
-            this.searcher = null;
-        }
-
-        public GetResult(Searcher searcher, Versions.DocIdAndVersion docIdAndVersion) {
-            this.exists = true;
-            this.source = null;
-            this.version = docIdAndVersion.version;
             this.docIdAndVersion = docIdAndVersion;
             this.searcher = searcher;
+        }
+
+        /**
+         * Build a non-realtime get result from the searcher.
+         */
+        public GetResult(Searcher searcher, Versions.DocIdAndVersion docIdAndVersion) {
+            this(true, docIdAndVersion.version, docIdAndVersion, searcher);
         }
 
         public boolean exists() {
@@ -933,11 +1069,6 @@ public abstract class Engine implements Closeable {
             return this.version;
         }
 
-        @Nullable
-        public Translog.Source source() {
-            return source;
-        }
-
         public Searcher searcher() {
             return this.searcher;
         }
@@ -946,10 +1077,13 @@ public abstract class Engine implements Closeable {
             return docIdAndVersion;
         }
 
+        @Override
+        public void close() {
+            release();
+        }
+
         public void release() {
-            if (searcher != null) {
-                searcher.close();
-            }
+            Releasables.close(searcher);
         }
     }
 
@@ -973,8 +1107,6 @@ public abstract class Engine implements Closeable {
                     logger.debug("flushing shard on close - this might take some time to sync files to disk");
                     try {
                         flush(); // TODO we might force a flush in the future since we have the write lock already even though recoveries are running.
-                    } catch (FlushNotAllowedEngineException ex) {
-                        logger.debug("flush not allowed during flushAndClose - skipping");
                     } catch (EngineClosedException ex) {
                         logger.debug("engine already closed - skipping flushAndClose");
                     }
@@ -1005,24 +1137,22 @@ public abstract class Engine implements Closeable {
             this.id = Arrays.copyOf(id, id.length);
         }
 
+        /**
+         * Read from a stream.
+         */
         public CommitId(StreamInput in) throws IOException {
             assert in != null;
             this.id = in.readByteArray();
         }
 
         @Override
-        public String toString() {
-            return Base64.encodeBytes(id);
-        }
-
-        @Override
-        public CommitId readFrom(StreamInput in) throws IOException {
-            return new CommitId(in);
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByteArray(id);
+        }
+
+        @Override
+        public String toString() {
+            return Base64.getEncoder().encodeToString(id);
         }
 
         public boolean idsEqual(byte[] id) {
@@ -1068,16 +1198,46 @@ public abstract class Engine implements Closeable {
     }
 
     /**
+     * Returns the engines current document statistics
+     */
+    public DocsStats getDocStats() {
+        try (Engine.Searcher searcher = acquireSearcher("doc_stats")) {
+            IndexReader reader = searcher.reader();
+            return new DocsStats(reader.numDocs(), reader.numDeletedDocs());
+        }
+    }
+
+    /**
      * Called for each new opened engine searcher to warm new segments
      * @see EngineConfig#getWarmer()
      */
     public interface Warmer {
         /**
-         * Called once a new Searcher is opened.
-         * @param searcher the searcer to warm
-         * @param isTopLevelReader <code>true</code> iff the searcher is build from a top-level reader.
-         *                         Otherwise the searcher might be build from a leaf reader to warm in isolation
+         * Called once a new Searcher is opened on the top-level searcher.
          */
-        void warm(Engine.Searcher searcher, boolean isTopLevelReader);
+        void warm(Engine.Searcher searcher);
+    }
+
+    /**
+     * Request that this engine throttle incoming indexing requests to one thread.  Must be matched by a later call to {@link #deactivateThrottling()}.
+     */
+    public abstract void activateThrottling();
+
+    /**
+     * Reverses a previous {@link #activateThrottling} call.
+     */
+    public abstract void deactivateThrottling();
+
+    /**
+     * Performs recovery from the transaction log.
+     * This operation will close the engine if the recovery fails.
+     */
+    public abstract Engine recoverFromTranslog() throws IOException;
+
+    /**
+     * Returns <code>true</code> iff this engine is currently recovering from translog.
+     */
+    public boolean isRecovering() {
+        return false;
     }
 }

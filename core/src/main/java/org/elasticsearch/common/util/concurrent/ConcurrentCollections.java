@@ -36,8 +36,6 @@ import java.util.concurrent.LinkedTransferQueue;
  */
 public abstract class ConcurrentCollections {
 
-    private final static boolean useLinkedTransferQueue = Boolean.parseBoolean(System.getProperty("es.useLinkedTransferQueue", "false"));
-
     static final int aggressiveConcurrencyLevel;
 
     static {
@@ -71,9 +69,6 @@ public abstract class ConcurrentCollections {
     }
 
     public static <T> Queue<T> newQueue() {
-        if (useLinkedTransferQueue) {
-            return new LinkedTransferQueue<>();
-        }
         return new ConcurrentLinkedQueue<>();
     }
 

@@ -24,9 +24,17 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
+import java.util.Set;
 
 /**
  * A YAML based content implementation using Jackson.
@@ -37,8 +45,8 @@ public class YamlXContent implements XContent {
         return XContentBuilder.builder(yamlXContent);
     }
 
-    final static YAMLFactory yamlFactory;
-    public final static YamlXContent yamlXContent;
+    static final YAMLFactory yamlFactory;
+    public static final YamlXContent yamlXContent;
 
     static {
         yamlFactory = new YAMLFactory();
@@ -59,13 +67,8 @@ public class YamlXContent implements XContent {
     }
 
     @Override
-    public XContentGenerator createGenerator(OutputStream os) throws IOException {
-        return new YamlXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8), os);
-    }
-
-    @Override
-    public XContentGenerator createGenerator(OutputStream os, String[] filters) throws IOException {
-        return new YamlXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8), os, filters);
+    public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
+        return new YamlXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
     }
 
     @Override
@@ -90,9 +93,6 @@ public class YamlXContent implements XContent {
 
     @Override
     public XContentParser createParser(BytesReference bytes) throws IOException {
-        if (bytes.hasArray()) {
-            return createParser(bytes.array(), bytes.arrayOffset(), bytes.length());
-        }
         return createParser(bytes.streamInput());
     }
 

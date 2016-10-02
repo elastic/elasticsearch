@@ -22,23 +22,19 @@ package org.elasticsearch.action.admin.cluster.stats;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
-import org.elasticsearch.index.percolator.PercolateStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;
+import java.util.List;
 
-public class ClusterStatsIndices implements ToXContent, Streamable {
+public class ClusterStatsIndices implements ToXContent {
 
     private int indexCount;
     private ShardStats shards;
@@ -48,12 +44,8 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
     private QueryCacheStats queryCache;
     private CompletionStats completion;
     private SegmentsStats segments;
-    private PercolateStats percolate;
 
-    private ClusterStatsIndices() {
-    }
-
-    public ClusterStatsIndices(ClusterStatsNodeResponse[] nodeResponses) {
+    public ClusterStatsIndices(List<ClusterStatsNodeResponse> nodeResponses) {
         ObjectObjectHashMap<String, ShardStats> countsPerIndex = new ObjectObjectHashMap<>();
 
         this.docs = new DocsStats();
@@ -62,14 +54,13 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         this.queryCache = new QueryCacheStats();
         this.completion = new CompletionStats();
         this.segments = new SegmentsStats();
-        this.percolate = new PercolateStats();
 
         for (ClusterStatsNodeResponse r : nodeResponses) {
             for (org.elasticsearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
-                ShardStats indexShardStats = countsPerIndex.get(shardStats.getShardRouting().getIndex());
+                ShardStats indexShardStats = countsPerIndex.get(shardStats.getShardRouting().getIndexName());
                 if (indexShardStats == null) {
                     indexShardStats = new ShardStats();
-                    countsPerIndex.put(shardStats.getShardRouting().getIndex(), indexShardStats);
+                    countsPerIndex.put(shardStats.getShardRouting().getIndexName(), indexShardStats);
                 }
 
                 indexShardStats.total++;
@@ -85,7 +76,6 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
                 queryCache.add(shardCommonStats.queryCache);
                 completion.add(shardCommonStats.completion);
                 segments.add(shardCommonStats.segments);
-                percolate.add(shardCommonStats.percolate);
             }
         }
 
@@ -128,44 +118,8 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         return segments;
     }
 
-    public PercolateStats getPercolate() {
-        return percolate;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        indexCount = in.readVInt();
-        shards = ShardStats.readShardStats(in);
-        docs = DocsStats.readDocStats(in);
-        store = StoreStats.readStoreStats(in);
-        fieldData = FieldDataStats.readFieldDataStats(in);
-        queryCache = QueryCacheStats.readQueryCacheStats(in);
-        completion = CompletionStats.readCompletionStats(in);
-        segments = SegmentsStats.readSegmentsStats(in);
-        percolate = PercolateStats.readPercolateStats(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(indexCount);
-        shards.writeTo(out);
-        docs.writeTo(out);
-        store.writeTo(out);
-        fieldData.writeTo(out);
-        queryCache.writeTo(out);
-        completion.writeTo(out);
-        segments.writeTo(out);
-        percolate.writeTo(out);
-    }
-
-    public static ClusterStatsIndices readIndicesStats(StreamInput in) throws IOException {
-        ClusterStatsIndices indicesStats = new ClusterStatsIndices();
-        indicesStats.readFrom(in);
-        return indicesStats;
-    }
-
     static final class Fields {
-        static final XContentBuilderString COUNT = new XContentBuilderString("count");
+        static final String COUNT = "count";
     }
 
     @Override
@@ -178,11 +132,10 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         queryCache.toXContent(builder, params);
         completion.toXContent(builder, params);
         segments.toXContent(builder, params);
-        percolate.toXContent(builder, params);
         return builder;
     }
 
-    public static class ShardStats implements ToXContent, Streamable {
+    public static class ShardStats implements ToXContent {
 
         int indices;
         int total;
@@ -327,52 +280,18 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
             }
         }
 
-        public static ShardStats readShardStats(StreamInput in) throws IOException {
-            ShardStats c = new ShardStats();
-            c.readFrom(in);
-            return c;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            indices = in.readVInt();
-            total = in.readVInt();
-            primaries = in.readVInt();
-            minIndexShards = in.readVInt();
-            maxIndexShards = in.readVInt();
-            minIndexPrimaryShards = in.readVInt();
-            maxIndexPrimaryShards = in.readVInt();
-            minIndexReplication = in.readDouble();
-            totalIndexReplication = in.readDouble();
-            maxIndexReplication = in.readDouble();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(indices);
-            out.writeVInt(total);
-            out.writeVInt(primaries);
-            out.writeVInt(minIndexShards);
-            out.writeVInt(maxIndexShards);
-            out.writeVInt(minIndexPrimaryShards);
-            out.writeVInt(maxIndexPrimaryShards);
-            out.writeDouble(minIndexReplication);
-            out.writeDouble(totalIndexReplication);
-            out.writeDouble(maxIndexReplication);
-        }
-
         static final class Fields {
-            static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
-            static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-            static final XContentBuilderString PRIMARIES = new XContentBuilderString("primaries");
-            static final XContentBuilderString REPLICATION = new XContentBuilderString("replication");
-            static final XContentBuilderString MIN = new XContentBuilderString("min");
-            static final XContentBuilderString MAX = new XContentBuilderString("max");
-            static final XContentBuilderString AVG = new XContentBuilderString("avg");
-            static final XContentBuilderString INDEX = new XContentBuilderString("index");
+            static final String SHARDS = "shards";
+            static final String TOTAL = "total";
+            static final String PRIMARIES = "primaries";
+            static final String REPLICATION = "replication";
+            static final String MIN = "min";
+            static final String MAX = "max";
+            static final String AVG = "avg";
+            static final String INDEX = "index";
         }
 
-        private void addIntMinMax(XContentBuilderString field, int min, int max, double avg, XContentBuilder builder) throws IOException {
+        private void addIntMinMax(String field, int min, int max, double avg, XContentBuilder builder) throws IOException {
             builder.startObject(field);
             builder.field(Fields.MIN, min);
             builder.field(Fields.MAX, max);
@@ -380,7 +299,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
             builder.endObject();
         }
 
-        private void addDoubleMinMax(XContentBuilderString field, double min, double max, double avg, XContentBuilder builder) throws IOException {
+        private void addDoubleMinMax(String field, double min, double max, double avg, XContentBuilder builder) throws IOException {
             builder.startObject(field);
             builder.field(Fields.MIN, min);
             builder.field(Fields.MAX, max);

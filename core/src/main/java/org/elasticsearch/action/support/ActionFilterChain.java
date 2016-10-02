@@ -22,21 +22,22 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.tasks.Task;
 
 /**
  * A filter chain allowing to continue and process the transport action request
  */
-public interface ActionFilterChain {
+public interface ActionFilterChain<Request extends ActionRequest<Request>, Response extends ActionResponse> {
 
     /**
      * Continue processing the request. Should only be called if a response has not been sent through
      * the given {@link ActionListener listener}
      */
-    void proceed(final String action, final ActionRequest request, final ActionListener listener);
+    void proceed(Task task, final String action, final Request request, final ActionListener<Response> listener);
 
     /**
      * Continue processing the response. Should only be called if a response has not been sent through
      * the given {@link ActionListener listener}
      */
-    void proceed(final String action, final ActionResponse response, final ActionListener listener);
+    void proceed(final String action, final Response response, final ActionListener<Response> listener);
 }

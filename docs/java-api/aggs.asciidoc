@@ -47,7 +47,7 @@ SearchResponse sr = node.client().prepareSearch()
         AggregationBuilders.terms("by_country").field("country")
         .subAggregation(AggregationBuilders.dateHistogram("by_year")
             .field("dateOfBirth")
-            .interval((DateHistogramInterval.YEAR)
+            .dateHistogramInterval(DateHistogramInterval.YEAR)
             .subAggregation(AggregationBuilders.avg("avg_children").field("children"))
         )
     )
@@ -61,4 +61,3 @@ include::aggregations/metrics.asciidoc[]
 === Bucket aggregations
 
 include::aggregations/bucket.asciidoc[]
-

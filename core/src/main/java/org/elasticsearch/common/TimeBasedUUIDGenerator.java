@@ -19,8 +19,7 @@
 
 package org.elasticsearch.common;
 
-
-import java.io.IOException;
+import java.util.Base64;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /** These are essentially flake ids (http://boundary.com/blog/2012/01/12/flake-a-decentralized-k-ordered-unique-id-generator-in-erlang) but
@@ -35,10 +34,10 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
     // Used to ensure clock moves forward:
     private long lastTimestamp;
 
-    private static final byte[] secureMungedAddress = MacAddressProvider.getSecureMungedAddress();
+    private static final byte[] SECURE_MUNGED_ADDRESS = MacAddressProvider.getSecureMungedAddress();
 
     static {
-        assert secureMungedAddress.length == 6;
+        assert SECURE_MUNGED_ADDRESS.length == 6;
     }
 
     /** Puts the lower numberOfLongBytes from l into the array, starting index pos. */
@@ -73,22 +72,13 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
         putLong(uuidBytes, timestamp, 0, 6);
 
         // MAC address adds 6 bytes:
-        System.arraycopy(secureMungedAddress, 0, uuidBytes, 6, secureMungedAddress.length);
+        System.arraycopy(SECURE_MUNGED_ADDRESS, 0, uuidBytes, 6, SECURE_MUNGED_ADDRESS.length);
 
         // Sequence number adds 3 bytes:
         putLong(uuidBytes, sequenceId, 12, 3);
 
-        assert 9 + secureMungedAddress.length == uuidBytes.length;
+        assert 9 + SECURE_MUNGED_ADDRESS.length == uuidBytes.length;
 
-        byte[] encoded;
-        try {
-            encoded = Base64.encodeBytesToBytes(uuidBytes, 0, uuidBytes.length, Base64.URL_SAFE);
-        } catch (IOException e) {
-            throw new IllegalStateException("should not be thrown", e);
-        }
-
-        // We are a multiple of 3 bytes so we should not see any padding:
-        assert encoded[encoded.length - 1] != '=';
-        return new String(encoded, 0, encoded.length, Base64.PREFERRED_ENCODING);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(uuidBytes);
     }
 }

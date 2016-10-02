@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.common;
 
-import java.nio.charset.StandardCharsets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;

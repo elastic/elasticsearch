@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # elasticsearch <summary>
 #
@@ -35,7 +35,7 @@ fi
 ES_USER="elasticsearch"
 ES_GROUP="elasticsearch"
 ES_HOME="/usr/share/elasticsearch"
-MAX_OPEN_FILES=65535
+MAX_OPEN_FILES=65536
 MAX_MAP_COUNT=262144
 LOG_DIR="/var/log/elasticsearch"
 DATA_DIR="/var/lib/elasticsearch"
@@ -59,19 +59,21 @@ exec="$ES_HOME/bin/elasticsearch"
 prog="elasticsearch"
 pidfile="$PID_DIR/${prog}.pid"
 
-export ES_HEAP_SIZE
-export ES_HEAP_NEWSIZE
-export ES_DIRECT_SIZE
 export ES_JAVA_OPTS
-export ES_GC_LOG_FILE
 export ES_STARTUP_SLEEP_TIME
 export JAVA_HOME
+export ES_INCLUDE
 
 lockfile=/var/lock/subsys/$prog
 
 # backwards compatibility for old config sysconfig files, pre 0.90.1
 if [ -n $USER ] && [ -z $ES_USER ] ; then
    ES_USER=$USER
+fi
+
+if [ ! -x "$exec" ]; then
+    echo "The elasticsearch startup script does not exists or it is not executable, tried: $exec"
+    exit 1
 fi
 
 checkJava() {
@@ -90,10 +92,7 @@ checkJava() {
 start() {
     checkJava
     [ -x $exec ] || exit 5
-    if [ -n "$MAX_LOCKED_MEMORY" -a -z "$ES_HEAP_SIZE" ]; then
-        echo "MAX_LOCKED_MEMORY is set - ES_HEAP_SIZE must also be set"
-        return 7
-    fi
+
     if [ -n "$MAX_OPEN_FILES" ]; then
         ulimit -n $MAX_OPEN_FILES
     fi
@@ -103,7 +102,6 @@ start() {
     if [ -n "$MAX_MAP_COUNT" -a -f /proc/sys/vm/max_map_count ]; then
         sysctl -q -w vm.max_map_count=$MAX_MAP_COUNT
     fi
-    export ES_GC_LOG_FILE
 
     # Ensure that the PID_DIR exists (it is cleaned at OS startup time)
     if [ -n "$PID_DIR" ] && [ ! -e "$PID_DIR" ]; then
@@ -116,7 +114,7 @@ start() {
     cd $ES_HOME
     echo -n $"Starting $prog: "
     # if not running, start it up here, usually something like "daemon $exec"
-    daemon --user $ES_USER --pidfile $pidfile $exec -p $pidfile -d -Des.default.path.home=$ES_HOME -Des.default.path.logs=$LOG_DIR -Des.default.path.data=$DATA_DIR -Des.default.path.conf=$CONF_DIR
+    daemon --user $ES_USER --pidfile $pidfile $exec -p $pidfile -d -Edefault.path.logs=$LOG_DIR -Edefault.path.data=$DATA_DIR -Edefault.path.conf=$CONF_DIR
     retval=$?
     echo
     [ $retval -eq 0 ] && touch $lockfile

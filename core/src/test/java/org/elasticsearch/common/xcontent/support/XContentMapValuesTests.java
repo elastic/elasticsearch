@@ -139,7 +139,7 @@ public class XContentMapValuesTests extends ESTestCase {
 
         // lists
         builder = XContentFactory.jsonBuilder().startObject()
-                .startObject("path1").field("test", "value1", "value2").endObject()
+                .startObject("path1").array("test", "value1", "value2").endObject()
                 .endObject();
 
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {

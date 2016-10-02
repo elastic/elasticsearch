@@ -19,29 +19,28 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueParser;
+import org.elasticsearch.search.DocValueFormat;
+import org.joda.time.DateTimeZone;
 
 /**
  *
  */
 public class ValuesSourceConfig<VS extends ValuesSource> {
 
-    final Class<VS> valueSourceType;
-    FieldContext fieldContext;
-    SearchScript script;
-    ValueType scriptValueType;
-    boolean unmapped = false;
-    String formatPattern;
-    ValueFormat format = ValueFormat.RAW;
-    Object missing;
+    private final ValuesSourceType valueSourceType;
+    private FieldContext fieldContext;
+    private SearchScript script;
+    private ValueType scriptValueType;
+    private boolean unmapped = false;
+    private DocValueFormat format = DocValueFormat.RAW;
+    private Object missing;
+    private DateTimeZone timeZone;
 
-    public ValuesSourceConfig(Class<VS> valueSourceType) {
+    public ValuesSourceConfig(ValuesSourceType valueSourceType) {
         this.valueSourceType = valueSourceType;
     }
 
-    public Class<VS> valueSourceType() {
+    public ValuesSourceType valueSourceType() {
         return valueSourceType;
     }
 
@@ -71,20 +70,44 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return this;
     }
 
+    public ValuesSourceConfig<VS> scriptValueType(ValueType scriptValueType) {
+        this.scriptValueType = scriptValueType;
+        return this;
+    }
+
+    public ValueType scriptValueType() {
+        return this.scriptValueType;
+    }
+
     public ValuesSourceConfig<VS> unmapped(boolean unmapped) {
         this.unmapped = unmapped;
         return this;
     }
 
-    public ValueFormat format() {
+    public ValuesSourceConfig<VS> format(final DocValueFormat format) {
+        this.format = format;
+        return this;
+    }
+
+    public ValuesSourceConfig<VS> missing(final Object missing) {
+        this.missing = missing;
+        return this;
+    }
+
+    public Object missing() {
+        return this.missing;
+    }
+
+    public ValuesSourceConfig<VS> timezone(final DateTimeZone timeZone) {
+        this.timeZone= timeZone;
+        return this;
+    }
+
+    public DateTimeZone timezone() {
+        return this.timeZone;
+    }
+
+    public DocValueFormat format() {
         return format;
-    }
-
-    public ValueFormatter formatter() {
-        return format.formatter();
-    }
-
-    public ValueParser parser() {
-        return format.parser();
     }
 }

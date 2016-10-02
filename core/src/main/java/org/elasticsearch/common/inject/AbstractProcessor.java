@@ -17,7 +17,17 @@
 package org.elasticsearch.common.inject;
 
 import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.spi.*;
+import org.elasticsearch.common.inject.spi.Element;
+import org.elasticsearch.common.inject.spi.ElementVisitor;
+import org.elasticsearch.common.inject.spi.InjectionRequest;
+import org.elasticsearch.common.inject.spi.MembersInjectorLookup;
+import org.elasticsearch.common.inject.spi.Message;
+import org.elasticsearch.common.inject.spi.PrivateElements;
+import org.elasticsearch.common.inject.spi.ProviderLookup;
+import org.elasticsearch.common.inject.spi.ScopeBinding;
+import org.elasticsearch.common.inject.spi.StaticInjectionRequest;
+import org.elasticsearch.common.inject.spi.TypeConverterBinding;
+import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
 import java.util.Iterator;
 import java.util.List;

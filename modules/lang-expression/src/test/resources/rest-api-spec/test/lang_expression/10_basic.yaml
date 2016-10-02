@@ -11,4 +11,3 @@
         nodes.info: {}
 
     - match:  { nodes.$master.modules.0.name: lang-expression  }
-    - match:  { nodes.$master.modules.0.jvm: true  }

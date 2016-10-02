@@ -25,8 +25,7 @@ grant {
   // needed by groovy engine
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
-  // needed by GroovyScriptEngineService to close its classloader (why?)
-  permission java.lang.RuntimePermission "closeClassLoader";
+  permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.reflect";
   // Allow executing groovy scripts with codesource of /untrusted
   permission groovy.security.GroovyCodeSourcePermission "/untrusted";
 
@@ -34,7 +33,6 @@ grant {
   permission org.elasticsearch.script.ClassPermission "<<STANDARD>>";
   // groovy runtime (TODO: clean these up if possible)
   permission org.elasticsearch.script.ClassPermission "groovy.grape.GrabAnnotationTransformation";
-  permission org.elasticsearch.script.ClassPermission "groovy.json.JsonOutput";
   permission org.elasticsearch.script.ClassPermission "groovy.lang.Binding";
   permission org.elasticsearch.script.ClassPermission "groovy.lang.GroovyObject";
   permission org.elasticsearch.script.ClassPermission "groovy.lang.GString";
@@ -49,4 +47,13 @@ grant {
   permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.runtime.typehandling.DefaultTypeTransformation";
   permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.vmplugin.v7.IndyInterface";
   permission org.elasticsearch.script.ClassPermission "sun.reflect.ConstructorAccessorImpl";
+  permission org.elasticsearch.script.ClassPermission "sun.reflect.MethodAccessorImpl";
+  permission org.elasticsearch.script.ClassPermission "jdk.internal.reflect.ConstructorAccessorImpl";
+  permission org.elasticsearch.script.ClassPermission "jdk.internal.reflect.MethodAccessorImpl";
+
+  permission org.elasticsearch.script.ClassPermission "groovy.lang.Closure";
+  permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.runtime.GeneratedClosure";
+  permission org.elasticsearch.script.ClassPermission "groovy.lang.MetaClass";
+  permission org.elasticsearch.script.ClassPermission "groovy.lang.Range";
+  permission org.elasticsearch.script.ClassPermission "groovy.lang.Reference";
 };

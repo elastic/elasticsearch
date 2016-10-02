@@ -19,12 +19,8 @@
 
 package org.elasticsearch.index.translog;
 
-import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.lease.Releasables;
-
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Arrays;
 
 /**
  * A snapshot composed out of multiple snapshots
@@ -32,8 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 final class MultiSnapshot implements Translog.Snapshot {
 
     private final Translog.Snapshot[] translogs;
-    private AtomicBoolean closed = new AtomicBoolean(false);
-    private final int estimatedTotalOperations;
+    private final int totalOperations;
     private int index;
 
     /**
@@ -41,30 +36,18 @@ final class MultiSnapshot implements Translog.Snapshot {
      */
     MultiSnapshot(Translog.Snapshot[] translogs) {
         this.translogs = translogs;
-        int ops = 0;
-        for (Translog.Snapshot translog : translogs) {
-
-            final int tops = translog.estimatedTotalOperations();
-            if (tops == TranslogReader.UNKNOWN_OP_COUNT) {
-                ops = TranslogReader.UNKNOWN_OP_COUNT;
-                break;
-            }
-            assert tops >= 0 : "tops must be positive but was: " + tops;
-            ops += tops;
-        }
-        estimatedTotalOperations = ops;
+        totalOperations = Arrays.stream(translogs).mapToInt(Translog.Snapshot::totalOperations).sum();
         index = 0;
     }
 
 
     @Override
-    public int estimatedTotalOperations() {
-        return estimatedTotalOperations;
+    public int totalOperations() {
+        return totalOperations;
     }
 
     @Override
     public Translog.Operation next() throws IOException {
-        ensureOpen();
         for (; index < translogs.length; index++) {
             final Translog.Snapshot current = translogs[index];
             Translog.Operation op = current.next();
@@ -73,18 +56,5 @@ final class MultiSnapshot implements Translog.Snapshot {
             }
         }
         return null;
-    }
-
-    protected void ensureOpen() {
-        if (closed.get()) {
-            throw new AlreadyClosedException("snapshot already closed");
-        }
-    }
-
-    @Override
-    public void close() throws ElasticsearchException {
-        if (closed.compareAndSet(false, true)) {
-            Releasables.close(translogs);
-        }
     }
 }

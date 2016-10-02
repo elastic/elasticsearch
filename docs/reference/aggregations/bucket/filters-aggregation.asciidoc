@@ -1,7 +1,7 @@
 [[search-aggregations-bucket-filters-aggregation]]
 === Filters Aggregation
 
-Defines a multi bucket aggregations where each bucket is associated with a
+Defines a multi bucket aggregation where each bucket is associated with a
 filter. Each bucket will collect all documents that match its associated
 filter.
 
@@ -46,19 +46,18 @@ Response:
       "buckets" : {
         "errors" : {
           "doc_count" : 34,
-            "monthly" : {
-              "buckets" : [
-                ... // the histogram monthly breakdown
-              ]
-            }
-          },
-          "warnings" : {
-            "doc_count" : 439,
-            "monthly" : {
-              "buckets" : [
-                 ... // the histogram monthly breakdown
-              ]
-            }
+          "monthly" : {
+            "buckets" : [
+              ... // the histogram monthly breakdown
+            ]
+          }
+        },
+        "warnings" : {
+          "doc_count" : 439,
+          "monthly" : {
+            "buckets" : [
+               ... // the histogram monthly breakdown
+            ]
           }
         }
       }
@@ -147,7 +146,7 @@ The following snippet shows a response where the `other` bucket is requested to 
   "aggs" : {
     "messages" : {
       "filters" : {
-        "other_bucket": "other_messages",
+        "other_bucket_key": "other_messages",
         "filters" : {
           "errors" :   { "term" : { "body" : "error"   }},
           "warnings" : { "term" : { "body" : "warning" }}

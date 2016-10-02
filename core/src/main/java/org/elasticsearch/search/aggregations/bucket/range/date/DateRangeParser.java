@@ -18,103 +18,38 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range.date;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
+import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
  */
-public class DateRangeParser implements Aggregator.Parser {
+public class DateRangeParser extends RangeParser {
 
-    @Override
-    public String type() {
-        return InternalDateRange.TYPE.name();
+    public DateRangeParser() {
+        super(true, true, true);
     }
 
     @Override
-    public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-
-        ValuesSourceParser<ValuesSource.Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, InternalDateRange.TYPE, context)
-                .targetValueType(ValueType.DATE)
-                .formattable(true)
-                .build();
-
-        List<RangeAggregator.Range> ranges = null;
-        boolean keyed = false;
-
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (vsParser.token(currentFieldName, token, parser)) {
-                continue;
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("ranges".equals(currentFieldName)) {
-                    ranges = new ArrayList<>();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        double from = Double.NEGATIVE_INFINITY;
-                        String fromAsStr = null;
-                        double to = Double.POSITIVE_INFINITY;
-                        String toAsStr = null;
-                        String key = null;
-                        String toOrFromOrKey = null;
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
-                                toOrFromOrKey = parser.currentName();
-                            } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                                if ("from".equals(toOrFromOrKey)) {
-                                    from = parser.doubleValue();
-                                } else if ("to".equals(toOrFromOrKey)) {
-                                    to = parser.doubleValue();
-                                } else {
-                                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName
-                                            + "]: [" + currentFieldName + "].", parser.getTokenLocation());
-                                }
-                            } else if (token == XContentParser.Token.VALUE_STRING) {
-                                if ("from".equals(toOrFromOrKey)) {
-                                    fromAsStr = parser.text();
-                                } else if ("to".equals(toOrFromOrKey)) {
-                                    toAsStr = parser.text();
-                                } else if ("key".equals(toOrFromOrKey)) {
-                                    key = parser.text();
-                                } else {
-                                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].", parser.getTokenLocation());
-                                }
-                            }
-                        }
-                        ranges.add(new RangeAggregator.Range(key, from, fromAsStr, to, toAsStr));
-                    }
-                }
-            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                if ("keyed".equals(currentFieldName)) {
-                    keyed = parser.booleanValue();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
-                            + currentFieldName + "].", parser.getTokenLocation());
-                }
-            } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].",
-                        parser.getTokenLocation());
-            }
+    protected DateRangeAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                        ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        DateRangeAggregationBuilder factory = new DateRangeAggregationBuilder(aggregationName);
+        @SuppressWarnings("unchecked")
+        List<Range> ranges = (List<Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
+        for (Range range : ranges) {
+            factory.addRange(range);
         }
-
-        if (ranges == null) {
-            throw new SearchParseException(context, "Missing [ranges] in ranges aggregator [" + aggregationName + "]",
-                    parser.getTokenLocation());
+        Boolean keyed = (Boolean) otherOptions.get(RangeAggregator.KEYED_FIELD);
+        if (keyed != null) {
+            factory.keyed(keyed);
         }
-
-        return new RangeAggregator.Factory(aggregationName, vsParser.config(), InternalDateRange.FACTORY, ranges, keyed);
+        return factory;
     }
 }

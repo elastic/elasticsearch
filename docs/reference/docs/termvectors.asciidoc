@@ -79,13 +79,6 @@ omit :
    each term in this field)
 
 [float]
-==== Distributed frequencies
-
-Setting `dfs` to `true` (default is `false`) will return the term statistics
-or the field statistics of the entire index, and not just at the shard. Use it
-with caution as distributed frequencies can have a serious performance impact.
-
-[float]
 ==== Terms Filtering
 
 With the parameter `filter`, the terms returned could also be filtered based
@@ -118,7 +111,7 @@ The following sub-parameters are supported:
 
 The term and field statistics are not accurate. Deleted documents
 are not taken into account. The information is only retrieved for the
-shard the requested document resides in, unless `dfs` is set to `true`.
+shard the requested document resides in.
 The term and field statistics are therefore only useful as relative measures
 whereas the absolute numbers have no meaning in this context. By default,
 when requesting term vectors of artificial documents, a shard to get the statistics
@@ -136,13 +129,13 @@ curl -s -XPUT 'http://localhost:9200/twitter/' -d '{
     "tweet": {
       "properties": {
         "text": {
-          "type": "string",
+          "type": "text",
           "term_vector": "with_positions_offsets_payloads",
           "store" : true,
           "analyzer" : "fulltext_analyzer"
          },
          "fullname": {
-          "type": "string",
+          "type": "text",
           "term_vector": "with_positions_offsets_payloads",
           "analyzer" : "fulltext_analyzer"
         }
@@ -291,8 +284,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvectors?pretty=true' -d '
 --
 
 Term vectors can also be generated for artificial documents,
-that is for documents not present in the index. The syntax is similar to the
-<<search-percolate,percolator>> API. For example, the following request would
+that is for documents not present in the index.  For example, the following request would
 return the same results as in example 1. The mapping used is determined by the
 `index` and `type`.
 
@@ -374,8 +366,7 @@ Response:
 
 Finally, the terms returned could be filtered based on their tf-idf scores. In
 the example below we obtain the three most "interesting" keywords from the
-artificial document having the given "plot" field value. Additionally, we are
-asking for distributed frequencies to obtain more accurate results. Notice
+artificial document having the given "plot" field value. Notice
 that the keyword "Tony" or any stop words are not part of the response, as
 their tf-idf must be too low.
 
@@ -388,7 +379,6 @@ GET /imdb/movies/_termvectors
     },
     "term_statistics" : true,
     "field_statistics" : true,
-    "dfs": true,
     "positions": false,
     "offsets": false,
     "filter" : {

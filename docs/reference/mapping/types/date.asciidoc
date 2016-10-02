@@ -40,7 +40,7 @@ PUT my_index/my_type/1
 { "date": "2015-01-01" } <2>
 
 PUT my_index/my_type/2
-{ "date": "2015-01-01T12:10:30Z" } <3>
+{ "date": "2015-01-01T12:10:30Z" } <3>
 
 PUT my_index/my_type/3
 { "date": 1420070400001 } <4>
@@ -50,7 +50,7 @@ GET my_index/_search
   "sort": { "date": "asc"} <5>
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `date` field uses the default `format`.
 <2> This document uses a plain date.
 <3> This document includes a time.
@@ -81,7 +81,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [[date-params]]
 ==== Parameters for `date` fields
@@ -90,9 +90,9 @@ The following parameters are accepted by `date` fields:
 
 [horizontal]
 
-<<index-boost,`boost`>>::
+<<mapping-boost,`boost`>>::
 
-    Field-level index time boosting. Accepts a floating point number, defaults
+    Mapping field-level query time boosting. Accepts a floating point number, defaults
     to `1.0`.
 
 <<doc-values,`doc_values`>>::
@@ -115,13 +115,13 @@ The following parameters are accepted by `date` fields:
 
     Whether or not the field value should be included in the
     <<mapping-all-field,`_all`>> field? Accepts `true` or `false`.  Defaults
-    to `false` if <<mapping-index,`index`>> is set to `no`, or if a parent
+    to `false` if <<mapping-index,`index`>> is set to `false`, or if a parent
     <<object,`object`>> field sets `include_in_all` to `false`.
     Otherwise defaults to `true`.
 
 <<mapping-index,`index`>>::
 
-    Should the field be searchable? Accepts `not_analyzed` (default) and `no`.
+    Should the field be searchable? Accepts `true` (default) and `false`.
 
 <<null-value,`null_value`>>::
 
@@ -129,15 +129,8 @@ The following parameters are accepted by `date` fields:
     which is substituted for any explicit `null` values.  Defaults to `null`,
     which means the field is treated as missing.
 
-<<precision-step,`precision_step`>>::
-
-    Controls the number of extra terms that are indexed to make
-    <<query-dsl-range-query,`range` queries>> faster. Defaults to `16`.
-
 <<mapping-store,`store`>>::
 
     Whether the field value should be stored and retrievable separately from
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
-
-

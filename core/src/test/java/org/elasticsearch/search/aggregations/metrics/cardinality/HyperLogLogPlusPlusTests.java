@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import com.carrotsearch.hppc.BitMixer;
 import com.carrotsearch.hppc.IntHashSet;
-
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 

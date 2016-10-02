@@ -19,7 +19,7 @@ setup:
                 script_fields:
                     bar:
                         script: 
-                            inline: "doc['foo'].value + x"
+                            inline: "doc['foo.keyword'].value + x"
                             lang: python
                             params:
                                 x: "bbb"

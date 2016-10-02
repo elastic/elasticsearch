@@ -25,9 +25,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -59,12 +61,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
     }
 
     public void testIllegalArgument() {
-        try {
-            new SpanMultiTermQueryBuilder(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new SpanMultiTermQueryBuilder((MultiTermQueryBuilder) null));
     }
 
     /**
@@ -76,15 +73,14 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
     public void testUnsupportedInnerQueryType() throws IOException {
         QueryShardContext context = createShardContext();
         // test makes only sense if we have at least one type registered with date field mapping
-        if (getCurrentTypes().length > 0 && context.fieldMapper(DATE_FIELD_NAME) != null) {
-            try {
-                RangeQueryBuilder query = new RangeQueryBuilder(DATE_FIELD_NAME);
-                new SpanMultiTermQueryBuilder(query).toQuery(createShardContext());
-                fail("Exception expected, range query on date fields should not generate a lucene " + MultiTermQuery.class.getName());
-            } catch (UnsupportedOperationException e) {
-                assert(e.getMessage().contains("unsupported inner query, should be " + MultiTermQuery.class.getName()));
-            }
-        }
+        assumeTrue("test runs only if there is a registered type",
+                getCurrentTypes().length > 0 && context.fieldMapper(DATE_FIELD_NAME) != null);
+
+        RangeQueryBuilder query = new RangeQueryBuilder(DATE_FIELD_NAME);
+        SpanMultiTermQueryBuilder spamMultiTermQuery = new SpanMultiTermQueryBuilder(query);
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
+                () -> spamMultiTermQuery.toQuery(createShardContext()));
+        assertThat(e.getMessage(), containsString("unsupported inner query, should be " + MultiTermQuery.class.getName()));
     }
 
     public void testToQueryInnerSpanMultiTerm() throws IOException {
@@ -95,18 +91,18 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"span_multi\" : {\n" + 
-                "    \"match\" : {\n" + 
-                "      \"prefix\" : {\n" + 
-                "        \"user\" : {\n" + 
-                "          \"value\" : \"ki\",\n" + 
-                "          \"boost\" : 1.08\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    },\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"span_multi\" : {\n" +
+                "    \"match\" : {\n" +
+                "      \"prefix\" : {\n" +
+                "        \"user\" : {\n" +
+                "          \"value\" : \"ki\",\n" +
+                "          \"boost\" : 1.08\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
 
         SpanMultiTermQueryBuilder parsed = (SpanMultiTermQueryBuilder) parseQuery(json);

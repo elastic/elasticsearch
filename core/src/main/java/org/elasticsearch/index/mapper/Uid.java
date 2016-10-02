@@ -35,7 +35,6 @@ public final class Uid {
 
     public static final char DELIMITER = '#';
     public static final byte DELIMITER_BYTE = 0x23;
-    public static final BytesRef DELIMITER_BYTES = new BytesRef(new byte[]{DELIMITER_BYTE});
 
     private final String type;
 
@@ -83,25 +82,9 @@ public final class Uid {
         return createUidAsBytes(type, id);
     }
 
-    public static BytesRef typePrefixAsBytes(BytesRef type) {
-        BytesRefBuilder bytesRef = new BytesRefBuilder();
-        bytesRef.append(type);
-        bytesRef.append(DELIMITER_BYTES);
-        return bytesRef.toBytesRef();
-    }
-
     public static Uid createUid(String uid) {
         int delimiterIndex = uid.indexOf(DELIMITER); // type is not allowed to have # in it..., ids can
         return new Uid(uid.substring(0, delimiterIndex), uid.substring(delimiterIndex + 1));
-    }
-
-    public static BytesRef[] createUids(List<? extends DocumentRequest> requests) {
-        BytesRef[] uids = new BytesRef[requests.size()];
-        int idx = 0;
-        for (DocumentRequest item : requests) {
-            uids[idx++] = createUidAsBytes(item.type(), item.id());
-        }
-        return uids;
     }
 
     public static BytesRef createUidAsBytes(String type, String id) {
@@ -123,13 +106,6 @@ public final class Uid {
         return ref;
     }
 
-    public static BytesRef createUidAsBytes(BytesRef type, BytesRef id, BytesRefBuilder spare) {
-        spare.copyBytes(type);
-        spare.append(DELIMITER_BYTES);
-        spare.append(id);
-        return spare.get();
-    }
-
     public static BytesRef[] createUidsForTypesAndId(Collection<String> types, Object id) {
         return createUidsForTypesAndIds(types, Collections.singletonList(id));
     }
@@ -149,42 +125,7 @@ public final class Uid {
     }
 
     public static String createUid(String type, String id) {
-        return createUid(new StringBuilder(), type, id);
-    }
-
-    public static String createUid(StringBuilder sb, String type, String id) {
-        return sb.append(type).append(DELIMITER).append(id).toString();
-    }
-
-    public static boolean hasDelimiter(BytesRef uid) {
-        final int limit = uid.offset + uid.length;
-        for (int i = uid.offset; i < limit; i++) {
-            if (uid.bytes[i] == DELIMITER_BYTE) { // 0x23 is equal to '#'
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public static BytesRef[] splitUidIntoTypeAndId(BytesRef uid) {
-        int loc = -1;
-        final int limit = uid.offset + uid.length;
-        for (int i = uid.offset; i < limit; i++) {
-            if (uid.bytes[i] == DELIMITER_BYTE) { // 0x23 is equal to '#'
-                loc = i;
-                break;
-            }
-        }
-
-        if (loc == -1) {
-            return null;
-        }
-
-        int idStart = loc + 1;
-        return new BytesRef[] {
-                new BytesRef(uid.bytes, uid.offset, loc - uid.offset),
-                new BytesRef(uid.bytes, idStart, limit - idStart)
-        };
+        return type + DELIMITER + id;
     }
 
 }

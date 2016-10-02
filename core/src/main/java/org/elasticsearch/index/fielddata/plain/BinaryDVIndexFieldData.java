@@ -21,22 +21,20 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.search.MultiValueMode;
 
 public class BinaryDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<BinaryDVAtomicFieldData> {
 
-    public BinaryDVIndexFieldData(Index index, Names fieldNames, FieldDataType fieldDataType) {
-        super(index, fieldNames, fieldDataType);
+    public BinaryDVIndexFieldData(Index index, String fieldName) {
+        super(index, fieldName);
     }
 
     @Override
     public BinaryDVAtomicFieldData load(LeafReaderContext context) {
-        return new BinaryDVAtomicFieldData(context.reader(), fieldNames.indexName());
+        return new BinaryDVAtomicFieldData(context.reader(), fieldName);
     }
 
     @Override

@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -35,7 +36,7 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(randomIntBetween(1, 6));
         SpanOrQueryBuilder queryBuilder = new SpanOrQueryBuilder(spanTermQueries[0]);
         for (int i = 1; i < spanTermQueries.length; i++) {
-            queryBuilder.clause(spanTermQueries[i]);
+            queryBuilder.addClause(spanTermQueries[i]);
         }
         return queryBuilder;
     }
@@ -52,50 +53,48 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
     }
 
     public void testIllegalArguments() {
-        try {
-            new SpanOrQueryBuilder(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SpanOrQueryBuilder((SpanQueryBuilder) null));
+        assertEquals("[span_or] must include at least one clause", e.getMessage());
 
-        try {
-            SpanOrQueryBuilder spanOrBuilder = new SpanOrQueryBuilder(SpanTermQueryBuilder.PROTOTYPE);
-            spanOrBuilder.clause(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        SpanOrQueryBuilder spanOrBuilder = new SpanOrQueryBuilder(new SpanTermQueryBuilder("field", "value"));
+        e = expectThrows(IllegalArgumentException.class, () -> spanOrBuilder.addClause(null));
+        assertEquals("[span_or] inner clause cannot be null", e.getMessage());
+    }
+
+    public void testClausesUnmodifiable() {
+        SpanNearQueryBuilder spanNearQueryBuilder = new SpanNearQueryBuilder(new SpanTermQueryBuilder("field", "value"), 1);
+        expectThrows(UnsupportedOperationException.class,
+                () -> spanNearQueryBuilder.clauses().add(new SpanTermQueryBuilder("field", "value2")));
     }
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"span_or\" : {\n" + 
-                "    \"clauses\" : [ {\n" + 
-                "      \"span_term\" : {\n" + 
-                "        \"field\" : {\n" + 
-                "          \"value\" : \"value1\",\n" + 
-                "          \"boost\" : 1.0\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    }, {\n" + 
-                "      \"span_term\" : {\n" + 
-                "        \"field\" : {\n" + 
-                "          \"value\" : \"value2\",\n" + 
-                "          \"boost\" : 1.0\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    }, {\n" + 
-                "      \"span_term\" : {\n" + 
-                "        \"field\" : {\n" + 
-                "          \"value\" : \"value3\",\n" + 
-                "          \"boost\" : 1.0\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    } ],\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"span_or\" : {\n" +
+                "    \"clauses\" : [ {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"field\" : {\n" +
+                "          \"value\" : \"value1\",\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }, {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"field\" : {\n" +
+                "          \"value\" : \"value2\",\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }, {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"field\" : {\n" +
+                "          \"value\" : \"value3\",\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    } ],\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
 
         SpanOrQueryBuilder parsed = (SpanOrQueryBuilder) parseQuery(json);

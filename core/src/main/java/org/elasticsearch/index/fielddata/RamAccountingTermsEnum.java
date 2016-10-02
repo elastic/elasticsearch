@@ -21,8 +21,8 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fielddata.plain.AbstractIndexFieldData;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.fielddata.plain.AbstractIndexFieldData;
 
 import java.io.IOException;
 

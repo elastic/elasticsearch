@@ -24,12 +24,20 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.nullValue;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBuilder> {
     /**
@@ -51,17 +59,13 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     @Override
     protected void doAssertLuceneQuery(DisMaxQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         Collection<Query> queries = AbstractQueryBuilder.toQueries(queryBuilder.innerQueries(), context);
-        if (queries.isEmpty()) {
-            assertThat(query, nullValue());
-        } else {
-            assertThat(query, instanceOf(DisjunctionMaxQuery.class));
-            DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
-            assertThat(disjunctionMaxQuery.getTieBreakerMultiplier(), equalTo(queryBuilder.tieBreaker()));
-            assertThat(disjunctionMaxQuery.getDisjuncts().size(), equalTo(queries.size()));
-            Iterator<Query> queryIterator = queries.iterator();
-            for (int i = 0; i < disjunctionMaxQuery.getDisjuncts().size(); i++) {
-                assertThat(disjunctionMaxQuery.getDisjuncts().get(i), equalTo(queryIterator.next()));
-            }
+        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
+        assertThat(disjunctionMaxQuery.getTieBreakerMultiplier(), equalTo(queryBuilder.tieBreaker()));
+        assertThat(disjunctionMaxQuery.getDisjuncts().size(), equalTo(queries.size()));
+        Iterator<Query> queryIterator = queries.iterator();
+        for (int i = 0; i < disjunctionMaxQuery.getDisjuncts().size(); i++) {
+            assertThat(disjunctionMaxQuery.getDisjuncts().get(i), equalTo(queryIterator.next()));
         }
     }
 
@@ -81,33 +85,24 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     }
 
     /**
-     * test `null`return value for missing inner queries
+     * Test with empty inner query body, this should be converted to a {@link MatchNoDocsQuery}.
+     * To test this, we use inner {@link ConstantScoreQueryBuilder} with empty inner filter.
      */
-    public void testNoInnerQueries() throws IOException {
-        DisMaxQueryBuilder disMaxBuilder = new DisMaxQueryBuilder();
-        assertNull(disMaxBuilder.toQuery(createShardContext()));
-    }
-
-    /**
-     * Test inner query parsing to null. Current DSL allows inner filter element to parse to <tt>null</tt>.
-     * Those should be ignored upstream. To test this, we use inner {@link ConstantScoreQueryBuilder}
-     * with empty inner filter.
-     */
-    public void testInnerQueryReturnsNull() throws IOException {
-        String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : { \"filter\" : { } } }";
-        QueryBuilder<?> innerQueryBuilder = parseQuery(queryString);
-        DisMaxQueryBuilder disMaxBuilder = new DisMaxQueryBuilder().add(innerQueryBuilder);
-        assertNull(disMaxBuilder.toQuery(createShardContext()));
+    public void testInnerQueryEmptyException() throws IOException {
+        String queryString = "{ \"" + DisMaxQueryBuilder.NAME + "\" :"
+                + "             { \"queries\" : [ {\"" + ConstantScoreQueryBuilder.NAME + "\" : { \"filter\" : { } } } ] "
+                + "             }"
+                + "           }";
+        QueryBuilder queryBuilder = parseQuery(queryString, ParseFieldMatcher.EMPTY);
+        QueryShardContext context = createShardContext();
+        Query luceneQuery = queryBuilder.toQuery(context);
+        assertThat(luceneQuery, instanceOf(MatchNoDocsQuery.class));
+        assertThat(((MatchNoDocsQuery) luceneQuery).toString(), equalTo("MatchNoDocsQuery[\"no clauses for dismax query.\"]"));
     }
 
     public void testIllegalArguments() {
         DisMaxQueryBuilder disMaxQuery = new DisMaxQueryBuilder();
-        try {
-            disMaxQuery.add(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> disMaxQuery.add(null));
     }
 
     public void testToQueryInnerPrefixQuery() throws Exception {
@@ -145,26 +140,26 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"dis_max\" : {\n" + 
-                "    \"tie_breaker\" : 0.7,\n" + 
-                "    \"queries\" : [ {\n" + 
-                "      \"term\" : {\n" + 
-                "        \"age\" : {\n" + 
-                "          \"value\" : 34,\n" + 
-                "          \"boost\" : 1.0\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    }, {\n" + 
-                "      \"term\" : {\n" + 
-                "        \"age\" : {\n" + 
-                "          \"value\" : 35,\n" + 
-                "          \"boost\" : 1.0\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    } ],\n" + 
-                "    \"boost\" : 1.2\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"dis_max\" : {\n" +
+                "    \"tie_breaker\" : 0.7,\n" +
+                "    \"queries\" : [ {\n" +
+                "      \"term\" : {\n" +
+                "        \"age\" : {\n" +
+                "          \"value\" : 34,\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }, {\n" +
+                "      \"term\" : {\n" +
+                "        \"age\" : {\n" +
+                "          \"value\" : 35,\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    } ],\n" +
+                "    \"boost\" : 1.2\n" +
+                "  }\n" +
                 "}";
 
         DisMaxQueryBuilder parsed = (DisMaxQueryBuilder) parseQuery(json);

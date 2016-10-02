@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,8 +32,9 @@ public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> {
     private FlushRequest request = new FlushRequest();
 
     public ShardFlushRequest(FlushRequest request, ShardId shardId) {
-        super(request, shardId);
+        super(shardId);
         this.request = request;
+        this.waitForActiveShards = ActiveShardCount.NONE; // don't wait for any active shards before proceeding, by default
     }
 
     public ShardFlushRequest() {

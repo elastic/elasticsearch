@@ -24,14 +24,29 @@ import org.junit.Before;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 
 public class CacheTests extends ESTestCase {
     private int numberOfEntries;
@@ -40,7 +55,7 @@ public class CacheTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         numberOfEntries = randomIntBetween(1000, 10000);
-        logger.debug("numberOfEntries: " + numberOfEntries);
+        logger.debug("numberOfEntries: {}", numberOfEntries);
     }
 
     // cache some entries, then randomly lookup keys that do not exist, then check the stats
@@ -473,7 +488,7 @@ public class CacheTests extends ESTestCase {
                     return value;
                 });
             } catch (ExecutionException e) {
-                fail(e.getMessage());
+                throw new AssertionError(e);
             }
         }
         for (int i = 0; i < numberOfEntries; i++) {
@@ -481,36 +496,46 @@ public class CacheTests extends ESTestCase {
         }
     }
 
-    public void testComputeIfAbsentCallsOnce() throws InterruptedException {
-        int numberOfThreads = randomIntBetween(2, 200);
+    public void testComputeIfAbsentCallsOnce() throws BrokenBarrierException, InterruptedException {
+        int numberOfThreads = randomIntBetween(2, 32);
         final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
-        List<Thread> threads = new ArrayList<>();
         AtomicReferenceArray flags = new AtomicReferenceArray(numberOfEntries);
         for (int j = 0; j < numberOfEntries; j++) {
             flags.set(j, false);
         }
-        CountDownLatch latch = new CountDownLatch(1 + numberOfThreads);
+
+        CopyOnWriteArrayList<ExecutionException> failures = new CopyOnWriteArrayList<>();
+
+        CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         for (int i = 0; i < numberOfThreads; i++) {
             Thread thread = new Thread(() -> {
-                latch.countDown();
-                for (int j = 0; j < numberOfEntries; j++) {
-                    try {
-                        cache.computeIfAbsent(j, key -> {
-                            assertTrue(flags.compareAndSet(key, false, true));
-                            return Integer.toString(key);
-                        });
-                    } catch (ExecutionException e) {
-                        throw new RuntimeException(e);
+                try {
+                    barrier.await();
+                    for (int j = 0; j < numberOfEntries; j++) {
+                        try {
+                            cache.computeIfAbsent(j, key -> {
+                                assertTrue(flags.compareAndSet(key, false, true));
+                                return Integer.toString(key);
+                            });
+                        } catch (ExecutionException e) {
+                            failures.add(e);
+                            break;
+                        }
                     }
+                    barrier.await();
+                } catch (BrokenBarrierException | InterruptedException e) {
+                    throw new AssertionError(e);
                 }
             });
-            threads.add(thread);
             thread.start();
         }
-        latch.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+
+        // wait for all threads to be ready
+        barrier.await();
+        // wait for all threads to finish
+        barrier.await();
+
+        assertThat(failures, is(empty()));
     }
 
     public void testComputeIfAbsentThrowsExceptionIfLoaderReturnsANullValue() {
@@ -523,7 +548,7 @@ public class CacheTests extends ESTestCase {
         }
     }
 
-    public void testDependentKeyDeadlock() throws InterruptedException {
+    public void testDependentKeyDeadlock() throws BrokenBarrierException, InterruptedException {
         class Key {
             private final int key;
 
@@ -548,32 +573,43 @@ public class CacheTests extends ESTestCase {
             }
         }
 
-        int numberOfThreads = randomIntBetween(2, 256);
+        int numberOfThreads = randomIntBetween(2, 32);
         final Cache<Key, Integer> cache = CacheBuilder.<Key, Integer>builder().build();
-        CountDownLatch latch = new CountDownLatch(1 + numberOfThreads);
+
+        CopyOnWriteArrayList<ExecutionException> failures = new CopyOnWriteArrayList<>();
+
+        CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         CountDownLatch deadlockLatch = new CountDownLatch(numberOfThreads);
         List<Thread> threads = new ArrayList<>();
         for (int i = 0; i < numberOfThreads; i++) {
             Thread thread = new Thread(() -> {
-                Random random = new Random(random().nextLong());
-                latch.countDown();
-                for (int j = 0; j < numberOfEntries; j++) {
-                    Key key = new Key(random.nextInt(numberOfEntries));
+                try {
                     try {
-                        cache.computeIfAbsent(key, k -> {
-                            if (k.key == 0) {
-                                return 0;
-                            } else {
-                                Integer value = cache.get(new Key(k.key / 2));
-                                return value != null ? value : 0;
-                            }
-                        });
-                    } catch (ExecutionException e) {
-                        fail(e.getMessage());
+                        barrier.await();
+                    } catch (BrokenBarrierException | InterruptedException e) {
+                        throw new AssertionError(e);
                     }
+                    Random random = new Random(random().nextLong());
+                    for (int j = 0; j < numberOfEntries; j++) {
+                        Key key = new Key(random.nextInt(numberOfEntries));
+                        try {
+                            cache.computeIfAbsent(key, k -> {
+                                if (k.key == 0) {
+                                    return 0;
+                                } else {
+                                    Integer value = cache.get(new Key(k.key / 2));
+                                    return value != null ? value : 0;
+                                }
+                            });
+                        } catch (ExecutionException e) {
+                            failures.add(e);
+                            break;
+                        }
+                    }
+                } finally {
+                    // successfully avoided deadlock, release the main thread
+                    deadlockLatch.countDown();
                 }
-                // successfully avoided deadlock, release the main thread
-                deadlockLatch.countDown();
             });
             threads.add(thread);
             thread.start();
@@ -604,7 +640,7 @@ public class CacheTests extends ESTestCase {
         }, 1, 1, TimeUnit.SECONDS);
 
         // everything is setup, release the hounds
-        latch.countDown();
+        barrier.await();
 
         // wait for either deadlock to be detected or the threads to terminate
         deadlockLatch.await();
@@ -612,85 +648,97 @@ public class CacheTests extends ESTestCase {
         // shutdown the watchdog service
         scheduler.shutdown();
 
+        assertThat(failures, is(empty()));
+
         assertFalse("deadlock", deadlock.get());
     }
 
-    public void testCachePollution() throws InterruptedException {
-        int numberOfThreads = randomIntBetween(2, 200);
+    public void testCachePollution() throws BrokenBarrierException, InterruptedException {
+        int numberOfThreads = randomIntBetween(2, 32);
         final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
-        CountDownLatch latch = new CountDownLatch(1 + numberOfThreads);
-        List<Thread> threads = new ArrayList<>();
+
+        CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
+
         for (int i = 0; i < numberOfThreads; i++) {
             Thread thread = new Thread(() -> {
-                latch.countDown();
-                Random random = new Random(random().nextLong());
-                for (int j = 0; j < numberOfEntries; j++) {
-                    Integer key = random.nextInt(numberOfEntries);
-                    boolean first;
-                    boolean second;
-                    do {
-                        first = random.nextBoolean();
-                        second = random.nextBoolean();
-                    } while (first && second);
-                    if (first) {
-                        try {
-                            cache.computeIfAbsent(key, k -> {
-                                if (random.nextBoolean()) {
-                                    return Integer.toString(k);
-                                } else {
-                                    throw new Exception("testCachePollution");
-                                }
-                            });
-                        } catch (ExecutionException e) {
-                            assertNotNull(e.getCause());
-                            assertThat(e.getCause(), instanceOf(Exception.class));
-                            assertEquals(e.getCause().getMessage(), "testCachePollution");
+                try {
+                    barrier.await();
+                    Random random = new Random(random().nextLong());
+                    for (int j = 0; j < numberOfEntries; j++) {
+                        Integer key = random.nextInt(numberOfEntries);
+                        boolean first;
+                        boolean second;
+                        do {
+                            first = random.nextBoolean();
+                            second = random.nextBoolean();
+                        } while (first && second);
+                        if (first) {
+                            try {
+                                cache.computeIfAbsent(key, k -> {
+                                    if (random.nextBoolean()) {
+                                        return Integer.toString(k);
+                                    } else {
+                                        throw new Exception("testCachePollution");
+                                    }
+                                });
+                            } catch (ExecutionException e) {
+                                assertNotNull(e.getCause());
+                                assertThat(e.getCause(), instanceOf(Exception.class));
+                                assertEquals(e.getCause().getMessage(), "testCachePollution");
+                            }
+                        } else if (second) {
+                            cache.invalidate(key);
+                        } else {
+                            cache.get(key);
                         }
-                    } else if (second) {
-                        cache.invalidate(key);
-                    } else {
-                        cache.get(key);
                     }
+                    barrier.await();
+                } catch (BrokenBarrierException | InterruptedException e) {
+                    throw new AssertionError(e);
                 }
             });
-            threads.add(thread);
             thread.start();
         }
 
-        latch.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+        // wait for all threads to be ready
+        barrier.await();
+        // wait for all threads to finish
+        barrier.await();
     }
 
     // test that the cache is not corrupted under lots of concurrent modifications, even hitting the same key
     // here be dragons: this test did catch one subtle bug during development; do not remove lightly
-    public void testTorture() throws InterruptedException {
-        int numberOfThreads = randomIntBetween(2, 200);
+    public void testTorture() throws BrokenBarrierException, InterruptedException {
+        int numberOfThreads = randomIntBetween(2, 32);
         final Cache<Integer, String> cache =
                 CacheBuilder.<Integer, String>builder()
                         .setMaximumWeight(1000)
                         .weigher((k, v) -> 2)
                         .build();
 
-        CountDownLatch latch = new CountDownLatch(1 + numberOfThreads);
-        List<Thread> threads = new ArrayList<>();
+        CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         for (int i = 0; i < numberOfThreads; i++) {
             Thread thread = new Thread(() -> {
-                Random random = new Random(random().nextLong());
-                latch.countDown();
-                for (int j = 0; j < numberOfEntries; j++) {
-                    Integer key = random.nextInt(numberOfEntries);
-                    cache.put(key, Integer.toString(j));
+                try {
+                    barrier.await();
+                    Random random = new Random(random().nextLong());
+                    for (int j = 0; j < numberOfEntries; j++) {
+                        Integer key = random.nextInt(numberOfEntries);
+                        cache.put(key, Integer.toString(j));
+                    }
+                    barrier.await();
+                } catch (BrokenBarrierException | InterruptedException e) {
+                    throw new AssertionError(e);
                 }
             });
-            threads.add(thread);
             thread.start();
         }
-        latch.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
+
+        // wait for all threads to be ready
+        barrier.await();
+        // wait for all threads to finish
+        barrier.await();
+
         cache.refresh();
         assertEquals(500, cache.count());
     }

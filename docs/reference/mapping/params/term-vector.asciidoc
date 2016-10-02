@@ -35,7 +35,7 @@ PUT my_index
     "my_type": {
       "properties": {
         "text": {
-          "type":        "string",
+          "type":        "text",
           "term_vector": "with_positions_offsets"
         }
       }
@@ -62,7 +62,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The fast vector highlighter will be used by default for the `text` field
     because term vectors are enabled.
 

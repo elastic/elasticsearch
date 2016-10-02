@@ -15,12 +15,12 @@ results from older indices will be served directly from the cache.
 [IMPORTANT]
 ===================================
 
-For now, the requests cache will only cache the results of search requests
+By default, the requests cache will only cache the results of search requests
 where `size=0`, so it will not cache `hits`,
 but it will cache `hits.total`,  <<search-aggregations,aggregations>>, and
 <<search-suggesters,suggestions>>.
 
-Queries that use `now` (see <<date-math>>) cannot be cached.
+Most queries that use `now` (see <<date-math>>) cannot be cached.
 ===================================
 
 [float]
@@ -42,45 +42,49 @@ The cache can be expired manually with the <<indices-clearcache,`clear-cache` AP
 
 [source,js]
 ------------------------
-curl -XPOST 'localhost:9200/kimchy,elasticsearch/_cache/clear?request_cache=true'
+POST /kimchy,elasticsearch/_cache/clear?request_cache=true
 ------------------------
+// CONSOLE
+// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
 
 [float]
-==== Enabling caching by default
+==== Enabling and disabling caching
 
-The cache is not enabled by default, but can be enabled when creating a new
+The cache is enabled by default, but can be disabled when creating a new
 index as follows:
 
 [source,js]
 -----------------------------
-curl -XPUT localhost:9200/my_index -d'
+PUT /my_index
 {
   "settings": {
-    "index.requests.cache.enable": true
+    "index.requests.cache.enable": false
   }
 }
-'
 -----------------------------
+// CONSOLE
 
 It can also be enabled or disabled dynamically on an existing index with the
 <<indices-update-settings,`update-settings`>> API:
 
 [source,js]
 -----------------------------
-curl -XPUT localhost:9200/my_index/_settings -d'
+PUT /my_index/_settings
 { "index.requests.cache.enable": true }
-'
 -----------------------------
+// CONSOLE
+// TEST[continued]
+
 
 [float]
-==== Enabling caching per request
+==== Enabling and disabling caching per request
 
 The `request_cache` query-string parameter can be used to enable or disable
 caching on a *per-request* basis.  If set, it overrides the index-level setting:
 
 [source,js]
 -----------------------------
-curl 'localhost:9200/my_index/_search?request_cache=true' -d'
+GET /my_index/_search?request_cache=true
 {
   "size": 0,
   "aggs": {
@@ -91,12 +95,17 @@ curl 'localhost:9200/my_index/_search?request_cache=true' -d'
     }
   }
 }
-'
 -----------------------------
+// CONSOLE
+// TEST[continued]
 
 IMPORTANT: If your query uses a script whose result is not deterministic (e.g.
 it uses a random function or references the current time) you should set the
 `request_cache` flag to `false` to disable caching for that request.
+
+Requests `size` is greater than 0 will not be cached even if the request cache is
+enabled in the index settings. To cache these requests you will need to use the
+query-string parameter detailed here.
 
 [float]
 ==== Cache key
@@ -133,12 +142,14 @@ by index, with the <<indices-stats,`indices-stats`>> API:
 
 [source,js]
 ------------------------
-curl 'localhost:9200/_stats/request_cache?pretty&human'
+GET /_stats/request_cache?human
 ------------------------
+// CONSOLE
 
 or by node with the <<cluster-nodes-stats,`nodes-stats`>> API:
 
 [source,js]
 ------------------------
-curl 'localhost:9200/_nodes/stats/indices/request_cache?pretty&human'
+GET /_nodes/stats/indices/request_cache?human
 ------------------------
+// CONSOLE

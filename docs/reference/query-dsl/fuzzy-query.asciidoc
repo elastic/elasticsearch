@@ -1,8 +1,9 @@
 [[query-dsl-fuzzy-query]]
 === Fuzzy Query
 
-The fuzzy query uses similarity based on Levenshtein edit distance for
-`string` fields, and a `+/-` margin on numeric and date fields.
+deprecated[5.0.0, Will be removed in 6.0. Use match queries with fuzziness instead]
+
+The fuzzy query uses similarity based on Levenshtein edit distance.
 
 ==== String fields
 
@@ -15,27 +16,35 @@ Here is a simple example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "fuzzy" : { "user" : "ki" }
+    "query": {
+       "fuzzy" : { "user" : "ki" }
+    }
 }
 --------------------------------------------------
+// CONSOLE
 
 Or with more advanced settings:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "fuzzy" : {
-        "user" : {
-            "value" :         "ki",
-            "boost" :         1.0,
-            "fuzziness" :     2,
-            "prefix_length" : 0,
-            "max_expansions": 100
+    "query": {
+        "fuzzy" : {
+            "user" : {
+                "value" :         "ki",
+                    "boost" :         1.0,
+                    "fuzziness" :     2,
+                    "prefix_length" : 0,
+                    "max_expansions": 100
+            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ===== Parameters
@@ -61,41 +70,4 @@ WARNING: This query can be very heavy if `prefix_length` is set to `0` and if
 `max_expansions` is set to a high number. It could result in every term in the
 index being examined!
 
-[float]
-==== Numeric and date fields
 
-Performs a <<query-dsl-range-query>> ``around'' the value using the
-`fuzziness` value as a `+/-` range, where:
-
-    -fuzziness <= field value <= +fuzziness
-
-For example:
-
-[source,js]
---------------------------------------------------
-{
-    "fuzzy" : {
-        "price" : {
-            "value" : 12,
-            "fuzziness" : 2
-        }
-    }
-}
---------------------------------------------------
-
-Will result in a range query between 10 and 14. Date fields support
-<<time-units,time values>>, eg:
-
-[source,js]
---------------------------------------------------
-{
-    "fuzzy" : {
-        "created" : {
-            "value" : "2010-02-05T12:05:07",
-            "fuzziness" : "1d"
-        }
-    }
-}
---------------------------------------------------
-
-See <<fuzziness>> for more details about accepted values.

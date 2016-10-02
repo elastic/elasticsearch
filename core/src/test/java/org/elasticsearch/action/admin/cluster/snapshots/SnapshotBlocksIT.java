@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * This class tests that snapshot operations (Create, Delete, Restore) are blocked when the cluster is read-only.
  *
- * The @ClusterScope TEST is needed because this class updates the cluster setting "cluster.blocks.read_only".
+ * The @NodeScope TEST is needed because this class updates the cluster setting "cluster.blocks.read_only".
  */
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SnapshotBlocksIT extends ESIntegTestCase {
@@ -69,7 +69,7 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         logger.info("--> register a repository");
         assertAcked(client().admin().cluster().preparePutRepository(REPOSITORY_NAME)
                 .setType("fs")
-                .setSettings(Settings.settingsBuilder().put("location",  randomRepoPath())));
+                .setSettings(Settings.builder().put("location",  randomRepoPath())));
 
         logger.info("--> verify the repository");
         VerifyRepositoryResponse verifyResponse = client().admin().cluster().prepareVerifyRepository(REPOSITORY_NAME).get();
@@ -157,7 +157,7 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
             setClusterReadOnly(true);
             GetSnapshotsResponse response = client().admin().cluster().prepareGetSnapshots(REPOSITORY_NAME).execute().actionGet();
             assertThat(response.getSnapshots(), hasSize(1));
-            assertThat(response.getSnapshots().get(0).name(), equalTo(SNAPSHOT_NAME));
+            assertThat(response.getSnapshots().get(0).snapshotId().getName(), equalTo(SNAPSHOT_NAME));
         } finally {
             setClusterReadOnly(false);
         }

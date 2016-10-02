@@ -6,9 +6,9 @@ The `nodeattrs` command shows custom node attributes.
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
 % curl 192.168.56.10:9200/_cat/nodeattrs
-node       host    ip          attr  value
-Black Bolt epsilon 192.168.1.8 rack  rack314
-Black Bolt epsilon 192.168.1.8 azone us-east-1
+node    host    ip          attr  value
+DKDM97B epsilon 192.168.1.8 rack  rack314
+DKDM97B epsilon 192.168.1.8 azone us-east-1
 --------------------------------------------------
 
 The first few columns give you basic info per node.
@@ -16,9 +16,9 @@ The first few columns give you basic info per node.
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-node       host    ip
-Black Bolt epsilon 192.168.1.8
-Black Bolt epsilon 192.168.1.8
+node    host    ip
+DKDM97B epsilon 192.168.1.8
+DKDM97B epsilon 192.168.1.8
 --------------------------------------------------
 
 
@@ -52,15 +52,15 @@ mode (`v`). The header name will match the supplied value (e.g.,
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
 % curl 192.168.56.10:9200/_cat/nodeattrs?v&h=name,pid,attr,value
-name       pid   attr  value
-Black Bolt 28000 rack  rack314
-Black Bolt 28000 azone us-east-1
+name    pid   attr  value
+DKDM97B 28000 rack  rack314
+DKDM97B 28000 azone us-east-1
 --------------------------------------------------
 
 [cols="<,<,<,<,<",options="header",subs="normal"]
 |=======================================================================
 |Header |Alias |Appear by Default |Description |Example
-|`node`|`name`|Yes|Name of the node|Black Bolt
+|`node`|`name`|Yes|Name of the node|DKDM97B
 |`id` |`nodeId` |No |Unique node ID |k0zy
 |`pid` |`p` |No |Process ID |13061
 |`host` |`h` |Yes |Host name |n1

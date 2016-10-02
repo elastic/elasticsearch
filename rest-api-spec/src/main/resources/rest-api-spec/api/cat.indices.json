@@ -12,6 +12,10 @@
         }
       },
       "params": {
+        "format": {
+          "type" : "string",
+          "description" : "a short version of the Accept header, e.g. json, yaml"
+        },
         "bytes": {
           "type": "enum",
           "description" : "The unit in which to display byte values",
@@ -28,6 +32,12 @@
         "h": {
             "type": "list",
             "description" : "Comma-separated list of column names to display"
+        },
+        "health": {
+          "type" : "enum",
+          "options" : ["green","yellow","red"],
+          "default" : null,
+          "description" : "A health status (\"green\", \"yellow\", or \"red\" to filter only indices matching the specified health status"
         },
         "help": {
           "type": "boolean",

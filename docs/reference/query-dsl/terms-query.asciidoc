@@ -6,17 +6,21 @@ Filters documents that have fields that match any of the provided terms
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "constant_score" : {
-        "filter" : {
-            "terms" : { "user" : ["kimchy", "elasticsearch"]}
+    "query": {
+        "constant_score" : {
+            "filter" : {
+                "terms" : { "user" : ["kimchy", "elasticsearch"]}
+            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The `terms` query is also aliased with `in` as the filter name for
-simpler usage.
+simpler usage deprecated[5.0.0,use `terms` instead].
 
 [float]
 [[query-dsl-terms-lookup]]
@@ -63,33 +67,37 @@ possible, reducing the need for networking.
 
 [float]
 ===== Terms lookup twitter example
+At first we index the information for user with id 2, specifically, its
+followers, than index a tweet from user with id 1. Finally we search on
+all the tweets that match the followers of user 2.
 
 [source,js]
 --------------------------------------------------
-# index the information for user with id 2, specifically, its followers
-curl -XPUT localhost:9200/users/user/2 -d '{
-   "followers" : ["1", "3"]
-}'
+PUT /users/user/2
+{
+    "followers" : ["1", "3"]
+}
 
-# index a tweet, from user with id 2
-curl -XPUT localhost:9200/tweets/tweet/1 -d '{
-   "user" : "2"
-}'
+PUT /tweets/tweet/1
+{
+    "user" : "1"
+}
 
-# search on all the tweets that match the followers of user 2
-curl -XGET localhost:9200/tweets/_search -d '{
-  "query" : {
-    "terms" : {
-      "user" : {
-        "index" : "users",
-        "type" : "user",
-        "id" : "2",
-        "path" : "followers"
-      }
+GET /tweets/_search
+{
+    "query" : {
+        "terms" : {
+            "user" : {
+                "index" : "users",
+                "type" : "user",
+                "id" : "2",
+                "path" : "followers"
+            }
+        }
     }
-  }
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 The structure of the external terms document can also include array of
 inner objects, for example:

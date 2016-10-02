@@ -1,0 +1,55 @@
+---
+"Update-by-query picks up new fields":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            place:
+              properties:
+                name:
+                  type: text
+  - do:
+      index:
+        index:   test
+        type:    place
+        id:      1
+        refresh: true
+        body:    { "name": "bob's house" }
+
+  - do:
+      indices.put_mapping:
+        index: test
+        type:  place
+        body:
+          properties:
+            name:
+              type: text
+              fields:
+                english:
+                  type:     text
+                  analyzer: english
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              name.english: bob
+  - match: { hits.total: 0 }
+
+  - do:
+      update_by_query:
+        index: test
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              name.english: bob
+  - match: { hits.total: 1 }

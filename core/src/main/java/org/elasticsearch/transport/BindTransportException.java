@@ -35,4 +35,8 @@ public class BindTransportException extends TransportException {
     public BindTransportException(String message, Throwable cause) {
         super(message, cause);
     }
+
+    public BindTransportException(String message) {
+        super(message);
+    }
 }

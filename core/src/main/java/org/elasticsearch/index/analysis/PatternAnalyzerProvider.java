@@ -20,8 +20,8 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.core.StopAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -40,13 +40,7 @@ public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analy
     public PatternAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 
-        Version esVersion = indexSettings.getIndexVersionCreated();
-        final CharArraySet defaultStopwords;
-        if (esVersion.onOrAfter(Version.V_1_0_0_RC1)) {
-            defaultStopwords = CharArraySet.EMPTY_SET;
-        } else {
-            defaultStopwords = StopAnalyzer.ENGLISH_STOP_WORDS_SET;
-        }
+        final CharArraySet defaultStopwords = CharArraySet.EMPTY_SET;
         boolean lowercase = settings.getAsBoolean("lowercase", true);
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
 

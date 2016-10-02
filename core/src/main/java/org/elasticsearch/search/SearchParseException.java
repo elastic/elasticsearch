@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -86,7 +85,7 @@ public class SearchParseException extends SearchContextException {
 
     /**
      * Line number of the location of the error
-     * 
+     *
      * @return the line number or -1 if unknown
      */
     public int getLineNumber() {
@@ -95,7 +94,7 @@ public class SearchParseException extends SearchContextException {
 
     /**
      * Column number of the location of the error
-     * 
+     *
      * @return the column number or -1 if unknown
      */
     public int getColumnNumber() {

@@ -1,0 +1,54 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+esplugin {
+  description 'The GCS repository plugin adds Google Cloud Storage support for repositories.'
+  classname 'org.elasticsearch.plugin.repository.gcs.GoogleCloudStoragePlugin'
+}
+
+versions << [
+        'google': '1.21.0',
+]
+
+dependencies {
+  compile "com.google.apis:google-api-services-storage:v1-rev66-${versions.google}"
+  compile "com.google.api-client:google-api-client:${versions.google}"
+  compile "com.google.oauth-client:google-oauth-client:${versions.google}"
+  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  compile "commons-logging:commons-logging:${versions.commonslogging}"
+  compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile "com.google.http-client:google-http-client:${versions.google}"
+  compile "com.google.http-client:google-http-client-jackson2:${versions.google}"
+}
+
+dependencyLicenses {
+  mapping from: /google-.*/, to: 'google'
+}
+
+thirdPartyAudit.excludes = [
+        // classes are missing
+        'com.google.common.base.Splitter',
+        'com.google.common.collect.Lists',
+        'javax.servlet.ServletContextEvent',
+        'javax.servlet.ServletContextListener',
+        'org.apache.avalon.framework.logger.Logger',
+        'org.apache.log.Hierarchy',
+        'org.apache.log.Logger',
+]

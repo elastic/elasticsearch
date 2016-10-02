@@ -20,63 +20,31 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 
 /**
  * A simple {@link AllocationCommand} composite managing several
  * {@link AllocationCommand} implementations
  */
-public class AllocationCommands {
-
-    private static Map<String, AllocationCommand.Factory> factories = new HashMap<>();
-
-    /**
-     * Register a custom index meta data factory. Make sure to call it from a static block.
-     */
-    public static void registerFactory(String type, AllocationCommand.Factory factory) {
-        factories.put(type, factory);
-    }
-
-    @SuppressWarnings("unchecked")
-    @Nullable
-    public static <T extends AllocationCommand> AllocationCommand.Factory<T> lookupFactory(String name) {
-        return factories.get(name);
-    }
-
-    @SuppressWarnings("unchecked")
-    public static <T extends AllocationCommand> AllocationCommand.Factory<T> lookupFactorySafe(String name) {
-        AllocationCommand.Factory<T> factory = factories.get(name);
-        if (factory == null) {
-            throw new IllegalArgumentException("No allocation command factory registered for name [" + name + "]");
-        }
-        return factory;
-    }
-
-    static {
-        registerFactory(AllocateAllocationCommand.NAME, new AllocateAllocationCommand.Factory());
-        registerFactory(CancelAllocationCommand.NAME, new CancelAllocationCommand.Factory());
-        registerFactory(MoveAllocationCommand.NAME, new MoveAllocationCommand.Factory());
-    }
-
+public class AllocationCommands extends ToXContentToBytes {
     private final List<AllocationCommand> commands = new ArrayList<>();
 
     /**
      * Creates a new set of {@link AllocationCommands}
-     *   
+     *
      * @param commands {@link AllocationCommand}s that are wrapped by this instance
      */
     public AllocationCommands(AllocationCommand... commands) {
@@ -122,22 +90,21 @@ public class AllocationCommands {
      * Reads a {@link AllocationCommands} from a {@link StreamInput}
      * @param in {@link StreamInput} to read from
      * @return {@link AllocationCommands} read
-     * 
+     *
      * @throws IOException if something happens during read
      */
     public static AllocationCommands readFrom(StreamInput in) throws IOException {
         AllocationCommands commands = new AllocationCommands();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            String name = in.readString();
-            commands.add(lookupFactorySafe(name).readFrom(in));
+            commands.add(in.readNamedWriteable(AllocationCommand.class));
         }
         return commands;
     }
 
     /**
      * Writes {@link AllocationCommands} to a {@link StreamOutput}
-     * 
+     *
      * @param commands Commands to write
      * @param out {@link StreamOutput} to write the commands to
      * @throws IOException if something happens during write
@@ -145,11 +112,10 @@ public class AllocationCommands {
     public static void writeTo(AllocationCommands commands, StreamOutput out) throws IOException {
         out.writeVInt(commands.commands.size());
         for (AllocationCommand command : commands.commands) {
-            out.writeString(command.name());
-            lookupFactorySafe(command.name()).writeTo(command, out);
+            out.writeNamedWriteable(command);
         }
     }
-    
+
     /**
      * Reads {@link AllocationCommands} from a {@link XContentParser}
      * <pre>
@@ -160,10 +126,12 @@ public class AllocationCommands {
      *     }
      * </pre>
      * @param parser {@link XContentParser} to read the commands from
+     * @param registry of allocation command parsers
      * @return {@link AllocationCommands} read
-     * @throws IOException if something bad happens while reading the stream 
+     * @throws IOException if something bad happens while reading the stream
      */
-    public static AllocationCommands fromXContent(XContentParser parser) throws IOException {
+    public static AllocationCommands fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher,
+            AllocationCommandRegistry registry) throws IOException {
         AllocationCommands commands = new AllocationCommands();
 
         XContentParser.Token token = parser.currentToken();
@@ -192,7 +160,7 @@ public class AllocationCommands {
                 token = parser.nextToken();
                 String commandName = parser.currentName();
                 token = parser.nextToken();
-                commands.add(AllocationCommands.lookupFactorySafe(commandName).fromXContent(parser));
+                commands.add(registry.lookup(commandName, parseFieldMatcher, parser.getTokenLocation()).fromXContent(parser));
                 // move to the end object one
                 if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                     throw new ElasticsearchParseException("allocation command is malformed, done parsing a command, but didn't get END_OBJECT, got [{}] instead", token);
@@ -203,23 +171,32 @@ public class AllocationCommands {
         }
         return commands;
     }
-    
-    /**
-     * Writes {@link AllocationCommands} to a {@link XContentBuilder}
-     * 
-     * @param commands {@link AllocationCommands} to write
-     * @param builder {@link XContentBuilder} to use
-     * @param params Parameters to use for building
-     * @throws IOException if something bad happens while building the content
-     */
-    public static void toXContent(AllocationCommands commands, XContentBuilder builder, ToXContent.Params params) throws IOException {
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray("commands");
-        for (AllocationCommand command : commands.commands) {
+        for (AllocationCommand command : commands) {
             builder.startObject();
-            builder.field(command.name());
-            AllocationCommands.lookupFactorySafe(command.name()).toXContent(command, builder, params, null);
+            builder.field(command.name(), command);
             builder.endObject();
         }
         builder.endArray();
+        return builder;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        AllocationCommands other = (AllocationCommands) obj;
+        // Override equals and hashCode for testing
+        return Objects.equals(commands, other.commands);
+    }
+
+    @Override
+    public int hashCode() {
+        // Override equals and hashCode for testing
+        return Objects.hashCode(commands);
     }
 }

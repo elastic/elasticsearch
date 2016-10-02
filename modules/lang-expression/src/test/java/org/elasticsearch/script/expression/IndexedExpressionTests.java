@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script.expression;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -39,10 +40,8 @@ public class IndexedExpressionTests extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        builder.put("script.engine.expression.indexed.update", "off");
-        builder.put("script.engine.expression.indexed.search", "off");
-        builder.put("script.engine.expression.indexed.aggs", "off");
-        builder.put("script.engine.expression.indexed.mapping", "off");
+        builder.put("script.engine.expression.stored.update", "false");
+        builder.put("script.engine.expression.stored.search", "false");
         return builder.build();
     }
 
@@ -52,36 +51,36 @@ public class IndexedExpressionTests extends ESIntegTestCase {
     }
 
     public void testAllOpsDisabledIndexedScripts() throws IOException {
-        if (randomBoolean()) {
-            client().preparePutIndexedScript(ExpressionScriptEngineService.NAME, "script1", "{\"script\":\"2\"}").get();
-        } else {
-            client().prepareIndex(ScriptService.SCRIPT_INDEX, ExpressionScriptEngineService.NAME, "script1").setSource("{\"script\":\"2\"}").get();
-        }
+        client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(ExpressionScriptEngineService.NAME)
+                .setId("script1")
+                .setSource(new BytesArray("{\"script\":\"2\"}"))
+                .get();
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         try {
             client().prepareUpdate("test", "scriptTest", "1")
-                    .setScript(new Script("script1", ScriptService.ScriptType.INDEXED, ExpressionScriptEngineService.NAME, null)).get();
+                    .setScript(new Script("script1", ScriptService.ScriptType.STORED, ExpressionScriptEngineService.NAME, null)).get();
             fail("update script should have been rejected");
         } catch(Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
-            assertThat(e.getCause().getMessage(), containsString("scripts of type [indexed], operation [update] and lang [expression] are disabled"));
+            assertThat(e.getCause().getMessage(), containsString("scripts of type [stored], operation [update] and lang [expression] are disabled"));
         }
         try {
             client().prepareSearch()
                     .setSource(
-                            new SearchSourceBuilder().scriptField("test1", new Script("script1", ScriptType.INDEXED, "expression", null)))
+                            new SearchSourceBuilder().scriptField("test1", new Script("script1", ScriptType.STORED, "expression", null)))
                     .setIndices("test").setTypes("scriptTest").get();
             fail("search script should have been rejected");
         } catch(Exception e) {
-            assertThat(e.toString(), containsString("scripts of type [indexed], operation [search] and lang [expression] are disabled"));
+            assertThat(e.toString(), containsString("scripts of type [stored], operation [search] and lang [expression] are disabled"));
         }
         try {
             client().prepareSearch("test")
                     .setSource(
                             new SearchSourceBuilder().aggregation(AggregationBuilders.terms("test").script(
-                                    new Script("script1", ScriptType.INDEXED, "expression", null)))).get();
+                                    new Script("script1", ScriptType.STORED, "expression", null)))).get();
         } catch (Exception e) {
-            assertThat(e.toString(), containsString("scripts of type [indexed], operation [aggs] and lang [expression] are disabled"));
+            assertThat(e.toString(), containsString("scripts of type [stored], operation [aggs] and lang [expression] are disabled"));
         }
     }
 }

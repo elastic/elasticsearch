@@ -23,11 +23,9 @@ package org.elasticsearch.discovery.ec2;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.cloud.aws.AbstractAwsTestCase;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugin.discovery.ec2.Ec2DiscoveryPlugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.is;
 
 /**
@@ -38,17 +36,15 @@ import static org.hamcrest.CoreMatchers.is;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class Ec2DiscoveryUpdateSettingsTests extends AbstractAwsTestCase {
     public void testMinimumMasterNodesStart() {
-        Settings nodeSettings = settingsBuilder()
-                .put("plugin.types", Ec2DiscoveryPlugin.class.getName())
-                .put("cloud.enabled", true)
+        Settings nodeSettings = Settings.builder()
                 .put("discovery.type", "ec2")
                 .build();
         internalCluster().startNode(nodeSettings);
 
         // We try to update minimum_master_nodes now
         ClusterUpdateSettingsResponse response = client().admin().cluster().prepareUpdateSettings()
-                .setPersistentSettings(settingsBuilder().put("discovery.zen.minimum_master_nodes", 1))
-                .setTransientSettings(settingsBuilder().put("discovery.zen.minimum_master_nodes", 1))
+                .setPersistentSettings(Settings.builder().put("discovery.zen.minimum_master_nodes", 1))
+                .setTransientSettings(Settings.builder().put("discovery.zen.minimum_master_nodes", 1))
                 .get();
 
         Integer min = response.getPersistentSettings().getAsInt("discovery.zen.minimum_master_nodes", null);

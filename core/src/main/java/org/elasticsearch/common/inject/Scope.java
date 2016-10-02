@@ -47,7 +47,7 @@ public interface Scope {
      *         when an instance of the requested object doesn't already exist in this
      *         scope
      */
-    public <T> Provider<T> scope(Key<T> key, Provider<T> unscoped);
+    <T> Provider<T> scope(Key<T> key, Provider<T> unscoped);
 
     /**
      * A short but useful description of this scope.  For comparison, the standard

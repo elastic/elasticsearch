@@ -9,34 +9,34 @@ the `full_name` field as follows:
 
 [source,js]
 --------------------------------------------------
-PUT /my_index
+PUT my_index
 {
   "mappings": {
     "my_type": {
       "properties": {
         "first_name": {
-          "type": "string",
+          "type": "text",
           "copy_to": "full_name" <1>
         },
         "last_name": {
-          "type": "string",
+          "type": "text",
           "copy_to": "full_name" <1>
         },
         "full_name": {
-          "type": "string"
+          "type": "text"
         }
       }
     }
   }
 }
 
-PUT /my_index/my_type/1
+PUT my_index/my_type/1
 {
   "first_name": "John",
   "last_name": "Smith"
 }
 
-GET /my_index/_search
+GET my_index/_search
 {
   "query": {
     "match": {
@@ -49,7 +49,7 @@ GET /my_index/_search
 }
 
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1>  The values of the `first_name` and `last_name` fields are copied to the
      `full_name` field.
 

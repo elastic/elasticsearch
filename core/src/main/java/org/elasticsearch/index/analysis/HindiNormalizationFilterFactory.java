@@ -27,7 +27,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  * Factory for {@link HindiNormalizationFilter}
  */
-public class HindiNormalizationFilterFactory extends AbstractTokenFilterFactory {
+public class HindiNormalizationFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
     public HindiNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -38,4 +38,8 @@ public class HindiNormalizationFilterFactory extends AbstractTokenFilterFactory 
         return new HindiNormalizationFilter(tokenStream);
     }
 
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
+    }
 }

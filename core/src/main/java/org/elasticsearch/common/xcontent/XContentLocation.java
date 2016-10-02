@@ -34,4 +34,9 @@ public class XContentLocation {
         this.lineNumber = lineNumber;
         this.columnNumber = columnNumber;
     }
+
+    @Override
+    public String toString() {
+        return lineNumber + ":" + columnNumber;
+    }
 }

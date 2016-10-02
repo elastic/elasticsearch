@@ -52,7 +52,7 @@ public class TypesExistsRequest extends MasterNodeReadRequest<TypesExistsRequest
     }
 
     @Override
-    public TypesExistsRequest indices(String[] indices) {
+    public TypesExistsRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }

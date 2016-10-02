@@ -46,7 +46,7 @@ Fields with the same name in different mapping types in the same index
 
 Each field has a data `type` which can be:
 
-* a simple type like <<string,`string`>>, <<date,`date`>>, <<number,`long`>>,
+* a simple type like <<text,`text`>>, <<keyword,`keyword`>>, <<date,`date`>>, <<number,`long`>>,
   <<number,`double`>>, <<boolean,`boolean`>> or <<ip,`ip`>>.
 * a type which supports the hierarchical nature of JSON such as
   <<object,`object`>> or <<nested,`nested`>>.
@@ -55,7 +55,7 @@ Each field has a data `type` which can be:
 
 It is often useful to index the same field in different ways for different
 purposes. For instance, a `string` field could be <<mapping-index,indexed>> as
-an `analyzed` field for full-text search, and as a `not_analyzed` field for
+a `text` field for full-text search, and as a `keyword` field for
 sorting or aggregations.  Alternatively, you could index a string field with
 the <<analysis-standard-analyzer,`standard` analyzer>>, the
 <<english-analyzer,`english`>> analyzer, and the
@@ -63,6 +63,29 @@ the <<analysis-standard-analyzer,`standard` analyzer>>, the
 
 This is the purpose of _multi-fields_.  Most datatypes support multi-fields
 via the <<multi-fields>> parameter.
+
+[[mapping-limit-settings]]
+[float]
+=== Settings to prevent mappings explosion
+
+The following settings allow you to limit the number of field mappings that
+can be created manually or dynamically, in order to prevent bad documents from
+causing a mapping explosion:
+
+`index.mapping.total_fields.limit`::
+    The maximum number of fields in an index. The default value is `1000`.
+
+`index.mapping.depth.limit`::
+    The maximum depth for a field, which is measured as the number of inner
+    objects. For instance, if all fields are defined at the root object level,
+    then the depth is `1`. If there is one object mapping, then the depth is
+    `2`, etc. The default is `20`.
+
+`index.mapping.nested_fields.limit`::
+    The maximum number of `nested` fields in an index, defaults to `50`.
+    Indexing 1 document with 100 nested fields actually indexes 101 documents
+    as each nested document is indexed as a separate hidden document.
+
 
 [float]
 == Dynamic mapping
@@ -134,18 +157,18 @@ PUT my_index <1>
     "user": { <2>
       "_all":       { "enabled": false  }, <3>
       "properties": { <4>
-        "title":    { "type": "string"  }, <5>
-        "name":     { "type": "string"  }, <5>
+        "title":    { "type": "text"  }, <5>
+        "name":     { "type": "text"  }, <5>
         "age":      { "type": "integer" }  <5>
       }
     },
     "blogpost": { <2>
+      "_all":       { "enabled": false  }, <3>
       "properties": { <4>
-        "title":    { "type": "string"  }, <5>
-        "body":     { "type": "string"  }, <5>
+        "title":    { "type": "text"  }, <5>
+        "body":     { "type": "text"  }, <5>
         "user_id":  {
-          "type":   "string", <5>
-          "index":  "not_analyzed"
+          "type":   "keyword" <5>
         },
         "created":  {
           "type":   "date", <5>
@@ -156,7 +179,7 @@ PUT my_index <1>
   }
 }
 ---------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Create an index called `my_index`.
 <2> Add mapping types called `user` and `blogpost`.
 <3> Disable the `_all` <<mapping-fields,meta field>> for the `user` mapping type.

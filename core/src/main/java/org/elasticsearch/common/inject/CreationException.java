@@ -52,6 +52,4 @@ public class CreationException extends RuntimeException {
     public String getMessage() {
         return Errors.format("Guice creation errors", messages);
     }
-
-    private static final long serialVersionUID = 0;
 }

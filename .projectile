@@ -16,7 +16,6 @@
 -/plugins/discovery-azure/target
 -/plugins/discovery-ec2/target
 -/plugins/discovery-gce/target
--/plugins/discovery-multicast/target
 -/plugins/jvm-example/target
 -/plugins/lang-expression/target
 -/plugins/lang-groovy/target

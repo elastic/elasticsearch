@@ -19,9 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.NumericTokenStream;
-import org.apache.lucene.analysis.TokenStream;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
@@ -53,13 +52,10 @@ import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -67,27 +63,32 @@ import org.elasticsearch.env.Environment;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.unmodifiableMap;
 
-/**
- *
- */
 public class Analysis {
 
-    public static Version parseAnalysisVersion(Settings indexSettings, Settings settings, ESLogger logger) {
+    public static Version parseAnalysisVersion(Settings indexSettings, Settings settings, Logger logger) {
         // check for explicit version on the specific analyzer component
         String sVersion = settings.get("version");
         if (sVersion != null) {
-            return Lucene.parseVersion(sVersion, Lucene.ANALYZER_VERSION, logger);
+            return Lucene.parseVersion(sVersion, Version.LATEST, logger);
         }
         // check for explicit version on the index itself as default for all analysis components
         sVersion = indexSettings.get("index.analysis.version");
         if (sVersion != null) {
-            return Lucene.parseVersion(sVersion, Lucene.ANALYZER_VERSION, logger);
+            return Lucene.parseVersion(sVersion, Version.LATEST, logger);
         }
         // resolve the analysis version based on the version the index was created with
         return org.elasticsearch.Version.indexCreated(indexSettings).luceneVersion;
@@ -156,7 +157,8 @@ public class Analysis {
         NAMED_STOP_WORDS = unmodifiableMap(namedStopWords);
     }
 
-    public static CharArraySet parseWords(Environment env, Settings settings, String name, CharArraySet defaultWords, Map<String, Set<?>> namedWords, boolean ignoreCase) {
+    public static CharArraySet parseWords(Environment env, Settings settings, String name, CharArraySet defaultWords,
+                                          Map<String, Set<?>> namedWords, boolean ignoreCase) {
         String value = settings.get(name);
         if (value != null) {
             if ("_none_".equals(value)) {
@@ -230,12 +232,17 @@ public class Analysis {
             }
         }
 
-        final Path wordListFile = env.configFile().resolve(wordListPath);
+        final Path path = env.configFile().resolve(wordListPath);
 
-        try (BufferedReader reader = FileSystemUtils.newBufferedReader(wordListFile.toUri().toURL(), StandardCharsets.UTF_8)) {
+        try (BufferedReader reader = FileSystemUtils.newBufferedReader(path.toUri().toURL(), StandardCharsets.UTF_8)) {
             return loadWordList(reader, "#");
+        } catch (CharacterCodingException ex) {
+            String message = String.format(Locale.ROOT,
+                "Unsupported character encoding detected while reading %s_path: %s - files must be UTF-8 encoded",
+                settingPrefix, path.toString());
+            throw new IllegalArgumentException(message, ex);
         } catch (IOException ioe) {
-            String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix);
+            String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, path.toString());
             throw new IllegalArgumentException(message, ioe);
         }
     }
@@ -249,7 +256,7 @@ public class Analysis {
             } else {
                 br = new BufferedReader(reader);
             }
-            String word = null;
+            String word;
             while ((word = br.readLine()) != null) {
                 if (!Strings.hasText(word)) {
                     continue;
@@ -276,43 +283,17 @@ public class Analysis {
         if (filePath == null) {
             return null;
         }
-
         final Path path = env.configFile().resolve(filePath);
-
         try {
             return FileSystemUtils.newBufferedReader(path.toUri().toURL(), StandardCharsets.UTF_8);
+        } catch (CharacterCodingException ex) {
+            String message = String.format(Locale.ROOT,
+                "Unsupported character encoding detected while reading %s_path: %s files must be UTF-8 encoded",
+                settingPrefix, path.toString());
+            throw new IllegalArgumentException(message, ex);
         } catch (IOException ioe) {
-            String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix);
+            String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, path.toString());
             throw new IllegalArgumentException(message, ioe);
-        }
-    }
-
-    /**
-     * Check whether the provided token stream is able to provide character
-     * terms.
-     * <p>Although most analyzers generate character terms (CharTermAttribute),
-     * some token only contain binary terms (BinaryTermAttribute,
-     * CharTermAttribute being a special type of BinaryTermAttribute), such as
-     * {@link NumericTokenStream} and unsuitable for highlighting and
-     * more-like-this queries which expect character terms.</p>
-     */
-    public static boolean isCharacterTokenStream(TokenStream tokenStream) {
-        try {
-            tokenStream.addAttribute(CharTermAttribute.class);
-            return true;
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
-    }
-
-    /**
-     * Check whether {@link TokenStream}s generated with <code>analyzer</code>
-     * provide with character terms.
-     * @see #isCharacterTokenStream(TokenStream)
-     */
-    public static boolean generatesCharacterTokenStream(Analyzer analyzer, String fieldName) throws IOException {
-        try (TokenStream ts = analyzer.tokenStream(fieldName, "")) {
-            return isCharacterTokenStream(ts);
         }
     }
 

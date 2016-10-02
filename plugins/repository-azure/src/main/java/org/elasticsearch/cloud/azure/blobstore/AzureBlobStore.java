@@ -22,24 +22,24 @@ package org.elasticsearch.cloud.azure.blobstore;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
+import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.repositories.RepositoryName;
-import org.elasticsearch.repositories.RepositorySettings;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage.CONTAINER;
-import static org.elasticsearch.repositories.azure.AzureRepository.CONTAINER_DEFAULT;
+import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.getValue;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository;
 
 public class AzureBlobStore extends AbstractComponent implements BlobStore {
@@ -51,22 +51,19 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
     private final String container;
     private final String repositoryName;
 
-    @Inject
-    public AzureBlobStore(RepositoryName name, Settings settings, RepositorySettings repositorySettings,
+    public AzureBlobStore(RepositoryMetaData metadata, Settings settings,
                           AzureStorageService client) throws URISyntaxException, StorageException {
         super(settings);
-        this.client = client.start();
-        this.container = repositorySettings.settings().get("container", settings.get(CONTAINER, CONTAINER_DEFAULT));
-        this.repositoryName = name.getName();
+        this.client = client;
+        this.container = getValue(metadata.settings(), settings, Repository.CONTAINER_SETTING, Storage.CONTAINER_SETTING);
+        this.repositoryName = metadata.name();
+        this.accountName = getValue(metadata.settings(), settings, Repository.ACCOUNT_SETTING, Storage.ACCOUNT_SETTING);
 
-        // NOTE: null account means to use the first one specified in config
-        this.accountName = repositorySettings.settings().get(Repository.ACCOUNT, null);
-
-        String modeStr = repositorySettings.settings().get(Repository.LOCATION_MODE, null);
-        if (modeStr == null) {
-            this.locMode = LocationMode.PRIMARY_ONLY;
-        } else {
+        String modeStr = getValue(metadata.settings(), settings, Repository.LOCATION_MODE_SETTING, Storage.LOCATION_MODE_SETTING);
+        if (Strings.hasLength(modeStr)) {
             this.locMode = LocationMode.valueOf(modeStr.toUpperCase(Locale.ROOT));
+        } else {
+            this.locMode = LocationMode.PRIMARY_ONLY;
         }
     }
 
@@ -86,11 +83,7 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
 
     @Override
     public void delete(BlobPath path) {
-        String keyPath = path.buildAsString("/");
-        if (!keyPath.isEmpty()) {
-            keyPath = keyPath + "/";
-        }
-
+        String keyPath = path.buildAsString();
         try {
             this.client.deleteFiles(this.accountName, this.locMode, container, keyPath);
         } catch (URISyntaxException | StorageException e) {
@@ -132,7 +125,7 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
         this.client.deleteBlob(this.accountName, this.locMode, container, blob);
     }
 
-    public InputStream getInputStream(String container, String blob) throws URISyntaxException, StorageException
+    public InputStream getInputStream(String container, String blob) throws URISyntaxException, StorageException, IOException
     {
         return this.client.getInputStream(this.accountName, this.locMode, container, blob);
     }

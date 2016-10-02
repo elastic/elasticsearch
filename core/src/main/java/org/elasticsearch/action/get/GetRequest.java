@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
@@ -29,7 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 
@@ -49,42 +48,22 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     private String type;
     private String id;
     private String routing;
+    private String parent;
     private String preference;
 
-    private String[] fields;
+    private String[] storedFields;
 
     private FetchSourceContext fetchSourceContext;
 
     private boolean refresh = false;
 
-    Boolean realtime;
+    boolean realtime = true;
 
     private VersionType versionType = VersionType.INTERNAL;
     private long version = Versions.MATCH_ANY;
-    private boolean ignoreErrorsOnGeneratedFields;
 
     public GetRequest() {
         type = "_all";
-    }
-
-    /**
-     * Copy constructor that creates a new get request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    public GetRequest(GetRequest getRequest, ActionRequest originalRequest) {
-        super(originalRequest);
-        this.index = getRequest.index;
-        this.type = getRequest.type;
-        this.id = getRequest.id;
-        this.routing = getRequest.routing;
-        this.preference = getRequest.preference;
-        this.fields = getRequest.fields;
-        this.fetchSourceContext = getRequest.fetchSourceContext;
-        this.refresh = getRequest.refresh;
-        this.realtime = getRequest.realtime;
-        this.version = getRequest.version;
-        this.versionType = getRequest.versionType;
-        this.ignoreErrorsOnGeneratedFields = getRequest.ignoreErrorsOnGeneratedFields;
     }
 
     /**
@@ -94,14 +73,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     public GetRequest(String index) {
         super(index);
         this.type = "_all";
-    }
-
-    /**
-     * Constructs a new get request starting from the provided request, meaning that it will
-     * inherit its headers and context, and against the specified index.
-     */
-    public GetRequest(ActionRequest request, String index) {
-        super(request, index);
     }
 
     /**
@@ -153,13 +124,17 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     }
 
     /**
-     * Sets the parent id of this document. Will simply set the routing to this value, as it is only
-     * used for routing with delete requests.
+     * @return The parent for this request.
+     */
+    public String parent() {
+        return parent;
+    }
+
+    /**
+     * Sets the parent id of this document.
      */
     public GetRequest parent(String parent) {
-        if (routing == null) {
-            routing = parent;
-        }
+        this.parent = parent;
         return this;
     }
 
@@ -211,20 +186,20 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     }
 
     /**
-     * Explicitly specify the fields that will be returned. By default, the <tt>_source</tt>
+     * Explicitly specify the stored fields that will be returned. By default, the <tt>_source</tt>
      * field will be returned.
      */
-    public GetRequest fields(String... fields) {
-        this.fields = fields;
+    public GetRequest storedFields(String... fields) {
+        this.storedFields = fields;
         return this;
     }
 
     /**
-     * Explicitly specify the fields that will be returned. By default, the <tt>_source</tt>
+     * Explicitly specify the stored fields that will be returned. By default, the <tt>_source</tt>
      * field will be returned.
      */
-    public String[] fields() {
-        return this.fields;
+    public String[] storedFields() {
+        return this.storedFields;
     }
 
     /**
@@ -242,11 +217,11 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     }
 
     public boolean realtime() {
-        return this.realtime == null ? true : this.realtime;
+        return this.realtime;
     }
 
     @Override
-    public GetRequest realtime(Boolean realtime) {
+    public GetRequest realtime(boolean realtime) {
         this.realtime = realtime;
         return this;
     }
@@ -272,17 +247,8 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         return this;
     }
 
-    public GetRequest ignoreErrorsOnGeneratedFields(boolean ignoreErrorsOnGeneratedFields) {
-        this.ignoreErrorsOnGeneratedFields = ignoreErrorsOnGeneratedFields;
-        return this;
-    }
-
     public VersionType versionType() {
         return this.versionType;
-    }
-
-    public boolean ignoreErrorsOnGeneratedFields() {
-        return ignoreErrorsOnGeneratedFields;
     }
 
     @Override
@@ -291,27 +257,15 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
+        parent = in.readOptionalString();
         preference = in.readOptionalString();
         refresh = in.readBoolean();
-        int size = in.readInt();
-        if (size >= 0) {
-            fields = new String[size];
-            for (int i = 0; i < size; i++) {
-                fields[i] = in.readString();
-            }
-        }
-        byte realtime = in.readByte();
-        if (realtime == 0) {
-            this.realtime = false;
-        } else if (realtime == 1) {
-            this.realtime = true;
-        }
-        this.ignoreErrorsOnGeneratedFields = in.readBoolean();
+        storedFields = in.readOptionalStringArray();
+        realtime = in.readBoolean();
 
         this.versionType = VersionType.fromValue(in.readByte());
         this.version = in.readLong();
-
-        fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
     }
 
     @Override
@@ -320,29 +274,15 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
+        out.writeOptionalString(parent);
         out.writeOptionalString(preference);
 
         out.writeBoolean(refresh);
-        if (fields == null) {
-            out.writeInt(-1);
-        } else {
-            out.writeInt(fields.length);
-            for (String field : fields) {
-                out.writeString(field);
-            }
-        }
-        if (realtime == null) {
-            out.writeByte((byte) -1);
-        } else if (!realtime) {
-            out.writeByte((byte) 0);
-        } else {
-            out.writeByte((byte) 1);
-        }
-        out.writeBoolean(ignoreErrorsOnGeneratedFields);
+        out.writeOptionalStringArray(storedFields);
+        out.writeBoolean(realtime);
         out.writeByte(versionType.getValue());
         out.writeLong(version);
-
-        FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
+        out.writeOptionalWriteable(fetchSourceContext);
     }
 
     @Override

@@ -23,53 +23,39 @@ import java.nio.file.Path;
 /**
  * Callback interface that file changes File Watcher is using to notify listeners about changes.
  */
-public class FileChangesListener {
+public interface FileChangesListener {
     /**
      * Called for every file found in the watched directory during initialization
      */
-    public void onFileInit(Path file) {
-
-    }
+    default void onFileInit(Path file) {}
 
     /**
      * Called for every subdirectory found in the watched directory during initialization
      */
-    public void onDirectoryInit(Path file) {
-
-    }
+    default void onDirectoryInit(Path file) {}
 
     /**
      * Called for every new file found in the watched directory
      */
-    public void onFileCreated(Path file) {
-
-    }
+    default void onFileCreated(Path file) {}
 
     /**
      * Called for every file that disappeared in the watched directory
      */
-    public void onFileDeleted(Path file) {
-
-    }
+    default void onFileDeleted(Path file) {}
 
     /**
      * Called for every file that was changed in the watched directory
      */
-    public void onFileChanged(Path file) {
-
-    }
+    default void onFileChanged(Path file) {}
 
     /**
      * Called for every new subdirectory found in the watched directory
      */
-    public void onDirectoryCreated(Path file) {
-
-    }
+    default void onDirectoryCreated(Path file) {}
 
     /**
      * Called for every file that disappeared in the watched directory
      */
-    public void onDirectoryDeleted(Path file) {
-
-    }
+    default void onDirectoryDeleted(Path file) {}
 }

@@ -1,0 +1,63 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+esplugin {
+  description 'Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database'
+  classname 'org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
+}
+
+dependencies {
+  compile ('com.maxmind.geoip2:geoip2:2.7.0')
+  // geoip2 dependencies:
+  compile('com.fasterxml.jackson.core:jackson-annotations:2.7.1')
+  compile('com.fasterxml.jackson.core:jackson-databind:2.7.1')
+  compile('com.maxmind.db:maxmind-db:1.2.1')
+
+  testCompile 'org.elasticsearch:geolite2-databases:20160608'
+}
+
+task copyDefaultGeoIp2DatabaseFiles(type: Copy) {
+  from { zipTree(configurations.testCompile.files.find { it.name.contains('geolite2-databases')}) }
+  into "${project.buildDir}/ingest-geoip"
+  include "*.mmdb.gz"
+}
+
+project.bundlePlugin.dependsOn(copyDefaultGeoIp2DatabaseFiles)
+
+compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked,-serial"
+compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+
+bundlePlugin {
+  from("${project.buildDir}/ingest-geoip") {
+    into 'config/'
+  }
+}
+
+thirdPartyAudit.excludes = [
+  // geoip WebServiceClient needs Google http client, but we're not using WebServiceClient:
+  'com.google.api.client.http.HttpTransport',
+  'com.google.api.client.http.GenericUrl',
+  'com.google.api.client.http.HttpResponse',
+  'com.google.api.client.http.HttpRequestFactory',
+  'com.google.api.client.http.HttpRequest',
+  'com.google.api.client.http.HttpHeaders',
+  'com.google.api.client.http.HttpResponseException',
+  'com.google.api.client.http.javanet.NetHttpTransport',
+  'com.google.api.client.http.javanet.NetHttpTransport',
+]

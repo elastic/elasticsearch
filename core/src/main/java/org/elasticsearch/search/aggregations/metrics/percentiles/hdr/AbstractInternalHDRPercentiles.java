@@ -23,11 +23,10 @@ import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -37,20 +36,50 @@ import java.util.zip.DataFormatException;
 
 abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
-    protected double[] keys;
-    protected DoubleHistogram state;
-    private boolean keyed;
+    protected final double[] keys;
+    protected final DoubleHistogram state;
+    private final boolean keyed;
 
-    AbstractInternalHDRPercentiles() {} // for serialization
-
-    public AbstractInternalHDRPercentiles(String name, double[] keys, DoubleHistogram state, boolean keyed, ValueFormatter formatter,
+    public AbstractInternalHDRPercentiles(String name, double[] keys, DoubleHistogram state, boolean keyed, DocValueFormat format,
             List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
-        this.valueFormatter = formatter;
+        this.format = format;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected AbstractInternalHDRPercentiles(StreamInput in) throws IOException {
+        super(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
+        keys = in.readDoubleArray();
+        long minBarForHighestToLowestValueRatio = in.readLong();
+        final int serializedLen = in.readVInt();
+        byte[] bytes = new byte[serializedLen];
+        in.readBytes(bytes, 0, serializedLen);
+        ByteBuffer stateBuffer = ByteBuffer.wrap(bytes);
+        try {
+            state = DoubleHistogram.decodeFromCompressedByteBuffer(stateBuffer, minBarForHighestToLowestValueRatio);
+        } catch (DataFormatException e) {
+            throw new IOException("Failed to decode DoubleHistogram for aggregation [" + name + "]", e);
+        }
+        keyed = in.readBoolean();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(format);
+        out.writeDoubleArray(keys);
+        out.writeLong(state.getHighestToLowestValueRatio());
+        ByteBuffer stateBuffer = ByteBuffer.allocate(state.getNeededByteBufferCapacity());
+        final int serializedLen = state.encodeIntoCompressedByteBuffer(stateBuffer);
+        out.writeVInt(serializedLen);
+        out.writeBytes(stateBuffer.array(), 0, serializedLen);
+        out.writeBoolean(keyed);
     }
 
     @Override
@@ -82,41 +111,6 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
 
     @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        valueFormatter = ValueFormatterStreams.readOptional(in);
-        keys = new double[in.readInt()];
-        for (int i = 0; i < keys.length; ++i) {
-            keys[i] = in.readDouble();
-        }
-        long minBarForHighestToLowestValueRatio = in.readLong();
-        final int serializedLen = in.readVInt();
-        byte[] bytes = new byte[serializedLen];
-        in.readBytes(bytes, 0, serializedLen);
-        ByteBuffer stateBuffer = ByteBuffer.wrap(bytes);
-        try {
-            state = DoubleHistogram.decodeFromCompressedByteBuffer(stateBuffer, minBarForHighestToLowestValueRatio);
-        } catch (DataFormatException e) {
-            throw new IOException("Failed to decode DoubleHistogram for aggregation [" + name + "]", e);
-        }
-        keyed = in.readBoolean();
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        ValueFormatterStreams.writeOptional(valueFormatter, out);
-        out.writeInt(keys.length);
-        for (int i = 0 ; i < keys.length; ++i) {
-            out.writeDouble(keys[i]);
-        }
-        out.writeLong(state.getHighestToLowestValueRatio());
-        ByteBuffer stateBuffer = ByteBuffer.allocate(state.getNeededByteBufferCapacity());
-        final int serializedLen = state.encodeIntoCompressedByteBuffer(stateBuffer);
-        out.writeVInt(serializedLen);
-        out.writeBytes(stateBuffer.array(), 0, serializedLen);
-        out.writeBoolean(keyed);
-    }
-
-    @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
             builder.startObject(CommonFields.VALUES);
@@ -124,8 +118,8 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
                 String key = String.valueOf(keys[i]);
                 double value = value(keys[i]);
                 builder.field(key, value);
-                if (!(valueFormatter instanceof ValueFormatter.Raw)) {
-                    builder.field(key + "_as_string", valueFormatter.format(value));
+                if (format != DocValueFormat.RAW) {
+                    builder.field(key + "_as_string", format.format(value));
                 }
             }
             builder.endObject();
@@ -136,8 +130,8 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
                 builder.startObject();
                 builder.field(CommonFields.KEY, keys[i]);
                 builder.field(CommonFields.VALUE, value);
-                if (!(valueFormatter instanceof ValueFormatter.Raw)) {
-                    builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(value));
+                if (format != DocValueFormat.RAW) {
+                    builder.field(CommonFields.VALUE_AS_STRING, format.format(value));
                 }
                 builder.endObject();
             }

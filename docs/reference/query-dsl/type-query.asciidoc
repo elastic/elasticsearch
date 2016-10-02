@@ -5,9 +5,13 @@ Filters documents matching the provided document / mapping type.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "type" : {
-        "value" : "my_type"
+    "query": {
+        "type" : {
+            "value" : "my_type"
+        }
     }
 }    
 --------------------------------------------------
+// CONSOLE

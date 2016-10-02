@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.search.geo;
 
-import org.apache.lucene.util.GeoHashUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -32,7 +31,7 @@ import org.elasticsearch.test.geo.RandomGeoGenerator;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.is;
-
+import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 
 public class GeoPointParsingTests  extends ESTestCase {
     static double TOLERANCE = 1E-5;
@@ -51,7 +50,7 @@ public class GeoPointParsingTests  extends ESTestCase {
         assertPointsEqual(point.resetLat(0), point2.reset(0, 0));
         assertPointsEqual(point.resetLon(lon), point2.reset(0, lon));
         assertPointsEqual(point.resetLon(0), point2.reset(0, 0));
-        assertCloseTo(point.resetFromGeoHash(GeoHashUtils.stringEncode(lon, lat)), lat, lon);
+        assertCloseTo(point.resetFromGeoHash(stringEncode(lon, lat)), lat, lon);
         assertPointsEqual(point.reset(0, 0), point2.reset(0, 0));
         assertPointsEqual(point.resetFromString(Double.toString(lat) + ", " + Double.toHexString(lon)), point2.reset(lat, lon));
         assertPointsEqual(point.reset(0, 0), point2.reset(0, 0));
@@ -125,7 +124,7 @@ public class GeoPointParsingTests  extends ESTestCase {
     public void testInvalidPointLatHashMix() throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.startObject();
-        content.field("lat", 0).field("geohash", GeoHashUtils.stringEncode(0d, 0d));
+        content.field("lat", 0).field("geohash", stringEncode(0d, 0d));
         content.endObject();
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
@@ -142,7 +141,7 @@ public class GeoPointParsingTests  extends ESTestCase {
     public void testInvalidPointLonHashMix() throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.startObject();
-        content.field("lon", 0).field("geohash", GeoHashUtils.stringEncode(0d, 0d));
+        content.field("lon", 0).field("geohash", stringEncode(0d, 0d));
         content.endObject();
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
@@ -201,7 +200,7 @@ public class GeoPointParsingTests  extends ESTestCase {
 
     private static XContentParser geohash(double lat, double lon) throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
-        content.value(GeoHashUtils.stringEncode(lon, lat));
+        content.value(stringEncode(lon, lat));
         XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
         parser.nextToken();
         return parser;

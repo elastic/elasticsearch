@@ -19,7 +19,7 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
@@ -31,7 +31,7 @@ import java.util.List;
 
 /** Tests plugin manager security check */
 public class PluginSecurityTests extends ESTestCase {
-    
+
     /** Test that we can parse the set of permissions correctly for a simple policy */
     public void testParsePermissions() throws Exception {
         assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
@@ -42,7 +42,7 @@ public class PluginSecurityTests extends ESTestCase {
         PermissionCollection actual = PluginSecurity.parsePermissions(Terminal.DEFAULT, testFile, scratch);
         assertEquals(expected, actual);
     }
-    
+
     /** Test that we can parse the set of permissions correctly for a complex policy */
     public void testParseTwoPermissions() throws Exception {
         assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
@@ -54,12 +54,12 @@ public class PluginSecurityTests extends ESTestCase {
         PermissionCollection actual = PluginSecurity.parsePermissions(Terminal.DEFAULT, testFile, scratch);
         assertEquals(expected, actual);
     }
-    
+
     /** Test that we can format some simple permissions properly */
     public void testFormatSimplePermission() throws Exception {
         assertEquals("java.lang.RuntimePermission queuePrintJob", PluginSecurity.formatPermission(new RuntimePermission("queuePrintJob")));
     }
-    
+
     /** Test that we can format an unresolved permission properly */
     public void testFormatUnresolvedPermission() throws Exception {
         assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
@@ -70,7 +70,7 @@ public class PluginSecurityTests extends ESTestCase {
         assertEquals(1, permissions.size());
         assertEquals("org.fake.FakePermission fakeName", PluginSecurity.formatPermission(permissions.get(0)));
     }
-    
+
     /** no guaranteed equals on these classes, we assert they contain the same set */
     private void assertEquals(PermissionCollection expected, PermissionCollection actual) {
         assertEquals(asSet(Collections.list(expected.elements())), asSet(Collections.list(actual.elements())));

@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Internal respresentation of a constructor annotated with
+ * Internal representation of a constructor annotated with
  * {@link AssistedInject}
  *
  * @author jmourits@google.com (Jerome Mourits)

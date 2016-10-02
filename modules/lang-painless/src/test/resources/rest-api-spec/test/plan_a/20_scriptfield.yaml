@@ -1,0 +1,36 @@
+# Integration tests for using a scripted field
+#
+setup:
+    - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            test:
+              properties:
+                foo:
+                  type: keyword
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body: { "foo": "aaa" }
+    - do:
+        indices.refresh: {}
+
+---
+
+"Scripted Field":
+    - do:
+        search:
+            body:
+                script_fields:
+                    bar:
+                        script: 
+                            inline: "doc['foo'].value + params.x;"
+                            lang: painless
+                            params:
+                                x: "bbb"
+
+    - match: { hits.hits.0.fields.bar.0: "aaabbb"}

@@ -19,6 +19,10 @@
 
 package org.elasticsearch.script.expression;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
+
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.SimpleBindings;
@@ -29,12 +33,8 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.LeafSearchScript;
-import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.SearchScript;
-
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
 
 /**
  * A bridge to evaluate an {@link Expression} against {@link Bindings} in the context
@@ -73,24 +73,18 @@ class ExpressionSearchScript implements SearchScript {
                 try {
                     return values.doubleVal(docid);
                 } catch (Exception exception) {
-                    throw new ScriptException("Error evaluating " + compiledScript, exception);
+                    throw new GeneralScriptException("Error evaluating " + compiledScript, exception);
                 }
             }
 
             @Override
-            public Object run() { return new Double(evaluate()); }
-
-            @Override
-            public float runAsFloat() { return (float)evaluate();}
+            public Object run() { return Double.valueOf(evaluate()); }
 
             @Override
             public long runAsLong() { return (long)evaluate(); }
 
             @Override
             public double runAsDouble() { return evaluate(); }
-
-            @Override
-            public Object unwrap(Object value) { return value; }
 
             @Override
             public void setDocument(int d) {
@@ -114,16 +108,21 @@ class ExpressionSearchScript implements SearchScript {
             }
 
             @Override
-            public void setNextVar(String name, Object value) {
-                assert(specialValue != null);
-                // this should only be used for the special "_value" variable used in aggregations
-                assert(name.equals("_value"));
-
-                if (value instanceof Number) {
-                    specialValue.setValue(((Number)value).doubleValue());
-                } else {
-                    throw new ScriptException("Cannot use expression with text variable using " + compiledScript);
+            public void setNextAggregationValue(Object value) {
+                // _value isn't used in script if specialValue == null
+                if (specialValue != null) {
+                    if (value instanceof Number) {
+                        specialValue.setValue(((Number)value).doubleValue());
+                    } else {
+                        throw new GeneralScriptException("Cannot use expression with text variable using " + compiledScript);
+                    }
                 }
+            }
+
+            @Override
+            public void setNextVar(String name, Object value) {
+                // other per-document variables aren't supported yet, even if they are numbers
+                // but we shouldn't encourage this anyway.
             }
         };
     }

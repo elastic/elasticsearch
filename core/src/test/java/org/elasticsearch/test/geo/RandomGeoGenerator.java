@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.geo;
 
-import org.apache.lucene.util.GeoUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 
 import java.util.Random;
@@ -42,8 +41,8 @@ public class RandomGeoGenerator {
         assert pt != null && pt.length == 2;
 
         // normalize min and max
-        double[] min = {GeoUtils.normalizeLon(minLon), GeoUtils.normalizeLat(minLat)};
-        double[] max = {GeoUtils.normalizeLon(maxLon), GeoUtils.normalizeLat(maxLat)};
+        double[] min = {normalizeLongitude(minLon), normalizeLatitude(minLat)};
+        double[] max = {normalizeLongitude(maxLon), normalizeLatitude(maxLat)};
         final double[] tMin = new double[2];
         final double[] tMax = new double[2];
         tMin[0] = Math.min(min[0], max[0]);
@@ -64,5 +63,29 @@ public class RandomGeoGenerator {
         double[] pt = new double[2];
         randomPointIn(r, minLon, minLat, maxLon, maxLat, pt);
         return new GeoPoint(pt[1], pt[0]);
+    }
+
+    /** Puts latitude in range of -90 to 90. */
+    private static double normalizeLatitude(double latitude) {
+        if (latitude >= -90 && latitude <= 90) {
+            return latitude; //common case, and avoids slight double precision shifting
+        }
+        double off = Math.abs((latitude + 90) % 360);
+        return (off <= 180 ? off : 360-off) - 90;
+    }
+
+    /** Puts longitude in range of -180 to +180. */
+    private static double normalizeLongitude(double longitude) {
+        if (longitude >= -180 && longitude <= 180) {
+            return longitude; //common case, and avoids slight double precision shifting
+        }
+        double off = (longitude + 180) % 360;
+        if (off < 0) {
+            return 180 + off;
+        } else if (off == 0 && longitude > 0) {
+            return 180;
+        } else {
+            return -180 + off;
+        }
     }
 }

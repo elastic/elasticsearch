@@ -17,15 +17,15 @@
  * under the License.
  */
 
+
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.EmptyDirTask
+import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.UpdateShasTask
 import org.elasticsearch.gradle.test.RunTask
-import org.elasticsearch.gradle.EmptyDirTask
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.gradle.api.InvalidUserDataException
-import org.gradle.internal.nativeintegration.filesystem.Chmod
 
 // for deb/rpm
 buildscript {
@@ -35,12 +35,12 @@ buildscript {
     }
   }
   dependencies {
-    classpath 'com.netflix.nebula:gradle-ospackage-plugin:3.1.0'
+    classpath 'com.netflix.nebula:gradle-ospackage-plugin:3.4.0'
   }
 }
 
 // this is common configuration for distributions, but we also add it here for the license check to use
-ext.dependencyFiles = project(':core').configurations.runtime.copyRecursive().exclude(module: 'slf4j-api')
+ext.dependencyFiles = project(':core').configurations.runtime.copyRecursive()
 
 
 /*****************************************************************************
@@ -49,7 +49,7 @@ ext.dependencyFiles = project(':core').configurations.runtime.copyRecursive().ex
 
 task buildModules(type: Sync) {
   into 'build/modules'
-} 
+}
 
 ext.restTestExpansions = [
   'expected.modules.count': 0,
@@ -72,7 +72,8 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each
   // See https://discuss.gradle.org/t/cross-project-task-dependencies-ordering-screws-up-finalizers/13190
   project.configure(project.subprojects.findAll { it.name != 'integ-test-zip' }) { Project distribution ->
     distribution.afterEvaluate({
-      distribution.integTest.mustRunAfter("${module.path}:integTest#stop")
+      // some integTest tasks will have multiple finalizers
+      distribution.integTest.mustRunAfter module.tasks.find { t -> t.name.matches(".*integTest\$") }.getFinalizedBy()
     })
   }
   // also want to make sure the module's integration tests run after the integ-test-zip (ie rest tests)
@@ -80,6 +81,21 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each
     module.integTest.mustRunAfter(':distribution:integ-test-zip:integTest#stop')
   })
   restTestExpansions['expected.modules.count'] += 1
+}
+
+// Integ tests work over the rest http layer, so we need a transport included with the integ test zip. 
+// All transport modules are included so that they may be randomized for testing
+task buildTransportModules(type: Sync) {
+  into 'build/transport-modules'
+}
+
+project.rootProject.subprojects.findAll { it.path.startsWith(':modules:transport-') }.each { Project transport ->
+  buildTransportModules {
+    dependsOn({ project(transport.path).bundlePlugin })
+    into(transport.name) {
+      from { zipTree(project(transport.path).bundlePlugin.outputs.files.singleFile) }
+    }
+  }
 }
 
 // make sure we have a clean task since we aren't a java project, but we have tasks that
@@ -115,13 +131,7 @@ subprojects {
    *****************************************************************************/
   // note: the group must be correct before applying the nexus plugin, or it will capture the wrong value...
   project.group = "org.elasticsearch.distribution.${project.name}"
-  apply plugin: 'com.bmuschko.nexus'
-  // we must create our own install task, because it is only added when the java plugin is added
-  task install(type: Upload, description: "Installs the 'archives' artifacts into the local Maven repository.", group: 'Upload') {
-    configuration = configurations.archives
-    MavenRepositoryHandlerConvention repositoriesHandler = (MavenRepositoryHandlerConvention)getRepositories().getConvention().getPlugin(MavenRepositoryHandlerConvention)
-    repositoriesHandler.mavenInstaller()
-  }
+  project.archivesBaseName = 'elasticsearch'
 
   // TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
   /*****************************************************************************
@@ -144,19 +154,41 @@ subprojects {
       from project(':distribution').buildModules
     }
 
+    transportModulesFiles = copySpec {
+      into "modules"
+      from project(':distribution').buildTransportModules
+    }
+
     configFiles = copySpec {
       from '../src/main/resources/config'
+      MavenFilteringHack.filter(it, expansions)
+    }
+
+    binFiles = copySpec {
+      // everything except windows files
+      from '../src/main/resources/bin'
+      exclude '*.bat'
+      exclude '*.exe'
+      eachFile { it.setMode(0755) }
+      MavenFilteringHack.filter(it, expansions)
     }
 
     commonFiles = copySpec {
-      // everything except windows files, and config is separate
-      from '../src/main/resources'
-      exclude 'bin/*.bat'
-      exclude 'bin/*.exe'
-      exclude 'config/**'
-      filesMatching('bin/*') { it.setMode(0755) }
-      MavenFilteringHack.filter(it, expansions)
+      from rootProject.projectDir
+      include 'NOTICE.txt'
+      include 'LICENSE.txt'
+      include 'README.textile'
     }
+  }
+
+   /*****************************************************************************
+   *                           Publishing setup                                *
+   *****************************************************************************/
+  if (['zip', 'integ-test-zip'].contains(it.name)) {
+    BuildPlugin.configurePomGeneration(project)
+    apply plugin: 'nebula.info-scm'
+    apply plugin: 'nebula.maven-base-publish'
+    apply plugin: 'nebula.maven-scm'
   }
 }
 
@@ -170,19 +202,24 @@ configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.nam
       into('config') {
         with configFiles
       }
-      with copySpec {
-        with commonFiles
-        from('../src/main/resources') {
-          include 'bin/*.bat'
-          filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
+      into('bin') {
+        with copySpec {
+          with binFiles
+          from('../src/main/resources/bin') {
+            include '*.bat'
+            filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
+          }
+          MavenFilteringHack.filter(it, expansions)
         }
-        MavenFilteringHack.filter(it, expansions)
       }
+      with commonFiles
       from('../src/main/resources') {
         include 'bin/*.exe'
       }
       if (project.name != 'integ-test-zip') {
         with modulesFiles
+      } else {
+        with transportModulesFiles
       }
     }
   }
@@ -239,11 +276,14 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     dependsOn createEtc, createEtcScripts
     with configFiles
     into "${packagingFiles}/etc/elasticsearch"
+    fileMode 0640
+    dirMode 0750
     /* Explicitly declare the output files so this task doesn't consider itself
       up to date when the directory is created, which it would by default. And
       that'll happen when createEtc runs. */
     outputs.file "${packagingFiles}/etc/elasticsearch/elasticsearch.yml"
-    outputs.file "${packagingFiles}/etc/elasticsearch/logging.yml"
+    outputs.file "${packagingFiles}/etc/elasticsearch/jvm.options"
+    outputs.file "${packagingFiles}/etc/elasticsearch/log4j2.properties"
   }
 
   task createPidDir(type: EmptyDirTask) {
@@ -282,9 +322,14 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
       '''.stripIndent().replace('\n', ' ').trim()
     url 'https://www.elastic.co/'
 
-    /* The version of the package can't contain -SNAPSHOT so we rip it off if
-      we see it. We'll add it back on to the file name though. */
-    version project.version.replace('-SNAPSHOT', '')
+    // signing setup
+    if (project.hasProperty('signing.password') && System.getProperty('build.snapshot', 'true') == 'false') {
+      signingKeyId = project.hasProperty('signing.keyId') ? project.property('signing.keyId') : 'D88E42B4'
+      signingKeyPassphrase = project.property('signing.password')
+      signingKeyRingFile = project.hasProperty('signing.secretKeyRingFile') ?
+                           project.file(project.property('signing.secretKeyRingFile')) :
+                           new File(new File(System.getProperty('user.home'), '.gnupg'), 'secring.gpg')
+    }
 
     String scripts = "${packagingFiles}/scripts"
     preInstall file("${scripts}/preinst")
@@ -292,11 +337,22 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     preUninstall file("${scripts}/prerm")
     postUninstall file("${scripts}/postrm")
 
+    if (project.name == 'rpm') {
+      requires('/bin/bash')
+    } else if (project.name == 'deb') {
+      requires('bash')
+    }
+
     into '/usr/share/elasticsearch'
+    fileMode 0644
+    dirMode 0755
     user 'root'
     permissionGroup 'root'
     with libFiles
     with modulesFiles
+    into('bin') {
+      with binFiles
+    }
     with copySpec {
       with commonFiles
       if (project.name == 'deb') {
@@ -306,13 +362,15 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     }
 
     configurationFile '/etc/elasticsearch/elasticsearch.yml'
-    configurationFile '/etc/elasticsearch/logging.yml'
-    into('/etc') {
-      from "${packagingFiles}/etc"
+    configurationFile '/etc/elasticsearch/jvm.options'
+    configurationFile '/etc/elasticsearch/log4j2.properties'
+    into('/etc/elasticsearch') {
       fileMode 0750
       permissionGroup 'elasticsearch'
       includeEmptyDirs true
       createDirectoryEntry true
+      fileType CONFIG | NOREPLACE
+      from "${packagingFiles}/etc/elasticsearch"
     }
 
     into('/usr/lib/tmpfiles.d') {
@@ -320,39 +378,44 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     }
     configurationFile '/usr/lib/systemd/system/elasticsearch.service'
     into('/usr/lib/systemd/system') {
+      fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/elasticsearch.service"
     }
     into('/usr/lib/sysctl.d') {
+      fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/sysctl/elasticsearch.conf"
     }
     configurationFile '/etc/init.d/elasticsearch'
     into('/etc/init.d') {
-      from "${packagingFiles}/init.d/elasticsearch"
       fileMode 0755
+      fileType CONFIG | NOREPLACE
+      from "${packagingFiles}/init.d/elasticsearch"
     }
     configurationFile project.expansions['path.env']
     into(new File(project.expansions['path.env']).getParent()) {
+      fileMode 0644
+      dirMode 0755
+      fileType CONFIG | NOREPLACE
       from "${project.packagingFiles}/env/elasticsearch"
     }
 
     /**
      * Suck up all the empty directories that we need to install into the path.
      */
-    Closure suckUpEmptyDirectories = { path ->
+    Closure suckUpEmptyDirectories = { path, u, g ->
       into(path) {
+        fileMode 0755
         from "${packagingFiles}/${path}"
         includeEmptyDirs true
         createDirectoryEntry true
-        /* All of these empty directories have this ownership. We're just
-          lucky! */
-        user 'elasticsearch'
-        permissionGroup 'elasticsearch'
+        user u
+        permissionGroup g
       }
     }
-    suckUpEmptyDirectories('/var/run')
-    suckUpEmptyDirectories('/var/log')
-    suckUpEmptyDirectories('/var/lib')
-    suckUpEmptyDirectories('/usr/share/elasticsearch')
+    suckUpEmptyDirectories('/var/run', 'elasticsearch', 'elasticsearch')
+    suckUpEmptyDirectories('/var/log', 'elasticsearch', 'elasticsearch')
+    suckUpEmptyDirectories('/var/lib', 'elasticsearch', 'elasticsearch')
+    suckUpEmptyDirectories('/usr/share/elasticsearch', 'root', 'root')
   }
 }
 
@@ -369,11 +432,13 @@ task updateShas(type: UpdateShasTask) {
   parentTask = dependencyLicenses
 }
 
-task run(type: RunTask) {}
+task run(type: RunTask) {
+  distribution = 'zip'
+}
 
 /**
  * Build some variables that are replaced in the packages. This includes both
- * scripts like bin/elasticsearch and bin/plugin that a user might run and also
+ * scripts like bin/elasticsearch and bin/elasticsearch-plugin that a user might run and also
  * scripts like postinst which are run as part of the installation.
  *
  * <dl>
@@ -385,7 +450,7 @@ task run(type: RunTask) {}
  *  <dt>path.conf</dt>
  *  <dd>The default directory from which to load configuration. This is used in
  *    the packaging scripts, but in that context it is always
- *    /etc/elasticsearch. Its also used in bin/plugin, where it is
+ *    /etc/elasticsearch. Its also used in bin/elasticsearch-plugin, where it is
  *    /etc/elasticsearch for the os packages but $ESHOME/config otherwise.</dd>
  *  <dt>path.env</dt>
  *  <dd>The env file sourced before bin/elasticsearch to set environment
@@ -402,6 +467,8 @@ task run(type: RunTask) {}
  * </dl>
  */
 Map<String, String> expansionsForDistribution(distributionType) {
+  final String defaultHeapSize = "2g"
+
   String footer = "# Built for ${project.name}-${project.version} " +
       "(${distributionType})"
   Map<String, Object> expansions = [
@@ -411,6 +478,7 @@ Map<String, String> expansionsForDistribution(distributionType) {
     'path.conf': [
       'tar': '$ES_HOME/config',
       'zip': '$ES_HOME/config',
+      'integ-test-zip': '$ES_HOME/config',
       'def': '/etc/elasticsearch',
     ],
     'path.env': [
@@ -421,8 +489,8 @@ Map<String, String> expansionsForDistribution(distributionType) {
       'def': '',
     ],
 
-    'heap.min': '256m',
-    'heap.max': '1g',
+    'heap.min': defaultHeapSize,
+    'heap.max': defaultHeapSize,
 
     'stopping.timeout': [
       'rpm': 86400,

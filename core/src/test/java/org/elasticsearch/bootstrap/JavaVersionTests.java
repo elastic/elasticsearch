@@ -36,8 +36,10 @@ public class JavaVersionTests extends ESTestCase {
     }
 
     public void testToString() {
-        JavaVersion javaVersion = JavaVersion.parse("1.7.0");
-        assertThat("1.7.0", is(javaVersion.toString()));
+        JavaVersion javaVersion170 = JavaVersion.parse("1.7.0");
+        assertThat(javaVersion170.toString(), is("1.7.0"));
+        JavaVersion javaVersion9 = JavaVersion.parse("9");
+        assertThat(javaVersion9.toString(), is("9"));
     }
 
     public void testCompare() {
@@ -69,5 +71,9 @@ public class JavaVersionTests extends ESTestCase {
         for (String version : versions) {
             assertFalse(JavaVersion.isValid(version));
         }
+    }
+
+    public void testJava8Compat() {
+        assertEquals(JavaVersion.parse("1.8"), JavaVersion.parse("8"));
     }
 }

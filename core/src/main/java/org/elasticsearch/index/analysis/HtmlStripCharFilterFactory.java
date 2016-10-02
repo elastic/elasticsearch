@@ -20,8 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;

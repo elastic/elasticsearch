@@ -20,54 +20,79 @@
 package org.elasticsearch.index.mapper.size;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
+import org.elasticsearch.index.mapper.EnabledAttributeMapper;
+import org.elasticsearch.index.mapper.LegacyIntegerFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
-import org.elasticsearch.index.mapper.internal.EnabledAttributeMapper;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseStore;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 
 public class SizeFieldMapper extends MetadataFieldMapper {
-
     public static final String NAME = "_size";
-    public static final String CONTENT_TYPE = "_size";
 
-    public static class Defaults extends IntegerFieldMapper.Defaults {
+    public static class Defaults  {
         public static final EnabledAttributeMapper ENABLED_STATE = EnabledAttributeMapper.UNSET_DISABLED;
 
-        public static final MappedFieldType SIZE_FIELD_TYPE = IntegerFieldMapper.Defaults.FIELD_TYPE.clone();
+        public static final MappedFieldType SIZE_FIELD_TYPE =
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
+        public static final MappedFieldType LEGACY_SIZE_FIELD_TYPE =
+            LegacyIntegerFieldMapper.Defaults.FIELD_TYPE.clone();
 
         static {
             SIZE_FIELD_TYPE.setStored(true);
-            SIZE_FIELD_TYPE.setNumericPrecisionStep(Defaults.PRECISION_STEP_32_BIT);
-            SIZE_FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
-            SIZE_FIELD_TYPE.setIndexAnalyzer(NumericIntegerAnalyzer.buildNamedAnalyzer(Defaults.PRECISION_STEP_32_BIT));
-            SIZE_FIELD_TYPE.setSearchAnalyzer(NumericIntegerAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE));
+            SIZE_FIELD_TYPE.setName(NAME);
+            SIZE_FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            SIZE_FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             SIZE_FIELD_TYPE.freeze();
+
+            LEGACY_SIZE_FIELD_TYPE.setStored(true);
+            LEGACY_SIZE_FIELD_TYPE.setNumericPrecisionStep(LegacyIntegerFieldMapper.Defaults.PRECISION_STEP_32_BIT);
+            LEGACY_SIZE_FIELD_TYPE.setName(NAME);
+            LEGACY_SIZE_FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            LEGACY_SIZE_FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            LEGACY_SIZE_FIELD_TYPE.freeze();
         }
+    }
+
+    private static MappedFieldType defaultFieldType(Version indexCreated) {
+        MappedFieldType defaultFieldType;
+        if (indexCreated.before(Version.V_5_0_0_alpha2)) {
+            defaultFieldType = Defaults.LEGACY_SIZE_FIELD_TYPE.clone();
+            // doc_values are disabled for bwc with indices created before V_5_0_0_alpha4
+            defaultFieldType.setHasDocValues(false);
+        } else {
+            defaultFieldType = Defaults.SIZE_FIELD_TYPE.clone();
+            if (indexCreated.onOrBefore(Version.V_5_0_0_alpha4)) {
+                // doc_values are disabled for bwc with indices created before V_5_0_0_alpha4
+                defaultFieldType.setHasDocValues(false);
+            } else {
+                defaultFieldType.setHasDocValues(true);
+            }
+        }
+        return defaultFieldType;
     }
 
     public static class Builder extends MetadataFieldMapper.Builder<Builder, SizeFieldMapper> {
 
         protected EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
 
-        public Builder(MappedFieldType existing) {
-            super(NAME, existing == null ? Defaults.SIZE_FIELD_TYPE : existing);
+        private Builder(MappedFieldType existing, Version indexCreated) {
+            super(NAME, existing == null ? defaultFieldType(indexCreated) : existing.clone(),
+                defaultFieldType(indexCreated));
             builder = this;
         }
 
@@ -79,24 +104,27 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         @Override
         public SizeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            fieldType.setHasDocValues(false);
+            if (context.indexCreatedVersion().onOrBefore(Version.V_5_0_0_alpha4)) {
+                // Make sure that the doc_values are disabled on indices created before V_5_0_0_alpha4
+                fieldType.setHasDocValues(false);
+            }
             return new SizeFieldMapper(enabledState, fieldType, context.indexSettings());
         }
     }
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
+        public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node,
+                                                       ParserContext parserContext) throws MapperParsingException {
+            Builder builder = new Builder(parserContext.mapperService().fullName(NAME),
+                parserContext.indexVersionCreated());
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    builder.enabled(nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
-                    iterator.remove();
-                } else if (fieldName.equals("store") && parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
-                    builder.store(parseStore(fieldName, fieldNode.toString()));
+                    builder.enabled(lenientNodeBooleanValue(fieldNode) ?
+                        EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
                     iterator.remove();
                 }
             }
@@ -111,14 +139,15 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
     private EnabledAttributeMapper enabledState;
 
-    private SizeFieldMapper(Settings indexSettings, MappedFieldType mappedFieldType) {
-        this(Defaults.ENABLED_STATE, mappedFieldType == null ? Defaults.SIZE_FIELD_TYPE : mappedFieldType, indexSettings);
+    private SizeFieldMapper(Settings indexSettings, MappedFieldType existing) {
+        this(Defaults.ENABLED_STATE,
+            existing == null ? defaultFieldType(Version.indexCreated(indexSettings)) : existing.clone(),
+            indexSettings);
     }
 
     private SizeFieldMapper(EnabledAttributeMapper enabled, MappedFieldType fieldType, Settings indexSettings) {
-        super(NAME, fieldType, Defaults.SIZE_FIELD_TYPE, indexSettings);
+        super(NAME, fieldType, defaultFieldType(Version.indexCreated(indexSettings)), indexSettings);
         this.enabledState = enabled;
-
     }
 
     @Override
@@ -151,10 +180,15 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         if (!enabledState.enabled) {
             return;
         }
-        if (context.flyweight()) {
-            return;
+        final int value = context.sourceToParse().source().length();
+        if (Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha2)) {
+            fields.add(new LegacyIntegerFieldMapper.CustomIntegerNumericField(value, fieldType()));
+        } else {
+            boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
+            boolean docValued = fieldType().hasDocValues();
+            boolean stored = fieldType().stored();
+            fields.addAll(NumberFieldMapper.NumberType.INTEGER.createFields(name(), value, indexed, docValued, stored));
         }
-        fields.add(new IntegerFieldMapper.CustomIntegerNumericField(context.source().length(), fieldType()));
     }
 
     @Override
@@ -162,27 +196,22 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // all are defaults, no need to write it at all
-        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE && (indexCreatedBefore2x == false || fieldType().stored() == false)) {
+        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE) {
             return builder;
         }
         builder.startObject(contentType());
         if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (indexCreatedBefore2x && (includeDefaults || fieldType().stored() == true)) {
-            builder.field("store", fieldType().stored());
-        }
         builder.endObject();
         return builder;
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         SizeFieldMapper sizeFieldMapperMergeWith = (SizeFieldMapper) mergeWith;
-        if (!mergeResult.simulate()) {
-            if (sizeFieldMapperMergeWith.enabledState != enabledState && !sizeFieldMapperMergeWith.enabledState.unset()) {
-                this.enabledState = sizeFieldMapperMergeWith.enabledState;
-            }
+        if (sizeFieldMapperMergeWith.enabledState != enabledState && !sizeFieldMapperMergeWith.enabledState.unset()) {
+            this.enabledState = sizeFieldMapperMergeWith.enabledState;
         }
     }
 }

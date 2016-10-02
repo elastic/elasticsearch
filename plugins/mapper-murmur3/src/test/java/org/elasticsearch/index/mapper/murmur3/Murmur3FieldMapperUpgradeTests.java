@@ -23,6 +23,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugin.mapper.MapperMurmur3Plugin;
 import org.elasticsearch.plugins.Plugin;
@@ -51,6 +52,7 @@ public class Murmur3FieldMapperUpgradeTests extends ESIntegTestCase {
 
     public void testUpgradeOldMapping() throws IOException, ExecutionException, InterruptedException {
         final String indexName = "index-mapper-murmur3-2.0.0";
+        final String indexUUID = "1VzJds59TTK7lRu17W0mcg";
         InternalTestCluster.Async<String> master = internalCluster().startNodeAsync();
         Path unzipDir = createTempDir();
         Path unzipDataDir = unzipDir.resolve("data");
@@ -62,7 +64,7 @@ public class Murmur3FieldMapperUpgradeTests extends ESIntegTestCase {
 
         Path dataPath = createTempDir();
         Settings settings = Settings.builder()
-                .put("path.data", dataPath)
+                .put(Environment.PATH_DATA_SETTING.getKey(), dataPath)
                 .build();
         final String node = internalCluster().startDataOnlyNode(settings); // workaround for dangling index loading issue when node is master
         Path[] nodePaths = internalCluster().getInstance(NodeEnvironment.class, node).nodeDataPaths();
@@ -71,6 +73,7 @@ public class Murmur3FieldMapperUpgradeTests extends ESIntegTestCase {
         assertFalse(Files.exists(dataPath));
         Path src = unzipDataDir.resolve(indexName + "/nodes/0/indices");
         Files.move(src, dataPath);
+        Files.move(dataPath.resolve(indexName), dataPath.resolve(indexUUID));
 
         master.get();
         // force reloading dangling indices with a cluster state republish

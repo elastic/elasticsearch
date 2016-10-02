@@ -41,8 +41,8 @@ public class MultiTermVectorsShardRequest extends SingleShardRequest<MultiTermVe
 
     }
 
-    MultiTermVectorsShardRequest(MultiTermVectorsRequest request, String index, int shardId) {
-        super(request, index);
+    MultiTermVectorsShardRequest(String index, int shardId) {
+        super(index);
         this.shardId = shardId;
         locations = new IntArrayList();
         requests = new ArrayList<>();

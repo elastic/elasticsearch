@@ -19,26 +19,18 @@
 
 package org.elasticsearch.index.cache.request;
 
-import org.elasticsearch.common.cache.RemovalListener;
-import org.elasticsearch.common.cache.RemovalNotification;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 
 /**
+ * Tracks the portion of the request cache in use for a particular shard.
  */
-public class ShardRequestCache extends AbstractIndexShardComponent implements RemovalListener<IndicesRequestCache.Key, IndicesRequestCache.Value> {
+public final class ShardRequestCache {
 
     final CounterMetric evictionsMetric = new CounterMetric();
     final CounterMetric totalMetric = new CounterMetric();
     final CounterMetric hitCount = new CounterMetric();
     final CounterMetric missCount = new CounterMetric();
-
-    public ShardRequestCache(ShardId shardId, IndexSettings indexSettings) {
-        super(shardId, indexSettings);
-    }
 
     public RequestCacheStats stats() {
         return new RequestCacheStats(totalMetric.count(), evictionsMetric.count(), hitCount.count(), missCount.count());
@@ -52,21 +44,20 @@ public class ShardRequestCache extends AbstractIndexShardComponent implements Re
         missCount.inc();
     }
 
-    public void onCached(IndicesRequestCache.Key key, IndicesRequestCache.Value value) {
+    public void onCached(Accountable key, Accountable value) {
         totalMetric.inc(key.ramBytesUsed() + value.ramBytesUsed());
     }
 
-    @Override
-    public void onRemoval(RemovalNotification<IndicesRequestCache.Key, IndicesRequestCache.Value> removalNotification) {
-        if (removalNotification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED) {
+    public void onRemoval(Accountable key, Accountable value, boolean evicted) {
+        if (evicted) {
             evictionsMetric.inc();
         }
         long dec = 0;
-        if (removalNotification.getKey() != null) {
-            dec += removalNotification.getKey().ramBytesUsed();
+        if (key != null) {
+            dec += key.ramBytesUsed();
         }
-        if (removalNotification.getValue() != null) {
-            dec += removalNotification.getValue().ramBytesUsed();
+        if (value != null) {
+            dec += value.ramBytesUsed();
         }
         totalMetric.dec(dec);
     }

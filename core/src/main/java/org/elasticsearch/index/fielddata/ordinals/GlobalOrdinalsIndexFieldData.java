@@ -25,11 +25,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.util.Collection;
@@ -40,14 +38,12 @@ import java.util.Collections;
  */
 public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent implements IndexOrdinalsFieldData, Accountable {
 
-    private final MappedFieldType.Names fieldNames;
-    private final FieldDataType fieldDataType;
+    private final String fieldName;
     private final long memorySizeInBytes;
 
-    protected GlobalOrdinalsIndexFieldData(IndexSettings indexSettings, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, long memorySizeInBytes) {
+    protected GlobalOrdinalsIndexFieldData(IndexSettings indexSettings, String fieldName, long memorySizeInBytes) {
         super(indexSettings);
-        this.fieldNames = fieldNames;
-        this.fieldDataType = fieldDataType;
+        this.fieldName = fieldName;
         this.memorySizeInBytes = memorySizeInBytes;
     }
 
@@ -67,13 +63,8 @@ public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponen
     }
 
     @Override
-    public MappedFieldType.Names getFieldNames() {
-        return fieldNames;
-    }
-
-    @Override
-    public FieldDataType getFieldDataType() {
-        return fieldDataType;
+    public String getFieldName() {
+        return fieldName;
     }
 
     @Override

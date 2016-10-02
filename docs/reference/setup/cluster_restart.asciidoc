@@ -2,8 +2,9 @@
 === Full cluster restart upgrade
 
 Elasticsearch requires a full cluster restart when upgrading across major
-versions: from 0.x to 1.x or from 1.x to 2.x.  Rolling upgrades are not
-supported across major versions.
+versions.  Rolling upgrades are not supported across major versions. Consult
+this <<setup-upgrade,table>> to verify that a full cluster restart is
+required.
 
 The process to perform an upgrade with a full cluster restart is as follows:
 
@@ -16,28 +17,15 @@ before shutting down a node:
 
 [source,js]
 --------------------------------------------------
-PUT /_cluster/settings
+PUT _cluster/settings
 {
   "persistent": {
     "cluster.routing.allocation.enable": "none"
   }
 }
 --------------------------------------------------
-// AUTOSENSE
-
-If upgrading from 0.90.x to 1.x, then use these settings instead:
-
-[source,js]
---------------------------------------------------
-PUT /_cluster/settings
-{
-  "persistent": {
-    "cluster.routing.allocation.disable_allocation": false,
-    "cluster.routing.allocation.enable": "none"
-  }
-}
---------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[skip:indexes don't assign]
 
 ==== Step 2: Perform a synced flush
 
@@ -46,9 +34,9 @@ Shard recovery will be much faster if you stop indexing and issue a
 
 [source,sh]
 --------------------------------------------------
-POST /_flush/synced
+POST _flush/synced
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 A synced flush request is a ``best effort'' operation. It will fail if there
 are any pending indexing operations, but it is safe to reissue the request
@@ -59,7 +47,13 @@ multiple times if necessary.
 Stop all Elasticsearch services on all nodes in the cluster. Each node can be
 upgraded following the same procedure described in <<upgrade-node>>.
 
-==== Step 4: Start the cluster
+==== Step 4: Upgrade any plugins
+
+Elasticsearch plugins must be upgraded when upgrading a node.  Use the
+`elasticsearch-plugin` script to install the correct version of any plugins
+that you need.
+
+==== Step 5: Start the cluster
 
 If you have dedicated master nodes -- nodes with `node.master` set to
 `true`(the default) and `node.data` set to `false` --  then it is a good idea
@@ -78,11 +72,11 @@ GET _cat/health
 
 GET _cat/nodes
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Use these APIs to check that all nodes have successfully joined the cluster.
 
-==== Step 5: Wait for yellow
+==== Step 6: Wait for yellow
 
 As soon as each node has joined the cluster, it will start to recover any
 primary shards that are stored locally.  Initially, the
@@ -94,7 +88,7 @@ Once each node has recovered its local shards, the `status` will become
 shards are allocated.  This is to be expected because allocation is still
 disabled.
 
-==== Step 6: Reenable allocation
+==== Step 7: Reenable allocation
 
 Delaying the allocation of replicas until all nodes have joined the cluster
 allows the master to allocate replicas to nodes which already have local shard
@@ -103,28 +97,14 @@ reenable shard allocation:
 
 [source,js]
 ------------------------------------------------------
-PUT /_cluster/settings
+PUT _cluster/settings
 {
   "persistent": {
     "cluster.routing.allocation.enable": "all"
   }
 }
 ------------------------------------------------------
-// AUTOSENSE
-
-If upgrading from 0.90.x to 1.x, then use these settings instead:
-
-[source,js]
---------------------------------------------------
-PUT /_cluster/settings
-{
-  "persistent": {
-    "cluster.routing.allocation.disable_allocation": true,
-    "cluster.routing.allocation.enable": "all"
-  }
-}
---------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The cluster will now start allocating replica shards to all data nodes. At this
 point it is safe to resume indexing and searching, but your cluster will
@@ -140,8 +120,7 @@ GET _cat/health
 
 GET _cat/recovery
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Once the `status` column in the `_cat/health` output has reached `green`, all
 primary and replica shards have been successfully allocated.
-

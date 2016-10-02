@@ -18,6 +18,7 @@
  */
 
 subprojects {
+  group = 'org.elasticsearch.plugin' // for modules which publish client jars
   apply plugin: 'elasticsearch.esplugin'
 
   esplugin {
@@ -33,14 +34,5 @@ subprojects {
   }
   if (project.file('src/main/config').exists()) {
     throw new InvalidModelException("Modules cannot contain config files") 
-  }
-
-  project.afterEvaluate {
-    if (esplugin.isolated == false) {
-      throw new InvalidModelException("Modules cannot disable isolation")
-    }
-    if (esplugin.jvm == false) {
-      throw new InvalidModelException("Modules must be jvm plugins")
-    }
   }
 }

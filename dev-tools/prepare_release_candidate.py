@@ -56,14 +56,14 @@ The packages may be downloaded from the following URLs:
 
 Plugins can be installed as follows:
 
-    bin/plugin -Des.plugins.staging=true install cloud-aws
+    ES_JAVA_OPTS="-Des.plugins.staging=true" bin/elasticsearch-plugin install cloud-aws
 
 The same goes for the x-plugins:
 
-    bin/plugin -Des.plugins.staging=true install license
-    bin/plugin -Des.plugins.staging=true install marvel-agent
-    bin/plugin -Des.plugins.staging=true install shield
-    bin/plugin -Des.plugins.staging=true install watcher
+    ES_JAVA_OPTS="-Des.plugins.staging=true" bin/elasticsearch-plugin install license
+    ES_JAVA_OPTS="-Des.plugins.staging=true" bin/elasticsearch-plugin install marvel-agent
+    ES_JAVA_OPTS="-Des.plugins.staging=true" bin/elasticsearch-plugin install shield
+    ES_JAVA_OPTS="-Des.plugins.staging=true" bin/elasticsearch-plugin install watcher
 
 To install the deb from an APT repo:
 
@@ -260,7 +260,7 @@ if __name__ == "__main__":
   parser.add_argument('--check', dest='check', action='store_true',
                       help='Checks and reports for all requirements and then exits')
 
-  # by default, we only run mvn install and dont push anything repo
+  # by default, we only run mvn install and don't push anything repo
   parser.set_defaults(deploy_sonatype=False)
   parser.set_defaults(deploy_s3=False)
   parser.set_defaults(deploy_s3_repos=False)
@@ -356,7 +356,8 @@ if __name__ == "__main__":
   debs3_list_cmd = 'deb-s3 list -b %s --prefix %s' % (bucket, debs3_prefix)
   debs3_verify_cmd = 'deb-s3 verify -b %s --prefix %s' % (bucket, debs3_prefix)
   rpms3_prefix = 'elasticsearch/staging/%s-%s/repos/%s/centos' % (release_version, shortHash, package_repo_version)
-  rpms3_upload_cmd = 'rpm-s3 -v -b %s -p %s --sign --visibility public-read -k 100 %s' % (bucket, rpms3_prefix, rpm)
+  # external-1 is the alias name for the us-east-1 region. This is used by rpm-s3 to construct the hostname
+  rpms3_upload_cmd = 'rpm-s3 -v -b %s -p %s --sign --visibility public-read -k 100 %s -r external-1' % (bucket, rpms3_prefix, rpm)
 
   if deploy_s3:
     run(s3cmd_sync_to_staging_bucket_cmd)

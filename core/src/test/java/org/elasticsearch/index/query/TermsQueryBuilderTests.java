@@ -28,24 +28,26 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.indices.cache.query.terms.TermsLookup;
-import org.hamcrest.Matchers;
+import org.elasticsearch.indices.TermsLookup;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.containsString;
 
 public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuilder> {
     private List<Object> randomTerms;
@@ -71,7 +73,10 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         // terms query or lookup query
         if (randomBoolean()) {
             // make between 0 and 5 different values of the same type
-            String fieldName = getRandomFieldName();
+            String fieldName;
+            do {
+                fieldName = getRandomFieldName();
+            } while (fieldName.equals(GEO_POINT_FIELD_NAME) || fieldName.equals(GEO_SHAPE_FIELD_NAME));
             Object[] values = new Object[randomInt(5)];
             for (int i = 0; i < values.length; i++) {
                 values[i] = getRandomValueForFieldName(fieldName);
@@ -91,94 +96,80 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
     @Override
     protected void doAssertLuceneQuery(TermsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, instanceOf(BooleanQuery.class));
-        BooleanQuery booleanQuery = (BooleanQuery) query;
-
-        // we only do the check below for string fields (otherwise we'd have to decode the values)
-        if (queryBuilder.fieldName().equals(INT_FIELD_NAME) || queryBuilder.fieldName().equals(DOUBLE_FIELD_NAME)
-                || queryBuilder.fieldName().equals(BOOLEAN_FIELD_NAME) || queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
-            return;
-        }
-
-        // expected returned terms depending on whether we have a terms query or a terms lookup query
-        List<Object> terms;
-        if (queryBuilder.termsLookup() != null) {
-            terms = randomTerms;
+        if (queryBuilder.termsLookup() == null && (queryBuilder.values() == null || queryBuilder.values().isEmpty())) {
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
+            MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
+            assertThat(matchNoDocsQuery.toString(), containsString("No terms supplied for \"terms\" query."));
+        } else if (queryBuilder.termsLookup() != null && randomTerms.size() == 0){
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
+            MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
+            assertThat(matchNoDocsQuery.toString(), containsString("No terms supplied for \"terms\" query."));
         } else {
-            terms = queryBuilder.values();
-        }
+            assertThat(query, instanceOf(BooleanQuery.class));
+            BooleanQuery booleanQuery = (BooleanQuery) query;
 
-        // compare whether we have the expected list of terms returned
-        final List<Term> booleanTerms = new ArrayList<>();
-        for (BooleanClause booleanClause : booleanQuery) {
-            assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-            assertThat(booleanClause.getQuery(), instanceOf(TermQuery.class));
-            Term term = ((TermQuery) booleanClause.getQuery()).getTerm();
-            booleanTerms.add(term);
-        }
-        CollectionUtil.timSort(booleanTerms);
-        List<Term> expectedTerms = new ArrayList<>();
-        for (Object term : terms) {
-            if (term != null) { // terms lookup filters this out
-                expectedTerms.add(new Term(queryBuilder.fieldName(), term.toString()));
+            // we only do the check below for string fields (otherwise we'd have to decode the values)
+            if (queryBuilder.fieldName().equals(INT_FIELD_NAME) || queryBuilder.fieldName().equals(DOUBLE_FIELD_NAME)
+                    || queryBuilder.fieldName().equals(BOOLEAN_FIELD_NAME) || queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
+                return;
             }
+
+            // expected returned terms depending on whether we have a terms query or a terms lookup query
+            List<Object> terms;
+            if (queryBuilder.termsLookup() != null) {
+                terms = randomTerms;
+            } else {
+                terms = queryBuilder.values();
+            }
+
+            // compare whether we have the expected list of terms returned
+            final List<Term> booleanTerms = new ArrayList<>();
+            for (BooleanClause booleanClause : booleanQuery) {
+                assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+                assertThat(booleanClause.getQuery(), instanceOf(TermQuery.class));
+                Term term = ((TermQuery) booleanClause.getQuery()).getTerm();
+                booleanTerms.add(term);
+            }
+            CollectionUtil.timSort(booleanTerms);
+            List<Term> expectedTerms = new ArrayList<>();
+            for (Object term : terms) {
+                if (term != null) { // terms lookup filters this out
+                    expectedTerms.add(new Term(queryBuilder.fieldName(), term.toString()));
+                }
+            }
+            CollectionUtil.timSort(expectedTerms);
+            assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms.size(), booleanTerms.size());
+            assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms, booleanTerms);
         }
-        CollectionUtil.timSort(expectedTerms);
-        assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms.size(), booleanTerms.size());
-        assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms, booleanTerms);
     }
 
     public void testEmtpyFieldName() {
-        try {
-            if (randomBoolean()) {
-                new TermsQueryBuilder(null, "term");
-            } else {
-                new TermsQueryBuilder("", "term");
-            }
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("field name cannot be null."));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder(null, "term"));
+        assertEquals("field name cannot be null.", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("", "term"));
+        assertEquals("field name cannot be null.", e.getMessage());
     }
 
     public void testEmtpyTermsLookup() {
-        try {
-            new TermsQueryBuilder("field", (TermsLookup) null);
-            fail("Expected IllegalArgumentException");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("No value or termsLookup specified for terms query"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("field", (TermsLookup) null));
+        assertEquals("No value or termsLookup specified for terms query", e.getMessage());
     }
 
     public void testNullValues() {
-        try {
-            switch (randomInt(6)) {
-                case 0:
-                    new TermsQueryBuilder("field", (String[]) null);
-                    break;
-                case 1:
-                    new TermsQueryBuilder("field", (int[]) null);
-                    break;
-                case 2:
-                    new TermsQueryBuilder("field", (long[]) null);
-                    break;
-                case 3:
-                    new TermsQueryBuilder("field", (float[]) null);
-                    break;
-                case 4:
-                    new TermsQueryBuilder("field", (double[]) null);
-                    break;
-                case 5:
-                    new TermsQueryBuilder("field", (Object[]) null);
-                    break;
-                default:
-                    new TermsQueryBuilder("field", (Iterable<?>) null);
-                    break;
-            }
-            fail("should have failed with IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), Matchers.containsString("No value specified for terms query"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("field", (String[]) null));
+        assertThat(e.getMessage(), containsString("No value specified for terms query"));
+        e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("field", (int[]) null));
+        assertThat(e.getMessage(), containsString("No value specified for terms query"));
+        e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("field", (long[]) null));
+        assertThat(e.getMessage(), containsString("No value specified for terms query"));
+        e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("field", (float[]) null));
+        assertThat(e.getMessage(), containsString("No value specified for terms query"));
+        e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("field", (double[]) null));
+        assertThat(e.getMessage(), containsString("No value specified for terms query"));
+        e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("field", (Object[]) null));
+        assertThat(e.getMessage(), containsString("No value specified for terms query"));
+        e = expectThrows(IllegalArgumentException.class, () -> new TermsQueryBuilder("field", (Iterable<?>) null));
+        assertThat(e.getMessage(), containsString("No value specified for terms query"));
     }
 
     public void testBothValuesAndLookupSet() throws IOException {
@@ -196,12 +187,9 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 "    }\n" +
                 "  }\n" +
                 "}";
-        try {
-            parseQuery(query);
-            fail("Expected ParsingException");
-        } catch(ParsingException e) {
-            assertThat(e.getMessage(), containsString("[" + TermsQueryBuilder.NAME + "] query does not support more than one field."));
-        }
+
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(query));
+        assertThat(e.getMessage(), containsString("[" + TermsQueryBuilder.NAME + "] query does not support more than one field."));
     }
 
     @Override
@@ -222,27 +210,27 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     public void testNumeric() throws IOException {
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new int[]{1, 3, 4});
-            TermsQueryBuilder copy = assertSerialization(builder);
+            TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1, 3, 4), values);
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new double[]{1, 3, 4});
-            TermsQueryBuilder copy = assertSerialization(builder);
+            TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1d, 3d, 4d), values);
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new float[]{1, 3, 4});
-            TermsQueryBuilder copy = assertSerialization(builder);
+            TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1f, 3f, 4f), values);
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new long[]{1, 3, 4});
-            TermsQueryBuilder copy = assertSerialization(builder);
+            TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
-            assertEquals(Arrays.asList(1l, 3l, 4l), values);
+            assertEquals(Arrays.asList(1L, 3L, 4L), values);
         }
     }
 
@@ -250,27 +238,55 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         String query = XContentFactory.jsonBuilder().startObject()
                 .startObject("terms").array("foo", 123).array("bar", 456).endObject()
                 .endObject().string();
-        try {
-            parseQuery(query);
-            fail("parsing should have failed");
-        } catch (ParsingException ex) {
-            assertThat(ex.getMessage(), equalTo("[" + TermsQueryBuilder.NAME + "] query does not support multiple fields"));
-        }
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(query));
+        assertEquals("[" + TermsQueryBuilder.NAME + "] query does not support multiple fields", e.getMessage());
     }
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"terms\" : {\n" + 
-                "    \"user\" : [ \"kimchy\", \"elasticsearch\" ],\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"terms\" : {\n" +
+                "    \"user\" : [ \"kimchy\", \"elasticsearch\" ],\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
 
         TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
-
         assertEquals(json, 2, parsed.values().size());
+
+        String deprecatedJson =
+                "{\n" +
+                        "  \"in\" : {\n" +
+                        "    \"user\" : [ \"kimchy\", \"elasticsearch\" ],\n" +
+                        "    \"boost\" : 1.0\n" +
+                        "  }\n" +
+                        "}";
+        QueryBuilder inShortcutParsed = parseQuery(json, ParseFieldMatcher.EMPTY);
+        assertThat(inShortcutParsed, equalTo(parsed));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(deprecatedJson));
+        assertEquals("Deprecated field [in] used, expected [terms] instead", e.getMessage());
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder(STRING_FIELD_NAME, randomTermsLookup());
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
+                () -> termsQueryBuilder.toQuery(createShardContext()));
+        assertEquals("query must be rewritten first", e.getMessage());
+        assertEquals(termsQueryBuilder.rewrite(createShardContext()), new TermsQueryBuilder(STRING_FIELD_NAME,
+            randomTerms.stream().filter(x -> x != null).collect(Collectors.toList()))); // terms lookup removes null values
+    }
+
+    public void testGeo() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        TermsQueryBuilder query = new TermsQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
+        QueryShardContext context = createShardContext();
+        QueryShardException e = expectThrows(QueryShardException.class,
+                () -> query.toQuery(context));
+        assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
+                e.getMessage());
     }
 }
 

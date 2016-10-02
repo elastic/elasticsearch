@@ -34,7 +34,7 @@ import java.util.Objects;
  */
 public final class ProviderLookup<T> implements Element {
 
-    // NOTE: this class is not part of guice and was added so the provder lookup's key can be acessible for tests
+    // NOTE: this class is not part of guice and was added so the provider lookup's key can be accessible for tests
     public static class ProviderImpl<T> implements Provider<T> {
         private ProviderLookup<T> lookup;
 

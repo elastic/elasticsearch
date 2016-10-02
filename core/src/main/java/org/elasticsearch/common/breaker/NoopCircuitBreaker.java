@@ -24,6 +24,7 @@ package org.elasticsearch.common.breaker;
  * basically noops
  */
 public class NoopCircuitBreaker implements CircuitBreaker {
+    public static final int LIMIT = -1;
 
     private final String name;
 
@@ -53,7 +54,7 @@ public class NoopCircuitBreaker implements CircuitBreaker {
 
     @Override
     public long getLimit() {
-        return 0;
+        return LIMIT;
     }
 
     @Override

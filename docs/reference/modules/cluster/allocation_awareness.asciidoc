@@ -21,7 +21,7 @@ attribute called `rack_id` -- we could use any attribute name.  For example:
 
 [source,sh]
 ----------------------
-./bin/elasticsearch --node.rack_id rack_one <1>
+./bin/elasticsearch -Enode.attr.rack_id=rack_one <1>
 ----------------------
 <1> This setting could also be specified in the `elasticsearch.yml` config file.
 
@@ -37,12 +37,12 @@ For our example, we'll set the value in the config file:
 cluster.routing.allocation.awareness.attributes: rack_id
 --------------------------------------------------------
 
-With this config in place, let's say we start two nodes with `node.rack_id`
+With this config in place, let's say we start two nodes with `node.attr.rack_id`
 set to `rack_one`, and we create an index with 5 primary shards and 1 replica
 of each primary.  All primaries and replicas are allocated across the two
 nodes.
 
-Now, if we start two more nodes with `node.rack_id` set to `rack_two`,
+Now, if we start two more nodes with `node.attr.rack_id` set to `rack_two`,
 Elasticsearch will move shards across to the new nodes, ensuring (if possible)
 that no two copies of the same shard will be in the same rack. However if `rack_two`
 were to fail, taking down both of its nodes, Elasticsearch will still allocate the lost
@@ -102,10 +102,10 @@ cluster.routing.allocation.awareness.attributes: zone
 -------------------------------------------------------------------
 <1> We must list all possible values that the `zone` attribute can have.
 
-Now, if we start 2 nodes with `node.zone` set to `zone1` and create an index
+Now, if we start 2 nodes with `node.attr.zone` set to `zone1` and create an index
 with 5 shards and 1 replica. The index will be created, but only the 5 primary
 shards will be allocated (with no replicas). Only when we start more shards
-with `node.zone` set to `zone2` will the replicas be allocated.
+with `node.attr.zone` set to `zone2` will the replicas be allocated.
 
 The `cluster.routing.allocation.awareness.*` settings can all be updated
 dynamically on a live cluster with the

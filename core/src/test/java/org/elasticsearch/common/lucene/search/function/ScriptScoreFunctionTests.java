@@ -20,60 +20,46 @@
 package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.script.AbstractFloatSearchScript;
+import org.elasticsearch.script.AbstractDoubleSearchScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class ScriptScoreFunctionTests extends ESTestCase {
     /**
-     * Tests https://github.com/elasticsearch/elasticsearch/issues/2426
+     * Tests https://github.com/elastic/elasticsearch/issues/2426
      */
     public void testScriptScoresReturnsNaN() throws IOException {
-        ScoreFunction scoreFunction = new ScriptScoreFunction(new Script("Float.NaN"), new FloatValueScript(Float.NaN));
+        // script that always returns NaN
+        ScoreFunction scoreFunction = new ScriptScoreFunction(new Script("Double.NaN"), new SearchScript() {
+            @Override
+            public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
+                return new AbstractDoubleSearchScript() {
+                    @Override
+                    public double runAsDouble() {
+                        return Double.NaN;
+                    }
+
+                    @Override
+                    public void setDocument(int doc) {
+                        // do nothing: we are a fake with no lookup
+                    }
+                };
+            }
+            
+            @Override
+            public boolean needsScores() {
+                return false;
+            }
+        });
         LeafScoreFunction leafScoreFunction = scoreFunction.getLeafScoreFunction(null);
-        try {
+        GeneralScriptException expected = expectThrows(GeneralScriptException.class, () -> {
             leafScoreFunction.score(randomInt(), randomFloat());
-            fail("should have thrown an exception about the script_score returning NaN");
-        } catch (ScriptException e) {
-            assertThat("message contains error about script_score returning NaN: " + e.getMessage(),
-                    e.getMessage().contains("NaN"), equalTo(true));
-        }
-    }
-
-    static class FloatValueScript implements SearchScript {
-
-        private final float value;
-
-        FloatValueScript(float value) {
-            this.value = value;
-        }
-
-        @Override
-        public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
-            return new AbstractFloatSearchScript() {
-
-                @Override
-                public float runAsFloat() {
-                    return value;
-                }
-
-                @Override
-                public void setDocument(int doc) {
-                    // nothing here
-                }
-            };
-        }
-
-        @Override
-        public boolean needsScores() {
-            return false;
-        }
+        });
+        assertTrue(expected.getMessage().contains("returned NaN"));
     }
 }

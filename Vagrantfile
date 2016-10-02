@@ -23,15 +23,22 @@
 
 Vagrant.configure(2) do |config|
   config.vm.define "ubuntu-1204" do |config|
-    config.vm.box = "ubuntu/precise64"
+    config.vm.box = "elastic/ubuntu-12.04-x86_64"
     ubuntu_common config
   end
   config.vm.define "ubuntu-1404" do |config|
-    config.vm.box = "ubuntu/trusty64"
+    config.vm.box = "elastic/ubuntu-14.04-x86_64"
     ubuntu_common config
   end
   config.vm.define "ubuntu-1504" do |config|
-    config.vm.box = "ubuntu/vivid64"
+    config.vm.box = "elastic/ubuntu-15.04-x86_64"
+    ubuntu_common config, extra: <<-SHELL
+      # Install Jayatana so we can work around it being present.
+      [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
+    SHELL
+  end
+  config.vm.define "ubuntu-1604" do |config|
+    config.vm.box = "elastic/ubuntu-16.04-x86_64"
     ubuntu_common config, extra: <<-SHELL
       # Install Jayatana so we can work around it being present.
       [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
@@ -41,44 +48,35 @@ Vagrant.configure(2) do |config|
   # get the sun jdk on there just aren't worth it. We have jessie for testing
   # debian and it works fine.
   config.vm.define "debian-8" do |config|
-    config.vm.box = "debian/jessie64"
-    deb_common config,
-      'echo deb http://http.debian.net/debian jessie-backports main > /etc/apt/sources.list.d/backports.list', 'backports'
+    config.vm.box = "elastic/debian-8-x86_64"
+    deb_common config, 'echo deb http://cloudfront.debian.net/debian jessie-backports main > /etc/apt/sources.list.d/backports.list', 'backports'
   end
   config.vm.define "centos-6" do |config|
-    config.vm.box = "boxcutter/centos67"
+    config.vm.box = "elastic/centos-6-x86_64"
     rpm_common config
   end
   config.vm.define "centos-7" do |config|
-    # There is a centos/7 box but it doesn't have rsync or virtualbox guest
-    # stuff on there so its slow to use. So chef it is....
-    config.vm.box = "boxcutter/centos71"
+    config.vm.box = "elastic/centos-7-x86_64"
     rpm_common config
   end
-  # This box hangs _forever_ on ```yum check-update```. I have no idea why.
-  # config.vm.define "oel-6", autostart: false do |config|
-  #   config.vm.box = "boxcutter/oel66"
-  #   rpm_common(config)
-  # end
+  config.vm.define "oel-6" do |config|
+    config.vm.box = "elastic/oraclelinux-6-x86_64"
+    rpm_common config
+  end
   config.vm.define "oel-7" do |config|
-    config.vm.box = "boxcutter/oel70"
+    config.vm.box = "elastic/oraclelinux-7-x86_64"
     rpm_common config
   end
-  config.vm.define "fedora-22" do |config|
-    # Fedora hosts their own 'cloud' images that aren't in Vagrant's Atlas but
-    # and are missing required stuff like rsync. It'd be nice if we could use
-    # them but they much slower to get up and running then the boxcutter image.
-    config.vm.box = "boxcutter/fedora22"
+  config.vm.define "fedora-24" do |config|
+    config.vm.box = "elastic/fedora-24-x86_64"
     dnf_common config
   end
   config.vm.define "opensuse-13" do |config|
-    config.vm.box = "chef/opensuse-13"
-    config.vm.box_url = "http://opscode-vm-bento.s3.amazonaws.com/vagrant/virtualbox/opscode_opensuse-13.2-x86_64_chef-provisionerless.box"
+    config.vm.box = "elastic/opensuse-13-x86_64"
     opensuse_common config
   end
-  # The SLES boxes are not considered to be highest quality, but seem to be sufficient for a test run
   config.vm.define "sles-12" do |config|
-    config.vm.box = "idar/sles12"
+    config.vm.box = "elastic/sles-12-x86_64"
     sles_common config
   end
   # Switch the default share for the project root from /vagrant to
@@ -87,8 +85,8 @@ Vagrant.configure(2) do |config|
   config.vm.synced_folder ".", "/vagrant", disabled: true
   config.vm.synced_folder ".", "/elasticsearch"
   config.vm.provider "virtualbox" do |v|
-    # Give the boxes 2GB so they can run our tests if they have to.
-    v.memory = 2048
+    # Give the boxes 3GB because Elasticsearch defaults to using 2GB
+    v.memory = 3072
   end
   if Vagrant.has_plugin?("vagrant-cachier")
     config.cache.scope = :box

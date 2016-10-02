@@ -19,14 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import java.nio.charset.StandardCharsets;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -43,15 +42,16 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
@@ -78,15 +78,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private boolean updateAllTypes = false;
 
-    public CreateIndexRequest() {
-    }
+    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
-    /**
-     * Constructs a new request to create an index that was triggered by a different request,
-     * provided as an argument so that its headers and context can be copied to the new request.
-     */
-    public CreateIndexRequest(ActionRequest request) {
-        super(request);
+    public CreateIndexRequest() {
     }
 
     /**
@@ -177,7 +171,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * The settings to create the index with (either json/yaml/properties format)
      */
     public CreateIndexRequest settings(String source) {
-        this.settings = Settings.settingsBuilder().loadFromSource(source).build();
+        this.settings = Settings.builder().loadFromSource(source).build();
         return this;
     }
 
@@ -313,8 +307,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the aliases that will be associated with the index when it gets created
      */
     public CreateIndexRequest aliases(BytesReference source) {
-        try {
-            XContentParser parser = XContentHelper.createParser(source);
+        try (XContentParser parser = XContentHelper.createParser(source)) {
             //move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -374,7 +367,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                 throw new ElasticsearchParseException("failed to parse source for create index", e);
             }
         } else {
-            settings(new String(source.toBytes(), StandardCharsets.UTF_8));
+            settings(source.utf8ToString());
         }
         return this;
     }
@@ -450,6 +443,39 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return this;
     }
 
+    public ActiveShardCount waitForActiveShards() {
+        return waitForActiveShards;
+    }
+
+    /**
+     * Sets the number of shard copies that should be active for index creation to return.
+     * Defaults to {@link ActiveShardCount#DEFAULT}, which will wait for one shard copy
+     * (the primary) to become active. Set this value to {@link ActiveShardCount#ALL} to
+     * wait for all shards (primary and all replicas) to be active before returning.
+     * Otherwise, use {@link ActiveShardCount#from(int)} to set this value to any
+     * non-negative integer, up to the number of copies per shard (number of replicas + 1),
+     * to wait for the desired amount of shard copies to become active before returning.
+     * Index creation will only wait up until the timeout value for the number of shard copies
+     * to be active before returning.  Check {@link CreateIndexResponse#isShardsAcked()} to
+     * determine if the requisite shard copies were all started before returning or timing out.
+     *
+     * @param waitForActiveShards number of active shard copies to wait on
+     */
+    public CreateIndexRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
+        this.waitForActiveShards = waitForActiveShards;
+        return this;
+    }
+
+    /**
+     * A shortcut for {@link #waitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    public CreateIndexRequest waitForActiveShards(final int waitForActiveShards) {
+        return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    }
+
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -472,6 +498,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             aliases.add(Alias.read(in));
         }
         updateAllTypes = in.readBoolean();
+        waitForActiveShards = ActiveShardCount.readFrom(in);
     }
 
     @Override
@@ -496,5 +523,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             alias.writeTo(out);
         }
         out.writeBoolean(updateAllTypes);
+        waitForActiveShards.writeTo(out);
     }
 }

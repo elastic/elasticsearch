@@ -2,28 +2,25 @@
     "person" : {
         "properties" :{
             "name" : {
-                "type" : "string",
-                "index" : "analyzed",
-                "store" : "yes",
+                "type" : "text",
+                "store" : true,
                 "fields": {
                     "name" : {
-                        "type" : "string",
-                        "index" : "analyzed",
-                        "store" : "yes"
+                        "type" : "text",
+                        "store" : true
                     },
                     "indexed":{
-                        type:"string",
-                        index:"analyzed"
+                        "type": "text"
                     },
                     "not_indexed":{
-                        type:"string",
-                        index:"no",
-                        store:"yes"
+                        "type": "text",
+                        "index":false,
+                        "store":true
                     },
                     "not_indexed2":{
-                        type:"string",
-                        index:"no",
-                        store:"yes"
+                        "type": "text",
+                        "index":false,
+                        "store":true
                     }
                 }
             }

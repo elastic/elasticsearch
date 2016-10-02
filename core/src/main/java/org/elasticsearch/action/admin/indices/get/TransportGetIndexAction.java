@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -32,11 +31,11 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.warmer.IndexWarmersMetaData.Entry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -61,7 +60,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
 
     @Override
     protected ClusterBlockException checkBlock(GetIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndices(state, request));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
@@ -72,7 +71,6 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
     @Override
     protected void doMasterOperation(final GetIndexRequest request, String[] concreteIndices, final ClusterState state,
                                      final ActionListener<GetIndexResponse> listener) {
-        ImmutableOpenMap<String, List<Entry>> warmersResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, List<AliasMetaData>> aliasesResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
@@ -80,15 +78,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         boolean doneAliases = false;
         boolean doneMappings = false;
         boolean doneSettings = false;
-        boolean doneWarmers = false;
         for (Feature feature : features) {
             switch (feature) {
-            case WARMERS:
-                    if (!doneWarmers) {
-                        warmersResult = state.metaData().findWarmers(concreteIndices, request.types(), Strings.EMPTY_ARRAY);
-                        doneWarmers = true;
-                    }
-                    break;
             case MAPPINGS:
                     if (!doneMappings) {
                         mappingsResult = state.metaData().findMappings(concreteIndices, request.types());
@@ -120,6 +111,6 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     throw new IllegalStateException("feature [" + feature + "] is not valid");
             }
         }
-        listener.onResponse(new GetIndexResponse(concreteIndices, warmersResult, mappingsResult, aliasesResult, settings));
+        listener.onResponse(new GetIndexResponse(concreteIndices, mappingsResult, aliasesResult, settings));
     }
 }

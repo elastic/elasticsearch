@@ -40,7 +40,7 @@ public class XContentMapValues {
      */
     public static List<Object> extractRawValues(String path, Map<String, Object> map) {
         List<Object> values = new ArrayList<>();
-        String[] pathElements = Strings.splitStringToArray(path, '.');
+        String[] pathElements = path.split("\\.");
         if (pathElements.length == 0) {
             return values;
         }
@@ -93,7 +93,7 @@ public class XContentMapValues {
     }
 
     public static Object extractValue(String path, Map<String, Object> map) {
-        String[] pathElements = Strings.splitStringToArray(path, '.');
+        String[] pathElements = path.split("\\.");
         if (pathElements.length == 0) {
             return null;
         }
@@ -347,14 +347,20 @@ public class XContentMapValues {
         return Long.parseLong(node.toString());
     }
 
-    public static boolean nodeBooleanValue(Object node, boolean defaultValue) {
+    /**
+     * This method is very lenient, use {@link #nodeBooleanValue} instead.
+     */
+    public static boolean lenientNodeBooleanValue(Object node, boolean defaultValue) {
         if (node == null) {
             return defaultValue;
         }
-        return nodeBooleanValue(node);
+        return lenientNodeBooleanValue(node);
     }
 
-    public static boolean nodeBooleanValue(Object node) {
+    /**
+     * This method is very lenient, use {@link #nodeBooleanValue} instead.
+     */
+    public static boolean lenientNodeBooleanValue(Object node) {
         if (node instanceof Boolean) {
             return (Boolean) node;
         }
@@ -363,6 +369,17 @@ public class XContentMapValues {
         }
         String value = node.toString();
         return !(value.equals("false") || value.equals("0") || value.equals("off"));
+    }
+
+    public static boolean nodeBooleanValue(Object node) {
+        switch (node.toString()) {
+        case "true":
+            return true;
+        case "false":
+            return false;
+        default:
+            throw new IllegalArgumentException("Can't parse boolean value [" + node + "], expected [true] or [false]");
+        }
     }
 
     public static TimeValue nodeTimeValue(Object node, TimeValue defaultValue) {

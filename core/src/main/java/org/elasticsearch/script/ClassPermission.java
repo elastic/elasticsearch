@@ -69,11 +69,11 @@ import java.util.Set;
  *   <li>{@link org.joda.time.DateTimeUtils}</li>
  *   <li>{@link org.joda.time.DateTimeZone}</li>
  *   <li>{@link org.joda.time.Instant}</li>
+ *   <li>{@link org.joda.time.ReadableDateTime}</li>
+ *   <li>{@link org.joda.time.ReadableInstant}</li>
  * </ul>
  */
 public final class ClassPermission extends BasicPermission {
-    private static final long serialVersionUID = 3530711429252193884L;
-
     public static final String STANDARD = "<<STANDARD>>";
     /** Typical set of classes for scripting: basic data types, math, dates, and simple collections */
     // this is the list from the old grovy sandbox impl (+ some things like String, Iterator, etc that were missing)
@@ -104,22 +104,24 @@ public final class ClassPermission extends BasicPermission {
             org.joda.time.DateTime.class.getName(),
             org.joda.time.DateTimeUtils.class.getName(),
             org.joda.time.DateTimeZone.class.getName(),
-            org.joda.time.Instant.class.getName()
+            org.joda.time.Instant.class.getName(),
+            org.joda.time.ReadableDateTime.class.getName(),
+            org.joda.time.ReadableInstant.class.getName()
      )));
 
     /**
      * Creates a new ClassPermission object.
-     * 
+     *
      * @param name class to grant permission to
      */
     public ClassPermission(String name) {
         super(name);
     }
-    
+
     /**
      * Creates a new ClassPermission object.
      * This constructor exists for use by the {@code Policy} object to instantiate new Permission objects.
-     * 
+     *
      * @param name class to grant permission to
      * @param actions ignored
      */
@@ -144,8 +146,6 @@ public final class ClassPermission extends BasicPermission {
         // BasicPermissionCollection only handles wildcards, we expand <<STANDARD>> here
         PermissionCollection impl = super.newPermissionCollection();
         return new PermissionCollection() {
-            private static final long serialVersionUID = 6792220143549780002L;
-            
             @Override
             public void add(Permission permission) {
                 if (permission instanceof ClassPermission && STANDARD.equals(permission.getName())) {
@@ -156,12 +156,12 @@ public final class ClassPermission extends BasicPermission {
                     impl.add(permission);
                 }
             }
-            
+
             @Override
             public boolean implies(Permission permission) {
                 return impl.implies(permission);
             }
-            
+
             @Override
             public Enumeration<Permission> elements() {
                 return impl.elements();

@@ -21,13 +21,13 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
-import java.util.List;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -35,14 +35,11 @@ import static org.hamcrest.Matchers.equalTo;
 @ClusterScope(scope= Scope.TEST, numDataNodes =0)
 public class UpdateSettingsValidationIT extends ESIntegTestCase {
     public void testUpdateSettingsValidation() throws Exception {
-        List<String> nodes = internalCluster().startNodesAsync(
-                settingsBuilder().put("node.data", false).build(),
-                settingsBuilder().put("node.master", false).build(),
-                settingsBuilder().put("node.master", false).build()
+        internalCluster().startNodesAsync(
+                Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build(),
+                Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build(),
+                Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build()
         ).get();
-        String master = nodes.get(0);
-        String node_1 = nodes.get(1);
-        String node_2 = nodes.get(2);
 
         createIndex("test");
         NumShards test = getNumShards("test");
@@ -51,13 +48,13 @@ public class UpdateSettingsValidationIT extends ESIntegTestCase {
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         assertThat(healthResponse.getIndices().get("test").getActiveShards(), equalTo(test.totalNumShards));
 
-        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("index.number_of_replicas", 0)).execute().actionGet();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 0)).execute().actionGet();
         healthResponse = client().admin().cluster().prepareHealth("test").setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         assertThat(healthResponse.getIndices().get("test").getActiveShards(), equalTo(test.numPrimaries));
 
         try {
-            client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("index.refresh_interval", "")).execute().actionGet();
+            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.refresh_interval", "")).execute().actionGet();
             fail();
         } catch (IllegalArgumentException ex) {
             logger.info("Error message: [{}]", ex.getMessage());

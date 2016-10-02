@@ -16,8 +16,6 @@
 
 package org.elasticsearch.common.inject.matcher;
 
-import java.io.Serializable;
-
 /**
  * Implements {@code and()} and {@code or()}.
  *
@@ -35,7 +33,7 @@ public abstract class AbstractMatcher<T> implements Matcher<T> {
         return new OrMatcher<>(this, other);
     }
 
-    private static class AndMatcher<T> extends AbstractMatcher<T> implements Serializable {
+    private static class AndMatcher<T> extends AbstractMatcher<T> {
         private final Matcher<? super T> a, b;
 
         public AndMatcher(Matcher<? super T> a, Matcher<? super T> b) {
@@ -51,8 +49,8 @@ public abstract class AbstractMatcher<T> implements Matcher<T> {
         @Override
         public boolean equals(Object other) {
             return other instanceof AndMatcher
-                    && ((AndMatcher) other).a.equals(a)
-                    && ((AndMatcher) other).b.equals(b);
+                    && ((AndMatcher<?>) other).a.equals(a)
+                    && ((AndMatcher<?>) other).b.equals(b);
         }
 
         @Override
@@ -64,11 +62,9 @@ public abstract class AbstractMatcher<T> implements Matcher<T> {
         public String toString() {
             return "and(" + a + ", " + b + ")";
         }
-
-        private static final long serialVersionUID = 0;
     }
 
-    private static class OrMatcher<T> extends AbstractMatcher<T> implements Serializable {
+    private static class OrMatcher<T> extends AbstractMatcher<T> {
         private final Matcher<? super T> a, b;
 
         public OrMatcher(Matcher<? super T> a, Matcher<? super T> b) {
@@ -84,8 +80,8 @@ public abstract class AbstractMatcher<T> implements Matcher<T> {
         @Override
         public boolean equals(Object other) {
             return other instanceof OrMatcher
-                    && ((OrMatcher) other).a.equals(a)
-                    && ((OrMatcher) other).b.equals(b);
+                    && ((OrMatcher<?>) other).a.equals(a)
+                    && ((OrMatcher<?>) other).b.equals(b);
         }
 
         @Override
@@ -97,7 +93,5 @@ public abstract class AbstractMatcher<T> implements Matcher<T> {
         public String toString() {
             return "or(" + a + ", " + b + ")";
         }
-
-        private static final long serialVersionUID = 0;
     }
 }

@@ -44,8 +44,8 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
         final String fieldName = "field";
         final String mapping = "{ \"" + mappingType + "\": {" +
                 "\"dynamic_templates\": ["
-                + "{ \"" + fieldName + "\": {" + "\"path_match\": \"*\"," + "\"mapping\": {" + "\"type\": \"string\"," + "\"store\": \"yes\","
-                + "\"index\": \"analyzed\", \"analyzer\": \"whitespace\" } } } ] } }";
+                + "{ \"" + fieldName + "\": {" + "\"path_match\": \"*\"," + "\"mapping\": {" + "\"type\": \"text\"," + "\"store\": true,"
+                + "\"analyzer\": \"whitespace\" } } } ] } }";
         // The 'fieldNames' array is used to help with retrieval of index terms
         // after testing
 
@@ -54,7 +54,6 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
             cluster().wipeIndices("test");
             assertAcked(prepareCreate("test")
                     .addMapping(mappingType, mapping));
-            ensureYellow();
             int numDocs = scaledRandomIntBetween(10, 100);
             final CountDownLatch latch = new CountDownLatch(numDocs);
             final List<Throwable> throwable = new CopyOnWriteArrayList<>();
@@ -69,7 +68,7 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         throwable.add(e);
                         latch.countDown();
                     }

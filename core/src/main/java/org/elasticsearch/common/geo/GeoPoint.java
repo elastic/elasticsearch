@@ -19,9 +19,18 @@
 
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.apache.lucene.util.BitUtil;
-import org.apache.lucene.util.GeoHashUtils;
-import org.apache.lucene.util.GeoUtils;
+import org.apache.lucene.util.BytesRef;
+
+import java.util.Arrays;
+
+import static org.elasticsearch.common.geo.GeoHashUtils.mortonEncode;
+import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 
 /**
  *
@@ -35,7 +44,7 @@ public final class GeoPoint {
     }
 
     /**
-     * Create a new Geopointform a string. This String must either be a geohash
+     * Create a new Geopoint from a string. This String must either be a geohash
      * or a lat-lon tuple.
      *
      * @param value String to create the point from
@@ -81,14 +90,32 @@ public final class GeoPoint {
     }
 
     public GeoPoint resetFromIndexHash(long hash) {
-        lon = GeoUtils.mortonUnhashLon(hash);
-        lat = GeoUtils.mortonUnhashLat(hash);
+        lon = GeoPointField.decodeLongitude(hash);
+        lat = GeoPointField.decodeLatitude(hash);
         return this;
     }
 
+    // todo this is a crutch because LatLonPoint doesn't have a helper for returning .stringValue()
+    // todo remove with next release of lucene
+    public GeoPoint resetFromIndexableField(IndexableField field) {
+        if (field instanceof LatLonPoint) {
+            BytesRef br = field.binaryValue();
+            byte[] bytes = Arrays.copyOfRange(br.bytes, br.offset, br.length);
+            return this.reset(
+                GeoEncodingUtils.decodeLatitude(bytes, 0),
+                GeoEncodingUtils.decodeLongitude(bytes, Integer.BYTES));
+        } else if (field instanceof LatLonDocValuesField) {
+            long encoded = (long)(field.numericValue());
+            return this.reset(
+                GeoEncodingUtils.decodeLatitude((int)(encoded >>> 32)),
+                GeoEncodingUtils.decodeLongitude((int)encoded));
+        }
+        return resetFromIndexHash(Long.parseLong(field.stringValue()));
+    }
+
     public GeoPoint resetFromGeoHash(String geohash) {
-        final long hash = GeoHashUtils.mortonEncode(geohash);
-        return this.reset(GeoUtils.mortonUnhashLat(hash), GeoUtils.mortonUnhashLon(hash));
+        final long hash = mortonEncode(geohash);
+        return this.reset(GeoPointField.decodeLatitude(hash), GeoPointField.decodeLongitude(hash));
     }
 
     public GeoPoint resetFromGeoHash(long geohashLong) {
@@ -96,28 +123,28 @@ public final class GeoPoint {
         return this.resetFromIndexHash(BitUtil.flipFlop((geohashLong >>> 4) << ((level * 5) + 2)));
     }
 
-    public final double lat() {
+    public double lat() {
         return this.lat;
     }
 
-    public final double getLat() {
+    public double getLat() {
         return this.lat;
     }
 
-    public final double lon() {
+    public double lon() {
         return this.lon;
     }
 
-    public final double getLon() {
+    public double getLon() {
         return this.lon;
     }
 
-    public final String geohash() {
-        return GeoHashUtils.stringEncode(lon, lat);
+    public String geohash() {
+        return stringEncode(lon, lat);
     }
 
-    public final String getGeohash() {
-        return GeoHashUtils.stringEncode(lon, lat);
+    public String getGeohash() {
+        return stringEncode(lon, lat);
     }
 
     @Override
@@ -146,7 +173,7 @@ public final class GeoPoint {
 
     @Override
     public String toString() {
-        return "[" + lat + ", " + lon + "]";
+        return lat + ", " + lon;
     }
 
     public static GeoPoint parseFromLatLon(String latLon) {
@@ -160,9 +187,5 @@ public final class GeoPoint {
 
     public static GeoPoint fromGeohash(long geohashLong) {
         return new GeoPoint().resetFromGeoHash(geohashLong);
-    }
-
-    public static GeoPoint fromIndexLong(long indexLong) {
-        return new GeoPoint().resetFromIndexHash(indexLong);
     }
 }

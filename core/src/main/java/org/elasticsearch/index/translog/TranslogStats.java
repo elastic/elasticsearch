@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
@@ -77,10 +76,10 @@ public class TranslogStats extends ToXContentToBytes implements Streamable {
     }
 
     static final class Fields {
-        static final XContentBuilderString TRANSLOG = new XContentBuilderString("translog");
-        static final XContentBuilderString OPERATIONS = new XContentBuilderString("operations");
-        static final XContentBuilderString SIZE = new XContentBuilderString("size");
-        static final XContentBuilderString SIZE_IN_BYTES = new XContentBuilderString("size_in_bytes");
+        static final String TRANSLOG = "translog";
+        static final String OPERATIONS = "operations";
+        static final String SIZE = "size";
+        static final String SIZE_IN_BYTES = "size_in_bytes";
     }
 
     @Override

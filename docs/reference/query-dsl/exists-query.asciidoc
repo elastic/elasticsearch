@@ -5,10 +5,14 @@ Returns documents that have at least one non-`null` value in the original field:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "exists" : { "field" : "user" }
+    "query": {
+        "exists" : { "field" : "user" }
+    }
 }
 --------------------------------------------------
+// CONSOLE
 
 For instance, these documents would all match the above query:
 
@@ -47,7 +51,7 @@ instance, if the `user` field were mapped as follows:
 [source,js]
 --------------------------------------------------
   "user": {
-    "type": "string",
+    "type": "text",
     "null_value": "_null_"
   }
 --------------------------------------------------
@@ -77,14 +81,20 @@ clause as follows:
 
 [source,js]
 --------------------------------------------------
-"bool": {
-    "must_not": {
-        "exists": {
-            "field": "user"
+GET /_search
+{
+    "query": {
+        "bool": {
+            "must_not": {
+                "exists": {
+                    "field": "user"
+                }
+            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 This query returns documents that have no value in the user field.
 

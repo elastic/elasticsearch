@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.Iterator;
 
 /*
- * Can iterate over the positions of a term an arbotrary number of times. 
+ * Can iterate over the positions of a term an arbitrary number of times.
  * */
 public class CachedPositionIterator extends PositionIterator {
 

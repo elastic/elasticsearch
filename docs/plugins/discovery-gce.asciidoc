@@ -11,11 +11,14 @@ This plugin can be installed using the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin install discovery-gce
+sudo bin/elasticsearch-plugin install discovery-gce
 ----------------------------------------------------------------
 
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
+
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/discovery-gce/{version}/discovery-gce-{version}.zip.
 
 [[discovery-gce-remove]]
 [float]
@@ -25,7 +28,7 @@ The plugin can be removed with the following command:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin remove discovery-gce
+sudo bin/elasticsearch-plugin remove discovery-gce
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.
@@ -48,6 +51,16 @@ discovery:
 
 The following gce settings (prefixed with `cloud.gce`) are supported:
 
+ `project_id`::
+
+     Your Google project id (mandatory).
+
+ `zone`::
+
+     helps to retrieve instances running in a given zone (mandatory). It should be one of the
+     https://developers.google.com/compute/docs/zones#available[GCE supported zones].
+     See also <<discovery-gce-usage-zones>>.
+
  `retry`::
 
      If set to `true`, client will use
@@ -56,8 +69,14 @@ The following gce settings (prefixed with `cloud.gce`) are supported:
 
  `max_wait`::
 
-     The maximum elapsed time in milliseconds after the client instantiating retry. If the time elapsed goes past the
-     `max_wait`, client stops to retry. Defaults to 15 minutes (900000 milliseconds).
+     The maximum elapsed time after the client instantiating retry. If the time elapsed goes past the
+     `max_wait`, client stops to retry. A negative value means that it will wait indefinitely. Defaults to `0s` (retry
+     indefinitely).
+
+ `refresh_interval`::
+
+     How long the list of hosts is cached to prevent further requests to the GCE API. `0s` disables caching.
+     A negative value will cause infinite caching. Defaults to `0s`.
 
 
 [IMPORTANT]
@@ -216,7 +235,7 @@ Install the plugin:
 [source,sh]
 --------------------------------------------------
 # Use Plugin Manager to install it
-sudo bin/plugin install discovery-gce
+sudo bin/elasticsearch-plugin install discovery-gce
 --------------------------------------------------
 
 Open the `elasticsearch.yml` file:
@@ -253,11 +272,11 @@ If anything goes wrong, you should check logs:
 tail -f /var/log/elasticsearch/elasticsearch.log
 --------------------------------------------------
 
-If needed, you can change log level to `TRACE` by opening `logging.yml`:
+If needed, you can change log level to `trace` by opening `log4j2.properties`:
 
 [source,sh]
 --------------------------------------------------
-sudo vi /etc/elasticsearch/logging.yml
+sudo vi /etc/elasticsearch/log4j2.properties
 --------------------------------------------------
 
 and adding the following line:
@@ -265,7 +284,8 @@ and adding the following line:
 [source,yaml]
 --------------------------------------------------
 # discovery
-discovery.gce: TRACE
+logger.discovery_gce.name = discovery.gce
+logger.discovery_gce.level = trace
 --------------------------------------------------
 
 
@@ -361,9 +381,9 @@ For example, setting `discovery.gce.tags` to `dev` will only filter instances ha
 set will require all of those tags to be set for the instance to be included.
 
 One practical use for tag filtering is when an GCE cluster contains many nodes that are not running
-elasticsearch. In this case (particularly with high ping_timeout values) there is a risk that a new node's discovery
-phase will end before it has found the cluster (which will result in it declaring itself master of a new cluster
-with the same name - highly undesirable). Adding tag on elasticsearch GCE nodes and then filtering by that
+elasticsearch. In this case (particularly with high `discovery.zen.ping_timeout` values) there is a risk that a new
+node's discovery phase will end before it has found the cluster (which will result in it declaring itself master of a
+new cluster with the same name - highly undesirable). Adding tag on elasticsearch GCE nodes and then filtering by that
 tag will resolve this issue.
 
 Add your tag when building the new instance:

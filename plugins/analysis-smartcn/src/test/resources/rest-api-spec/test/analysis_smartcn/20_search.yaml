@@ -10,11 +10,8 @@
                     type:
                         properties:
                             text:
-                                type:     string
+                                type:     text
                                 analyzer: smartcn
-    - do:
-       cluster.health:
-           wait_for_status: yellow
 
     - do:
       index:

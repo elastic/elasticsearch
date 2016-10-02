@@ -28,7 +28,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
     public void testBulkProcessorAutoCreateRestrictions() throws Exception {
         // See issue #8125
-        Settings settings = Settings.settingsBuilder().put("action.auto_create_index", false).build();
+        Settings settings = Settings.builder().put("action.auto_create_index", false).build();
 
         internalCluster().startNode(settings);
 

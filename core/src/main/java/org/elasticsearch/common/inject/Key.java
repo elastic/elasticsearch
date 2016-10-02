@@ -41,7 +41,7 @@ import java.util.Objects;
  * TypeLiteral}.
  * <p>
  * Keys do not differentiate between primitive types (int, char, etc.) and
- * their correpsonding wrapper types (Integer, Character, etc.). Primitive
+ * their corresponding wrapper types (Integer, Character, etc.). Primitive
  * types will be replaced with their wrapper types when keys are created.
  *
  * @author crazybob@google.com (Bob Lee)

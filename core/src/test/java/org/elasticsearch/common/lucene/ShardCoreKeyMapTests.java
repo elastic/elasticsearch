@@ -22,8 +22,10 @@ package org.elasticsearch.common.lucene;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.shard.ShardId;
@@ -55,6 +57,25 @@ public class ShardCoreKeyMapTests extends ESTestCase {
         }
     }
 
+    public void testAddingAClosedReader() throws Exception {
+        LeafReader reader;
+        try (Directory dir = newDirectory();
+                RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(new Document());
+            try (DirectoryReader dirReader = ElasticsearchDirectoryReader.wrap(writer.getReader(), new ShardId("index1", "_na_", 1))) {
+                reader = dirReader.leaves().get(0).reader();
+            }
+        }
+        ShardCoreKeyMap map = new ShardCoreKeyMap();
+        try {
+            map.add(reader);
+            fail("Expected AlreadyClosedException");
+        } catch (AlreadyClosedException e) {
+            // What we wanted
+        }
+        assertEquals(0, map.size());
+    }
+
     public void testBasics() throws IOException {
         Directory dir1 = newDirectory();
         RandomIndexWriter w1 = new RandomIndexWriter(random(), dir1);
@@ -68,9 +89,9 @@ public class ShardCoreKeyMapTests extends ESTestCase {
         RandomIndexWriter w3 = new RandomIndexWriter(random(), dir3);
         w3.addDocument(new Document());
 
-        ShardId shardId1 = new ShardId("index1", 1);
-        ShardId shardId2 = new ShardId("index1", 3);
-        ShardId shardId3 = new ShardId("index2", 2);
+        ShardId shardId1 = new ShardId("index1", "_na_", 1);
+        ShardId shardId2 = new ShardId("index1", "_na_", 3);
+        ShardId shardId3 = new ShardId("index2", "_na_", 2);
 
         ElasticsearchDirectoryReader reader1 = ElasticsearchDirectoryReader.wrap(w1.getReader(), shardId1);
         ElasticsearchDirectoryReader reader2 = ElasticsearchDirectoryReader.wrap(w2.getReader(), shardId2);

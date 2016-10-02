@@ -22,38 +22,48 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 
 import java.io.IOException;
 
 public class PercentageScore extends SignificanceHeuristic {
+    public static final String NAME = "percentage";
 
-    public static final PercentageScore INSTANCE = new PercentageScore();
+    public PercentageScore() {
+    }
 
-    protected static final String[] NAMES = {"percentage"};
+    public PercentageScore(StreamInput in) {
+        // Nothing to read.
+    }
 
-    private PercentageScore() {}
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+    }
 
-    public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
-        @Override
-        public SignificanceHeuristic readResult(StreamInput in) throws IOException {
-            return readFrom(in);
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(NAME).endObject();
+        return builder;
+    }
+
+    public static SignificanceHeuristic parse(XContentParseContext context)
+            throws IOException, QueryShardException {
+        XContentParser parser = context.getParser();
+        // move to the closing bracket
+        if (!parser.nextToken().equals(XContentParser.Token.END_OBJECT)) {
+            throw new ElasticsearchParseException("failed to parse [percentage] significance heuristic. expected an empty object, but got [{}] instead", parser.currentToken());
         }
-
-        @Override
-        public String getName() {
-            return NAMES[0];
-        }
-    };
-
-    public static SignificanceHeuristic readFrom(StreamInput in) throws IOException {
-        return INSTANCE;
+        return new PercentageScore();
     }
 
     /**
@@ -68,36 +78,26 @@ public class PercentageScore extends SignificanceHeuristic {
             return 0;
         }
         return (double) subsetFreq / (double) supersetFreq;
-   }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(STREAM.getName());
     }
 
-    public static class PercentageScoreParser implements SignificanceHeuristicParser {
-
-        @Override
-        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, SearchContext context)
-                throws IOException, QueryShardException {
-            // move to the closing bracket
-            if (!parser.nextToken().equals(XContentParser.Token.END_OBJECT)) {
-                throw new ElasticsearchParseException("failed to parse [percentage] significance heuristic. expected an empty object, but got [{}] instead", parser.currentToken());
-            }
-            return new PercentageScore();
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
         }
+        return true;
+    }
 
-        @Override
-        public String[] getNames() {
-            return NAMES;
-        }
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 
     public static class PercentageScoreBuilder implements SignificanceHeuristicBuilder {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(STREAM.getName()).endObject();
+            builder.startObject(NAME).endObject();
             return builder;
         }
     }

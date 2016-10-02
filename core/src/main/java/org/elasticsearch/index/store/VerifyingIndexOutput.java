@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.store;
 
-import java.io.IOException;
-
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 
-/** 
+import java.io.IOException;
+
+/**
  * abstract class for verifying what was written.
  * subclasses override {@link #writeByte(byte)} and {@link #writeBytes(byte[], int, int)}
  */
@@ -35,7 +35,7 @@ public abstract class VerifyingIndexOutput extends FilterIndexOutput {
     VerifyingIndexOutput(IndexOutput out) {
         super("VerifyingIndexOutput(out=" + out.toString() + ")", out);
     }
-    
+
     /**
      * Verifies the checksum and compares the written length with the expected file length. This method should be
      * called after all data has been written to this output.

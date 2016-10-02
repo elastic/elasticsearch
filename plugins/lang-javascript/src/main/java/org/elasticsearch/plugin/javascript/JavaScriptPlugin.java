@@ -19,14 +19,15 @@
 
 package org.elasticsearch.plugin.javascript;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.javascript.JavaScriptScriptEngineService;
 
-/**
- *
- */
-public class JavaScriptPlugin extends Plugin {
+public class JavaScriptPlugin extends Plugin implements ScriptPlugin {
 
     static {
         // install rhino policy on plugin init
@@ -34,16 +35,7 @@ public class JavaScriptPlugin extends Plugin {
     }
 
     @Override
-    public String name() {
-        return "lang-javascript";
-    }
-
-    @Override
-    public String description() {
-        return "JavaScript plugin allowing to add javascript scripting support";
-    }
-
-    public void onModule(ScriptModule module) {
-        module.addScriptEngine(JavaScriptScriptEngineService.class);
+    public ScriptEngineService getScriptEngineService(Settings settings) {
+        return new JavaScriptScriptEngineService(settings);
     }
 }

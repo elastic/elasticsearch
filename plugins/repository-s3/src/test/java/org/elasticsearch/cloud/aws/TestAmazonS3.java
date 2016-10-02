@@ -22,9 +22,14 @@ package org.elasticsearch.cloud.aws;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.*;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
+import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.PutObjectResult;
+import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.UploadPartRequest;
+import com.amazonaws.services.s3.model.UploadPartResult;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 
@@ -44,7 +49,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomDouble;
  */
 public class TestAmazonS3 extends AmazonS3Wrapper {
 
-    protected final ESLogger logger = Loggers.getLogger(getClass());
+    protected final Logger logger = Loggers.getLogger(getClass());
 
     private double writeFailureRate = 0.0;
     private double readFailureRate = 0.0;

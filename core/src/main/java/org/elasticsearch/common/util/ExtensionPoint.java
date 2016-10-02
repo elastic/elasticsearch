@@ -24,7 +24,11 @@ import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * This class defines an official elasticsearch extension point. It registers
@@ -68,13 +72,13 @@ public abstract class ExtensionPoint {
      */
     public static class ClassMap<T> extends ExtensionPoint {
         protected final Class<T> extensionClass;
-        private final Map<String, Class<? extends T>> extensions = new HashMap<>();
+        protected final Map<String, Class<? extends T>> extensions = new HashMap<>();
         private final Set<String> reservedKeys;
 
         /**
          * Creates a new {@link ClassMap}
          *
-         * @param name           the human readable underscore case name of the extension poing. This is used in error messages etc.
+         * @param name           the human readable underscore case name of the extension point. This is used in error messages etc.
          * @param extensionClass the base class that should be extended
          * @param singletons     a list of singletons to bind with this extension point - these are bound in {@link #bind(Binder)}
          * @param reservedKeys   a set of reserved keys by internal implementations
@@ -116,7 +120,7 @@ public abstract class ExtensionPoint {
     }
 
     /**
-     * A Type extension point which basically allows to registerd keyed extensions like {@link ClassMap}
+     * A Type extension point which basically allows to registered keyed extensions like {@link ClassMap}
      * but doesn't instantiate and bind all the registered key value pairs but instead replace a singleton based on a given setting via {@link #bindType(Binder, Settings, String, String)}
      * Note: {@link #bind(Binder)} is not supported by this class
      */
@@ -143,7 +147,8 @@ public abstract class ExtensionPoint {
             }
             final Class<? extends T> instance = getExtension(type);
             if (instance == null) {
-                throw new IllegalArgumentException("Unknown [" + this.name + "] type [" + type + "]");
+                throw new IllegalArgumentException("Unknown [" + this.name + "] type [" + type + "] possible values: "
+                    + extensions.keySet());
             }
             if (extensionClass == instance) {
                 binder.bind(extensionClass).asEagerSingleton();
@@ -158,14 +163,14 @@ public abstract class ExtensionPoint {
     /**
      * A set based extension point which allows to register extended classes that might be used to chain additional functionality etc.
      */
-    public final static class ClassSet<T> extends ExtensionPoint {
+    public static final class ClassSet<T> extends ExtensionPoint {
         protected final Class<T> extensionClass;
         private final Set<Class<? extends T>> extensions = new HashSet<>();
 
         /**
          * Creates a new {@link ClassSet}
          *
-         * @param name           the human readable underscore case name of the extension poing. This is used in error messages etc.
+         * @param name           the human readable underscore case name of the extension point. This is used in error messages etc.
          * @param extensionClass the base class that should be extended
          * @param singletons     a list of singletons to bind with this extension point - these are bound in {@link #bind(Binder)}
          */
@@ -180,7 +185,7 @@ public abstract class ExtensionPoint {
          * @param extension the extension to register
          * @throws IllegalArgumentException iff the class is already registered
          */
-        public final void registerExtension(Class<? extends T> extension) {
+        public void registerExtension(Class<? extends T> extension) {
             if (extensions.contains(extension)) {
                 throw new IllegalArgumentException("Can't register the same [" + this.name + "] more than once for [" + extension.getName() + "]");
             }
@@ -188,7 +193,7 @@ public abstract class ExtensionPoint {
         }
 
         @Override
-        protected final void bindExtensions(Binder binder) {
+        protected void bindExtensions(Binder binder) {
             Multibinder<T> allocationMultibinder = Multibinder.newSetBinder(binder, extensionClass);
             for (Class<? extends T> clazz : extensions) {
                 binder.bind(clazz).asEagerSingleton();
@@ -201,7 +206,7 @@ public abstract class ExtensionPoint {
      * A an instance of a map, mapping one instance value to another. Both key and value are instances, not classes
      * like with other extension points.
      */
-    public final static class InstanceMap<K, V> extends ExtensionPoint {
+    public static final class InstanceMap<K, V> extends ExtensionPoint {
         private final Map<K, V> map = new HashMap<>();
         private final Class<K> keyType;
         private final Class<V> valueType;
@@ -223,7 +228,7 @@ public abstract class ExtensionPoint {
          *
          * @throws IllegalArgumentException iff the key is already registered
          */
-        public final void registerExtension(K key, V value) {
+        public void registerExtension(K key, V value) {
             V old = map.put(key, value);
             if (old != null) {
                 throw new IllegalArgumentException("Cannot register [" + this.name + "] with key [" + key + "] to [" + value + "], already registered to [" + old + "]");

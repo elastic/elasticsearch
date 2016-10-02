@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.io.IOException;
@@ -130,16 +129,16 @@ public class SnapshotStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString STATS = new XContentBuilderString("stats");
-        static final XContentBuilderString NUMBER_OF_FILES = new XContentBuilderString("number_of_files");
-        static final XContentBuilderString PROCESSED_FILES = new XContentBuilderString("processed_files");
-        static final XContentBuilderString TOTAL_SIZE_IN_BYTES = new XContentBuilderString("total_size_in_bytes");
-        static final XContentBuilderString TOTAL_SIZE = new XContentBuilderString("total_size");
-        static final XContentBuilderString PROCESSED_SIZE_IN_BYTES = new XContentBuilderString("processed_size_in_bytes");
-        static final XContentBuilderString PROCESSED_SIZE = new XContentBuilderString("processed_size");
-        static final XContentBuilderString START_TIME_IN_MILLIS = new XContentBuilderString("start_time_in_millis");
-        static final XContentBuilderString TIME_IN_MILLIS = new XContentBuilderString("time_in_millis");
-        static final XContentBuilderString TIME = new XContentBuilderString("time");
+        static final String STATS = "stats";
+        static final String NUMBER_OF_FILES = "number_of_files";
+        static final String PROCESSED_FILES = "processed_files";
+        static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
+        static final String TOTAL_SIZE = "total_size";
+        static final String PROCESSED_SIZE_IN_BYTES = "processed_size_in_bytes";
+        static final String PROCESSED_SIZE = "processed_size";
+        static final String START_TIME_IN_MILLIS = "start_time_in_millis";
+        static final String TIME_IN_MILLIS = "time_in_millis";
+        static final String TIME = "time";
     }
 
     @Override

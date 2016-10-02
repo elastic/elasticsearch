@@ -19,7 +19,12 @@
 
 package org.elasticsearch.common.collect;
 
-import com.carrotsearch.hppc.*;
+import com.carrotsearch.hppc.ObjectCollection;
+import com.carrotsearch.hppc.ObjectContainer;
+import com.carrotsearch.hppc.ObjectLookupContainer;
+import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
+import com.carrotsearch.hppc.ObjectObjectHashMap;
+import com.carrotsearch.hppc.ObjectObjectMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.hppc.predicates.ObjectObjectPredicate;
@@ -131,7 +136,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
             }
 
             @Override
-            public final void remove() {
+            public void remove() {
                 throw new UnsupportedOperationException();
             }
         };
@@ -159,7 +164,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
             }
 
             @Override
-            public final void remove() {
+            public void remove() {
                 throw new UnsupportedOperationException();
             }
         };
@@ -241,8 +246,8 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
             return new ImmutableOpenMap<>(map);
         }
 
-        
-        
+
+
         /**
          * Puts all the entries in the map to the builder.
          */

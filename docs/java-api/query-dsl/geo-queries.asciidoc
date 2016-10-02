@@ -10,7 +10,7 @@ The queries in this group are:
 <<java-query-dsl-geo-shape-query,`geo_shape`>> query::
 
     Find document with geo-shapes which either intersect, are contained by, or
-    do not interesect with the specified geo-shape.
+    do not intersect with the specified geo-shape.
 
 <<java-query-dsl-geo-bounding-box-query,`geo_bounding_box`>> query::
 
@@ -30,12 +30,6 @@ The queries in this group are:
 
     Find documents with geo-points within the specified polygon.
 
-<<java-query-dsl-geohash-cell-query,`geohash_cell`>> query::
-
-    Find geo-points whose geohash intersects with the geohash of the specified
-    point.
-
-
 include::geo-shape-query.asciidoc[]
 
 include::geo-bounding-box-query.asciidoc[]
@@ -45,5 +39,3 @@ include::geo-distance-query.asciidoc[]
 include::geo-distance-range-query.asciidoc[]
 
 include::geo-polygon-query.asciidoc[]
-
-include::geohash-cell-query.asciidoc[]

@@ -21,6 +21,7 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -133,14 +134,26 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
         return getResult.getSource();
     }
 
+    /**
+     * @deprecated Use {@link GetResponse#getSource()} instead
+     */
+    @Deprecated
     public Map<String, GetField> getFields() {
         return getResult.getFields();
     }
 
+    /**
+     * @deprecated Use {@link GetResponse#getSource()} instead
+     */
+    @Deprecated
     public GetField getField(String name) {
         return getResult.field(name);
     }
 
+    /**
+     * @deprecated Use {@link GetResponse#getSource()} instead
+     */
+    @Deprecated
     @Override
     public Iterator<GetField> iterator() {
         return getResult.iterator();
@@ -167,5 +180,10 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         getResult.writeTo(out);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true);
     }
 }

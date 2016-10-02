@@ -39,12 +39,19 @@ Computing the min price value across all document, this time using a script:
 --------------------------------------------------
 {
     "aggs" : {
-        "min_price" : { "min" : { "script" : "doc['price'].value" } }
+        "min_price" : { 
+            "min" : { 
+                "script" : {
+                    "inline" : "doc['price'].value",
+                    "lang" : "painless"
+                }
+            }
+        }
     }
 }
 --------------------------------------------------
 
-This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a file script use the following syntax:
+This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a file script use the following syntax:
 
 [source,js]
 --------------------------------------------------
@@ -78,7 +85,8 @@ Let's say that the prices of the documents in our index are in USD, but we would
             "min" : {
                 "field" : "price",
                 "script" : 
-                    "inline": "_value * conversion_rate",
+                    "lang" : "painless",
+                    "inline": "_value * params.conversion_rate",
                     "params" : {
                         "conversion_rate" : 1.2
                     }

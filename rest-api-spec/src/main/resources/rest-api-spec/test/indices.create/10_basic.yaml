@@ -31,23 +31,37 @@
   - match: { test_index.settings.index.number_of_replicas: "0"}
 
 ---
-"Create index with warmers":
+"Create index with too large wait_for_active_shards":
 
   - do:
       indices.create:
         index: test_index
+        timeout: 100ms
+        master_timeout: 100ms
+        wait_for_active_shards: 6
         body:
-          warmers:
-            test_warmer:
-              source:
-                query:
-                  match_all: {}
+          settings:
+            number_of_replicas: 5
+
+  - match: { shards_acknowledged: false }
 
   - do:
-      indices.get_warmer:
-        index: test_index
+      cluster.health:
+          wait_for_events: urgent      
 
-  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
+---
+"Create index with wait_for_active_shards set to all":
+
+  - do:
+      indices.create:
+        index: test_index
+        wait_for_active_shards: all
+        body:
+          settings:
+            number_of_replicas: "0"
+
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
 
 ---
 "Create index with aliases":
@@ -60,7 +74,7 @@
             type_1:
               properties:
                 field:
-                  type: string
+                  type: text
           aliases:
             test_alias: {}
             test_blias:
@@ -83,47 +97,24 @@
   - is_false: test_index.aliases.test_clias.search_routing
 
 ---
-"Create index with mappings, settings, warmers and aliases":
-
+"Create index with no type mappings":
   - do:
+      catch: /illegal_argument_exception/
       indices.create:
         index: test_index
         body:
           mappings:
-            type_1: {}
-          settings:
-            number_of_replicas: "0"
-          warmers:
-            test_warmer:
-              source:
-                query:
-                  match_all: {}
-          aliases:
-            test_alias: {}
-            test_blias: {routing: b}
+           "" : {}
 
+---
+"Create index with invalid mappings":
   - do:
-      indices.get_mapping:
+      catch: /illegal_argument_exception/
+      indices.create:
         index: test_index
-
-  - match: { test_index.mappings.type_1: {}}
-
-  - do:
-      indices.get_settings:
-        index: test_index
-
-  - match: { test_index.settings.index.number_of_replicas: "0"}
-
-  - do:
-      indices.get_warmer:
-        index: test_index
-
-  - match: { test_index.warmers.test_warmer.source.query.match_all: {}}
-
-  - do:
-      indices.get_alias:
-        index: test_index
-
-  - match: { test_index.aliases.test_alias: {}}
-  - match: { test_index.aliases.test_blias.search_routing: b}
-  - match: { test_index.aliases.test_blias.index_routing: b}
+        body:
+          mappings:
+            test_type:
+              properties:
+                "":
+                  type:     keyword

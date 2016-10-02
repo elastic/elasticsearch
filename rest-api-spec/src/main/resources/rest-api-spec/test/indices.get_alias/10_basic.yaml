@@ -205,3 +205,25 @@ setup:
   - is_true: test_index
 
   - is_true: test_index_2
+
+---
+"Get alias against closed indices":
+
+  - do:
+      indices.close:
+        index: test_index_2
+
+  - do:
+      indices.get_alias:
+        name: test_alias
+
+  - is_true: test_index
+  - is_true: test_index_2
+
+  - do:
+      indices.get_alias:
+        name: test_alias
+        expand_wildcards: open
+
+  - is_true: test_index
+  - is_false: test_index_2

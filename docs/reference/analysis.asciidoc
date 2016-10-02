@@ -3,67 +3,112 @@
 
 [partintro]
 --
-The index analysis module acts as a configurable registry of Analyzers
-that can be used in order to both break indexed (analyzed) fields when a
-document is indexed and process query strings. It maps to the Lucene
-`Analyzer`.
 
-
-Analyzers are composed of a single <<analysis-tokenizers,Tokenizer>> 
-and zero or more <<analysis-tokenfilters,TokenFilters>>. The tokenizer may 
-be preceded by one or more <<analysis-charfilters,CharFilters>>. The
-analysis module allows one to register `TokenFilters`, `Tokenizers` and
-`Analyzers` under logical names that can then be referenced either in
-mapping definitions or in certain APIs. The Analysis module
-automatically registers (*if not explicitly defined*) built in
-analyzers, token filters, and tokenizers.
-
-Here is a sample configuration:
-
-[source,js]
---------------------------------------------------
-index :
-    analysis :
-        analyzer : 
-            standard : 
-                type : standard
-                stopwords : [stop1, stop2]
-            myAnalyzer1 :
-                type : standard
-                stopwords : [stop1, stop2, stop3]
-                max_token_length : 500
-            # configure a custom analyzer which is 
-            # exactly like the default standard analyzer
-            myAnalyzer2 :
-                tokenizer : standard
-                filter : [standard, lowercase, stop]
-        tokenizer :
-            myTokenizer1 :
-                type : standard
-                max_token_length : 900
-            myTokenizer2 :
-                type : keyword
-                buffer_size : 512
-        filter :
-            myTokenFilter1 :
-                type : stop
-                stopwords : [stop1, stop2, stop3, stop4]
-            myTokenFilter2 :
-                type : length
-                min : 0
-                max : 2000
---------------------------------------------------
+_Analysis_ is the process of converting text, like the body of any email, into
+_tokens_ or _terms_ which are added to the inverted index for searching.
+Analysis is performed by an <<analysis-analyzers,_analyzer_>> which can be
+either a built-in analyzer or a <<analysis-custom-analyzer,`custom`>> analyzer
+defined per index.
 
 [float]
-[[backwards-compatibility]]
-=== Backwards compatibility
+== Index time analysis
 
-All analyzers, tokenizers, and token filters can be configured with a
-`version` parameter to control which Lucene version behavior they should
-use. Possible values are: `3.0` - `3.6`, `4.0` - `4.3` (the highest
-version number is the default option).
+For instance at index time, the built-in <<english-analyzer,`english`>> _analyzer_ would
+convert this sentence:
+
+[source,text]
+------
+"The QUICK brown foxes jumped over the lazy dog!"
+------
+
+into these terms, which would be added to the inverted index.
+
+[source,text]
+------
+[ quick, brown, fox, jump, over, lazi, dog ]
+------
+
+[float]
+=== Specifying an index time analyzer
+
+Each <<text,`text`>> field in a mapping can specify its own
+<<analyzer,`analyzer`>>:
+
+[source,js]
+-------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "title": {
+          "type":     "text",
+          "analyzer": "standard"
+        }
+      }
+    }
+  }
+}
+-------------------------
+// CONSOLE
+
+At index time, if no `analyzer` has been specified, it looks for an analyzer
+in the index settings called `default`.  Failing that, it defaults to using
+the <<analysis-standard-analyzer,`standard` analyzer>>.
+
+
+[float]
+== Search time analysis
+
+This same analysis process is applied to the query string at search time in
+<<full-text-queries,full text queries>> like the
+<<query-dsl-match-query,`match` query>>
+to convert the text in the query string into terms of the same form as those
+that are stored in the inverted index.
+
+For instance, a user might search for:
+
+[source,text]
+------
+"a quick fox"
+------
+
+which would be analysed by the same `english` analyzer into the following terms:
+
+[source,text]
+------
+[ quick, fox ]
+------
+
+Even though the exact words used in the query string don't appear in the
+original text (`quick` vs `QUICK`, `fox` vs `foxes`), because we have applied
+the same analyzer to both the text and the query string, the terms from the
+query string exactly match the terms from the text in the inverted index,
+which means that this query would match our example document.
+
+[float]
+=== Specifying a search time analyzer
+
+Usually the same analyzer should be used both at
+index time and at search time, and <<full-text-queries,full text queries>>
+like the  <<query-dsl-match-query,`match` query>> will use the mapping to look
+up the analyzer to use for each field.
+
+The analyzer to use to search a particular field is determined by
+looking for:
+
+* An `analyzer` specified in the query itself.
+* The <<search-analyzer,`search_analyzer`>> mapping parameter.
+* The <<analyzer,`analyzer`>> mapping parameter.
+* An analyzer in the index settings called `default_search`.
+* An analyzer in the index settings called `default`.
+* The `standard` analyzer.
 
 --
+
+include::analysis/anatomy.asciidoc[]
+
+include::analysis/testing.asciidoc[]
 
 include::analysis/analyzers.asciidoc[]
 
@@ -72,6 +117,4 @@ include::analysis/tokenizers.asciidoc[]
 include::analysis/tokenfilters.asciidoc[]
 
 include::analysis/charfilters.asciidoc[]
-
-include::analysis/icu-plugin.asciidoc[]
 

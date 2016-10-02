@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.is;
 public class SizeValueTests extends ESTestCase {
     public void testThatConversionWorks() {
         SizeValue sizeValue = new SizeValue(1000);
-        assertThat(sizeValue.kilo(), is(1l));
+        assertThat(sizeValue.kilo(), is(1L));
         assertThat(sizeValue.toString(), is("1k"));
 
         sizeValue = new SizeValue(1000, SizeUnit.KILO);

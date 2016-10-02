@@ -18,7 +18,10 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.bucket.BestBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -37,6 +40,9 @@ import java.util.Map;
  */
 public abstract class AggregatorBase extends Aggregator {
 
+    /** The default "weight" that a bucket takes when performing an aggregation */
+    public static final int DEFAULT_WEIGHT = 1024 * 5; // 5kb
+
     protected final String name;
     protected final Aggregator parent;
     protected final AggregationContext context;
@@ -48,6 +54,8 @@ public abstract class AggregatorBase extends Aggregator {
     private Map<String, Aggregator> subAggregatorbyName;
     private DeferringBucketCollector recordingWrapper;
     private final List<PipelineAggregator> pipelineAggregators;
+    private final CircuitBreakerService breakerService;
+    private boolean failed = false;
 
     /**
      * Constructs a new Aggregator.
@@ -65,6 +73,7 @@ public abstract class AggregatorBase extends Aggregator {
         this.metaData = metaData;
         this.parent = parent;
         this.context = context;
+        this.breakerService = context.bigArrays().breakerService();
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
         this.subAggregators = factories.createSubAggregators(this);
         context.searchContext().addReleasable(this, Lifetime.PHASE);
@@ -96,6 +105,14 @@ public abstract class AggregatorBase extends Aggregator {
                 return false; // unreachable
             }
         };
+        try {
+            this.breakerService
+                    .getBreaker(CircuitBreaker.REQUEST)
+                    .addEstimateBytesAndMaybeBreak(DEFAULT_WEIGHT, "<agg [" + name + "]>");
+        } catch (CircuitBreakingException cbe) {
+            this.failed = true;
+            throw cbe;
+        }
     }
 
     /**
@@ -133,7 +150,7 @@ public abstract class AggregatorBase extends Aggregator {
     }
 
     /**
-     * Can be overriden by aggregator implementation to be called back when the collection phase starts.
+     * Can be overridden by aggregator implementation to be called back when the collection phase starts.
      */
     protected void doPreCollection() throws IOException {
     }
@@ -165,7 +182,7 @@ public abstract class AggregatorBase extends Aggregator {
     public DeferringBucketCollector getDeferringCollector() {
         // Default impl is a collector that selects the best buckets
         // but an alternative defer policy may be based on best docs.
-        return new BestBucketsDeferringCollector();
+        return new BestBucketsDeferringCollector(context());
     }
 
     /**
@@ -245,14 +262,20 @@ public abstract class AggregatorBase extends Aggregator {
     /** Called upon release of the aggregator. */
     @Override
     public void close() {
-        doClose();
+        try {
+            doClose();
+        } finally {
+            if (!this.failed) {
+                this.breakerService.getBreaker(CircuitBreaker.REQUEST).addWithoutBreaking(-DEFAULT_WEIGHT);
+            }
+        }
     }
 
     /** Release instance-specific data. */
     protected void doClose() {}
 
     /**
-     * Can be overriden by aggregator implementation to be called back when the collection phase ends.
+     * Can be overridden by aggregator implementation to be called back when the collection phase ends.
      */
     protected void doPostCollection() throws IOException {
     }

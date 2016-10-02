@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
@@ -135,14 +134,14 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
     }
 
     static final class Fields {
-        static final XContentBuilderString STAGE = new XContentBuilderString("stage");
-        static final XContentBuilderString REASON = new XContentBuilderString("reason");
-        static final XContentBuilderString NODE = new XContentBuilderString("node");
+        static final String STAGE = "stage";
+        static final String REASON = "reason";
+        static final String NODE = "node";
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Integer.toString(getShardId()));
+        builder.startObject(Integer.toString(getShardId().getId()));
         builder.field(Fields.STAGE, getStage());
         stats.toXContent(builder, params);
         if (getNodeId() != null) {

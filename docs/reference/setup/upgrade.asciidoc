@@ -7,8 +7,9 @@ Before upgrading Elasticsearch:
 
 * Consult the <<breaking-changes,breaking changes>> docs.
 * Test upgrades in a dev environment before upgrading your production cluster.
-* Always back up your data before upgrading. You cannot roll back to an earlier
-  version unless you have a <<backup,backup>> of your data.
+* Always <<modules-snapshots,back up your data>> before upgrading.
+  You **cannot roll back** to an earlier version unless you have a backup of your data.
+* If you are using custom plugins, check that a compatible version is available.
 ===========================================
 
 Elasticsearch can usually be upgraded using a rolling upgrade process,
@@ -21,15 +22,13 @@ consult this table:
 [cols="1<m,1<m,3",options="header",]
 |=======================================================================
 |Upgrade From   |Upgrade To     |Supported Upgrade Type
-|0.90.x         |2.x            |<<restart-upgrade,Full cluster restart>>
-|1.x            |2.x            |<<restart-upgrade,Full cluster restart>>
-|2.x            |2.y            |<<rolling-upgrades,Rolling upgrade>> (where `y > x `)
-|2.x            |3.x            |<<restart-upgrade,Full cluster restart>>
+|2.x            |2.y            |<<rolling-upgrades,Rolling upgrade>> (where `y > x`)
+|5.x            |5.y            |<<rolling-upgrades,Rolling upgrade>> (where `y > x`)
+|2.x            |5.x            |<<restart-upgrade,Full cluster restart>>
+|5.0.0-alpha1   |5.y            |<<restart-upgrade,Full cluster restart>>
+|5.0.0-alpha2   |5.y            |<<restart-upgrade,Full cluster restart>>
+|5.0.0-beta1    |5.y            |<<restart-upgrade,Full cluster restart>>
 |=======================================================================
-
-TIP: Take plugins into consideration as well when upgrading. Most plugins will have to be upgraded alongside Elasticsearch, although some plugins accessed primarily through the browser (`_site` plugins) may continue to work given that API changes are compatible.
-
-include::backup.asciidoc[]
 
 include::rolling_upgrade.asciidoc[]
 

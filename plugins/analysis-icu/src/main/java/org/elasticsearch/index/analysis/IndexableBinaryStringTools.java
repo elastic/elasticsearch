@@ -17,7 +17,7 @@ package org.elasticsearch.index.analysis;
  * limitations under the License.
  */
 
-import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute; // javadoc
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 
 /**
  * Provides support for converting byte sequences to Strings and back again.
@@ -26,7 +26,7 @@ import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute; // ja
  * The Strings are constructed using a Base 8000h encoding of the original
  * binary data - each char of an encoded String represents a 15-bit chunk
  * from the byte sequence.  Base 8000h was chosen because it allows for all
- * lower 15 bits of char to be used without restriction; the surrogate range 
+ * lower 15 bits of char to be used without restriction; the surrogate range
  * [U+D8000-U+DFFF] does not represent valid chars, and would require
  * complicated handling to avoid them and allow use of char's high bit.
  * <p>
@@ -61,7 +61,7 @@ public final class IndexableBinaryStringTools {
 
   /**
    * Returns the number of chars required to encode the given bytes.
-   * 
+   *
    * @param inputArray byte sequence to be encoded
    * @param inputOffset initial offset into inputArray
    * @param inputLength number of bytes in inputArray
@@ -75,7 +75,7 @@ public final class IndexableBinaryStringTools {
 
   /**
    * Returns the number of bytes required to decode the given char sequence.
-   * 
+   *
    * @param encoded char sequence to be decoded
    * @param offset initial offset
    * @param length number of characters
@@ -97,7 +97,7 @@ public final class IndexableBinaryStringTools {
    * Encodes the input byte sequence into the output char sequence.  Before
    * calling this method, ensure that the output array has sufficient
    * capacity by calling {@link #getEncodedLength(byte[], int, int)}.
-   * 
+   *
    * @param inputArray byte sequence to be encoded
    * @param inputOffset initial offset into inputArray
    * @param inputLength number of bytes in inputArray
@@ -151,7 +151,7 @@ public final class IndexableBinaryStringTools {
    * Decodes the input char sequence into the output byte sequence. Before
    * calling this method, ensure that the output array has sufficient capacity
    * by calling {@link #getDecodedLength(char[], int, int)}.
-   * 
+   *
    * @param inputArray char sequence to be decoded
    * @param inputOffset initial offset into inputArray
    * @param inputLength number of chars in inputArray
@@ -233,7 +233,7 @@ public final class IndexableBinaryStringTools {
       this.finalShift = finalShift;
       this.finalMask = (short)((short)0xFF >>> finalShift);
       if (finalShift != 0) {
-        advanceBytes = 1; 
+        advanceBytes = 1;
       }
     }
   }

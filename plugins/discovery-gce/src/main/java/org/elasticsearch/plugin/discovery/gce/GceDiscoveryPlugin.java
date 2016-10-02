@@ -21,32 +21,42 @@ package org.elasticsearch.plugin.discovery.gce;
 
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.util.ClassInfo;
-
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cloud.gce.GceComputeService;
+import org.elasticsearch.cloud.gce.GceInstancesService;
+import org.elasticsearch.cloud.gce.GceMetadataService;
 import org.elasticsearch.cloud.gce.GceModule;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.cloud.gce.network.GceNameResolver;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.gce.GceDiscovery;
 import org.elasticsearch.discovery.gce.GceUnicastHostsProvider;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
-public class GceDiscoveryPlugin extends Plugin {
+public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
+
+    public static final String GCE = "gce";
+    private final Settings settings;
+    protected final Logger logger = Loggers.getLogger(GceDiscoveryPlugin.class);
+
     static {
         /*
          * GCE's http client changes access levels because its silly and we
-         * can't allow that on any old stack stack so we pull it here, up front,
+         * can't allow that on any old stack so we pull it here, up front,
          * so we can cleanly check the permissions for it. Without this changing
          * the permission can fail if any part of core is on the stack because
          * our plugin permissions don't allow core to "reach through" plugins to
@@ -65,88 +75,46 @@ public class GceDiscoveryPlugin extends Plugin {
         });
     }
 
-    private final Settings settings;
-    protected final ESLogger logger = Loggers.getLogger(GceDiscoveryPlugin.class);
-
     public GceDiscoveryPlugin(Settings settings) {
         this.settings = settings;
+        logger.trace("starting gce discovery plugin...");
     }
 
     @Override
-    public String name() {
-        return "discovery-gce";
+    public Collection<Module> createGuiceModules() {
+        return Collections.singletonList(new GceModule(settings));
     }
 
     @Override
-    public String description() {
-        return "Cloud Google Compute Engine Discovery Plugin";
-    }
-
-    @Override
-    public Collection<Module> nodeModules() {
-        List<Module> modules = new ArrayList<>();
-        if (isDiscoveryAlive(settings, logger)) {
-            modules.add(new GceModule());
-        }
-        return modules;
-    }
-
-    @Override
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+    @SuppressWarnings("rawtypes") // Supertype uses raw type
+    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
+        logger.debug("Register gce compute service");
         Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
-        if (isDiscoveryAlive(settings, logger)) {
-            services.add(GceModule.getComputeServiceImpl());
-        }
+        services.add(GceModule.getComputeServiceImpl());
         return services;
     }
 
     public void onModule(DiscoveryModule discoveryModule) {
-        if (isDiscoveryAlive(settings, logger)) {
-            discoveryModule.addDiscoveryType("gce", GceDiscovery.class);
-            discoveryModule.addUnicastHostProvider(GceUnicastHostsProvider.class);
-        }
+        logger.debug("Register gce discovery type and gce unicast provider");
+        discoveryModule.addDiscoveryType(GCE, ZenDiscovery.class);
+        discoveryModule.addUnicastHostProvider(GCE, GceUnicastHostsProvider.class);
     }
 
-    /**
-     * Check if discovery is meant to start
-     *
-     * @return true if we can start gce discovery features
-     */
-    public static boolean isDiscoveryAlive(Settings settings, ESLogger logger) {
-        // User set discovery.type: gce
-        if (GceDiscovery.GCE.equalsIgnoreCase(settings.get("discovery.type")) == false) {
-            logger.debug("discovery.type not set to {}", GceDiscovery.GCE);
-            return false;
-        }
-
-        if (checkProperty(GceComputeService.Fields.PROJECT, settings.get(GceComputeService.Fields.PROJECT), logger) == false ||
-                checkProperty(GceComputeService.Fields.ZONE, settings.getAsArray(GceComputeService.Fields.ZONE), logger) == false) {
-            logger.debug("one or more gce discovery settings are missing. " +
-                            "Check elasticsearch.yml file. Should have [{}] and [{}].",
-                    GceComputeService.Fields.PROJECT,
-                    GceComputeService.Fields.ZONE);
-            return false;
-        }
-
-        logger.trace("all required properties for gce discovery are set!");
-
-        return true;
+    @Override
+    public NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
+        logger.debug("Register _gce_, _gce:xxx network names");
+        return new GceNameResolver(settings, new GceMetadataService(settings));
     }
 
-    private static boolean checkProperty(String name, String value, ESLogger logger) {
-        if (!Strings.hasText(value)) {
-            logger.warn("{} is not set.", name);
-            return false;
-        }
-        return true;
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(
+            // Register GCE settings
+            GceInstancesService.PROJECT_SETTING,
+            GceInstancesService.ZONE_SETTING,
+            GceUnicastHostsProvider.TAGS_SETTING,
+            GceInstancesService.REFRESH_SETTING,
+            GceInstancesService.RETRY_SETTING,
+            GceInstancesService.MAX_WAIT_SETTING);
     }
-
-    private static boolean checkProperty(String name, String[] values, ESLogger logger) {
-        if (values == null || values.length == 0) {
-            logger.warn("{} is not set.", name);
-            return false;
-        }
-        return true;
-    }
-
 }

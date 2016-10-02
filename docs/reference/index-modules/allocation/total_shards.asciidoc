@@ -23,7 +23,7 @@ You can also limit the amount of shards a node can have regardless of the index:
 
 [WARNING]
 =======================================
-Thess setting impose a hard limit which can result in some shards not being
+These settings impose a hard limit which can result in some shards not being
 allocated.
 
 Use with caution.

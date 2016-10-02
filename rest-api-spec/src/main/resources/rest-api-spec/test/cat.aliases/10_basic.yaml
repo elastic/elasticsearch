@@ -60,7 +60,7 @@
                     type_1:
                         properties:
                             foo:
-                                type: string
+                                type: text
 
   - do:
         indices.put_alias:
@@ -188,3 +188,31 @@
                 index \s+ alias \n
                 test  \s+ test_1 \n
             $/
+
+---
+"Alias against closed index":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          aliases:
+            test_alias: {}
+
+  - do:
+      indices.close:
+        index: test_index
+
+  - do:
+      cat.aliases: {}
+
+  - match:
+      $body: |
+                /^
+                    test_alias          \s+
+                    test_index          \s+
+                    -                   \s+
+                    -                   \s+
+                    -                   \s+
+                $/
+

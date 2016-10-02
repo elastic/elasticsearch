@@ -9,7 +9,7 @@
                 test_type:
                   properties:
                     text:
-                      type:     string
+                      type:     text
                       analyzer: whitespace
 
   - do:
@@ -21,6 +21,6 @@
       indices.get_mapping:
         index: test_alias
 
-  - match: {test_index.mappings.test_type.properties.text.type:     string}
+  - match: {test_index.mappings.test_type.properties.text.type:     text}
   - match: {test_index.mappings.test_type.properties.text.analyzer: whitespace}
 

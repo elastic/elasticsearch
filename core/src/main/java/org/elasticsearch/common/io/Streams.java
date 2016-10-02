@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.io;
 
-import java.nio.charset.StandardCharsets;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.util.Callback;
 
@@ -32,6 +30,7 @@ import java.io.OutputStream;
 import java.io.Reader;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;

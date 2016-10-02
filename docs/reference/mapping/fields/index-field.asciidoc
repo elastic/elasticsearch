@@ -21,7 +21,7 @@ PUT index_1/my_type/1
   "text": "Document in index 1"
 }
 
-PUT index_2/my_type/2
+PUT index_2/my_type/2?refresh=true
 {
   "text": "Document in index 2"
 }
@@ -50,14 +50,17 @@ GET index_1,index_2/_search
   ],
   "script_fields": {
     "index_name": {
-      "script": "doc['_index']" <4>
+      "script": {
+        "lang": "painless",
+        "inline": "doc['_index']" <4>
+      }
     }
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Querying on the `_index` field
 <2> Aggregating on the `_index` field
 <3> Sorting on the `_index` field
-<4> Accessing the `_index` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)
+<4> Accessing the `_index` field in scripts

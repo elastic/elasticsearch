@@ -21,15 +21,20 @@ package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 
-public abstract class Suggester<T extends SuggestionSearchContext.SuggestionContext> {
+public abstract class Suggester<T extends SuggestionSearchContext.SuggestionContext> implements Writeable.Reader<SuggestionBuilder<?>> {
 
     protected abstract Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>
         innerExecute(String name, T suggestion, IndexSearcher searcher, CharsRefBuilder spare) throws IOException;
 
-    public abstract SuggestContextParser getContextParser();
+    /**
+     * Read the SuggestionBuilder paired with this Suggester XContent.
+     */
+    public abstract SuggestionBuilder<?> innerFromXContent(QueryParseContext context) throws IOException;
 
     public Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>
         execute(String name, T suggestion, IndexSearcher searcher, CharsRefBuilder spare) throws IOException {

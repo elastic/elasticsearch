@@ -55,7 +55,7 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 QueryBuilder qb = termQuery("multi", "test");
 
 SearchResponse scrollResp = client.prepareSearch(test)
-        .setSearchType(SearchType.SCAN)
+        .addSort(FieldSortBuilder.DOC_FIELD_NAME, SortOrder.ASC)
         .setScroll(new TimeValue(60000))
         .setQuery(qb)
         .setSize(100).execute().actionGet(); //100 hits per shard will be returned for each scroll
@@ -65,9 +65,13 @@ do {
         //Handle the hit...
     }
 
-    scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(600000)).execute().actionGet();
+    scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(60000)).execute().actionGet();
 } while(scrollResp.getHits().getHits().length != 0); // Zero hits mark the end of the scroll and the while loop.
 --------------------------------------------------
+[NOTE]
+====
+The size-parameter is per shard, so if you run a query against multiple indices (leading to many shards being involved in the query) the result might be more documents per execution of the scroll than you would expect!
+====
 
 [[java-search-msearch]]
 === MultiSearch API
@@ -111,7 +115,7 @@ SearchResponse sr = node.client().prepareSearch()
     .addAggregation(
             AggregationBuilders.dateHistogram("agg2")
                     .field("birth")
-                    .interval(DateHistogramInterval.YEAR)
+                    .dateHistogramInterval(DateHistogramInterval.YEAR)
     )
     .execute().actionGet();
 

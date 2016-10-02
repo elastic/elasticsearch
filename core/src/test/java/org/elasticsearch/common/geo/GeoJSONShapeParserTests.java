@@ -19,14 +19,22 @@
 
 package org.elasticsearch.common.geo;
 
-import com.spatial4j.core.exception.InvalidShapeException;
-import com.spatial4j.core.shape.Circle;
-import com.spatial4j.core.shape.Rectangle;
-import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.shape.ShapeCollection;
-import com.spatial4j.core.shape.jts.JtsGeometry;
-import com.spatial4j.core.shape.jts.JtsPoint;
-import com.vividsolutions.jts.geom.*;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Circle;
+import org.locationtech.spatial4j.shape.Rectangle;
+import org.locationtech.spatial4j.shape.Shape;
+import org.locationtech.spatial4j.shape.ShapeCollection;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
+import org.locationtech.spatial4j.shape.jts.JtsPoint;
+import com.vividsolutions.jts.geom.Coordinate;
+import com.vividsolutions.jts.geom.Geometry;
+import com.vividsolutions.jts.geom.GeometryFactory;
+import com.vividsolutions.jts.geom.LineString;
+import com.vividsolutions.jts.geom.LinearRing;
+import com.vividsolutions.jts.geom.MultiLineString;
+import com.vividsolutions.jts.geom.Point;
+import com.vividsolutions.jts.geom.Polygon;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -48,9 +56,9 @@ import static org.elasticsearch.common.geo.builders.ShapeBuilder.SPATIAL_CONTEXT
  */
 public class GeoJSONShapeParserTests extends ESTestCase {
 
-    private final static GeometryFactory GEOMETRY_FACTORY = SPATIAL_CONTEXT.getGeometryFactory();
+    private static final GeometryFactory GEOMETRY_FACTORY = SPATIAL_CONTEXT.getGeometryFactory();
 
-    public void testParse_simplePoint() throws IOException {
+    public void testParseSimplePoint() throws IOException {
         String pointGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Point")
                 .startArray("coordinates").value(100.0).value(0.0).endArray()
                 .endObject().string();
@@ -59,7 +67,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         assertGeometryEquals(new JtsPoint(expected, SPATIAL_CONTEXT), pointGeoJson);
     }
 
-    public void testParse_lineString() throws IOException {
+    public void testParseLineString() throws IOException {
         String lineGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "LineString")
                 .startArray("coordinates")
                 .startArray().value(100.0).value(0.0).endArray()
@@ -76,7 +84,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         assertGeometryEquals(jtsGeom(expected), lineGeoJson);
     }
 
-    public void testParse_multiLineString() throws IOException {
+    public void testParseMultiLineString() throws IOException {
         String multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "MultiLineString")
                 .startArray("coordinates")
                 .startArray()
@@ -103,7 +111,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         assertGeometryEquals(jtsGeom(expected), multilinesGeoJson);
     }
 
-    public void testParse_circle() throws IOException {
+    public void testParseCircle() throws IOException {
         String multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "circle")
                 .startArray("coordinates").value(100.0).value(0.0).endArray()
                 .field("radius", "100m")
@@ -113,7 +121,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         assertGeometryEquals(expected, multilinesGeoJson);
     }
 
-    public void testParse_multiDimensionShapes() throws IOException {
+    public void testParseMultiDimensionShapes() throws IOException {
         // multi dimension point
         String pointGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Point")
                 .startArray("coordinates").value(100.0).value(0.0).value(15.0).value(18.0).endArray()
@@ -139,7 +147,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         assertGeometryEquals(jtsGeom(expectedLS), lineGeoJson);
     }
 
-    public void testParse_envelope() throws IOException {
+    public void testParseEnvelope() throws IOException {
         // test #1: envelope with expected coordinate order (TopLeft, BottomRight)
         String multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "envelope")
                 .startArray("coordinates")
@@ -184,7 +192,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
     }
 
-    public void testParse_polygonNoHoles() throws IOException {
+    public void testParsePolygonNoHoles() throws IOException {
         String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
                 .startArray("coordinates")
                 .startArray()
@@ -209,7 +217,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         assertGeometryEquals(jtsGeom(expected), polygonGeoJson);
     }
 
-    public void testParse_invalidPoint() throws IOException {
+    public void testParseInvalidPoint() throws IOException {
         // test case 1: create an invalid point object with multipoint data format
         String invalidPoint1 = XContentFactory.jsonBuilder().startObject().field("type", "point")
                 .startArray("coordinates")
@@ -230,7 +238,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
     }
 
-    public void testParse_invalidMultipoint() throws IOException {
+    public void testParseInvalidMultipoint() throws IOException {
         // test case 1: create an invalid multipoint object with single coordinate
         String invalidMultipoint1 = XContentFactory.jsonBuilder().startObject().field("type", "multipoint")
                 .startArray("coordinates").value(-74.011).value(40.753).endArray()
@@ -259,7 +267,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
     }
 
-    public void testParse_invalidMultiPolygon() throws IOException {
+    public void testParseInvalidMultiPolygon() throws IOException {
         // test invalid multipolygon (an "accidental" polygon with inner rings outside outer ring)
         String multiPolygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "MultiPolygon")
                 .startArray("coordinates")
@@ -294,7 +302,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         ElasticsearchGeoAssertions.assertValidException(parser, InvalidShapeException.class);
     }
 
-    public void testParse_OGCPolygonWithoutHoles() throws IOException {
+    public void testParseOGCPolygonWithoutHoles() throws IOException {
         // test 1: ccw poly not crossing dateline
         String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
                 .startArray("coordinates")
@@ -312,7 +320,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(polygonGeoJson);
         parser.nextToken();
         Shape shape = ShapeBuilder.parse(parser).build();
-        
+
         ElasticsearchGeoAssertions.assertPolygon(shape);
 
         // test 2: ccw poly crossing dateline
@@ -332,7 +340,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         parser = JsonXContent.jsonXContent.createParser(polygonGeoJson);
         parser.nextToken();
         shape = ShapeBuilder.parse(parser).build();
-        
+
         ElasticsearchGeoAssertions.assertMultiPolygon(shape);
 
         // test 3: cw poly not crossing dateline
@@ -376,7 +384,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         ElasticsearchGeoAssertions.assertMultiPolygon(shape);
     }
 
-    public void testParse_OGCPolygonWithHoles() throws IOException {
+    public void testParseOGCPolygonWithHoles() throws IOException {
         // test 1: ccw poly not crossing dateline
         String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
                 .startArray("coordinates")
@@ -482,9 +490,9 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         ElasticsearchGeoAssertions.assertMultiPolygon(shape);
     }
 
-    public void testParse_invalidPolygon() throws IOException {
+    public void testParseInvalidPolygon() throws IOException {
         /**
-         * The following 3 test cases ensure proper error handling of invalid polygons 
+         * The following 3 test cases ensure proper error handling of invalid polygons
          * per the GeoJSON specification
          */
         // test case 1: create an invalid polygon with only 2 points
@@ -571,7 +579,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
     }
 
-    public void testParse_polygonWithHole() throws IOException {
+    public void testParsePolygonWithHole() throws IOException {
         String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
                 .startArray("coordinates")
                 .startArray()
@@ -615,7 +623,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         assertGeometryEquals(jtsGeom(expected), polygonGeoJson);
     }
 
-    public void testParse_selfCrossingPolygon() throws IOException {
+    public void testParseSelfCrossingPolygon() throws IOException {
         // test self crossing ccw poly not crossing dateline
         String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
                 .startArray("coordinates")
@@ -636,7 +644,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         ElasticsearchGeoAssertions.assertValidException(parser, InvalidShapeException.class);
     }
 
-    public void testParse_multiPoint() throws IOException {
+    public void testParseMultiPoint() throws IOException {
         String multiPointGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "MultiPoint")
                 .startArray("coordinates")
                 .startArray().value(100.0).value(0.0).endArray()
@@ -650,7 +658,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         assertGeometryEquals(expected, multiPointGeoJson);
     }
 
-    public void testParse_multiPolygon() throws IOException {
+    public void testParseMultiPolygon() throws IOException {
         // test #1: two polygons; one without hole, one with hole
         String multiPolygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "MultiPolygon")
                 .startArray("coordinates")
@@ -762,7 +770,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         assertGeometryEquals(jtsGeom(withHoles), multiPolygonGeoJson);
     }
 
-    public void testParse_geometryCollection() throws IOException {
+    public void testParseGeometryCollection() throws IOException {
         String geometryCollectionGeoJson = XContentFactory.jsonBuilder().startObject()
                 .field("type", "GeometryCollection")
                 .startArray("geometries")
@@ -814,7 +822,7 @@ public class GeoJSONShapeParserTests extends ESTestCase {
         assertGeometryEquals(new JtsPoint(expected, SPATIAL_CONTEXT), pointGeoJson);
     }
 
-    public void testParse_orientationOption() throws IOException {
+    public void testParseOrientationOption() throws IOException {
         // test 1: valid ccw (right handed system) poly not crossing dateline (with 'right' field)
         String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
                 .field("orientation", "right")

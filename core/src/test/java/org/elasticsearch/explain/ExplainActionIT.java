@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
@@ -52,7 +52,7 @@ public class ExplainActionIT extends ESIntegTestCase {
     public void testSimple() throws Exception {
         assertAcked(prepareCreate("test")
                 .addAlias(new Alias("alias"))
-                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen("test");
 
         client().prepareIndex("test", "test", "1").setSource("field", "value1").get();
@@ -114,7 +114,9 @@ public class ExplainActionIT extends ESIntegTestCase {
     }
 
     public void testExplainWithFields() throws Exception {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        assertAcked(prepareCreate("test")
+                .addMapping("test", "obj1.field1", "type=keyword,store=true", "obj1.field2", "type=keyword,store=true")
+                .addAlias(new Alias("alias")));
         ensureGreen("test");
 
         client().prepareIndex("test", "test", "1")
@@ -129,7 +131,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         refresh();
         ExplainResponse response = client().prepareExplain(indexOrAlias(), "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
-                .setFields("obj1.field1").get();
+                .setStoredFields("obj1.field1").get();
         assertNotNull(response);
         assertTrue(response.isMatch());
         assertNotNull(response.getExplanation());
@@ -146,7 +148,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         refresh();
         response = client().prepareExplain(indexOrAlias(), "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
-                .setFields("obj1.field1").setFetchSource(true).get();
+                .setStoredFields("obj1.field1").setFetchSource(true).get();
         assertNotNull(response);
         assertTrue(response.isMatch());
         assertNotNull(response.getExplanation());
@@ -162,7 +164,7 @@ public class ExplainActionIT extends ESIntegTestCase {
 
         response = client().prepareExplain(indexOrAlias(), "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
-                .setFields("obj1.field1", "obj1.field2").get();
+                .setStoredFields("obj1.field1", "obj1.field2").get();
         assertNotNull(response);
         assertTrue(response.isMatch());
         String v1 = (String) response.getGetResult().field("obj1.field1").getValue();
@@ -209,7 +211,7 @@ public class ExplainActionIT extends ESIntegTestCase {
 
     public void testExplainWithFilteredAlias() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("test", "field2", "type=string")
+                .addMapping("test", "field2", "type=text")
                 .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field2", "value2"))));
         ensureGreen("test");
 
@@ -225,7 +227,7 @@ public class ExplainActionIT extends ESIntegTestCase {
 
     public void testExplainWithFilteredAliasFetchSource() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("test", "field2", "type=string")
+                .addMapping("test", "field2", "type=text")
                 .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field2", "value2"))));
         ensureGreen("test");
 

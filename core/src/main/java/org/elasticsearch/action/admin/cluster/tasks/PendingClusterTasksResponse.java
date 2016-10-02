@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
@@ -103,13 +102,13 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
 
     static final class Fields {
 
-        static final XContentBuilderString TASKS = new XContentBuilderString("tasks");
-        static final XContentBuilderString EXECUTING = new XContentBuilderString("executing");
-        static final XContentBuilderString INSERT_ORDER = new XContentBuilderString("insert_order");
-        static final XContentBuilderString PRIORITY = new XContentBuilderString("priority");
-        static final XContentBuilderString SOURCE = new XContentBuilderString("source");
-        static final XContentBuilderString TIME_IN_QUEUE_MILLIS = new XContentBuilderString("time_in_queue_millis");
-        static final XContentBuilderString TIME_IN_QUEUE = new XContentBuilderString("time_in_queue");
+        static final String TASKS = "tasks";
+        static final String EXECUTING = "executing";
+        static final String INSERT_ORDER = "insert_order";
+        static final String PRIORITY = "priority";
+        static final String SOURCE = "source";
+        static final String TIME_IN_QUEUE_MILLIS = "time_in_queue_millis";
+        static final String TIME_IN_QUEUE = "time_in_queue";
 
     }
 

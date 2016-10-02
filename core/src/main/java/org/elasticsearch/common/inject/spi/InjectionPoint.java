@@ -125,7 +125,7 @@ public final class InjectionPoint {
         return Collections.unmodifiableList(dependencies);
     }
 
-    // This metohd is necessary to create a Dependency<T> with proper generic type information
+    // This method is necessary to create a Dependency<T> with proper generic type information
     private <T> Dependency<T> newDependency(Key<T> key, boolean allowsNull, int parameterIndex) {
         return new Dependency<>(this, key, allowsNull, parameterIndex);
     }

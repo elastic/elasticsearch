@@ -1,0 +1,72 @@
+setup:
+  - do:
+      indices.create:
+          index:  test
+  - do:
+      index:
+          index:  test
+          type:   test
+          id:     1
+          body:   { foo: bar }
+          refresh: wait_for
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            script.max_compilations_per_minute: null
+
+---
+"circuit breaking with too many scripts":
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            script.max_compilations_per_minute: 1
+
+  - do:
+      search:
+        index: test
+        type:  test
+        body:
+          size: 1
+          script_fields:
+            myfield:
+              script:
+                inline: "\"aoeu\""
+                lang: groovy
+
+  - match: { hits.total: 1 }
+
+  - do:
+      catch: /Too many dynamic script compilations within one minute/
+      search:
+        index: test
+        type:  test
+        body:
+          size: 1
+          script_fields:
+            myfield:
+              script:
+                inline: "\"aoeuaoeu\""
+                lang: groovy
+
+---
+"no bad settings":
+
+  - do:
+      catch: /Failed to parse value \[-1\] for setting \[script.max_compilations_per_minute\] must be >= 0/
+      cluster.put_settings:
+        body:
+          transient:
+            script.max_compilations_per_minute: -1
+
+  - do:
+      catch: /Failed to parse value \[99999999999\] for setting \[script.max_compilations_per_minute\]/
+      cluster.put_settings:
+        body:
+          transient:
+            script.max_compilations_per_minute: 99999999999

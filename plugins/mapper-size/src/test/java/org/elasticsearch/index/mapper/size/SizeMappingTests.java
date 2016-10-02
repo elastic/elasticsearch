@@ -19,128 +19,137 @@
 
 package org.elasticsearch.index.mapper.size;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-
-import java.util.Collections;
+import java.util.Collection;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.LegacyNumberFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.plugin.mapper.MapperSizePlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Before;
+import org.elasticsearch.test.InternalSettingsPlugin;
+
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.instanceOf;
+
+import org.apache.lucene.index.IndexableField;
 
 public class SizeMappingTests extends ESSingleNodeTestCase {
-    
-    MapperRegistry mapperRegistry;
-    IndexService indexService;
-    DocumentMapperParser parser;
-
-    @Before
-    public void before() {
-        indexService = createIndex("test");
-        mapperRegistry = new MapperRegistry(
-                Collections.emptyMap(),
-                Collections.singletonMap(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser()));
-        parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.analysisService(), indexService.similarityService(), mapperRegistry);
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(MapperSizePlugin.class, InternalSettingsPlugin.class);
     }
 
     public void testSizeEnabled() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_size").field("enabled", true).endObject()
-                .endObject().endObject().string();
-        DocumentMapper docMapper = parser.parse(mapping);
+        IndexService service = createIndex("test", Settings.EMPTY, "type", "_size", "enabled=true");
+        DocumentMapper docMapper = service.mapperService().documentMapper("type");
 
         BytesReference source = XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "value")
-                .endObject()
-                .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
+            .startObject()
+            .field("field", "value")
+            .endObject()
+            .bytes();
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source));
 
-        assertThat(doc.rootDoc().getField("_size").fieldType().stored(), equalTo(true));
-        assertThat(doc.rootDoc().getField("_size").tokenStream(docMapper.mappers().indexAnalyzer(), null), notNullValue());
+        boolean stored = false;
+        boolean points = false;
+        for (IndexableField field : doc.rootDoc().getFields("_size")) {
+            stored |= field.fieldType().stored();
+            points |= field.fieldType().pointDimensionCount() > 0;
+        }
+        assertTrue(stored);
+        assertTrue(points);
     }
-    
-    public void testSizeEnabledAndStoredBackcompat() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_size").field("enabled", true).field("store", "yes").endObject()
-                .endObject().endObject().string();
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
 
-        indexService = createIndex("test2", indexSettings);
-        mapperRegistry = new MapperRegistry(
-                Collections.emptyMap(),
-                Collections.singletonMap(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser()));
-        parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.analysisService(), indexService.similarityService(), mapperRegistry);
-        DocumentMapper docMapper = parser.parse(mapping);
-
-        BytesReference source = XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "value")
-                .endObject()
-                .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
-
-        assertThat(doc.rootDoc().getField("_size").fieldType().stored(), equalTo(true));
-        assertThat(doc.rootDoc().getField("_size").tokenStream(docMapper.mappers().indexAnalyzer(), null), notNullValue());
-    }
-    
     public void testSizeDisabled() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_size").field("enabled", false).endObject()
-                .endObject().endObject().string();
-        DocumentMapper docMapper = parser.parse(mapping);
+        IndexService service = createIndex("test", Settings.EMPTY, "type", "_size", "enabled=false");
+        DocumentMapper docMapper = service.mapperService().documentMapper("type");
 
         BytesReference source = XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "value")
-                .endObject()
-                .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
+            .startObject()
+            .field("field", "value")
+            .endObject()
+            .bytes();
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
-    
+
     public void testSizeNotSet() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .endObject().endObject().string();
-        DocumentMapper docMapper = parser.parse(mapping);
+        IndexService service = createIndex("test", Settings.EMPTY, "type");
+        DocumentMapper docMapper = service.mapperService().documentMapper("type");
 
         BytesReference source = XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "value")
-                .endObject()
-                .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1"));
+            .startObject()
+            .field("field", "value")
+            .endObject()
+            .bytes();
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
-    
+
     public void testThatDisablingWorksWhenMerging() throws Exception {
-        String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_size").field("enabled", true).endObject()
-                .endObject().endObject().string();
-        DocumentMapper enabledMapper = parser.parse(enabledMapping);
+        IndexService service = createIndex("test", Settings.EMPTY, "type", "_size", "enabled=true");
+        DocumentMapper docMapper = service.mapperService().documentMapper("type");
+        assertThat(docMapper.metadataMapper(SizeFieldMapper.class).enabled(), is(true));
 
         String disabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_size").field("enabled", false).endObject()
-                .endObject().endObject().string();
-        DocumentMapper disabledMapper = parser.parse(disabledMapping);
+            .startObject("_size").field("enabled", false).endObject()
+            .endObject().endObject().string();
+        docMapper = service.mapperService().merge("type", new CompressedXContent(disabledMapping),
+            MapperService.MergeReason.MAPPING_UPDATE, false);
 
-        enabledMapper.merge(disabledMapper.mapping(), false, false);
-        assertThat(enabledMapper.metadataMapper(SizeFieldMapper.class).enabled(), is(false));
+        assertThat(docMapper.metadataMapper(SizeFieldMapper.class).enabled(), is(false));
     }
+
+    public void testBWCMapper() throws Exception {
+        {
+            // IntPoint && docvalues=true for V_5_0_0_alpha5
+            IndexService service = createIndex("foo", Settings.EMPTY, "bar", "_size", "enabled=true");
+            DocumentMapper docMapper = service.mapperService().documentMapper("bar");
+            SizeFieldMapper mapper = docMapper.metadataMapper(SizeFieldMapper.class);
+            assertThat(mapper.enabled(), is(true));
+            MappedFieldType ft = mapper.fieldType();
+            assertThat(ft.hasDocValues(), is(true));
+            assertThat(mapper.fieldType(), instanceOf(NumberFieldMapper.NumberFieldType.class));
+        }
+
+        {
+            // IntPoint with docvalues=false if version > V_5_0_0_alpha2 && version < V_5_0_0_beta1
+            IndexService service = createIndex("foo2",
+                Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_0_0_alpha4.id).build(),
+                "bar", "_size", "enabled=true");
+            DocumentMapper docMapper = service.mapperService().documentMapper("bar");
+            SizeFieldMapper mapper = docMapper.metadataMapper(SizeFieldMapper.class);
+            assertThat(mapper.enabled(), is(true));
+            assertThat(mapper.fieldType().hasDocValues(), is(false));
+            assertThat(mapper.fieldType(), instanceOf(NumberFieldMapper.NumberFieldType.class));
+        }
+
+        {
+            // LegacyIntField with docvalues=false if version < V_5_0_0_alpha2
+            IndexService service = createIndex("foo3",
+                Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_0_0_alpha1.id).build(),
+                "bar", "_size", "enabled=true");
+            DocumentMapper docMapper = service.mapperService().documentMapper("bar");
+            SizeFieldMapper mapper = docMapper.metadataMapper(SizeFieldMapper.class);
+            assertThat(mapper.enabled(), is(true));
+            assertThat(mapper.fieldType().hasDocValues(), is(false));
+            assertThat(mapper.fieldType(), instanceOf(LegacyNumberFieldMapper.NumberFieldType.class));
+        }
+    }
+
 }

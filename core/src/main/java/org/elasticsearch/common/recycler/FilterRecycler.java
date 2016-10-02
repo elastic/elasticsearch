@@ -21,7 +21,7 @@ package org.elasticsearch.common.recycler;
 
 abstract class FilterRecycler<T> implements Recycler<T> {
 
-    /** Get the delegate instance to foward calls to. */
+    /** Get the delegate instance to forward calls to. */
     protected abstract Recycler<T> getDelegate();
 
     /** Wrap a recycled reference. */

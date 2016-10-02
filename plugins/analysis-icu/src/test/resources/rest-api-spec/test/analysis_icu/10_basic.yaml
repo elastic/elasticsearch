@@ -12,7 +12,7 @@
 "Normalization filter":
     - do:
         indices.analyze:
-          filters:      icu_normalizer
+          filter:      icu_normalizer
           text:         Foo Bar Ruß
           tokenizer:    keyword
     - length: { tokens: 1 }
@@ -21,7 +21,7 @@
 "Normalization charfilter":
     - do:
         indices.analyze:
-          char_filters: icu_normalizer
+          char_filter: icu_normalizer
           text:         Foo Bar Ruß
           tokenizer:    keyword
     - length: { tokens: 1 }
@@ -30,7 +30,7 @@
 "Folding filter":
     - do:
         indices.analyze:
-          filters:      icu_folding
+          filter:      icu_folding
           text:         Foo Bar résumé
           tokenizer:    keyword
     - length: { tokens: 1 }

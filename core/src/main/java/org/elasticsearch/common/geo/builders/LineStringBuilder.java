@@ -19,20 +19,48 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import com.spatial4j.core.shape.Shape;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.LineString;
 
-public class LineStringBuilder extends PointCollection<LineStringBuilder> {
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.locationtech.spatial4j.shape.Shape;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+
+public class LineStringBuilder extends CoordinateCollection<LineStringBuilder> {
     public static final GeoShapeType TYPE = GeoShapeType.LINESTRING;
+
+    /**
+     * Construct a new LineString.
+     * Per GeoJSON spec (http://geojson.org/geojson-spec.html#linestring)
+     * a LineString must contain two or more coordinates
+     * @param coordinates the initial list of coordinates
+     * @throws IllegalArgumentException if there are less then two coordinates defined
+     */
+    public LineStringBuilder(List<Coordinate> coordinates) {
+        super(coordinates);
+        if (coordinates.size() < 2) {
+            throw new IllegalArgumentException("invalid number of points in LineString (found [" + coordinates.size()+ "] - must be >= 2)");
+        }
+    }
+
+    public LineStringBuilder(CoordinatesBuilder coordinates) {
+        this(coordinates.build());
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public LineStringBuilder(StreamInput in) throws IOException {
+        super(in);
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -45,13 +73,14 @@ public class LineStringBuilder extends PointCollection<LineStringBuilder> {
     }
 
     /**
-     * Closes the current lineString by adding the starting point as the end point
+     * Closes the current lineString by adding the starting point as the end point.
+     * This will have no effect if starting and end point are already the same.
      */
     public LineStringBuilder close() {
-        Coordinate start = points.get(0);
-        Coordinate end = points.get(points.size()-1);
+        Coordinate start = coordinates.get(0);
+        Coordinate end = coordinates.get(coordinates.size() - 1);
         if(start.x != end.x || start.y != end.y) {
-            points.add(start);
+            coordinates.add(start);
         }
         return this;
     }
@@ -63,7 +92,7 @@ public class LineStringBuilder extends PointCollection<LineStringBuilder> {
 
     @Override
     public Shape build() {
-        Coordinate[] coordinates = points.toArray(new Coordinate[points.size()]);
+        Coordinate[] coordinates = this.coordinates.toArray(new Coordinate[this.coordinates.size()]);
         Geometry geometry;
         if(wrapdateline) {
             ArrayList<LineString> strings = decompose(FACTORY, coordinates, new ArrayList<LineString>());
@@ -138,5 +167,22 @@ public class LineStringBuilder extends PointCollection<LineStringBuilder> {
             }
         }
         return coordinates;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(coordinates);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        LineStringBuilder other = (LineStringBuilder) obj;
+        return Objects.equals(coordinates, other.coordinates);
     }
 }

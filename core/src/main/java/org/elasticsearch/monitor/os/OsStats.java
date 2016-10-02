@@ -21,28 +21,42 @@ package org.elasticsearch.monitor.os;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
 
-/**
- *
- */
-public class OsStats implements Streamable, ToXContent {
+public class OsStats implements Writeable, ToXContent {
 
-    long timestamp;
+    private final long timestamp;
+    private final Cpu cpu;
+    private final Mem mem;
+    private final Swap swap;
 
-    Cpu cpu = null;
+    public OsStats(long timestamp, Cpu cpu, Mem mem, Swap swap) {
+        this.timestamp = timestamp;
+        this.cpu = Objects.requireNonNull(cpu, "cpu must not be null");
+        this.mem = Objects.requireNonNull(mem, "mem must not be null");;
+        this.swap = Objects.requireNonNull(swap, "swap must not be null");;
+    }
 
-    Mem mem = null;
+    public OsStats(StreamInput in) throws IOException {
+        this.timestamp = in.readVLong();
+        this.cpu = new Cpu(in);
+        this.mem = new Mem(in);
+        this.swap = new Swap(in);
+    }
 
-    Swap swap = null;
-
-    OsStats() {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(timestamp);
+        cpu.writeTo(out);
+        mem.writeTo(out);
+        swap.writeTo(out);
     }
 
     public long getTimestamp() {
@@ -60,134 +74,119 @@ public class OsStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString OS = new XContentBuilderString("os");
-        static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
-        static final XContentBuilderString CPU = new XContentBuilderString("cpu");
-        static final XContentBuilderString PERCENT = new XContentBuilderString("percent");
-        static final XContentBuilderString LOAD_AVERAGE = new XContentBuilderString("load_average");
+        static final String OS = "os";
+        static final String TIMESTAMP = "timestamp";
+        static final String CPU = "cpu";
+        static final String PERCENT = "percent";
+        static final String LOAD_AVERAGE = "load_average";
+        static final String LOAD_AVERAGE_1M = "1m";
+        static final String LOAD_AVERAGE_5M = "5m";
+        static final String LOAD_AVERAGE_15M = "15m";
 
-        static final XContentBuilderString MEM = new XContentBuilderString("mem");
-        static final XContentBuilderString SWAP = new XContentBuilderString("swap");
-        static final XContentBuilderString FREE = new XContentBuilderString("free");
-        static final XContentBuilderString FREE_IN_BYTES = new XContentBuilderString("free_in_bytes");
-        static final XContentBuilderString USED = new XContentBuilderString("used");
-        static final XContentBuilderString USED_IN_BYTES = new XContentBuilderString("used_in_bytes");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString TOTAL_IN_BYTES = new XContentBuilderString("total_in_bytes");
+        static final String MEM = "mem";
+        static final String SWAP = "swap";
+        static final String FREE = "free";
+        static final String FREE_IN_BYTES = "free_in_bytes";
+        static final String USED = "used";
+        static final String USED_IN_BYTES = "used_in_bytes";
+        static final String TOTAL = "total";
+        static final String TOTAL_IN_BYTES = "total_in_bytes";
 
-        static final XContentBuilderString FREE_PERCENT = new XContentBuilderString("free_percent");
-        static final XContentBuilderString USED_PERCENT = new XContentBuilderString("used_percent");
-
+        static final String FREE_PERCENT = "free_percent";
+        static final String USED_PERCENT = "used_percent";
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.OS);
         builder.field(Fields.TIMESTAMP, getTimestamp());
-        if (cpu != null) {
-            builder.startObject(Fields.CPU);
-            builder.field(Fields.PERCENT, cpu.getPercent());
-            builder.field(Fields.LOAD_AVERAGE, cpu.getLoadAverage());
-            builder.endObject();
-        }
-
-        if (mem != null) {
-            builder.startObject(Fields.MEM);
-            builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, mem.getTotal());
-            builder.byteSizeField(Fields.FREE_IN_BYTES, Fields.FREE, mem.getFree());
-            builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, mem.getUsed());
-
-            builder.field(Fields.FREE_PERCENT, mem.getFreePercent());
-            builder.field(Fields.USED_PERCENT, mem.getUsedPercent());
-
-            builder.endObject();
-        }
-
-        if (swap != null) {
-            builder.startObject(Fields.SWAP);
-            builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, swap.getTotal());
-            builder.byteSizeField(Fields.FREE_IN_BYTES, Fields.FREE, swap.getFree());
-            builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, swap.getUsed());
-            builder.endObject();
-        }
-
+        cpu.toXContent(builder, params);
+        mem.toXContent(builder, params);
+        swap.toXContent(builder, params);
         builder.endObject();
         return builder;
     }
 
-    public static OsStats readOsStats(StreamInput in) throws IOException {
-        OsStats stats = new OsStats();
-        stats.readFrom(in);
-        return stats;
-    }
+    public static class Cpu implements Writeable, ToXContent {
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        timestamp = in.readVLong();
-        cpu = in.readOptionalStreamable(Cpu::new);
-        if (in.readBoolean()) {
-            mem = Mem.readMem(in);
-        }
-        if (in.readBoolean()) {
-            swap = Swap.readSwap(in);
-        }
-    }
+        private final short percent;
+        private final double[] loadAverage;
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(timestamp);
-        out.writeOptionalStreamable(cpu);
-        if (mem == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            mem.writeTo(out);
-        }
-        if (swap == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            swap.writeTo(out);
-        }
-    }
-
-    public static class Cpu implements Streamable {
-        short percent = -1;
-        double loadAverage = -1;
-
-        Cpu() {}
-
-        public static Cpu readCpu(StreamInput in) throws IOException {
-            Cpu cpu = new Cpu();
-            cpu.readFrom(in);
-            return cpu;
+        public Cpu(short systemCpuPercent, double[] systemLoadAverage) {
+            this.percent = systemCpuPercent;
+            this.loadAverage = systemLoadAverage;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            percent = in.readShort();
-            loadAverage = in.readDouble();
+        public Cpu(StreamInput in) throws IOException {
+            this.percent = in.readShort();
+            if (in.readBoolean()) {
+                this.loadAverage = in.readDoubleArray();
+            } else {
+                this.loadAverage = null;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeShort(percent);
-            out.writeDouble(loadAverage);
+            if (loadAverage == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeDoubleArray(loadAverage);
+            }
         }
 
         public short getPercent() {
             return percent;
         }
 
-        public double getLoadAverage() {
+        public double[] getLoadAverage() {
             return loadAverage;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(Fields.CPU);
+            builder.field(Fields.PERCENT, getPercent());
+            if (getLoadAverage() != null && Arrays.stream(getLoadAverage()).anyMatch(load -> load != -1)) {
+                builder.startObject(Fields.LOAD_AVERAGE);
+                if (getLoadAverage()[0] != -1) {
+                    builder.field(Fields.LOAD_AVERAGE_1M, getLoadAverage()[0]);
+                }
+                if (getLoadAverage()[1] != -1) {
+                    builder.field(Fields.LOAD_AVERAGE_5M, getLoadAverage()[1]);
+                }
+                if (getLoadAverage()[2] != -1) {
+                    builder.field(Fields.LOAD_AVERAGE_15M, getLoadAverage()[2]);
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            return builder;
         }
     }
 
-    public static class Swap implements Streamable {
+    public static class Swap implements Writeable, ToXContent {
 
-        long total = -1;
-        long free = -1;
+        private final long total;
+        private final long free;
+
+        public Swap(long total, long free) {
+            this.total = total;
+            this.free = free;
+        }
+
+        public Swap(StreamInput in) throws IOException {
+            this.total = in.readLong();
+            this.free = in.readLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(total);
+            out.writeLong(free);
+        }
 
         public ByteSizeValue getFree() {
             return new ByteSizeValue(free);
@@ -201,40 +200,30 @@ public class OsStats implements Streamable, ToXContent {
             return new ByteSizeValue(total);
         }
 
-        public static Swap readSwap(StreamInput in) throws IOException {
-            Swap swap = new Swap();
-            swap.readFrom(in);
-            return swap;
-        }
-
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            total = in.readLong();
-            free = in.readLong();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(total);
-            out.writeLong(free);
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(Fields.SWAP);
+            builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, getTotal());
+            builder.byteSizeField(Fields.FREE_IN_BYTES, Fields.FREE, getFree());
+            builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, getUsed());
+            builder.endObject();
+            return builder;
         }
     }
 
-    public static class Mem implements Streamable {
+    public static class Mem implements Writeable, ToXContent {
 
-        long total = -1;
-        long free = -1;
+        private final long total;
+        private final long free;
 
-        public static Mem readMem(StreamInput in) throws IOException {
-            Mem mem = new Mem();
-            mem.readFrom(in);
-            return mem;
+        public Mem(long total, long free) {
+            this.total = total;
+            this.free = free;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            total = in.readLong();
-            free = in.readLong();
+        public Mem(StreamInput in) throws IOException {
+            this.total = in.readLong();
+            this.free = in.readLong();
         }
 
         @Override
@@ -252,7 +241,7 @@ public class OsStats implements Streamable, ToXContent {
         }
 
         public short getUsedPercent() {
-            return calculatePercentage(getUsed().bytes(), getTotal().bytes());
+            return calculatePercentage(getUsed().getBytes(), total);
         }
 
         public ByteSizeValue getFree() {
@@ -260,11 +249,23 @@ public class OsStats implements Streamable, ToXContent {
         }
 
         public short getFreePercent() {
-            return calculatePercentage(getFree().bytes(), getTotal().bytes());
+            return calculatePercentage(free, total);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(Fields.MEM);
+            builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, getTotal());
+            builder.byteSizeField(Fields.FREE_IN_BYTES, Fields.FREE, getFree());
+            builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, getUsed());
+            builder.field(Fields.FREE_PERCENT, getFreePercent());
+            builder.field(Fields.USED_PERCENT, getUsedPercent());
+            builder.endObject();
+            return builder;
         }
     }
 
-    private static short calculatePercentage(long used, long max) {
+    public static short calculatePercentage(long used, long max) {
         return max <= 0 ? 0 : (short) (Math.round((100d * used) / max));
     }
 }

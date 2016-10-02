@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
@@ -45,11 +46,11 @@ public class TransportProxyClient {
     private final TransportClientNodesService nodesService;
     private final Map<Action, TransportActionNodeProxy> proxies;
 
-    @Inject
-    public TransportProxyClient(Settings settings, TransportService transportService, TransportClientNodesService nodesService, Map<String, GenericAction> actions) {
+    public TransportProxyClient(Settings settings, TransportService transportService,
+                                TransportClientNodesService nodesService, List<GenericAction> actions) {
         this.nodesService = nodesService;
         Map<Action, TransportActionNodeProxy> proxies = new HashMap<>();
-        for (GenericAction action : actions.values()) {
+        for (GenericAction action : actions) {
             if (action instanceof Action) {
                 proxies.put((Action) action, new TransportActionNodeProxy(settings, action, transportService));
             }
@@ -59,11 +60,6 @@ public class TransportProxyClient {
 
     public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(final Action<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener) {
         final TransportActionNodeProxy<Request, Response> proxy = proxies.get(action);
-        nodesService.execute(new TransportClientNodesService.NodeListenerCallback<Response>() {
-            @Override
-            public void doWithNode(DiscoveryNode node, ActionListener<Response> listener) {
-                proxy.execute(node, request, listener);
-            }
-        }, listener);
+        nodesService.execute((n, l) -> proxy.execute(n, request, l), listener);
     }
 }

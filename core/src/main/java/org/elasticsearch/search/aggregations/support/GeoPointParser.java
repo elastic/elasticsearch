@@ -19,41 +19,39 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
  */
 public class GeoPointParser {
 
-    private final String aggName;
     private final InternalAggregation.Type aggType;
-    private final SearchContext context;
     private final ParseField field;
 
-    GeoPoint point;
-
-    public GeoPointParser(String aggName, InternalAggregation.Type aggType, SearchContext context, ParseField field) {
-        this.aggName = aggName;
+    public GeoPointParser(InternalAggregation.Type aggType, ParseField field) {
         this.aggType = aggType;
-        this.context = context;
         this.field = field;
     }
 
-    public boolean token(String currentFieldName, XContentParser.Token token, XContentParser parser) throws IOException {
-        if (!context.parseFieldMatcher().match(currentFieldName, field)) {
+    public boolean token(String aggName, String currentFieldName, XContentParser.Token token, XContentParser parser,
+            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+        if (!parseFieldMatcher.match(currentFieldName, field)) {
             return false;
         }
         if (token == XContentParser.Token.VALUE_STRING) {
-            point = new GeoPoint();
+            GeoPoint point = new GeoPoint();
             point.resetFromString(parser.text());
+            otherOptions.put(field, point);
             return true;
         }
         if (token == XContentParser.Token.START_ARRAY) {
@@ -65,12 +63,12 @@ public class GeoPointParser {
                 } else if (Double.isNaN(lat)) {
                     lat = parser.doubleValue();
                 } else {
-                    throw new SearchParseException(context, "malformed [" + currentFieldName + "] geo point array in [" +
-                            aggName + "] " + aggType + " aggregation. a geo point array must be of the form [lon, lat]", 
-                            parser.getTokenLocation());
+                    throw new ParsingException(parser.getTokenLocation(), "malformed [" + currentFieldName + "] geo point array in ["
+                            + aggName + "] " + aggType + " aggregation. a geo point array must be of the form [lon, lat]");
                 }
             }
-            point = new GeoPoint(lat, lon);
+            GeoPoint point = new GeoPoint(lat, lon);
+            otherOptions.put(field, point);
             return true;
         }
         if (token == XContentParser.Token.START_OBJECT) {
@@ -88,17 +86,15 @@ public class GeoPointParser {
                 }
             }
             if (Double.isNaN(lat) || Double.isNaN(lon)) {
-                throw new SearchParseException(context, "malformed [" + currentFieldName + "] geo point object. either [lat] or [lon] (or both) are " +
-                        "missing in [" + aggName + "] " + aggType + " aggregation", parser.getTokenLocation());
+                throw new ParsingException(parser.getTokenLocation(),
+                        "malformed [" + currentFieldName + "] geo point object. either [lat] or [lon] (or both) are " + "missing in ["
+                                + aggName + "] " + aggType + " aggregation");
             }
-            point = new GeoPoint(lat, lon);
+            GeoPoint point = new GeoPoint(lat, lon);
+            otherOptions.put(field, point);
             return true;
         }
         return false;
-    }
-
-    public GeoPoint geoPoint() {
-        return point;
     }
 
 }

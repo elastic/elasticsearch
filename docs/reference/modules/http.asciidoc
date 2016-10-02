@@ -48,14 +48,26 @@ to `4kb`
 
 
 |`http.compression` |Support for compression when possible (with
-Accept-Encoding). Defaults to `false`.
+Accept-Encoding). Defaults to `true`.
 
-|`http.compression_level` |Defines the compression level to use.
-Defaults to `6`.
+|`http.compression_level` |Defines the compression level to use for HTTP responses. Valid values are in the range of 1 (minimum compression)
+and 9 (maximum compression). Defaults to `3`.
 
 |`http.cors.enabled` |Enable or disable cross-origin resource sharing,
-i.e. whether a browser on another origin can do requests to
-Elasticsearch. Defaults to `false`.
+i.e. whether a browser on another origin can execute requests against
+Elasticsearch. Set to `true` to enable Elasticsearch to process pre-flight 
+https://en.wikipedia.org/wiki/Cross-origin_resource_sharing[CORS] requests. 
+Elasticsearch will respond to those requests with the `Access-Control-Allow-Origin` header 
+if the `Origin` sent in the request is permitted by the `http.cors.allow-origin` 
+list. Set to `false` (the default) to make Elasticsearch ignore the `Origin` 
+request header, effectively disabling CORS requests because Elasticsearch will 
+never respond with the `Access-Control-Allow-Origin` response header. Note that 
+if the client does not send a pre-flight request with an `Origin` header or it 
+does not check the response headers from the server to validate the 
+`Access-Control-Allow-Origin` response header, then cross-origin security is 
+compromised. If CORS is not enabled on Elasticsearch, the only way for the client 
+to know is to send a pre-flight request and realize the required response headers 
+are missing. 
 
 |`http.cors.allow-origin` |Which origins to allow. Defaults to no origins
 allowed. If you prepend and append a `/` to the value, this will

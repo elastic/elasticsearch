@@ -20,19 +20,19 @@
 package org.elasticsearch.action.bulk;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.MockTransportClient;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -153,13 +153,13 @@ public class BulkProcessorIT extends ESIntegTestCase {
         assertMultiGetResponse(multiGetRequestBuilder.get(), numDocs);
     }
 
-    //https://github.com/elasticsearch/elasticsearch/issues/5038
+    //https://github.com/elastic/elasticsearch/issues/5038
     public void testBulkProcessorConcurrentRequestsNoNodeAvailableException() throws Exception {
         //we create a transport client with no nodes to make sure it throws NoNodeAvailableException
         Settings settings = Settings.builder()
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        Client transportClient = TransportClient.builder().settings(settings).build();
+        Client transportClient = new MockTransportClient(settings);
 
         int bulkActions = randomIntBetween(10, 100);
         int numDocs = randomIntBetween(bulkActions, bulkActions + 100);
@@ -203,7 +203,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
                 //let's make sure that the bulk action limit trips, one single execution will index all the documents
                 .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
                 .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(randomIntBetween(1, 10),
-                        RandomPicks.randomFrom(getRandom(), ByteSizeUnit.values())))
+                        RandomPicks.randomFrom(random(), ByteSizeUnit.values())))
                 .build();
 
         MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, numDocs);

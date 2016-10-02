@@ -7,7 +7,7 @@ unique sorted list of terms, and from that immediately have access to the list
 of documents that contain the term.
 
 Sorting, aggregations, and access to field values in scripts requires a
-different data access pattern.  Instead of lookup up the term and finding
+different data access pattern.  Instead of looking up the term and finding
 documents, we need to be able to look up the document and find the terms that
 it has in a field.
 
@@ -29,12 +29,10 @@ PUT my_index
     "my_type": {
       "properties": {
         "status_code": { <1>
-          "type":       "string",
-          "index":      "not_analyzed"
+          "type":       "keyword"
         },
         "session_id": { <2>
-          "type":       "string",
-          "index":      "not_analyzed",
+          "type":       "keyword",
           "doc_values": false
         }
       }
@@ -42,7 +40,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `status_code` field has `doc_values` enabled by default.
 <2> The `session_id` has `doc_values` disabled, but can still be queried.
 

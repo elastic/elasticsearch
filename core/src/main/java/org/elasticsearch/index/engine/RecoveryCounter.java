@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.store.Store;
 

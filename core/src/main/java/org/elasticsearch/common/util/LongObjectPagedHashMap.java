@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util;
 
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasables;
 
 import java.util.Iterator;

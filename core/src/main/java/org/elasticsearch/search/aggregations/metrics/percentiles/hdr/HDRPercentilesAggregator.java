@@ -19,16 +19,12 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles.hdr;
 
 import org.HdrHistogram.DoubleHistogram;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,7 +36,7 @@ import java.util.Map;
 public class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
 
     public HDRPercentilesAggregator(String name, Numeric valuesSource, AggregationContext context, Aggregator parent, double[] percents,
-            int numberOfSignificantValueDigits, boolean keyed, ValueFormatter formatter,
+            int numberOfSignificantValueDigits, boolean keyed, DocValueFormat formatter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, valuesSource, context, parent, percents, numberOfSignificantValueDigits, keyed, formatter,
                 pipelineAggregators, metaData);
@@ -52,7 +48,7 @@ public class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalHDRPercentiles(name, keys, state, keyed, formatter, pipelineAggregators(), metaData());
+            return new InternalHDRPercentiles(name, keys, state, keyed, format, pipelineAggregators(), metaData());
         }
     }
 
@@ -73,36 +69,6 @@ public class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
         state.setAutoResize(true);
         return new InternalHDRPercentiles(name, keys, state,
                 keyed,
-                formatter, pipelineAggregators(), metaData());
-    }
-
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
-
-        private final double[] percents;
-        private final int numberOfSignificantValueDigits;
-        private final boolean keyed;
-
-        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig, double[] percents,
-                int numberOfSignificantValueDigits, boolean keyed) {
-            super(name, InternalTDigestPercentiles.TYPE.name(), valuesSourceConfig);
-            this.percents = percents;
-            this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;
-            this.keyed = keyed;
-        }
-
-        @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new HDRPercentilesAggregator(name, null, aggregationContext, parent, percents, numberOfSignificantValueDigits, keyed,
-                    config.formatter(), pipelineAggregators, metaData);
-        }
-
-        @Override
-        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                throws IOException {
-            return new HDRPercentilesAggregator(name, valuesSource, aggregationContext, parent, percents, numberOfSignificantValueDigits,
-                    keyed, config.formatter(), pipelineAggregators, metaData);
-        }
+                format, pipelineAggregators(), metaData());
     }
 }

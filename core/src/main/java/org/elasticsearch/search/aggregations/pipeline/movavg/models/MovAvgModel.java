@@ -21,8 +21,9 @@ package org.elasticsearch.search.aggregations.pipeline.movavg.models;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.common.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -30,7 +31,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 
-public abstract class MovAvgModel {
+public abstract class MovAvgModel implements NamedWriteable, ToXContent {
 
     /**
      * Should this model be fit to the data via a cost minimizing algorithm by default?
@@ -117,25 +118,25 @@ public abstract class MovAvgModel {
      *
      * @param out   Output stream
      */
+    @Override
     public abstract void writeTo(StreamOutput out) throws IOException;
 
     /**
      * Clone the model, returning an exact copy
      */
+    @Override
     public abstract MovAvgModel clone();
+
+    @Override
+    public abstract int hashCode();
+
+    @Override
+    public abstract boolean equals(Object obj);
 
     /**
      * Abstract class which also provides some concrete parsing functionality.
      */
     public abstract static class AbstractModelParser {
-
-        /**
-         * Returns the name of the model
-         *
-         * @return The model's name
-         */
-        public abstract String getName();
-
         /**
          * Parse a settings hash that is specific to this model
          *

@@ -66,4 +66,15 @@ public abstract class ScoreFunction {
      * Indicates whether some other {@link ScoreFunction} object of the same type is "equal to" this one.
      */
     protected abstract boolean doEquals(ScoreFunction other);
+
+    @Override
+    public final int hashCode() {
+        /*
+         * Override hashCode here and forward to an abstract method to force extensions of this class to override hashCode in the same
+         * way that we force them to override equals. This also prevents false positives in CheckStyle's EqualsHashCode check.
+         */
+        return Objects.hash(scoreCombiner, doHashCode());
+    }
+
+    protected abstract int doHashCode();
 }

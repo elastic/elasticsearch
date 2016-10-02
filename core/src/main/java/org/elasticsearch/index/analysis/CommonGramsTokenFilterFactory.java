@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
 import org.apache.lucene.analysis.commongrams.CommonGramsQueryFilter;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -45,7 +45,7 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
         this.words = Analysis.parseCommonWords(env, settings, null, ignoreCase);
 
         if (this.words == null) {
-            throw new IllegalArgumentException("mising or empty [common_words] or [common_words_path] configuration for common_grams token filter");
+            throw new IllegalArgumentException("missing or empty [common_words] or [common_words_path] configuration for common_grams token filter");
         }
     }
 

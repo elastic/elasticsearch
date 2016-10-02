@@ -20,7 +20,6 @@ package org.elasticsearch.gradle.plugin
 
 import org.gradle.api.Project
 import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.Optional
 
 /**
  * A container for plugin properties that will be written to the plugin descriptor, for easy
@@ -38,16 +37,11 @@ class PluginPropertiesExtension {
     String description
 
     @Input
-    boolean jvm = true
-
-    @Input
     String classname
 
+    /** Indicates whether the plugin jar should be made available for the transport client. */
     @Input
-    boolean site = false
-
-    @Input
-    boolean isolated = true
+    boolean hasClientJar = false
 
     PluginPropertiesExtension(Project project) {
         name = project.name

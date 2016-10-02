@@ -19,43 +19,14 @@
 
 package org.elasticsearch.indices.query;
 
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.EmptyQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.index.query.QueryParser;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-
-import static java.util.Collections.unmodifiableMap;
-
-public class IndicesQueriesRegistry extends AbstractComponent {
-    private Map<String, QueryParser<?>> queryParsers;
-
-    @Inject
-    public IndicesQueriesRegistry(Settings settings, Set<QueryParser> injectedQueryParsers, NamedWriteableRegistry namedWriteableRegistry) {
-        super(settings);
-        Map<String, QueryParser<?>> queryParsers = new HashMap<>();
-        for (QueryParser<?> queryParser : injectedQueryParsers) {
-            for (String name : queryParser.names()) {
-                queryParsers.put(name, queryParser);
-            }
-            namedWriteableRegistry.registerPrototype(QueryBuilder.class, queryParser.getBuilderPrototype());
-        }
-        // EmptyQueryBuilder is not registered as query parser but used internally.
-        // We need to register it with the NamedWriteableRegistry in order to serialize it
-        namedWriteableRegistry.registerPrototype(QueryBuilder.class, EmptyQueryBuilder.PROTOTYPE);
-        this.queryParsers = unmodifiableMap(queryParsers);
-    }
-
-    /**
-     * Returns all the registered query parsers
-     */
-    public Map<String, QueryParser<?>> queryParsers() {
-        return queryParsers;
+/**
+ * Extensions to ParseFieldRegistry to make Guice happy.
+ */
+public class IndicesQueriesRegistry extends ParseFieldRegistry<QueryParser<?>> {
+    public IndicesQueriesRegistry() {
+        super("query");
     }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -32,9 +33,6 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,7 +44,7 @@ import java.util.Map;
 public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     final ValuesSource.Numeric valuesSource;
-    final ValueFormatter formatter;
+    final DocValueFormat format;
 
     LongArray counts;
     DoubleArray sums;
@@ -54,7 +52,7 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
     DoubleArray maxes;
 
 
-    public StatsAggregator(String name, ValuesSource.Numeric valuesSource, ValueFormatter formatter,
+    public StatsAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat format,
                            AggregationContext context,
                            Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                            Map<String, Object> metaData) throws IOException {
@@ -69,7 +67,7 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
             maxes = bigArrays.newDoubleArray(1, false);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         }
-        this.formatter = formatter;
+        this.format = format;
     }
 
     @Override
@@ -130,12 +128,23 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public double metric(String name, long owningBucketOrd) {
+        if (valuesSource == null || owningBucketOrd >= counts.size()) {
+            switch(InternalStats.Metrics.resolve(name)) {
+                case count: return 0;
+                case sum: return 0;
+                case min: return Double.POSITIVE_INFINITY;
+                case max: return Double.NEGATIVE_INFINITY;
+                case avg: return Double.NaN;
+                default:
+                    throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
+            }
+        }
         switch(InternalStats.Metrics.resolve(name)) {
-            case count: return valuesSource == null ? 0 : counts.get(owningBucketOrd);
-            case sum: return valuesSource == null ? 0 : sums.get(owningBucketOrd);
-            case min: return valuesSource == null ? Double.POSITIVE_INFINITY : mins.get(owningBucketOrd);
-            case max: return valuesSource == null ? Double.NEGATIVE_INFINITY : maxes.get(owningBucketOrd);
-            case avg: return valuesSource == null ? Double.NaN : sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
+            case count: return counts.get(owningBucketOrd);
+            case sum: return sums.get(owningBucketOrd);
+            case min: return mins.get(owningBucketOrd);
+            case max: return maxes.get(owningBucketOrd);
+            case avg: return sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
             default:
                 throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
         }
@@ -147,32 +156,12 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
             return buildEmptyAggregation();
         }
         return new InternalStats(name, counts.get(bucket), sums.get(bucket), mins.get(bucket),
-                maxes.get(bucket), formatter, pipelineAggregators(), metaData());
+                maxes.get(bucket), format, pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, formatter, pipelineAggregators(), metaData());
-    }
-
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
-
-        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig) {
-            super(name, InternalStats.TYPE.name(), valuesSourceConfig);
-        }
-
-        @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new StatsAggregator(name, null, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
-        }
-
-        @Override
-        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                throws IOException {
-            return new StatsAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, pipelineAggregators, metaData);
-        }
+        return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, format, pipelineAggregators(), metaData());
     }
 
     @Override

@@ -6,10 +6,6 @@ setup:
           settings:
             number_of_replicas: 0
 
-  - do:
-      cluster.health:
-        wait_for_status: yellow
-
 ---
 "Validate query api":
   - do:
@@ -35,7 +31,7 @@ setup:
             invalid_query: {}
 
   - is_false: valid
-  - match: {error: 'org.elasticsearch.common.ParsingException: No query registered for [invalid_query]'}
+  - match: {error: 'org.elasticsearch.common.ParsingException: no [query] registered for [invalid_query]'}
 
   - do:
       indices.validate_query:

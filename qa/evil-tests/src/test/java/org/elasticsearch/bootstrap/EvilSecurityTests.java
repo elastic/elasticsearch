@@ -36,14 +36,14 @@ import java.util.Set;
 
 @SuppressForbidden(reason = "modifies system properties and attempts to create symbolic links intentionally")
 public class EvilSecurityTests extends ESTestCase {
-    
+
     /** test generated permissions */
     public void testGeneratedPermissions() throws Exception {
         Path path = createTempDir();
         // make a fake ES home and ensure we only grant permissions to that.
         Path esHome = path.resolve("esHome");
         Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put("path.home", esHome.toString());
+        settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.toString());
         Settings settings = settingsBuilder.build();
 
         Path fakeTmpDir = createTempDir();
@@ -56,7 +56,7 @@ public class EvilSecurityTests extends ESTestCase {
         } finally {
             System.setProperty("java.io.tmpdir", realTmpDir);
         }
-      
+
         // the fake es home
         assertNoPermissions(esHome, permissions);
         // its parent
@@ -68,20 +68,21 @@ public class EvilSecurityTests extends ESTestCase {
     }
 
     /** test generated permissions for all configured paths */
+    @SuppressWarnings("deprecation") // needs to check settings for deprecated path
     public void testEnvironmentPaths() throws Exception {
         Path path = createTempDir();
         // make a fake ES home and ensure we only grant permissions to that.
         Path esHome = path.resolve("esHome");
 
         Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put("path.home", esHome.resolve("home").toString());
-        settingsBuilder.put("path.conf", esHome.resolve("conf").toString());
-        settingsBuilder.put("path.scripts", esHome.resolve("scripts").toString());
-        settingsBuilder.put("path.plugins", esHome.resolve("plugins").toString());
-        settingsBuilder.putArray("path.data", esHome.resolve("data1").toString(), esHome.resolve("data2").toString());
-        settingsBuilder.put("path.shared_data", esHome.resolve("custom").toString());
-        settingsBuilder.put("path.logs", esHome.resolve("logs").toString());
-        settingsBuilder.put("pidfile", esHome.resolve("test.pid").toString());
+        settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.resolve("home").toString());
+        settingsBuilder.put(Environment.PATH_CONF_SETTING.getKey(), esHome.resolve("conf").toString());
+        settingsBuilder.put(Environment.PATH_SCRIPTS_SETTING.getKey(), esHome.resolve("scripts").toString());
+        settingsBuilder.putArray(Environment.PATH_DATA_SETTING.getKey(), esHome.resolve("data1").toString(),
+                esHome.resolve("data2").toString());
+        settingsBuilder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), esHome.resolve("custom").toString());
+        settingsBuilder.put(Environment.PATH_LOGS_SETTING.getKey(), esHome.resolve("logs").toString());
+        settingsBuilder.put(Environment.PIDFILE_SETTING.getKey(), esHome.resolve("test.pid").toString());
         Settings settings = settingsBuilder.build();
 
         Path fakeTmpDir = createTempDir();
@@ -104,7 +105,7 @@ public class EvilSecurityTests extends ESTestCase {
         assertNoPermissions(esHome.getParent().resolve("other"), permissions);
         // double check we overwrote java.io.tmpdir correctly for the test
         assertNoPermissions(PathUtils.get(realTmpDir), permissions);
- 
+
         // check that all directories got permissions:
 
         // bin file: ro
@@ -135,10 +136,10 @@ public class EvilSecurityTests extends ESTestCase {
         // PID file: delete only (for the shutdown hook)
         assertExactPermissions(new FilePermission(environment.pidFile().toString(), "delete"), permissions);
     }
-    
+
     public void testEnsureSymlink() throws IOException {
         Path p = createTempDir();
-        
+
         Path exists = p.resolve("exists");
         Files.createDirectory(exists);
 
@@ -154,7 +155,7 @@ public class EvilSecurityTests extends ESTestCase {
         Security.ensureDirectoryExists(linkExists);
         Files.createTempFile(linkExists, null, null);
     }
-    
+
     public void testEnsureBrokenSymlink() throws IOException {
         Path p = createTempDir();
 
@@ -199,7 +200,7 @@ public class EvilSecurityTests extends ESTestCase {
         assertExactPermissions(new FilePermission(target.resolve("foo").toString(), "read"), permissions);
     }
 
-    /** 
+    /**
      * checks exact file permissions, meaning those and only those for that path.
      */
     static void assertExactPermissions(FilePermission expected, PermissionCollection actual) {

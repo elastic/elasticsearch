@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
@@ -30,11 +31,10 @@ import java.util.List;
  */
 public class ParsedDocument {
 
-    private final Field uid, version;
+    private final Field version;
 
-    private final String id;
-
-    private final String type;
+    private final String id, type;
+    private final BytesRef uid;
 
     private final String routing;
 
@@ -50,11 +50,12 @@ public class ParsedDocument {
 
     private String parent;
 
-    public ParsedDocument(Field uid, Field version, String id, String type, String routing, long timestamp, long ttl, List<Document> documents, BytesReference source, Mapping dynamicMappingsUpdate) {
-        this.uid = uid;
+    public ParsedDocument(Field version, String id, String type, String routing, long timestamp, long ttl, List<Document> documents,
+                          BytesReference source, Mapping dynamicMappingsUpdate) {
         this.version = version;
         this.id = id;
         this.type = type;
+        this.uid = Uid.createUidAsBytes(type, id);
         this.routing = routing;
         this.timestamp = timestamp;
         this.ttl = ttl;
@@ -62,13 +63,12 @@ public class ParsedDocument {
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
     }
-
-    public Field uid() {
-        return this.uid;
-    }
-
     public Field version() {
         return version;
+    }
+
+    public BytesRef uid() {
+        return uid;
     }
 
     public String id() {
@@ -128,7 +128,7 @@ public class ParsedDocument {
         if (dynamicMappingsUpdate == null) {
             dynamicMappingsUpdate = update;
         } else {
-            MapperUtils.merge(dynamicMappingsUpdate, update);
+            dynamicMappingsUpdate = dynamicMappingsUpdate.merge(update, false);
         }
     }
 

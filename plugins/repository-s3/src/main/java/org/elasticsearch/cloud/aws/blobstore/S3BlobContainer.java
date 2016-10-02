@@ -20,26 +20,32 @@
 package org.elasticsearch.cloud.aws.blobstore;
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.s3.model.*;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
+import com.amazonaws.services.s3.model.CopyObjectRequest;
+import com.amazonaws.services.s3.model.ObjectListing;
+import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.NoSuchFileException;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Map;
 
-/**
- *
- */
 public class S3BlobContainer extends AbstractBlobContainer {
 
     protected final S3BlobStore blobStore;
@@ -49,21 +55,23 @@ public class S3BlobContainer extends AbstractBlobContainer {
     public S3BlobContainer(BlobPath path, S3BlobStore blobStore) {
         super(path);
         this.blobStore = blobStore;
-        String keyPath = path.buildAsString("/");
-        if (!keyPath.isEmpty()) {
-            keyPath = keyPath + "/";
-        }
-        this.keyPath = keyPath;
+        this.keyPath = path.buildAsString();
     }
 
     @Override
     public boolean blobExists(String blobName) {
         try {
-            blobStore.client().getObjectMetadata(blobStore.bucket(), buildKey(blobName));
-            return true;
+            return doPrivileged(() -> {
+                try {
+                    blobStore.client().getObjectMetadata(blobStore.bucket(), buildKey(blobName));
+                    return true;
+                } catch (AmazonS3Exception e) {
+                    return false;
+                }
+            });
         } catch (AmazonS3Exception e) {
             return false;
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new BlobStoreException("failed to check if blob exists", e);
         }
     }
@@ -81,7 +89,7 @@ public class S3BlobContainer extends AbstractBlobContainer {
                 } else {
                     if (e instanceof AmazonS3Exception) {
                         if (404 == ((AmazonS3Exception) e).getStatusCode()) {
-                            throw new FileNotFoundException("Blob object [" + blobName + "] not found: " + e.getMessage());
+                            throw new NoSuchFileException("Blob object [" + blobName + "] not found: " + e.getMessage());
                         }
                     }
                     throw e;
@@ -93,20 +101,20 @@ public class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+        if (blobExists(blobName)) {
+            throw new FileAlreadyExistsException("blob [" + blobName + "] already exists, cannot overwrite");
+        }
         try (OutputStream stream = createOutput(blobName)) {
             Streams.copy(inputStream, stream);
         }
     }
 
     @Override
-    public void writeBlob(String blobName, BytesReference bytes) throws IOException {
-        try (OutputStream stream = createOutput(blobName)) {
-            bytes.writeTo(stream);
-        }
-    }
-
-    @Override
     public void deleteBlob(String blobName) throws IOException {
+        if (!blobExists(blobName)) {
+            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
+        }
+
         try {
             blobStore.client().deleteObject(blobStore.bucket(), buildKey(blobName));
         } catch (AmazonClientException e) {
@@ -175,4 +183,19 @@ public class S3BlobContainer extends AbstractBlobContainer {
         return keyPath + blobName;
     }
 
+    /**
+     * +     * Executes a {@link PrivilegedExceptionAction} with privileges enabled.
+     * +
+     */
+    <T> T doPrivileged(PrivilegedExceptionAction<T> operation) throws IOException {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
+        try {
+            return AccessController.doPrivileged(operation);
+        } catch (PrivilegedActionException e) {
+            throw (IOException) e.getException();
+        }
+    }
 }

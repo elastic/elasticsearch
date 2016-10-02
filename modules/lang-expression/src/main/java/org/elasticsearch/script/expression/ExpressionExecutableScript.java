@@ -19,13 +19,13 @@
 
 package org.elasticsearch.script.expression;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.lucene.expressions.Expression;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptException;
-
-import java.util.HashMap;
-import java.util.Map;
+import org.elasticsearch.script.GeneralScriptException;
 
 /**
  * A bridge to evaluate an {@link Expression} against a map of variables in the context
@@ -45,7 +45,7 @@ public class ExpressionExecutableScript implements ExecutableScript {
         int functionValuesLength = expression.variables.length;
 
         if (vars.size() != functionValuesLength) {
-            throw new ScriptException("Error using " + compiledScript + ". " +
+            throw new GeneralScriptException("Error using " + compiledScript + ". " +
                     "The number of variables in an executable expression script [" +
                     functionValuesLength + "] must match the number of variables in the variable map" +
                     " [" + vars.size() + "].");
@@ -72,12 +72,12 @@ public class ExpressionExecutableScript implements ExecutableScript {
                 double doubleValue = ((Number)value).doubleValue();
                 functionValuesMap.get(name).setValue(doubleValue);
             } else {
-                throw new ScriptException("Error using " + compiledScript + ". " +
+                throw new GeneralScriptException("Error using " + compiledScript + ". " +
                         "Executable expressions scripts can only process numbers." +
                         "  The variable [" + name + "] is not a number.");
             }
         } else {
-            throw new ScriptException("Error using " + compiledScript + ". " +
+            throw new GeneralScriptException("Error using " + compiledScript + ". " +
                     "The variable [" + name + "] does not exist in the executable expressions script.");
         }
     }
@@ -87,12 +87,7 @@ public class ExpressionExecutableScript implements ExecutableScript {
         try {
             return ((Expression) compiledScript.compiled()).evaluate(NO_DOCUMENT, functionValuesArray);
         } catch (Exception exception) {
-            throw new ScriptException("Error evaluating " + compiledScript, exception);
+            throw new GeneralScriptException("Error evaluating " + compiledScript, exception);
         }
-    }
-
-    @Override
-    public Object unwrap(Object value) {
-        return value;
     }
 }

@@ -1,12 +1,7 @@
 [[ignore-above]]
 === `ignore_above`
 
-Strings longer than the `ignore_above` setting will not be processed by the
-<<analyzer,analyzer>> and will not be indexed. This is mainly useful for
-<<mapping-index,`not_analyzed`>> string fields, which are typically used for
-filtering, aggregations, and sorting.  These are structured fields and it
-doesn't usually make sense to allow very long terms to be indexed in these
-fields.
+Strings longer than the `ignore_above` setting will not be indexed or stored.
 
 [source,js]
 --------------------------------------------------
@@ -16,8 +11,7 @@ PUT my_index
     "my_type": {
       "properties": {
         "message": {
-          "type": "string",
-          "index": "not_analyzed",
+          "type": "keyword",
           "ignore_above": 20 <1>
         }
       }
@@ -46,7 +40,7 @@ GET _search <4>
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> This field will ignore any string longer than 20 characters.
 <2> This document is indexed successfully.
 <3> This document will be indexed, but without indexing the `message` field.

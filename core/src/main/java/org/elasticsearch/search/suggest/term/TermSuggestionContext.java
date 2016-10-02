@@ -18,20 +18,25 @@
  */
 package org.elasticsearch.search.suggest.term;
 
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
-import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
 final class TermSuggestionContext extends SuggestionContext {
 
     private final DirectSpellcheckerSettings settings = new DirectSpellcheckerSettings();
 
-    public TermSuggestionContext(Suggester<? extends TermSuggestionContext> suggester) {
-        super(suggester);
+    public TermSuggestionContext(QueryShardContext shardContext) {
+        super(TermSuggester.INSTANCE, shardContext);
     }
 
     public DirectSpellcheckerSettings getDirectSpellCheckerSettings() {
         return settings;
+    }
+
+    @Override
+    public String toString() {
+        return "SpellcheckerSettings" + settings + ", BaseSettings" + super.toString();
     }
 
 }

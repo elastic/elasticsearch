@@ -37,17 +37,6 @@ public class ClearScrollRequest extends ActionRequest<ClearScrollRequest> {
 
     private List<String> scrollIds;
 
-    public ClearScrollRequest() {
-    }
-
-    /**
-     * Creates a clear scroll request caused by some other request, which is provided as an
-     * argument so that its headers and context can be copied to the new request
-     */
-    public ClearScrollRequest(ActionRequest request) {
-        super(request);
-    }
-
     public List<String> getScrollIds() {
         return scrollIds;
     }

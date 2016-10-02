@@ -24,11 +24,13 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -55,16 +57,11 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     @Override
     protected void doAssertLuceneQuery(ExistsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         String fieldPattern = queryBuilder.fieldName();
-        ObjectMapper objectMapper = context.getObjectMapper(fieldPattern);
-        if (objectMapper != null) {
-            // automatic make the object mapper pattern
-            fieldPattern = fieldPattern + ".*";
-        }
         Collection<String> fields = context.simpleMatchToIndexNames(fieldPattern);
-        if (getCurrentTypes().length == 0 || fields.size() == 0) {
-            assertThat(query, instanceOf(BooleanQuery.class));
-            BooleanQuery booleanQuery = (BooleanQuery) query;
-            assertThat(booleanQuery.clauses().size(), equalTo(0));
+        if (getCurrentTypes().length == 0) {
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
+            MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
+            assertThat(matchNoDocsQuery.toString(null), containsString("Missing types in \"exists\" query."));
         } else {
             assertThat(query, instanceOf(ConstantScoreQuery.class));
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
@@ -79,25 +76,17 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     }
 
     public void testIllegalArguments() {
-        try {
-            if (randomBoolean()) {
-                new ExistsQueryBuilder(null);
-            } else {
-                new ExistsQueryBuilder("");
-            }
-            fail("must not be null or empty");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new ExistsQueryBuilder((String) null));
+        expectThrows(IllegalArgumentException.class, () -> new ExistsQueryBuilder(""));
     }
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"exists\" : {\n" + 
-                "    \"field\" : \"user\",\n" + 
-                "    \"boost\" : 42.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"exists\" : {\n" +
+                "    \"field\" : \"user\",\n" +
+                "    \"boost\" : 42.0\n" +
+                "  }\n" +
                 "}";
 
         ExistsQueryBuilder parsed = (ExistsQueryBuilder) parseQuery(json);

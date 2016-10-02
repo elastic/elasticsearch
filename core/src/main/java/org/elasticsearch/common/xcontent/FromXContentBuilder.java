@@ -20,15 +20,11 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.io.stream.StreamableReader;
 
 import java.io.IOException;
 
 /**
  * Indicates that the class supports XContent deserialization.
- *
- * This interface is similar to what {@link StreamableReader} does, only it works with XContent serialization
- * instead of binary serialization.
  */
 public interface FromXContentBuilder<T> {
     /**

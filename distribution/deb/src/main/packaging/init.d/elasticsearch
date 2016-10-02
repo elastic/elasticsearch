@@ -1,13 +1,6 @@
-#!/bin/sh
+#!/bin/bash
 #
 # /etc/init.d/elasticsearch -- startup script for Elasticsearch
-#
-# Written by Miquel van Smoorenburg <miquels@cistron.nl>.
-# Modified for Debian GNU/Linux	by Ian Murdock <imurdock@gnu.ai.mit.edu>.
-# Modified for Tomcat by Stefan Gybas <sgybas@debian.org>.
-# Modified for Tomcat6 by Thierry Carrez <thierry.carrez@ubuntu.com>.
-# Additional improvements by Jason Brittain <jason.brittain@mulesoft.com>.
-# Modified by Nicolas Huray for Elasticsearch <nicolas.huray@gmail.com>.
 #
 ### BEGIN INIT INFO
 # Provides:          elasticsearch
@@ -46,21 +39,11 @@ ES_GROUP=elasticsearch
 # Directory where the Elasticsearch binary distribution resides
 ES_HOME=/usr/share/$NAME
 
-# Heap size defaults to 256m min, 1g max
-# Set ES_HEAP_SIZE to 50% of available RAM, but no more than 31g
-#ES_HEAP_SIZE=2g
-
-# Heap new generation
-#ES_HEAP_NEWSIZE=
-
-# max direct memory
-#ES_DIRECT_SIZE=
-
 # Additional Java OPTS
 #ES_JAVA_OPTS=
 
 # Maximum number of open files
-MAX_OPEN_FILES=65535
+MAX_OPEN_FILES=65536
 
 # Maximum amount of locked memory
 #MAX_LOCKED_MEMORY=
@@ -76,9 +59,6 @@ CONF_DIR=/etc/$NAME
 
 # Maximum number of VMA (Virtual Memory Areas) a process can own
 MAX_MAP_COUNT=262144
-
-# Path to the GC log file
-#ES_GC_LOG_FILE=/var/log/elasticsearch/gc.log
 
 # Elasticsearch PID file directory
 PID_DIR="/var/run/elasticsearch"
@@ -99,17 +79,16 @@ fi
 # Define other required variables
 PID_FILE="$PID_DIR/$NAME.pid"
 DAEMON=$ES_HOME/bin/elasticsearch
-DAEMON_OPTS="-d -p $PID_FILE --default.path.home=$ES_HOME --default.path.logs=$LOG_DIR --default.path.data=$DATA_DIR --default.path.conf=$CONF_DIR"
+DAEMON_OPTS="-d -p $PID_FILE -Edefault.path.logs=$LOG_DIR -Edefault.path.data=$DATA_DIR -Edefault.path.conf=$CONF_DIR"
 
-export ES_HEAP_SIZE
-export ES_HEAP_NEWSIZE
-export ES_DIRECT_SIZE
 export ES_JAVA_OPTS
-export ES_GC_LOG_FILE
 export JAVA_HOME
+export ES_INCLUDE
 
-# Check DAEMON exists
-test -x $DAEMON || exit 0
+if [ ! -x "$DAEMON" ]; then
+	echo "The elasticsearch startup script does not exists or it is not executable, tried: $DAEMON"
+	exit 1
+fi
 
 checkJava() {
 	if [ -x "$JAVA_HOME/bin/java" ]; then
@@ -128,11 +107,6 @@ case "$1" in
   start)
 	checkJava
 
-	if [ -n "$MAX_LOCKED_MEMORY" -a -z "$ES_HEAP_SIZE" ]; then
-		log_failure_msg "MAX_LOCKED_MEMORY is set - ES_HEAP_SIZE must also be set"
-		exit 1
-	fi
-
 	log_daemon_msg "Starting $DESC"
 
 	pid=`pidofproc -p $PID_FILE elasticsearch`
@@ -141,9 +115,6 @@ case "$1" in
 		log_end_msg 0
 		exit 0
 	fi
-
-	# Prepare environment
-	mkdir -p "$LOG_DIR" "$DATA_DIR" && chown "$ES_USER":"$ES_GROUP" "$LOG_DIR" "$DATA_DIR"
 
 	# Ensure that the PID_DIR exists (it is cleaned at OS startup time)
 	if [ -n "$PID_DIR" ] && [ ! -e "$PID_DIR" ]; then
@@ -172,7 +143,7 @@ case "$1" in
 		i=0
 		timeout=10
 		# Wait for the process to be properly started before exiting
-		until { cat "$PID_FILE" | xargs kill -0; } >/dev/null 2>&1
+		until { kill -0 `cat "$PID_FILE"`; } >/dev/null 2>&1
 		do
 			sleep 1
 			i=$(($i + 1))
@@ -212,7 +183,6 @@ case "$1" in
   restart|force-reload)
 	if [ -f "$PID_FILE" ]; then
 		$0 stop
-		sleep 1
 	fi
 	$0 start
 	;;

@@ -2,7 +2,6 @@ package com.carrotsearch.gradle.junit4
 
 import com.carrotsearch.ant.tasks.junit4.ListenersList
 import com.carrotsearch.ant.tasks.junit4.listeners.AggregatedEventListener
-import com.esotericsoftware.kryo.serializers.FieldSerializer
 import groovy.xml.NamespaceBuilder
 import groovy.xml.NamespaceBuilderSupport
 import org.apache.tools.ant.BuildException
@@ -14,7 +13,10 @@ import org.gradle.api.file.FileCollection
 import org.gradle.api.file.FileTreeElement
 import org.gradle.api.internal.tasks.options.Option
 import org.gradle.api.specs.Spec
-import org.gradle.api.tasks.*
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.Optional
+import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.util.PatternFilterable
 import org.gradle.api.tasks.util.PatternSet
 import org.gradle.logging.ProgressLoggerFactory

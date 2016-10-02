@@ -5,7 +5,7 @@ Bucket aggregations don't calculate metrics over fields like the metrics aggrega
 buckets of documents. Each bucket is associated with a criterion (depending on the aggregation type) which determines
 whether or not a document in the current context "falls" into it. In other words, the buckets effectively define document
 sets. In addition to the buckets themselves, the `bucket` aggregations also compute and return the number of documents
-that "fell in" to each bucket.
+that "fell into" each bucket.
 
 Bucket aggregations, as opposed to `metrics` aggregations, can hold sub-aggregations. These sub-aggregations will be
 aggregated for the buckets created by their "parent" bucket aggregation.
@@ -18,6 +18,8 @@ include::bucket/children-aggregation.asciidoc[]
 include::bucket/datehistogram-aggregation.asciidoc[]
 
 include::bucket/daterange-aggregation.asciidoc[]
+
+include::bucket/diversified-sampler-aggregation.asciidoc[]
 
 include::bucket/filter-aggregation.asciidoc[]
 

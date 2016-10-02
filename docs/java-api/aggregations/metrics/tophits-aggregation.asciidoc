@@ -29,9 +29,9 @@ AggregationBuilder aggregation =
         .terms("agg").field("gender")
         .subAggregation(
             AggregationBuilders.topHits("top")
-                .setExplain(true)
-                .setSize(1)
-                .setFrom(10)
+                .explain(true)
+                .size(1)
+                .from(10)
         );
 --------------------------------------------------
 
@@ -77,4 +77,3 @@ key [female], doc_count [4893]
  -> id [AUnzSZzp9k7PKXtq04x8], _source [{"gender":"female",...}]
  -> id [AUnzSZ0W9k7PKXtq04yS], _source [{"gender":"female",...}]
 --------------------------------------------------
-

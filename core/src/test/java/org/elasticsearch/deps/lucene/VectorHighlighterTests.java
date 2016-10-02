@@ -21,6 +21,7 @@ package org.elasticsearch.deps.lucene;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -53,10 +54,14 @@ public class VectorHighlighterTests extends ESTestCase {
 
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));
-        document.add(new Field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS));
+        FieldType vectorsType = new FieldType(TextField.TYPE_STORED);
+        vectorsType.setStoreTermVectors(true);
+        vectorsType.setStoreTermVectorPositions(true);
+        vectorsType.setStoreTermVectorOffsets(true);
+        document.add(new Field("content", "the big bad dog", vectorsType));
         indexWriter.addDocument(document);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
@@ -75,10 +80,14 @@ public class VectorHighlighterTests extends ESTestCase {
 
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));
-        document.add(new Field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS));
+        FieldType vectorsType = new FieldType(TextField.TYPE_STORED);
+        vectorsType.setStoreTermVectors(true);
+        vectorsType.setStoreTermVectorPositions(true);
+        vectorsType.setStoreTermVectorOffsets(true);
+        document.add(new Field("content", "the big bad dog", vectorsType));
         indexWriter.addDocument(document);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
@@ -87,12 +96,12 @@ public class VectorHighlighterTests extends ESTestCase {
         FastVectorHighlighter highlighter = new FastVectorHighlighter();
 
         PrefixQuery prefixQuery = new PrefixQuery(new Term("content", "ba"));
-        assertThat(prefixQuery.getRewriteMethod().getClass().getName(), equalTo(PrefixQuery.CONSTANT_SCORE_FILTER_REWRITE.getClass().getName()));
+        assertThat(prefixQuery.getRewriteMethod().getClass().getName(), equalTo(PrefixQuery.CONSTANT_SCORE_REWRITE.getClass().getName()));
         String fragment = highlighter.getBestFragment(highlighter.getFieldQuery(prefixQuery),
                 reader, topDocs.scoreDocs[0].doc, "content", 30);
         assertThat(fragment, nullValue());
 
-        prefixQuery.setRewriteMethod(PrefixQuery.SCORING_BOOLEAN_QUERY_REWRITE);
+        prefixQuery.setRewriteMethod(PrefixQuery.SCORING_BOOLEAN_REWRITE);
         Query rewriteQuery = prefixQuery.rewrite(reader);
         fragment = highlighter.getBestFragment(highlighter.getFieldQuery(rewriteQuery),
                 reader, topDocs.scoreDocs[0].doc, "content", 30);
@@ -100,7 +109,7 @@ public class VectorHighlighterTests extends ESTestCase {
 
         // now check with the custom field query
         prefixQuery = new PrefixQuery(new Term("content", "ba"));
-        assertThat(prefixQuery.getRewriteMethod().getClass().getName(), equalTo(PrefixQuery.CONSTANT_SCORE_FILTER_REWRITE.getClass().getName()));
+        assertThat(prefixQuery.getRewriteMethod().getClass().getName(), equalTo(PrefixQuery.CONSTANT_SCORE_REWRITE.getClass().getName()));
         fragment = highlighter.getBestFragment(new CustomFieldQuery(prefixQuery, reader, highlighter),
                 reader, topDocs.scoreDocs[0].doc, "content", 30);
         assertThat(fragment, notNullValue());
@@ -112,10 +121,14 @@ public class VectorHighlighterTests extends ESTestCase {
 
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));
-        document.add(new Field("content", "the big bad dog", Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.WITH_POSITIONS_OFFSETS));
+        FieldType vectorsType = new FieldType(TextField.TYPE_NOT_STORED);
+        vectorsType.setStoreTermVectors(true);
+        vectorsType.setStoreTermVectorPositions(true);
+        vectorsType.setStoreTermVectorOffsets(true);
+        document.add(new Field("content", "the big bad dog", vectorsType));
         indexWriter.addDocument(document);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 
@@ -133,10 +146,10 @@ public class VectorHighlighterTests extends ESTestCase {
 
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));
-        document.add(new Field("content", "the big bad dog", Field.Store.YES, Field.Index.ANALYZED, Field.TermVector.NO));
+        document.add(new TextField("content", "the big bad dog", Field.Store.YES));
         indexWriter.addDocument(document);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
 

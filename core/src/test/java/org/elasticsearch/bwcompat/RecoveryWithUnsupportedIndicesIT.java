@@ -19,7 +19,6 @@
 package org.elasticsearch.bwcompat;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -27,8 +26,8 @@ public class RecoveryWithUnsupportedIndicesIT extends StaticIndexBackwardCompati
     public void testUpgradeStartClusterOn_0_20_6() throws Exception {
         String indexName = "unsupported-0.20.6";
 
-        logger.info("Checking static index " + indexName);
-        Settings nodeSettings = prepareBackwardsDataDir(getBwcIndicesPath().resolve(indexName + ".zip"), Node.HTTP_ENABLED, true);
+        logger.info("Checking static index {}", indexName);
+        Settings nodeSettings = prepareBackwardsDataDir(getBwcIndicesPath().resolve(indexName + ".zip"));
         try {
             internalCluster().startNode(nodeSettings);
             fail();

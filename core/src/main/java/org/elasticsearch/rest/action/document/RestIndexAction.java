@@ -26,11 +26,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -54,14 +55,14 @@ public class RestIndexAction extends BaseRestHandler {
         }
 
         @Override
-        public Runnable prepareRequest(RestRequest request, RestChannel channel, final NodeClient client) {
+        public RestChannelConsumer prepareRequest(RestRequest request, final NodeClient client) throws IOException {
             request.params().put("op_type", "create");
-            return RestIndexAction.this.prepareRequest(request, channel, client);
+            return RestIndexAction.this.prepareRequest(request, client);
         }
     }
 
     @Override
-    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
         indexRequest.routing(request.param("routing"));
         indexRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
@@ -84,7 +85,8 @@ public class RestIndexAction extends BaseRestHandler {
             indexRequest.opType(IndexRequest.OpType.fromString(sOpType));
         }
 
-        return () -> client.index(indexRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing())));
+        return channel ->
+            client.index(indexRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing())));
     }
 
 }

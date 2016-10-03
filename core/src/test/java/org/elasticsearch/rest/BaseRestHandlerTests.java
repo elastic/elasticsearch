@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Set;
@@ -42,9 +43,9 @@ public class BaseRestHandlerTests extends ESTestCase {
         final AtomicBoolean executed = new AtomicBoolean();
         BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
             @Override
-            protected Runnable prepareRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+            protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
                 request.param("consumed");
-                return () -> executed.set(true);
+                return channel -> executed.set(true);
             }
         };
 
@@ -63,9 +64,9 @@ public class BaseRestHandlerTests extends ESTestCase {
         final AtomicBoolean executed = new AtomicBoolean();
         BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
             @Override
-            protected Runnable prepareRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+            protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
                 request.param("consumed");
-                return () -> executed.set(true);
+                return channel -> executed.set(true);
             }
 
             @Override
@@ -87,8 +88,8 @@ public class BaseRestHandlerTests extends ESTestCase {
         final AtomicBoolean executed = new AtomicBoolean();
         BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
             @Override
-            protected Runnable prepareRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                return () -> executed.set(true);
+            protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+                return channel -> executed.set(true);
             }
         };
 
@@ -107,8 +108,8 @@ public class BaseRestHandlerTests extends ESTestCase {
         final AtomicBoolean executed = new AtomicBoolean();
         AbstractCatAction handler = new AbstractCatAction(Settings.EMPTY) {
             @Override
-            protected Runnable doCatRequest(RestRequest request, RestChannel channel, NodeClient client) {
-                return () -> executed.set(true);
+            protected RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) {
+                return channel -> executed.set(true);
             }
 
             @Override

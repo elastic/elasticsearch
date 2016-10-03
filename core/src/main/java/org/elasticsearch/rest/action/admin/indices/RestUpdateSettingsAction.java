@@ -26,15 +26,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
+import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
@@ -64,7 +60,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         UpdateSettingsRequest updateSettingsRequest = updateSettingsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         updateSettingsRequest.timeout(request.paramAsTime("timeout", updateSettingsRequest.timeout()));
         updateSettingsRequest.setPreserveExisting(request.paramAsBoolean("preserve_existing", updateSettingsRequest.isPreserveExisting()));
@@ -93,7 +89,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         }
         updateSettingsRequest.settings(updateSettings);
 
-        return () -> client.admin().indices().updateSettings(updateSettingsRequest, new AcknowledgedRestListener<>(channel));
+        return channel -> client.admin().indices().updateSettings(updateSettingsRequest, new AcknowledgedRestListener<>(channel));
     }
 
     @Override

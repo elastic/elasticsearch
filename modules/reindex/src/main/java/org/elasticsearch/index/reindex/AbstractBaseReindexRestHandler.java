@@ -59,8 +59,8 @@ public abstract class AbstractBaseReindexRestHandler<
         this.action = action;
     }
 
-    protected Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client,
-                                 boolean includeCreated, boolean includeUpdated) throws IOException {
+    protected RestChannelConsumer doPrepareRequest(RestRequest request, NodeClient client,
+                                                   boolean includeCreated, boolean includeUpdated) throws IOException {
         // Build the internal request
         Request internal = setCommonOptions(request, buildRequest(request));
 
@@ -70,7 +70,7 @@ public abstract class AbstractBaseReindexRestHandler<
             params.put(BulkByScrollTask.Status.INCLUDE_CREATED, Boolean.toString(includeCreated));
             params.put(BulkByScrollTask.Status.INCLUDE_UPDATED, Boolean.toString(includeUpdated));
 
-            return () -> client.executeLocally(action, internal, new BulkIndexByScrollResponseContentListener(channel, params));
+            return channel -> client.executeLocally(action, internal, new BulkIndexByScrollResponseContentListener(channel, params));
         } else {
             internal.setShouldStoreResult(true);
         }
@@ -84,7 +84,7 @@ public abstract class AbstractBaseReindexRestHandler<
         if (validationException != null) {
             throw validationException;
         }
-        return sendTask(channel, client.executeLocally(action, internal, LoggingTaskListener.instance()));
+        return sendTask(client.executeLocally(action, internal, LoggingTaskListener.instance()));
     }
 
     /**
@@ -114,13 +114,15 @@ public abstract class AbstractBaseReindexRestHandler<
         return request;
     }
 
-    private Runnable sendTask(RestChannel channel, Task task) throws IOException {
-        try (XContentBuilder builder = channel.newBuilder()) {
-            builder.startObject();
-            builder.field("task", clusterService.localNode().getId() + ":" + task.getId());
-            builder.endObject();
-            return () -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
-        }
+    private RestChannelConsumer sendTask(Task task) throws IOException {
+        return channel -> {
+            try (XContentBuilder builder = channel.newBuilder()) {
+                builder.startObject();
+                builder.field("task", clusterService.localNode().getId() + ":" + task.getId());
+                builder.endObject();
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+            }
+        };
     }
 
     /**

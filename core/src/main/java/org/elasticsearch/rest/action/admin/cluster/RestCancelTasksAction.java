@@ -26,10 +26,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.TaskId;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
@@ -47,18 +48,20 @@ public class RestCancelTasksAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
-        String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodes"));
-        TaskId taskId = new TaskId(request.param("task_id"));
-        String[] actions = Strings.splitStringByCommaToArray(request.param("actions"));
-        TaskId parentTaskId = new TaskId(request.param("parent_task_id"));
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        final String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodes"));
+        final TaskId taskId = new TaskId(request.param("task_id"));
+        final String[] actions = Strings.splitStringByCommaToArray(request.param("actions"));
+        final TaskId parentTaskId = new TaskId(request.param("parent_task_id"));
+        final String groupBy = request.param("group_by", "nodes");
 
         CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
         cancelTasksRequest.setTaskId(taskId);
         cancelTasksRequest.setNodes(nodesIds);
         cancelTasksRequest.setActions(actions);
         cancelTasksRequest.setParentTaskId(parentTaskId);
-        return () -> client.admin().cluster().cancelTasks(cancelTasksRequest, listTasksResponseListener(clusterService, channel));
+        return channel ->
+            client.admin().cluster().cancelTasks(cancelTasksRequest, listTasksResponseListener(clusterService, groupBy, channel));
     }
 
     @Override

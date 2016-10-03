@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -54,7 +55,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         // prepare the request for execution; has the side effect of touching the request parameters
-        final Runnable action = prepareRequest(request, channel, client);
+        final RestChannelConsumer action = prepareRequest(request, client);
 
         // validate unconsumed params, but we must exclude params used to format the response
         final List<String> unconsumedParams = request.unconsumedParams();
@@ -75,7 +76,22 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
         }
 
         // execute the action
-        action.run();
+        action.accept(channel);
+    }
+
+    @FunctionalInterface
+    /**
+     * REST requests are handled by preparing a channel consumer that represents the execution of
+     * the request against a channel.
+     */
+    protected interface RestChannelConsumer {
+        /**
+         * Executes a request against the given channel.
+         *
+         * @param channel the channel for sending the response
+         * @throws Exception if an exception occurred executing the request
+         */
+        void accept(RestChannel channel) throws Exception;
     }
 
     /**
@@ -86,17 +102,17 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
      * params.
      *
      * @param request the request to execute
-     * @param channel the channel for sending the response
      * @param client  client for executing actions on the local node
      * @return the action to execute
-     * @throws Exception if an exception occurred preparing the action for exectuion
+     * @throws IOException if an I/O exception occurred parsing the request and preparing for
+     *                     execution
      */
-    protected abstract Runnable prepareRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception;
+    protected abstract RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException;
 
     /**
      * Parameters used for controlling the response and thus might not be consumed during
      * preparation of the request execution in
-     * {@link BaseRestHandler#prepareRequest(RestRequest, RestChannel, NodeClient)}.
+     * {@link BaseRestHandler#prepareRequest(RestRequest, NodeClient)}.
      *
      * @return a set of parameters used to control the response and thus should not trip strict
      * URL parameter checks.

@@ -23,7 +23,6 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
@@ -45,21 +44,16 @@ public class ExampleCatAction extends AbstractCatAction {
     }
 
     @Override
-    protected Runnable doCatRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         Table table = getTableWithHeader(request);
         table.startRow();
         table.addCell(config.getTestConfig());
         table.endRow();
-        return () -> {
+        return channel -> {
             try {
                 channel.sendResponse(RestTable.buildResponse(table, channel));
-            } catch (Exception e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(channel, e));
-                } catch (Exception inner) {
-                    inner.addSuppressed(e);
-                    logger.error("failed to send failure response", inner);
-                }
+            } catch (final Exception e) {
+                channel.sendResponse(new BytesRestResponse(channel, e));
             }
         };
     }

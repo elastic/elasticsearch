@@ -27,7 +27,6 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -53,7 +52,7 @@ public class RestSnapshotAction extends AbstractCatAction {
     }
 
     @Override
-    protected Runnable doCatRequest(final RestRequest request, RestChannel channel, NodeClient client) {
+    protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest()
                 .repository(request.param("repository"))
                 .snapshots(new String[]{GetSnapshotsRequest.ALL_SNAPSHOTS});
@@ -62,12 +61,13 @@ public class RestSnapshotAction extends AbstractCatAction {
 
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
 
-        return () -> client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestResponseListener<GetSnapshotsResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(GetSnapshotsResponse getSnapshotsResponse) throws Exception {
-                return RestTable.buildResponse(buildTable(request, getSnapshotsResponse), channel);
-            }
-        });
+        return channel ->
+            client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestResponseListener<GetSnapshotsResponse>(channel) {
+                @Override
+                public RestResponse buildResponse(GetSnapshotsResponse getSnapshotsResponse) throws Exception {
+                    return RestTable.buildResponse(buildTable(request, getSnapshotsResponse), channel);
+                }
+            });
     }
 
     @Override

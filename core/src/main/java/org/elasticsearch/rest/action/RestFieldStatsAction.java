@@ -30,12 +30,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -54,8 +54,8 @@ public class RestFieldStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable prepareRequest(final RestRequest request,
-                                   final RestChannel channel, final NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(final RestRequest request,
+                                              final NodeClient client) throws IOException {
         if (RestActions.hasBodyContent(request) && request.hasParam("fields")) {
             throw new IllegalArgumentException("can't specify a request body and [fields] request parameter, " +
                 "either specify a request body or the [fields] request parameter");
@@ -71,7 +71,7 @@ public class RestFieldStatsAction extends BaseRestHandler {
             fieldStatsRequest.setFields(Strings.splitStringByCommaToArray(request.param("fields")));
         }
 
-        return () -> client.fieldStats(fieldStatsRequest, new RestBuilderListener<FieldStatsResponse>(channel) {
+        return channel -> client.fieldStats(fieldStatsRequest, new RestBuilderListener<FieldStatsResponse>(channel) {
             @Override
             public RestResponse buildResponse(FieldStatsResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

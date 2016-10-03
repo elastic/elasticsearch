@@ -21,8 +21,8 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommandRegistry;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
@@ -40,13 +40,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -78,7 +76,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ClusterRerouteRequest clusterRerouteRequest = createRequest(request, registry, parseFieldMatcher);
 
         // by default, return everything but metadata
@@ -87,18 +85,19 @@ public class RestClusterRerouteAction extends BaseRestHandler {
             request.params().put("metric", DEFAULT_METRICS);
         }
 
-        return () -> client.admin().cluster().reroute(clusterRerouteRequest, new AcknowledgedRestListener<ClusterRerouteResponse>(channel) {
-            @Override
-            protected void addCustomFields(XContentBuilder builder, ClusterRerouteResponse response) throws IOException {
-                builder.startObject("state");
-                settingsFilter.addFilterSettingParams(request);
-                response.getState().toXContent(builder, request);
-                builder.endObject();
-                if (clusterRerouteRequest.explain()) {
-                    assert response.getExplanations() != null;
-                    response.getExplanations().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        return channel ->
+            client.admin().cluster().reroute(clusterRerouteRequest, new AcknowledgedRestListener<ClusterRerouteResponse>(channel) {
+                @Override
+                protected void addCustomFields(XContentBuilder builder, ClusterRerouteResponse response) throws IOException {
+                    builder.startObject("state");
+                    settingsFilter.addFilterSettingParams(request);
+                    response.getState().toXContent(builder, request);
+                    builder.endObject();
+                    if (clusterRerouteRequest.explain()) {
+                        assert response.getExplanations() != null;
+                        response.getExplanations().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                    }
                 }
-            }
         });
     }
 

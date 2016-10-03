@@ -29,12 +29,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 
@@ -55,7 +55,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
         indicesStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesStatsRequest.indicesOptions()));
         indicesStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
@@ -107,7 +107,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.includeSegmentFileSizes(true);
         }
 
-        return () -> client.admin().indices().stats(indicesStatsRequest, new RestBuilderListener<IndicesStatsResponse>(channel) {
+        return channel -> client.admin().indices().stats(indicesStatsRequest, new RestBuilderListener<IndicesStatsResponse>(channel) {
             @Override
             public RestResponse buildResponse(IndicesStatsResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

@@ -31,7 +31,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -65,8 +64,8 @@ public class RestTasksAction extends AbstractCatAction {
     }
 
     @Override
-    public Runnable doCatRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
-        return () ->
+    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
+        return channel ->
                 client.admin().cluster().listTasks(generateListTasksRequest(request), new RestResponseListener<ListTasksResponse>(channel) {
             @Override
             public RestResponse buildResponse(ListTasksResponse listTasksResponse) throws Exception {

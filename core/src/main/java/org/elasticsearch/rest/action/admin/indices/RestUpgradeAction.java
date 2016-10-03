@@ -31,19 +31,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
-
 
 public class RestUpgradeAction extends BaseRestHandler {
 
@@ -58,32 +57,32 @@ public class RestUpgradeAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable prepareRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         if (request.method().equals(RestRequest.Method.GET)) {
-            return handleGet(request, channel, client);
+            return handleGet(request, client);
         } else if (request.method().equals(RestRequest.Method.POST)) {
-            return handlePost(request, channel, client);
+            return handlePost(request, client);
         }
-        return () -> {};
+        return channel -> {};
     }
 
-    Runnable handleGet(final RestRequest request, RestChannel channel, NodeClient client) {
-        return () -> client.admin().indices().prepareUpgradeStatus(Strings.splitStringByCommaToArray(request.param("index")))
-                .execute(new RestBuilderListener<UpgradeStatusResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(UpgradeStatusResponse response, XContentBuilder builder) throws Exception {
-                        builder.startObject();
-                        response.toXContent(builder, request);
-                        builder.endObject();
-                        return new BytesRestResponse(OK, builder);
-                    }
-                });
+    private RestChannelConsumer handleGet(final RestRequest request, NodeClient client) {
+        return channel -> client.admin().indices().prepareUpgradeStatus(Strings.splitStringByCommaToArray(request.param("index")))
+            .execute(new RestBuilderListener<UpgradeStatusResponse>(channel) {
+                @Override
+                public RestResponse buildResponse(UpgradeStatusResponse response, XContentBuilder builder) throws Exception {
+                    builder.startObject();
+                    response.toXContent(builder, request);
+                    builder.endObject();
+                    return new BytesRestResponse(OK, builder);
+                }
+            });
     }
 
-    Runnable handlePost(final RestRequest request, RestChannel channel, NodeClient client) {
+    private RestChannelConsumer handlePost(final RestRequest request, NodeClient client) {
         UpgradeRequest upgradeReq = new UpgradeRequest(Strings.splitStringByCommaToArray(request.param("index")));
         upgradeReq.upgradeOnlyAncientSegments(request.paramAsBoolean("only_ancient_segments", false));
-        return () -> client.admin().indices().upgrade(upgradeReq, new RestBuilderListener<UpgradeResponse>(channel) {
+        return channel -> client.admin().indices().upgrade(upgradeReq, new RestBuilderListener<UpgradeResponse>(channel) {
             @Override
             public RestResponse buildResponse(UpgradeResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

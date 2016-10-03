@@ -41,16 +41,12 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
-/**
- *
- */
 public class RestValidateQueryAction extends BaseRestHandler {
 
     private final IndicesQueriesRegistry indicesQueriesRegistry;
@@ -68,30 +64,35 @@ public class RestValidateQueryAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         validateQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, validateQueryRequest.indicesOptions()));
         validateQueryRequest.explain(request.paramAsBoolean("explain", false));
         validateQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         validateQueryRequest.rewrite(request.paramAsBoolean("rewrite", false));
 
+        Exception bodyParsingException = null;
         if (RestActions.hasBodyContent(request)) {
             try {
                 validateQueryRequest.query(
                     RestActions.getQueryContent(RestActions.getRestContent(request), indicesQueriesRegistry, parseFieldMatcher));
-            } catch (ParsingException e) {
-                return () -> handleException(channel, validateQueryRequest, e.getDetailedMessage());
             } catch (Exception e) {
-                return () -> handleException(channel, validateQueryRequest, e.getMessage());
+                bodyParsingException = e;
             }
-        } else {
+        } else if (request.hasParam("q")) {
             QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
-            if (queryBuilder != null) {
-                validateQueryRequest.query(queryBuilder);
-            }
+            validateQueryRequest.query(queryBuilder);
         }
 
-        return () ->
+        final Exception finalBodyParsingException = bodyParsingException;
+        return channel -> {
+            if (finalBodyParsingException != null) {
+                if (finalBodyParsingException instanceof ParsingException) {
+                    handleException(validateQueryRequest, ((ParsingException) finalBodyParsingException).getDetailedMessage(), channel);
+                } else {
+                    handleException(validateQueryRequest, finalBodyParsingException.getMessage(), channel);
+                }
+            }
             client.admin().indices().validateQuery(validateQueryRequest, new RestBuilderListener<ValidateQueryResponse>(channel) {
                 @Override
                 public RestResponse buildResponse(ValidateQueryResponse response, XContentBuilder builder) throws Exception {
@@ -120,14 +121,14 @@ public class RestValidateQueryAction extends BaseRestHandler {
                     return new BytesRestResponse(OK, builder);
                 }
             });
+        };
     }
 
-    private void handleException(final RestChannel channel, final ValidateQueryRequest validateQueryRequest, final String message) {
-        try {
-            channel.sendResponse(buildErrorResponse(channel.newBuilder(), message, validateQueryRequest.explain()));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    private void handleException(
+        final ValidateQueryRequest validateQueryRequest,
+        final String message,
+        final RestChannel channel) throws IOException {
+        channel.sendResponse(buildErrorResponse(channel.newBuilder(), message, validateQueryRequest.explain()));
     }
 
     private static BytesRestResponse buildErrorResponse(XContentBuilder builder, String error, boolean explain) throws IOException {

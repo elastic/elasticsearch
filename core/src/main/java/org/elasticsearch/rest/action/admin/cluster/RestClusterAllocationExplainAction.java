@@ -19,8 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import java.io.IOException;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
@@ -35,13 +33,14 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
+
+import java.io.IOException;
 
 /**
  * Class handling cluster allocation explanation at the REST level
@@ -56,7 +55,7 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ClusterAllocationExplainRequest req;
         if (RestActions.hasBodyContent(request) == false) {
             // Empty request signals "explain the first unassigned shard you find"
@@ -67,7 +66,7 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
                 req = ClusterAllocationExplainRequest.parse(parser);
             } catch (IOException e) {
                 logger.debug("failed to parse allocation explain request", e);
-                return () -> channel.sendResponse(
+                return channel -> channel.sendResponse(
                         new BytesRestResponse(ExceptionsHelper.status(e), BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
         }
@@ -75,7 +74,7 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
         try {
             req.includeYesDecisions(request.paramAsBoolean("include_yes_decisions", false));
             req.includeDiskInfo(request.paramAsBoolean("include_disk_info", false));
-            return () ->
+            return channel ->
                     client.admin().cluster().allocationExplain(req, new RestBuilderListener<ClusterAllocationExplainResponse>(channel) {
                 @Override
                 public RestResponse buildResponse(ClusterAllocationExplainResponse response, XContentBuilder builder) throws Exception {
@@ -85,7 +84,7 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
             });
         } catch (Exception e) {
             logger.error("failed to explain allocation", e);
-            return () ->
+            return channel ->
                     channel.sendResponse(
                             new BytesRestResponse(ExceptionsHelper.status(e), BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         }

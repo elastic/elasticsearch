@@ -40,10 +40,13 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.TaskId;
 
+import java.io.IOException;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 
 public class RestListTasksAction extends BaseRestHandler {
+
     private final ClusterService clusterService;
 
     @Inject
@@ -51,6 +54,13 @@ public class RestListTasksAction extends BaseRestHandler {
         super(settings);
         this.clusterService = clusterService;
         controller.registerHandler(GET, "/_tasks", this);
+    }
+
+    @Override
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        final ListTasksRequest listTasksRequest = generateListTasksRequest(request);
+        final String groupBy = request.param("group_by", "nodes");
+        return channel -> client.admin().cluster().listTasks(listTasksRequest, listTasksResponseListener(clusterService, groupBy, channel));
     }
 
     public static ListTasksRequest generateListTasksRequest(RestRequest request) {
@@ -71,19 +81,13 @@ public class RestListTasksAction extends BaseRestHandler {
         return listTasksRequest;
     }
 
-    @Override
-    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
-        final ListTasksRequest listTasksRequest = generateListTasksRequest(request);
-        final ActionListener<ListTasksResponse> listener = listTasksResponseListener(clusterService, channel);
-        return () -> client.admin().cluster().listTasks(listTasksRequest, listener);
-    }
-
     /**
      * Standard listener for extensions of {@link ListTasksResponse} that supports {@code group_by=nodes}.
      */
-    public static <T extends ListTasksResponse> ActionListener<T> listTasksResponseListener(ClusterService clusterService,
-            RestChannel channel) {
-        String groupBy = channel.request().param("group_by", "nodes");
+    public static <T extends ListTasksResponse> ActionListener<T> listTasksResponseListener(
+        ClusterService clusterService,
+        String groupBy,
+        final RestChannel channel) {
         if ("nodes".equals(groupBy)) {
             return new RestBuilderListener<T>(channel) {
                 @Override

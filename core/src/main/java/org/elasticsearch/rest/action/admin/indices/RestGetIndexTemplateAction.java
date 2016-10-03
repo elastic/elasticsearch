@@ -26,15 +26,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
+import java.io.IOException;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -52,7 +49,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
 
         GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
@@ -61,7 +58,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
 
         final boolean implicitAll = getIndexTemplatesRequest.names().length == 0;
 
-        return () ->
+        return channel ->
                 client.admin()
                         .indices()
                         .getTemplates(getIndexTemplatesRequest, new RestToXContentListener<GetIndexTemplatesResponse>(channel) {

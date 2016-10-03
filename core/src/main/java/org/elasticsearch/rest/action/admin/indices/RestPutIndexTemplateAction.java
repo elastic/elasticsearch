@@ -24,10 +24,11 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
+
+import java.io.IOException;
 
 public class RestPutIndexTemplateAction extends BaseRestHandler {
 
@@ -39,7 +40,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
         putRequest.template(request.param("template", putRequest.template()));
         putRequest.order(request.paramAsInt("order", putRequest.order()));
@@ -47,7 +48,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));
         putRequest.source(request.content());
-        return () -> client.admin().indices().putTemplate(putRequest, new AcknowledgedRestListener<>(channel));
+        return channel -> client.admin().indices().putTemplate(putRequest, new AcknowledgedRestListener<>(channel));
     }
 
 }

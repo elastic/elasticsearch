@@ -311,7 +311,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         private volatile long term;
 
         public MockIndexShard(ShardRouting shardRouting, long term) {
-            this.shardRouting = shardRouting; this.term = term;
+            this.shardRouting = shardRouting;
+            this.term = term;
         }
 
         @Override

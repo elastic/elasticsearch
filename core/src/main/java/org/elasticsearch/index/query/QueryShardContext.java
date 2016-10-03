@@ -194,6 +194,10 @@ public class QueryShardContext extends QueryRewriteContext {
         this.isFilter = isFilter;
     }
 
+    /**
+     * Returns all the fields that match a given pattern. If prefixed with a
+     * type then the fields will be returned with a type prefix.
+     */
     public Collection<String> simpleMatchToIndexNames(String pattern) {
         return mapperService.simpleMatchToIndexNames(pattern);
     }

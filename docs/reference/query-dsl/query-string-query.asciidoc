@@ -88,6 +88,11 @@ comprehensive example.
                         Instead  the queryparser would parse around only real 'operators'.
                         Default to `false`.
 
+|`all_fields` | Perform the query on all fields detected in the mapping that can
+be queried. Will be used by default when the `_all` field is disabled and no
+`default_field` is specified (either in the index settings or in the request
+body) and no `fields` are specified.
+
 |=======================================================================
 
 When a multi term query is being generated, one can control how it gets
@@ -102,8 +107,9 @@ When not explicitly specifying the field to search on in the query
 string syntax, the `index.query.default_field` will be used to derive
 which field to search on. It defaults to `_all` field.
 
-So, if `_all` field is disabled, it might make sense to change it to set
-a different default field.
+If the `_all` field is disabled, the `query_string` query will automatically
+attempt to determine the existing fields in the index's mapping that are
+queryable, and perform the search on those fields.
 
 [float]
 ==== Multi Field

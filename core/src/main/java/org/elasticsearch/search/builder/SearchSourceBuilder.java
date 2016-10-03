@@ -106,6 +106,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField PROFILE_FIELD = new ParseField("profile");
     public static final ParseField SEARCH_AFTER = new ParseField("search_after");
     public static final ParseField SLICE = new ParseField("slice");
+    public static final ParseField ALL_FIELDS_FIELDS = new ParseField("all_fields");
 
     public static SearchSourceBuilder fromXContent(QueryParseContext context, AggregatorParsers aggParsers,
             Suggesters suggesters, SearchExtRegistry searchExtRegistry) throws IOException {

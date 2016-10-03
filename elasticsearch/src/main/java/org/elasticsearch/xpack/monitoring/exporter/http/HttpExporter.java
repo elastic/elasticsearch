@@ -134,7 +134,7 @@ public class HttpExporter extends Exporter {
      * <p>
      * We must have support for ingest pipelines, which requires a minimum of 5.0.
      */
-    public static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_5_0_0_alpha6;
+    public static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_5_0_0_beta1;
 
     /**
      * The {@link RestClient} automatically pools connections and keeps them alive as necessary.

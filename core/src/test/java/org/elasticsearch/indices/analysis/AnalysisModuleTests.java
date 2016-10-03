@@ -193,7 +193,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
             .put("index.analysis.analyzer.foobar.type", "standard")
             .put("index.analysis.analyzer.foobar.alias","foobaz")
             // analyzer aliases were removed in v5.0.0 alpha6
-            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_5_0_0_alpha6, null))
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_5_0_0_beta1, null))
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
         AnalysisRegistry registry = getNewRegistry(settings);

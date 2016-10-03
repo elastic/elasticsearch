@@ -261,7 +261,7 @@ visibility::
     automatically.
 
 The new implementation suffers from two issues, which is why we decided to
-move the functionality to a plugin instead of replacing the feautre in core:
+move the functionality to a plugin instead of replacing the feature in core:
 
 * It is not as fast as the previous implementation. For most use cases, this
   difference should not be noticeable but users running delete-by-query on

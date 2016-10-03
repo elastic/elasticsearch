@@ -1,7 +1,0 @@
-= Elasticsearch Watcher Plugin
-
-This plugins adds conditioned scheduled tasks features to elasticsearch - such a task is called a `Watch`.
-
-You can build the plugin with `mvn package`.
-
-The documentation is put in the `docs/` directory.

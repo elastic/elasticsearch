@@ -1,0 +1,14 @@
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(path: ':x-plugins:elasticsearch', configuration: 'runtime')
+}
+
+integTest {
+  cluster {
+    plugin ':x-plugins:elasticsearch'
+    setting 'xpack.security.enabled', 'false'
+    setting 'xpack.monitoring.enabled', 'false'
+    setting 'http.port', '9400'
+  }
+}

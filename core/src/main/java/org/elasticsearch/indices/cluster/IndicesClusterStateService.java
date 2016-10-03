@@ -380,6 +380,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         currentRoutingEntry, newShardRouting);
                     indexService.removeShard(shardId.id(), "removing shard (stale copy)");
                 } else if (newShardRouting.initializing() && currentRoutingEntry.active()) {
+                    // this can happen if the node was isolated/gc-ed, rejoins the cluster and a new shard with the same allocation id
+                    // is assigned to it. Batch cluster state processing or if shard fetching completes before the node gets a new cluster
+                    // state may result in a new shard being initialized while having the same allocation id as the currently started shard.
                     logger.debug("{} removing shard (not active, current {}, new {})", shardId, currentRoutingEntry, newShardRouting);
                     indexService.removeShard(shardId.id(), "removing shard (stale copy)");
                 } else {

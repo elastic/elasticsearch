@@ -152,7 +152,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         // TODO: remove alias support completely when we no longer support pre 5.0 indices
         final String analyzerAliasKey = "index.analysis.analyzer." + analyzerFactory.name() + ".alias";
         if (indexSettings.getSettings().get(analyzerAliasKey) != null) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_0_0_alpha6)) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_0_0_beta1)) {
                 // do not allow alias creation if the index was created on or after v5.0 alpha6
                 throw new IllegalArgumentException("setting [" + analyzerAliasKey + "] is not supported");
             }

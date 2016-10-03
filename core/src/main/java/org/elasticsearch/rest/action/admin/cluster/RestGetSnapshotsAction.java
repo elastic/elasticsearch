@@ -47,7 +47,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
 
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String repository = request.param("repository");
         String[] snapshots = request.paramAsStringArray("snapshot", Strings.EMPTY_ARRAY);
 

@@ -44,7 +44,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("index"), request.param("new_index"));
         if (request.hasContent()) {
             rolloverIndexRequest.source(request.content());

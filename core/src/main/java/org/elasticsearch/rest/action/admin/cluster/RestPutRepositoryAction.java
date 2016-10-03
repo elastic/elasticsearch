@@ -48,7 +48,7 @@ public class RestPutRepositoryAction extends BaseRestHandler {
 
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         PutRepositoryRequest putRepositoryRequest = putRepositoryRequest(request.param("repository"));
         putRepositoryRequest.source(request.content().utf8ToString());
         putRepositoryRequest.verify(request.paramAsBoolean("verify", true));

@@ -26,7 +26,6 @@ import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.mockito.internal.exceptions.ExceptionIncludingMockitoWarnings;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,8 +34,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
-import static org.junit.Assert.*;
-import static org.mockito.Matchers.contains;
 import static org.mockito.Mockito.mock;
 
 public class BaseRestHandlerTests extends ESTestCase {
@@ -45,7 +42,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         final AtomicBoolean executed = new AtomicBoolean();
         BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
             @Override
-            protected Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+            protected Runnable prepareRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 request.param("consumed");
                 return () -> executed.set(true);
             }
@@ -66,7 +63,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         final AtomicBoolean executed = new AtomicBoolean();
         BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
             @Override
-            protected Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+            protected Runnable prepareRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 request.param("consumed");
                 return () -> executed.set(true);
             }
@@ -90,7 +87,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         final AtomicBoolean executed = new AtomicBoolean();
         BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
             @Override
-            protected Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+            protected Runnable prepareRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 return () -> executed.set(true);
             }
         };

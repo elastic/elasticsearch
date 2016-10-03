@@ -64,7 +64,7 @@ public class RestExplainAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final ExplainRequest explainRequest = new ExplainRequest(request.param("index"), request.param("type"), request.param("id"));
         explainRequest.parent(request.param("parent"));
         explainRequest.routing(request.param("routing"));

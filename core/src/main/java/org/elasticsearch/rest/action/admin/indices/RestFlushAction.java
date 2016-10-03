@@ -56,7 +56,7 @@ public class RestFlushAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         FlushRequest flushRequest = new FlushRequest(Strings.splitStringByCommaToArray(request.param("index")));
         flushRequest.indicesOptions(IndicesOptions.fromRequest(request, flushRequest.indicesOptions()));
         flushRequest.force(request.paramAsBoolean("force", flushRequest.force()));

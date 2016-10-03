@@ -68,7 +68,7 @@ public class RestPutMappingAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
         putMappingRequest.type(request.param("type"));
         putMappingRequest.source(request.content().utf8ToString());

@@ -68,7 +68,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         validateQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, validateQueryRequest.indicesOptions()));
         validateQueryRequest.explain(request.paramAsBoolean("explain", false));

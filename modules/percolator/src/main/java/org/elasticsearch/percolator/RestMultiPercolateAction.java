@@ -53,7 +53,7 @@ public class RestMultiPercolateAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest restRequest, final RestChannel restChannel, final NodeClient client) throws Exception {
+    public Runnable prepareRequest(final RestRequest restRequest, final RestChannel restChannel, final NodeClient client) throws Exception {
         MultiPercolateRequest multiPercolateRequest = new MultiPercolateRequest();
         multiPercolateRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, multiPercolateRequest.indicesOptions()));
         multiPercolateRequest.indices(Strings.splitStringByCommaToArray(restRequest.param("index")));

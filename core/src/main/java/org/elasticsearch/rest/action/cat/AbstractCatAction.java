@@ -51,7 +51,7 @@ public abstract class AbstractCatAction extends BaseRestHandler {
     protected abstract Table getTableWithHeader(final RestRequest request);
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         boolean helpWanted = request.paramAsBoolean("help", false);
         if (helpWanted) {
             Table table = getTableWithHeader(request);

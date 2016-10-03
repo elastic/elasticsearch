@@ -46,7 +46,7 @@ public class RestDeleteAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         DeleteRequest deleteRequest = new DeleteRequest(request.param("index"), request.param("type"), request.param("id"));
         deleteRequest.routing(request.param("routing"));
         deleteRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing

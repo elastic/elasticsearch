@@ -80,7 +80,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
 
     @SuppressWarnings("unchecked") // List<String> casts
     @Override
-    public Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+    public Runnable prepareRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         final List<String> settings;
 
         try (XContentParser parser = XContentFactory.xContent(request.content()).createParser(request.content())) {

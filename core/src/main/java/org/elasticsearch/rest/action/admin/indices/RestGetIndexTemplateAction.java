@@ -52,7 +52,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
 
         GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);

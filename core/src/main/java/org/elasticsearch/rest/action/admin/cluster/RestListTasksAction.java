@@ -72,7 +72,7 @@ public class RestListTasksAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final ListTasksRequest listTasksRequest = generateListTasksRequest(request);
         final ActionListener<ListTasksResponse> listener = listTasksResponseListener(clusterService, channel);
         return () -> client.admin().cluster().listTasks(listTasksRequest, listener);

@@ -54,8 +54,8 @@ public class RestFieldStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request,
-                              final RestChannel channel, final NodeClient client) throws Exception {
+    public Runnable prepareRequest(final RestRequest request,
+                                   final RestChannel channel, final NodeClient client) throws Exception {
         if (RestActions.hasBodyContent(request) && request.hasParam("fields")) {
             throw new IllegalArgumentException("can't specify a request body and [fields] request parameter, " +
                 "either specify a request body or the [fields] request parameter");

@@ -60,7 +60,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
                 .routingTable(false)
                 .nodes(false);

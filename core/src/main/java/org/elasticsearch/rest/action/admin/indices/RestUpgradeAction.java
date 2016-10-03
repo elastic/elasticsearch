@@ -58,7 +58,7 @@ public class RestUpgradeAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+    public Runnable prepareRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (request.method().equals(RestRequest.Method.GET)) {
             return handleGet(request, channel, client);
         } else if (request.method().equals(RestRequest.Method.POST)) {

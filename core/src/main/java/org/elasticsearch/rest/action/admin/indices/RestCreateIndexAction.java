@@ -44,7 +44,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
         if (request.hasContent()) {
             createIndexRequest.source(request.content());

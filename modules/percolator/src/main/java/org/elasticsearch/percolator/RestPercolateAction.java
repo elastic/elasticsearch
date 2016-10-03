@@ -97,7 +97,7 @@ public class RestPercolateAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(RestRequest restRequest, RestChannel restChannel, final NodeClient client) {
+    public Runnable prepareRequest(RestRequest restRequest, RestChannel restChannel, final NodeClient client) {
         PercolateRequest percolateRequest = new PercolateRequest();
         return parseDocPercolate(percolateRequest, restRequest, restChannel, client);
     }
@@ -109,7 +109,7 @@ public class RestPercolateAction extends BaseRestHandler {
         }
 
         @Override
-        public Runnable doRequest(RestRequest restRequest, RestChannel restChannel, final NodeClient client) {
+        public Runnable prepareRequest(RestRequest restRequest, RestChannel restChannel, final NodeClient client) {
             PercolateRequest percolateRequest = new PercolateRequest();
             percolateRequest.onlyCount(true);
             return parseDocPercolate(percolateRequest, restRequest, restChannel, client);
@@ -123,7 +123,7 @@ public class RestPercolateAction extends BaseRestHandler {
         }
 
         @Override
-        public Runnable doRequest(RestRequest restRequest, RestChannel restChannel, final NodeClient client) {
+        public Runnable prepareRequest(RestRequest restRequest, RestChannel restChannel, final NodeClient client) {
             PercolateRequest percolateRequest = new PercolateRequest();
             return parseExistingDocPercolate(percolateRequest, restRequest, restChannel, client);
         }
@@ -136,7 +136,7 @@ public class RestPercolateAction extends BaseRestHandler {
         }
 
         @Override
-        public Runnable doRequest(RestRequest restRequest, RestChannel restChannel, final NodeClient client) {
+        public Runnable prepareRequest(RestRequest restRequest, RestChannel restChannel, final NodeClient client) {
             PercolateRequest percolateRequest = new PercolateRequest();
             percolateRequest.onlyCount(true);
             return parseExistingDocPercolate(percolateRequest, restRequest, restChannel, client);

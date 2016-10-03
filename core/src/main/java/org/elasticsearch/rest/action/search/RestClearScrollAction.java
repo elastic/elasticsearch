@@ -52,7 +52,7 @@ public class RestClearScrollAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String scrollIds = request.param("scroll_id");
         ClearScrollRequest clearRequest = new ClearScrollRequest();
         clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));

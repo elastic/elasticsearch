@@ -89,7 +89,7 @@ public class NetworkModuleTests extends ModuleTestCase {
             super(null);
         }
         @Override
-        public Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception { return () -> {}; }
+        public Runnable prepareRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception { return () -> {}; }
     }
 
     static class FakeCatRestHandler extends AbstractCatAction {

@@ -49,7 +49,7 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest(
                 Strings.splitStringByCommaToArray(request.param("index")));
         indicesSegmentsRequest.verbose(request.paramAsBoolean("verbose", false));

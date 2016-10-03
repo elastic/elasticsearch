@@ -38,7 +38,7 @@ public class TestResponseHeaderRestAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client) {
+    public Runnable prepareRequest(RestRequest request, RestChannel channel, NodeClient client) {
         if ("password".equals(request.header("Secret"))) {
             RestResponse response = new BytesRestResponse(RestStatus.OK, "Access granted");
             response.addHeader("Secret", "granted");

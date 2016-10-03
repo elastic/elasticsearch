@@ -68,7 +68,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] featureParams = request.paramAsStringArray("type", null);
         // Work out if the indices is a list of features

@@ -49,7 +49,7 @@ public class RestMainAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         return () -> client.execute(MainAction.INSTANCE, new MainRequest(), new RestBuilderListener<MainResponse>(channel) {
             @Override
             public RestResponse buildResponse(MainResponse mainResponse, XContentBuilder builder) throws Exception {

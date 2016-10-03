@@ -52,7 +52,7 @@ public class RestIndicesShardStoresAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         IndicesShardStoresRequest indicesShardStoresRequest = new IndicesShardStoresRequest(
                 Strings.splitStringByCommaToArray(request.param("index")));
         if (request.hasParam("status")) {

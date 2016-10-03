@@ -58,7 +58,7 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, NodeClient client) {
         final GetStoredScriptRequest getRequest = new GetStoredScriptRequest(getScriptLang(request), request.param("id"));
         return () -> client.admin().cluster().getStoredScript(getRequest, new RestBuilderListener<GetStoredScriptResponse>(channel) {
             @Override

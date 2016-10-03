@@ -24,21 +24,16 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
-import java.io.IOException;
-
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 
 public class RestIndexAction extends BaseRestHandler {
 
@@ -59,14 +54,14 @@ public class RestIndexAction extends BaseRestHandler {
         }
 
         @Override
-        public Runnable doRequest(RestRequest request, RestChannel channel, final NodeClient client) {
+        public Runnable prepareRequest(RestRequest request, RestChannel channel, final NodeClient client) {
             request.params().put("op_type", "create");
-            return RestIndexAction.this.doRequest(request, channel, client);
+            return RestIndexAction.this.prepareRequest(request, channel, client);
         }
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
         indexRequest.routing(request.param("routing"));
         indexRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing

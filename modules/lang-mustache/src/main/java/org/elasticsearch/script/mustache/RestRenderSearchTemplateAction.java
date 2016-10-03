@@ -45,7 +45,7 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+    public Runnable prepareRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         // Creates the render template request
         SearchTemplateRequest renderRequest = RestSearchTemplateAction.parse(RestActions.getRestContent(request));
         renderRequest.setSimulate(true);

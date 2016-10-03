@@ -45,7 +45,7 @@ public class RestShrinkIndexAction extends BaseRestHandler {
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         if (request.param("target") == null) {
             throw new IllegalArgumentException("no target index");
         }

@@ -58,7 +58,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final String[] names = request.paramAsStringArrayOrEmptyIfAll("name");
         final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest()

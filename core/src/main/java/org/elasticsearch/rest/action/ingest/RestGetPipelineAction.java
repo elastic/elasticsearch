@@ -40,7 +40,7 @@ public class RestGetPipelineAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(RestRequest restRequest, RestChannel channel, NodeClient client) throws Exception {
+    public Runnable prepareRequest(RestRequest restRequest, RestChannel channel, NodeClient client) throws Exception {
         GetPipelineRequest request = new GetPipelineRequest(Strings.splitStringByCommaToArray(restRequest.param("id")));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         return () -> client.admin().cluster().getPipeline(request, new RestStatusToXContentListener<>(channel));

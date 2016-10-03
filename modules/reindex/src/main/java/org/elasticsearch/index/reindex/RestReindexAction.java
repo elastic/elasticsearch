@@ -118,7 +118,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     }
 
     @Override
-    public Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client) throws IOException {
+    public Runnable prepareRequest(RestRequest request, RestChannel channel, NodeClient client) throws IOException {
         if (false == request.hasContent()) {
             throw new ElasticsearchException("_reindex requires a request body");
         }

@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -55,7 +54,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         // prepare the request for execution; has the side effect of touching the request parameters
-        final Runnable action = doRequest(request, channel, client);
+        final Runnable action = prepareRequest(request, channel, client);
 
         // validate unconsumed params, but we must exclude params used to format the response
         final List<String> unconsumedParams = request.unconsumedParams();
@@ -92,12 +91,12 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
      * @return the action to execute
      * @throws Exception if an exception occurred preparing the action for exectuion
      */
-    protected abstract Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception;
+    protected abstract Runnable prepareRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception;
 
     /**
      * Parameters used for controlling the response and thus might not be consumed during
      * preparation of the request execution in
-     * {@link BaseRestHandler#doRequest(RestRequest, RestChannel, NodeClient)}.
+     * {@link BaseRestHandler#prepareRequest(RestRequest, RestChannel, NodeClient)}.
      *
      * @return a set of parameters used to control the response and thus should not trip strict
      * URL parameter checks.

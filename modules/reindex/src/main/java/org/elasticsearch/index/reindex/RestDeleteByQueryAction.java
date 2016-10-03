@@ -51,7 +51,7 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
     }
 
     @Override
-    public Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+    public Runnable prepareRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (false == request.hasContent()) {
             throw new ElasticsearchException("_delete_by_query requires a request body");
         }

@@ -100,7 +100,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+    public Runnable prepareRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (RestActions.hasBodyContent(request) == false) {
             throw new ElasticsearchException("request body is required");
         }

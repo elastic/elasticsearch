@@ -78,7 +78,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         ClusterRerouteRequest clusterRerouteRequest = createRequest(request, registry, parseFieldMatcher);
 
         // by default, return everything but metadata

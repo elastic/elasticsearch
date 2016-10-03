@@ -45,7 +45,7 @@ public class RestRethrottleAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         RethrottleRequest internalRequest = new RethrottleRequest();
         internalRequest.setTaskId(new TaskId(request.param("taskId")));
         Float requestsPerSecond = AbstractBaseReindexRestHandler.parseRequestsPerSecond(request);

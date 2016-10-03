@@ -57,7 +57,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final String[] aliases = request.paramAsStringArrayOrEmptyIfAll("name");
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);

@@ -67,7 +67,7 @@ public class RestSuggestAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
         final SearchRequest searchRequest = new SearchRequest(
                 Strings.splitStringByCommaToArray(request.param("index")), new SearchSourceBuilder());
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));

@@ -41,7 +41,7 @@ public class RestGetTaskAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         TaskId taskId = new TaskId(request.param("taskId"));
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
         TimeValue timeout = request.paramAsTime("timeout", null);

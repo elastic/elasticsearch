@@ -56,7 +56,7 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
     }
 
     @Override
-    public Runnable doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public Runnable prepareRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         ClusterAllocationExplainRequest req;
         if (RestActions.hasBodyContent(request) == false) {
             // Empty request signals "explain the first unassigned shard you find"

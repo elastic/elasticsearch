@@ -37,6 +37,9 @@ are tests even if they don't have `// CONSOLE`.
   `// TEST[continued]` you can make tests that contain multiple command snippets
   and multiple response snippets.
   * `// TESTRESPONSE[s/foo/bar/]`: Substitutions. See `// TEST[s/foo/bar]`.
+  * `// TESTRESPONSE[_cat]`: Add substitutions for testing `_cat` responses. Use
+  this after all other substitutions so it doesn't make other substitutions
+  difficult.
 * `// TESTSETUP`: Marks this snippet as the "setup" for all other snippets in
   this file. This is a somewhat natural way of structuring documentation. You
   say "this is the data we use to explain this feature" then you add the

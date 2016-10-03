@@ -213,7 +213,7 @@ public abstract class TransportWriteAction<
      * callback used by {@link AsyncAfterWriteAction} to notify that all post
      * process actions have been executed
      */
-    private interface RespondingWriteResult {
+    interface RespondingWriteResult {
         /**
          * Called on successful processing of all post write actions
          * @param forcedRefresh <code>true</code> iff this write has caused a refresh

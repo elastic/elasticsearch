@@ -792,10 +792,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     long shardSize = allocation.clusterInfo().getShardSize(candidate, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
                     if (decision.type() == Type.YES) { /* only allocate on the cluster if we are not throttled */
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("Relocate shard [{}] from node [{}] to node [{}]", candidate, maxNode.getNodeId(),
+                        logger.debug("Relocate shard [{}] from node [{}] to node [{}]", candidate, maxNode.getNodeId(),
                                     minNode.getNodeId());
-                        }
                         /* now allocate on the cluster */
                         minNode.addShard(routingNodes.relocateShard(candidate, minNode.getNodeId(), shardSize, allocation.changes()).v1());
                         return true;

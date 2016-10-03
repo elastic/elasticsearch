@@ -94,6 +94,14 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
      */
     protected abstract Runnable doRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception;
 
+    /**
+     * Parameters used for controlling the response and thus might not be consumed during
+     * preparation of the request execution in
+     * {@link BaseRestHandler#doRequest(RestRequest, RestChannel, NodeClient)}.
+     *
+     * @return a set of parameters used to control the response and thus should not trip strict
+     * URL parameter checks.
+     */
     protected Set<String> responseParams() {
         return Collections.emptySet();
     }

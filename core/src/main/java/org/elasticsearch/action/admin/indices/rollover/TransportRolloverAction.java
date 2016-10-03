@@ -106,6 +106,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         validate(metaData, rolloverRequest);
         final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(rolloverRequest.getAlias());
         final IndexMetaData indexMetaData = aliasOrIndex.getIndices().get(0);
+        final String sourceProvidedName = indexMetaData.getSettings().get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME,
+            indexMetaData.getIndex().getName());
         final String sourceIndexName = indexMetaData.getIndex().getName();
         client.admin().indices().prepareStats(sourceIndexName).clear().setDocs(true).execute(
             new ActionListener<IndicesStatsResponse>() {
@@ -113,16 +115,18 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 public void onResponse(IndicesStatsResponse statsResponse) {
                     final Set<Condition.Result> conditionResults = evaluateConditions(rolloverRequest.getConditions(),
                         statsResponse.getTotal().getDocs(), metaData.index(sourceIndexName));
-                    final String rolloverIndexName = (rolloverRequest.getNewIndexName() != null)
+                    final String unresolvedName = (rolloverRequest.getNewIndexName() != null)
                         ? rolloverRequest.getNewIndexName()
-                        : generateRolloverIndexName(sourceIndexName);
+                        : generateRolloverIndexName(sourceProvidedName, indexNameExpressionResolver);
+                    final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
                     if (rolloverRequest.isDryRun()) {
                         listener.onResponse(
                             new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, true, false, false, false));
                         return;
                     }
                     if (conditionResults.size() == 0 || conditionResults.stream().anyMatch(result -> result.matched)) {
-                        CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(rolloverIndexName, rolloverRequest);
+                        CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(unresolvedName, rolloverIndexName,
+                            rolloverRequest);
                         createIndexService.createIndex(updateRequest, ActionListener.wrap(createIndexClusterStateUpdateResponse -> {
                             // switch the alias to point to the newly created index
                             indexAliasesService.indicesAliases(
@@ -170,12 +174,17 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     }
 
 
-    static String generateRolloverIndexName(String sourceIndexName) {
-        if (INDEX_NAME_PATTERN.matcher(sourceIndexName).matches()) {
+    static String generateRolloverIndexName(String sourceIndexName, IndexNameExpressionResolver indexNameExpressionResolver) {
+        String resolvedName = indexNameExpressionResolver.resolveDateMathExpression(sourceIndexName);
+        final boolean isDateMath = sourceIndexName.equals(resolvedName) == false;
+        if (INDEX_NAME_PATTERN.matcher(resolvedName).matches()) {
             int numberIndex = sourceIndexName.lastIndexOf("-");
             assert numberIndex != -1 : "no separator '-' found";
-            int counter = Integer.parseInt(sourceIndexName.substring(numberIndex + 1));
-            return String.join("-", sourceIndexName.substring(0, numberIndex), String.format(Locale.ROOT, "%06d", ++counter));
+            int counter = Integer.parseInt(sourceIndexName.substring(numberIndex + 1, isDateMath ? sourceIndexName.length()-1 :
+                sourceIndexName.length()));
+            String newName = sourceIndexName.substring(0, numberIndex) + "-" + String.format(Locale.ROOT, "%06d", ++counter)
+                + (isDateMath ? ">" : "");
+            return newName;
         } else {
             throw new IllegalArgumentException("index name [" + sourceIndexName + "] does not match pattern '^.*-(\\d)+$'");
         }
@@ -203,14 +212,14 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
     }
 
-    static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(final String targetIndexName,
+    static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(final String providedIndexName, final String targetIndexName,
                                                                           final RolloverRequest rolloverRequest) {
 
         final CreateIndexRequest createIndexRequest = rolloverRequest.getCreateIndexRequest();
         createIndexRequest.cause("rollover_index");
         createIndexRequest.index(targetIndexName);
         return new CreateIndexClusterStateUpdateRequest(createIndexRequest,
-            "rollover_index", targetIndexName, true)
+            "rollover_index", targetIndexName, providedIndexName, true)
             .ackTimeout(createIndexRequest.timeout())
             .masterNodeTimeout(createIndexRequest.masterNodeTimeout())
             .settings(createIndexRequest.settings())

@@ -186,7 +186,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         failMissingShards(state);
 
-        removeShards(state);
+        removeShards(state);   // removes any local shards that doesn't match what the master expects
 
         updateIndices(event); // can also fail shards, but these are then guaranteed to be in failedShardsCache
 
@@ -370,11 +370,21 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 ShardRouting currentRoutingEntry = shard.routingEntry();
                 ShardId shardId = currentRoutingEntry.shardId();
                 ShardRouting newShardRouting = localRoutingNode == null ? null : localRoutingNode.getByShardId(shardId);
-                if (newShardRouting == null || newShardRouting.isSameAllocation(currentRoutingEntry) == false) {
+                if (newShardRouting == null) {
                     // we can just remove the shard without cleaning it locally, since we will clean it in IndicesStore
                     // once all shards are allocated
                     logger.debug("{} removing shard (not allocated)", shardId);
                     indexService.removeShard(shardId.id(), "removing shard (not allocated)");
+                } else if (newShardRouting.isSameAllocation(currentRoutingEntry) == false) {
+                    logger.debug("{} removing shard (stale allocation id, stale {}, new {})", shardId,
+                        currentRoutingEntry, newShardRouting);
+                    indexService.removeShard(shardId.id(), "removing shard (stale copy)");
+                } else if (newShardRouting.initializing() && currentRoutingEntry.active()) {
+                    // this can happen if the node was isolated/gc-ed, rejoins the cluster and a new shard with the same allocation id
+                    // is assigned to it. Batch cluster state processing or if shard fetching completes before the node gets a new cluster
+                    // state may result in a new shard being initialized while having the same allocation id as the currently started shard.
+                    logger.debug("{} removing shard (not active, current {}, new {})", shardId, currentRoutingEntry, newShardRouting);
+                    indexService.removeShard(shardId.id(), "removing shard (stale copy)");
                 } else {
                     // remove shards where recovery source has changed. This re-initializes shards later in createOrUpdateShards
                     if (newShardRouting.recoverySource() != null && newShardRouting.recoverySource().getType() == Type.PEER) {

@@ -124,7 +124,7 @@ public class InternalEngine extends Engine {
     public InternalEngine(EngineConfig engineConfig) throws EngineException {
         super(engineConfig);
         openMode = engineConfig.getOpenMode();
-        if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_5_0_0_alpha6)) {
+        if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_5_0_0_beta1)) {
             // no optimization for pre 5.0.0.alpha6 since translog might not have all information needed
             maxUnsafeAutoIdTimestamp.set(Long.MAX_VALUE);
         } else {

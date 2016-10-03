@@ -5,6 +5,7 @@ apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 
 group = 'org.elasticsearch.client'
+archivesBaseName = 'x-pack-transport'
 
 dependencies {
     // this "api" dependency looks weird, but it is correct, as it contains

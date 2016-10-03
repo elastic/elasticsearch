@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security;
 
-import java.io.IOException;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -14,11 +12,10 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.not;
 
@@ -27,48 +24,12 @@ public class SecuritySettingsTests extends ESTestCase {
     private static final String TRIBE_T1_SECURITY_ENABLED = "tribe.t1." + XPackSettings.SECURITY_ENABLED.getKey();
     private static final String TRIBE_T2_SECURITY_ENABLED = "tribe.t2." + XPackSettings.SECURITY_ENABLED.getKey();
 
-    public void testSecurityIsMandatoryOnTribes() throws IOException {
-        Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
-                .put("tribe.t2.cluster.name", "non_existing").build();
-
-        Settings additionalSettings = Security.additionalSettings(settings, false);
-
-
-        assertThat(additionalSettings.getAsArray("tribe.t1.plugin.mandatory", null), arrayContaining(XPackPlugin.NAME));
-        assertThat(additionalSettings.getAsArray("tribe.t2.plugin.mandatory", null), arrayContaining(XPackPlugin.NAME));
-    }
-
-    public void testAdditionalMandatoryPluginsOnTribes() {
-        Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
-                .putArray("tribe.t1.plugin.mandatory", "test_plugin").build();
-
-        //simulate what PluginsService#updatedSettings does to make sure we don't override existing mandatory plugins
-        try {
-            Settings.builder().put(settings).put(Security.additionalSettings(settings, false)).build();
-            fail("security cannot change the value of a setting that is already defined, so a exception should be thrown");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), containsString(XPackPlugin.NAME));
-            assertThat(e.getMessage(), containsString("plugin.mandatory"));
-        }
-    }
-
-    public void testMandatoryPluginsOnTribesSecurityAlreadyMandatory() {
-        Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
-                .putArray("tribe.t1.plugin.mandatory", "test_plugin", XPackPlugin.NAME).build();
-
-        //simulate what PluginsService#updatedSettings does to make sure we don't override existing mandatory plugins
-        Settings finalSettings = Settings.builder().put(settings).put(Security.additionalSettings(settings, false)).build();
-
-        String[] finalMandatoryPlugins = finalSettings.getAsArray("tribe.t1.plugin.mandatory", null);
-        assertThat(finalMandatoryPlugins, notNullValue());
-        assertThat(finalMandatoryPlugins.length, equalTo(2));
-        assertThat(finalMandatoryPlugins[0], equalTo("test_plugin"));
-        assertThat(finalMandatoryPlugins[1], equalTo(XPackPlugin.NAME));
-    }
-
     public void testSecurityIsEnabledByDefaultOnTribes() {
-        Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
-                .put("tribe.t2.cluster.name", "non_existing").build();
+        Settings settings = Settings.builder()
+                .put("tribe.t1.cluster.name", "non_existing")
+                .put("tribe.t2.cluster.name", "non_existing2")
+                .put("tribe.on_conflict", "prefer_t1")
+                .build();
 
         Settings additionalSettings = Security.additionalSettings(settings, false);
 
@@ -107,6 +68,7 @@ public class SecuritySettingsTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("tribe.t1.cluster.name", "non_existing")
                 .put("tribe.t2.cluster.name", "non_existing")
+                .put("tribe.on_conflict", "prefer_" + randomFrom("t1", "t2"))
                 .put("xpack.security.foo", "bar")
                 .put("xpack.security.bar", "foo")
                 .putArray("xpack.security.something.else.here", new String[] { "foo", "bar" })
@@ -123,6 +85,56 @@ public class SecuritySettingsTests extends ESTestCase {
         assertThat(additionalSettings.get("tribe.t2.xpack.security.foo"), is("bar"));
         assertThat(additionalSettings.get("tribe.t2.xpack.security.bar"), is("foo"));
         assertThat(additionalSettings.getAsArray("tribe.t2.xpack.security.something.else.here"), arrayContaining("foo", "bar"));
+        assertThat(additionalSettings.get("tribe.on_conflict"), nullValue());
+        assertThat(additionalSettings.get("tribe.t1.on_conflict"), nullValue());
+        assertThat(additionalSettings.get("tribe.t2.on_conflict"), nullValue());
+    }
+
+    public void testOnConflictMustBeSetOnTribe() {
+        final Settings settings = Settings.builder()
+                .put("tribe.t1.cluster.name", "non_existing")
+                .put("tribe.t2.cluster.name", "non_existing2")
+                .build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Security.additionalSettings(settings, false));
+        assertThat(e.getMessage(), containsString("tribe.on_conflict"));
+
+        final Settings badOnConflict = Settings.builder().put(settings).put("tribe.on_conflict", randomFrom("any", "drop")).build();
+        e = expectThrows(IllegalArgumentException.class, () -> Security.additionalSettings(badOnConflict, false));
+        assertThat(e.getMessage(), containsString("tribe.on_conflict"));
+
+        Settings goodOnConflict = Settings.builder().put(settings).put("tribe.on_conflict", "prefer_"  + randomFrom("t1", "t2")).build();
+        Settings additionalSettings = Security.additionalSettings(goodOnConflict, false);
+        assertNotNull(additionalSettings);
+    }
+
+    public void testOnConflictWithNoNativeRealms() {
+        final Settings noNative = Settings.builder()
+                .put("tribe.t1.cluster.name", "non_existing")
+                .put("tribe.t2.cluster.name", "non_existing2")
+                .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false)
+                .put("xpack.security.authc.realms.foo.type", randomFrom("ldap", "pki", randomAsciiOfLengthBetween(1, 6)))
+                .build();
+        Settings additionalSettings = Security.additionalSettings(noNative, false);
+        assertNotNull(additionalSettings);
+
+        // still with the reserved realm
+        final Settings withReserved = Settings.builder()
+                .put("tribe.t1.cluster.name", "non_existing")
+                .put("tribe.t2.cluster.name", "non_existing2")
+                .put("xpack.security.authc.realms.foo.type", randomFrom("ldap", "pki", randomAsciiOfLengthBetween(1, 6)))
+                .build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Security.additionalSettings(withReserved, false));
+        assertThat(e.getMessage(), containsString("tribe.on_conflict"));
+
+        // reserved disabled but no realms defined
+        final Settings reservedDisabled = Settings.builder()
+                .put("tribe.t1.cluster.name", "non_existing")
+                .put("tribe.t2.cluster.name", "non_existing2")
+                .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false)
+                .build();
+        e = expectThrows(IllegalArgumentException.class, () -> Security.additionalSettings(reservedDisabled, false));
+        assertThat(e.getMessage(), containsString("tribe.on_conflict"));
     }
 
     public void testValidAutoCreateIndex() {

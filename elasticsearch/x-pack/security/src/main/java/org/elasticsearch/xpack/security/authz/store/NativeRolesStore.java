@@ -28,6 +28,7 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -108,6 +109,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
 
     private final InternalClient client;
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
+    private final boolean isTribeNode;
     private final Cache<String, RoleAndVersion> roleCache;
     // the lock is used in an odd manner; when iterating over the cache we cannot have modifiers other than deletes using
     // the iterator but when not iterating we can modify the cache without external locking. When making normal modifications to the cache
@@ -135,6 +137,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
                 .setMaximumWeight(CACHE_SIZE_SETTING.get(settings))
                 .setExpireAfterWrite(CACHE_TTL_SETTING.get(settings).getMillis())
                 .build();
+        this.isTribeNode = settings.getGroups("tribe", true).isEmpty() == false;
     }
 
     public boolean canStart(ClusterState clusterState, boolean master) {
@@ -149,7 +152,28 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
             logger.debug("native roles store waiting until gateway has recovered from disk");
             return false;
         }
-        return securityIndexMappingAndTemplateUpToDate(clusterState, logger);
+
+        if (isTribeNode) {
+            return true;
+        }
+
+        if (securityIndexMappingAndTemplateUpToDate(clusterState, logger) == false) {
+            return false;
+        }
+
+        IndexMetaData metaData = clusterState.metaData().index(SecurityTemplateService.SECURITY_INDEX_NAME);
+        if (metaData == null) {
+            logger.debug("security index [{}] does not exist, so service can start", SecurityTemplateService.SECURITY_INDEX_NAME);
+            return true;
+        }
+
+        if (clusterState.routingTable().index(SecurityTemplateService.SECURITY_INDEX_NAME).allPrimaryShardsActive()) {
+            logger.debug("security index [{}] all primary shards started, so service can start",
+                    SecurityTemplateService.SECURITY_INDEX_NAME);
+            securityIndexExists = true;
+            return true;
+        }
+        return false;
     }
 
     public void start() {
@@ -261,7 +285,11 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
         if (state() != State.STARTED) {
             logger.trace("attempted to delete role [{}] before service was started", deleteRoleRequest.name());
             listener.onResponse(false);
+        } else if (isTribeNode) {
+            listener.onFailure(new UnsupportedOperationException("roles may not be deleted using a tribe node"));
+            return;
         }
+
         try {
             DeleteRequest request = client.prepareDelete(SecurityTemplateService.SECURITY_INDEX_NAME,
                     ROLE_DOC_TYPE, deleteRoleRequest.name()).request();
@@ -291,7 +319,11 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
         if (state() != State.STARTED) {
             logger.trace("attempted to put role [{}] before service was started", request.name());
             listener.onResponse(false);
+        } else if (isTribeNode) {
+            listener.onFailure(new UnsupportedOperationException("roles may not be created or modified using a tribe node"));
+            return;
         }
+
         try {
             client.prepareIndex(SecurityTemplateService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, role.getName())
                     .setSource(role.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))

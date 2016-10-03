@@ -30,6 +30,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -57,8 +58,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
         final Runnable action = doRequest(request, channel, client);
 
         // validate unconsumed params, but we must exclude params used to format the response
-        // we copy because we do not want to modify the request params
-        final Set<String> unconsumedParams = new HashSet<>(request.unconsumedParams());
+        final List<String> unconsumedParams = request.unconsumedParams();
         final Set<String> responseParams = responseParams();
         final Iterator<String> it = unconsumedParams.iterator();
 

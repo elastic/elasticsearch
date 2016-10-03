@@ -31,6 +31,7 @@ import java.net.SocketAddress;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -128,12 +129,18 @@ public abstract class RestRequest implements ToXContent.Params {
         return params;
     }
 
-    Set<String> unconsumedParams() {
+    /**
+     * Returns a list of parameters that have not yet been consumed. This method returns a copy,
+     * callers are free to modify the returned list.
+     *
+     * @return the list of currently unconsumed parameters.
+     */
+    List<String> unconsumedParams() {
         return params
-                .keySet()
-                .stream()
-                .filter(p -> !consumedParams.contains(p))
-                .collect(Collectors.toSet());
+            .keySet()
+            .stream()
+            .filter(p -> !consumedParams.contains(p))
+            .collect(Collectors.toList());
     }
 
     public float paramAsFloat(String key, float defaultValue) {

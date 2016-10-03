@@ -12,7 +12,7 @@ the same pattern:
     "params": { ... } <3>
   }
 -------------------------------------
-<1> The language the script is written in, which defaults to `groovy`.
+<1> The language the script is written in, which defaults to `painless`.
 <2> The script itself which may be specfied as `inline`, `id`, or `file`.
 <3> Any named parameters that should be passed into the script.
 

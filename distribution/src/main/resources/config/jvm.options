@@ -59,8 +59,14 @@
 # use our provided JNA always versus the system one
 -Djna.nosys=true
 
-# flag to explicitly tell Netty to not use unsafe
+# flags to keep Netty from being unsafe
 -Dio.netty.noUnsafe=true
+-Dio.netty.noKeySetOptimization=true
+
+# log4j 2
+-Dlog4j.shutdownHookEnabled=false
+-Dlog4j2.disable.jmx=true
+-Dlog4j.skipJansi=true
 
 ## heap dumps
 
@@ -84,11 +90,3 @@
 # log GC status to a file with time stamps
 # ensure the directory exists
 #-Xloggc:${loggc}
-
-# Elasticsearch 5.0.0 will throw an exception on unquoted field names in JSON.
-# If documents were already indexed with unquoted fields in a previous version
-# of Elasticsearch, some operations may throw errors.
-#
-# WARNING: This option will be removed in Elasticsearch 6.0.0 and is provided
-# only for migration purposes.
-#-Delasticsearch.json.allow_unquoted_field_names=true

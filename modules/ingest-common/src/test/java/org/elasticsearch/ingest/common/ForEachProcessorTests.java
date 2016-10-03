@@ -49,7 +49,7 @@ public class ForEachProcessorTests extends ESTestCase {
         );
 
         ForEachProcessor processor = new ForEachProcessor(
-            "_tag", "values", new UppercaseProcessor("_tag", "_ingest._value")
+            "_tag", "values", new UppercaseProcessor("_tag", "_ingest._value", false)
         );
         processor.execute(ingestDocument);
 
@@ -197,7 +197,7 @@ public class ForEachProcessorTests extends ESTestCase {
 
         ForEachProcessor processor = new ForEachProcessor(
                 "_tag", "values", new CompoundProcessor(false,
-                Collections.singletonList(new UppercaseProcessor("_tag_upper", "_ingest._value")),
+                Collections.singletonList(new UppercaseProcessor("_tag_upper", "_ingest._value", false)),
                 Collections.singletonList(new AppendProcessor("_tag",
                         ts.compile("errors"), (model) -> (Collections.singletonList("added"))))
         ));

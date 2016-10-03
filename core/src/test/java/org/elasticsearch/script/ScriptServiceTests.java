@@ -45,6 +45,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -86,7 +87,9 @@ public class ScriptServiceTests extends ESTestCase {
         resourceWatcherService = new ResourceWatcherService(baseSettings, null);
         scriptEngineService = new TestEngineService();
         dangerousScriptEngineService = new TestDangerousEngineService();
-        scriptEnginesByLangMap = ScriptModesTests.buildScriptEnginesByLangMap(Collections.singleton(scriptEngineService));
+        TestEngineService defaultScriptServiceEngine = new TestEngineService(Script.DEFAULT_SCRIPT_LANG) {};
+        scriptEnginesByLangMap = ScriptModesTests.buildScriptEnginesByLangMap(
+                new HashSet<>(Arrays.asList(scriptEngineService, defaultScriptServiceEngine)));
         //randomly register custom script contexts
         int randomInt = randomIntBetween(0, 3);
         //prevent duplicates using map
@@ -103,7 +106,8 @@ public class ScriptServiceTests extends ESTestCase {
             String context = plugin + "_" + operation;
             contexts.put(context, new ScriptContext.Plugin(plugin, operation));
         }
-        scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(scriptEngineService, dangerousScriptEngineService));
+        scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(scriptEngineService, dangerousScriptEngineService,
+                defaultScriptServiceEngine));
         scriptContextRegistry = new ScriptContextRegistry(contexts.values());
         scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
@@ -406,12 +410,11 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testDefaultLanguage() throws IOException {
         Settings.Builder builder = Settings.builder();
-        builder.put("script.default_lang", "test");
         builder.put("script.inline", "true");
         buildScriptService(builder.build());
         CompiledScript script = scriptService.compile(new Script("1 + 1", ScriptType.INLINE, null, null),
                 randomFrom(scriptContexts), Collections.emptyMap());
-        assertEquals(script.lang(), "test");
+        assertEquals(script.lang(), Script.DEFAULT_SCRIPT_LANG);
     }
 
     public void testStoreScript() throws Exception {
@@ -426,14 +429,14 @@ public class ScriptServiceTests extends ESTestCase {
         ScriptMetaData scriptMetaData = result.getMetaData().custom(ScriptMetaData.TYPE);
         assertNotNull(scriptMetaData);
         assertEquals("abc", scriptMetaData.getScript("_lang", "_id"));
-        assertEquals(script, scriptMetaData.getScriptAsBytes("_lang", "_id"));
     }
 
     public void testDeleteScript() throws Exception {
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder()
                         .putCustom(ScriptMetaData.TYPE,
-                                new ScriptMetaData.Builder(null).storeScript("_lang", "_id", new BytesArray("abc")).build()))
+                                new ScriptMetaData.Builder(null).storeScript("_lang", "_id",
+                                    new BytesArray("{\"script\":\"abc\"}")).build()))
                 .build();
 
         DeleteStoredScriptRequest request = new DeleteStoredScriptRequest("_lang", "_id");
@@ -509,14 +512,24 @@ public class ScriptServiceTests extends ESTestCase {
 
         public static final String NAME = "test";
 
+        private final String name;
+
+        public TestEngineService() {
+            this(NAME);
+        }
+
+        public TestEngineService(String name) {
+            this.name = name;
+        }
+
         @Override
         public String getType() {
-            return NAME;
+            return name;
         }
 
         @Override
         public String getExtension() {
-            return NAME;
+            return name;
         }
 
         @Override

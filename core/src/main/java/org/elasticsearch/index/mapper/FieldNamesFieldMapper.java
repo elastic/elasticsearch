@@ -289,8 +289,4 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         return builder;
     }
 
-    @Override
-    public boolean isGenerated() {
-        return true;
-    }
 }

@@ -39,11 +39,13 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -52,8 +54,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.env.Environment;
@@ -131,7 +133,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     if (ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).exists(settings) == false) {
                         builder.putNull(key);
                     } else {
-                        builder.put(key, ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings).name());
+                        builder.put(key, ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings));
                     }
                 }
             }
@@ -143,12 +145,18 @@ public final class ClusterSettings extends AbstractScopedSettings {
             for (String key : value.getAsMap().keySet()) {
                 assert loggerPredicate.test(key);
                 String component = key.substring("logger.".length());
+                if ("level".equals(component)) {
+                    continue;
+                }
                 if ("_root".equals(component)) {
                     final String rootLevel = value.get(key);
-                    ESLoggerFactory.getRootLogger().setLevel(rootLevel == null ? ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings)
-                            .name() : rootLevel);
+                    if (rootLevel == null) {
+                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings));
+                    } else {
+                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), rootLevel);
+                    }
                 } else {
-                    ESLoggerFactory.getLogger(component).setLevel(value.get(key));
+                    Loggers.setLevel(ESLoggerFactory.getLogger(component), value.get(key));
                 }
             }
         }
@@ -198,6 +206,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
                     DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
                     DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING,
+                    SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING,
                     InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING,
                     InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING,
                     SnapshotInProgressAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED_SETTING,
@@ -217,7 +226,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
                     NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
                     NetworkModule.HTTP_TYPE_SETTING,
-                    NetworkModule.TRANSPORT_SERVICE_TYPE_SETTING,
                     NetworkModule.TRANSPORT_TYPE_SETTING,
                     HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS,
                     HttpTransportSettings.SETTING_CORS_ENABLED,
@@ -389,7 +397,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     BootstrapSettings.MEMORY_LOCK_SETTING,
                     BootstrapSettings.SECCOMP_SETTING,
                     BootstrapSettings.CTRLHANDLER_SETTING,
-                    BootstrapSettings.IGNORE_SYSTEM_BOOTSTRAP_CHECKS,
                     IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,
                     IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING,
                     IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING,

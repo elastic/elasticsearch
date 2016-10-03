@@ -21,6 +21,8 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -44,7 +46,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -102,13 +103,11 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_C
 public class MetaDataCreateIndexService extends AbstractComponent {
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
-    private static final DefaultIndexTemplateFilter DEFAULT_INDEX_TEMPLATE_FILTER = new DefaultIndexTemplateFilter();
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final AllocationService allocationService;
     private final AliasValidator aliasValidator;
-    private final IndexTemplateFilter indexTemplateFilter;
     private final Environment env;
     private final NodeServicesProvider nodeServicesProvider;
     private final IndexScopedSettings indexScopedSettings;
@@ -117,8 +116,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     @Inject
     public MetaDataCreateIndexService(Settings settings, ClusterService clusterService,
                                       IndicesService indicesService, AllocationService allocationService,
-                                      AliasValidator aliasValidator,
-                                      Set<IndexTemplateFilter> indexTemplateFilters, Environment env,
+                                      AliasValidator aliasValidator, Environment env,
                                       NodeServicesProvider nodeServicesProvider, IndexScopedSettings indexScopedSettings,
                                       ThreadPool threadPool) {
         super(settings);
@@ -129,22 +127,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.env = env;
         this.nodeServicesProvider = nodeServicesProvider;
         this.indexScopedSettings = indexScopedSettings;
-
-        if (indexTemplateFilters.isEmpty()) {
-            this.indexTemplateFilter = DEFAULT_INDEX_TEMPLATE_FILTER;
-        } else {
-            IndexTemplateFilter[] templateFilters = new IndexTemplateFilter[indexTemplateFilters.size() + 1];
-            templateFilters[0] = DEFAULT_INDEX_TEMPLATE_FILTER;
-            int i = 1;
-            for (IndexTemplateFilter indexTemplateFilter : indexTemplateFilters) {
-                templateFilters[i++] = indexTemplateFilter;
-            }
-            this.indexTemplateFilter = new IndexTemplateFilter.Compound(templateFilters);
-        }
         this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
     }
 
-    public void validateIndexName(String index, ClusterState state) {
+    public static void validateIndexName(String index, ClusterState state) {
         if (state.routingTable().hasIndex(index)) {
             throw new IndexAlreadyExistsException(state.routingTable().index(index).getIndex());
         }
@@ -157,8 +143,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         if (index.contains("#")) {
             throw new InvalidIndexNameException(index, "must not contain '#'");
         }
-        if (index.charAt(0) == '_') {
-            throw new InvalidIndexNameException(index, "must not start with '_'");
+        if (index.charAt(0) == '_' || index.charAt(0) == '-' || index.charAt(0) == '+') {
+            throw new InvalidIndexNameException(index, "must not start with '_', '-', or '+'");
         }
         if (!index.toLowerCase(Locale.ROOT).equals(index)) {
             throw new InvalidIndexNameException(index, "must be lowercase");
@@ -242,7 +228,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                             // we only find a template when its an API call (a new index)
                             // find templates, highest order are better matching
-                            List<IndexTemplateMetaData> templates = findTemplates(request, currentState, indexTemplateFilter);
+                            List<IndexTemplateMetaData> templates = findTemplates(request, currentState);
 
                             Map<String, Custom> customs = new HashMap<>();
 
@@ -332,7 +318,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             if (indexSettingsBuilder.get(SETTING_CREATION_DATE) == null) {
                                 indexSettingsBuilder.put(SETTING_CREATION_DATE, new DateTime(DateTimeZone.UTC).getMillis());
                             }
-
+                            indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
                             indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
                             final Index shrinkFromIndex = request.shrinkFrom();
                             int routingNumShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettingsBuilder.build());;
@@ -443,10 +429,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             if (request.state() == State.OPEN) {
                                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
                                         .addAsNew(updatedState.metaData().index(request.index()));
-                                RoutingAllocation.Result routingResult = allocationService.reroute(
+                                updatedState = allocationService.reroute(
                                         ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
                                         "index [" + request.index() + "] created");
-                                updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
                             }
                             removalReason = "cleaning up after validating index on master";
                             return updatedState;
@@ -461,20 +446,20 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     @Override
                     public void onFailure(String source, Exception e) {
                         if (e instanceof IndexAlreadyExistsException) {
-                            logger.trace("[{}] failed to create", e, request.index());
+                            logger.trace((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
                         } else {
-                            logger.debug("[{}] failed to create", e, request.index());
+                            logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
                         }
                         super.onFailure(source, e);
                     }
                 });
     }
 
-    private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state, IndexTemplateFilter indexTemplateFilter) throws IOException {
+    private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws IOException {
         List<IndexTemplateMetaData> templates = new ArrayList<>();
         for (ObjectCursor<IndexTemplateMetaData> cursor : state.metaData().templates().values()) {
             IndexTemplateMetaData template = cursor.value;
-            if (indexTemplateFilter.apply(request, template)) {
+            if (Regex.simpleMatch(template.template(), request.index())) {
                 templates.add(template);
             }
         }
@@ -513,23 +498,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 validationErrors.add("custom path [" + customPath + "] is not a sub-path of path.shared_data [" + env.sharedDataFile() + "]");
             }
         }
-        //norelease - this can be removed?
-        Integer number_of_primaries = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
-        Integer number_of_replicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);
-        if (number_of_primaries != null && number_of_primaries <= 0) {
-            validationErrors.add("index must have 1 or more primary shards");
-        }
-        if (number_of_replicas != null && number_of_replicas < 0) {
-            validationErrors.add("index must have 0 or more replica shards");
-        }
         return validationErrors;
-    }
-
-    private static class DefaultIndexTemplateFilter implements IndexTemplateFilter {
-        @Override
-        public boolean apply(CreateIndexClusterStateUpdateRequest request, IndexTemplateMetaData template) {
-            return Regex.simpleMatch(template.template(), request.index());
-        }
     }
 
     /**

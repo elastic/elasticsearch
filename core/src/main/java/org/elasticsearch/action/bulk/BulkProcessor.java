@@ -190,7 +190,7 @@ public class BulkProcessor implements Closeable {
 
     BulkProcessor(Client client, BackoffPolicy backoffPolicy, Listener listener, @Nullable String name, int concurrentRequests, int bulkActions, ByteSizeValue bulkSize, @Nullable TimeValue flushInterval) {
         this.bulkActions = bulkActions;
-        this.bulkSize = bulkSize.bytes();
+        this.bulkSize = bulkSize.getBytes();
 
         this.bulkRequest = new BulkRequest();
         this.bulkRequestHandler = (concurrentRequests == 0) ? BulkRequestHandler.syncHandler(client, backoffPolicy, listener) : BulkRequestHandler.asyncHandler(client, backoffPolicy, listener, concurrentRequests);
@@ -293,7 +293,7 @@ public class BulkProcessor implements Closeable {
     }
 
     public synchronized BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String defaultPipeline, @Nullable Object payload) throws Exception {
-        bulkRequest.add(data, defaultIndex, defaultType, null, null, defaultPipeline, payload, true);
+        bulkRequest.add(data, defaultIndex, defaultType, null, null, null, defaultPipeline, payload, true);
         executeIfNeeded();
         return this;
     }

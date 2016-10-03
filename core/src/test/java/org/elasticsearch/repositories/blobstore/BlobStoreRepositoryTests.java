@@ -23,15 +23,7 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResp
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -75,7 +67,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             String id = Integer.toString(i);
             client().prepareIndex(indexName, "type1", id).setSource("text", "sometext").get();
         }
-        client().admin().indices().prepareFlush(indexName).setWaitIfOngoing(true).get();
+        client().admin().indices().prepareFlush(indexName).get();
 
         logger.info("--> create first snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
@@ -176,27 +168,6 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         @SuppressWarnings("unchecked") final BlobStoreRepository repository =
             (BlobStoreRepository) repositoriesService.repository(repositoryName);
         return repository;
-    }
-
-    private void writeOldFormat(final BlobStoreRepository repository, final List<String> snapshotNames) throws Exception {
-        final BytesReference bRef;
-        try (BytesStreamOutput bStream = new BytesStreamOutput()) {
-            try (StreamOutput stream = new OutputStreamStreamOutput(bStream)) {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
-                builder.startObject();
-                builder.startArray("snapshots");
-                for (final String snapshotName : snapshotNames) {
-                    builder.value(snapshotName);
-                }
-                builder.endArray();
-                builder.endObject();
-                builder.close();
-            }
-            bRef = bStream.bytes();
-        }
-        try (StreamInput stream = bRef.streamInput()) {
-            repository.blobContainer().writeBlob(BlobStoreRepository.SNAPSHOTS_FILE, stream, bRef.length()); // write to index file
-        }
     }
 
 }

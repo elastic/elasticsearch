@@ -18,10 +18,6 @@
  */
 package org.elasticsearch.test;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
@@ -31,7 +27,6 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -43,13 +38,14 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseContext;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
@@ -64,6 +60,10 @@ import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class TestSearchContext extends SearchContext {
 
@@ -89,7 +89,7 @@ public class TestSearchContext extends SearchContext {
     private SearchContextAggregations aggregations;
 
     private final long originNanoTime = System.nanoTime();
-    private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
+    private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 
     public TestSearchContext(ThreadPool threadPool, BigArrays bigArrays, ScriptService scriptService, IndexService indexService) {
         super(ParseFieldMatcher.STRICT);
@@ -116,7 +116,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void preProcess() {
+    public void preProcess(boolean rewrite) {
     }
 
     @Override
@@ -196,12 +196,13 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory) {
-        String subPhaseName = contextFactory.getName();
-        if (subPhaseContexts.get(subPhaseName) == null) {
-            subPhaseContexts.put(subPhaseName, contextFactory.newContextInstance());
-        }
-        return (SubPhaseContext) subPhaseContexts.get(subPhaseName);
+    public void addSearchExt(SearchExtBuilder searchExtBuilder) {
+        searchExtBuilders.put(searchExtBuilder.getWriteableName(), searchExtBuilder);
+    }
+
+    @Override
+    public SearchExtBuilder getSearchExt(String name) {
+        return searchExtBuilders.get(name);
     }
 
     @Override
@@ -262,6 +263,16 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
+    public DocValueFieldsContext docValueFieldsContext() {
+        return null;
+    }
+
+    @Override
+    public SearchContext docValueFieldsContext(DocValueFieldsContext docValueFieldsContext) {
+        return null;
+    }
+
+    @Override
     public ContextIndexSearcher searcher() {
         return searcher;
     }
@@ -282,9 +293,6 @@ public class TestSearchContext extends SearchContext {
         }
         return null;
     }
-
-    @Override
-    public AnalysisService analysisService() { return indexService.analysisService();}
 
     @Override
     public SimilarityService similarityService() {
@@ -430,17 +438,28 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFieldNames() {
+    public boolean hasStoredFields() {
         return false;
     }
 
     @Override
-    public List<String> fieldNames() {
+    public boolean hasStoredFieldsContext() {
+        return false;
+    }
+
+    @Override
+    public boolean storedFieldsRequested() {
+        return false;
+    }
+
+    @Override
+    public StoredFieldsContext storedFieldsContext() {
         return null;
     }
 
     @Override
-    public void emptyFieldNames() {
+    public SearchContext storedFieldsContext(StoredFieldsContext storedFieldsContext) {
+        return null;
     }
 
     @Override

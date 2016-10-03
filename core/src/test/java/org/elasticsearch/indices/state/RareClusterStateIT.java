@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -58,6 +57,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -96,7 +96,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         ClusterState current = clusterService().state();
         GatewayAllocator allocator = internalCluster().getInstance(GatewayAllocator.class);
 
-        AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[0]);
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY, Collections.emptyList());
         RoutingNodes routingNodes = new RoutingNodes(
                 ClusterState.builder(current)
                         .routingTable(RoutingTable.builder(current.routingTable()).remove("a").addAsRecovery(current.metaData().index("a")).build())
@@ -139,8 +139,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 routingTable.addAsRecovery(updatedState.metaData().index(index));
                 updatedState = ClusterState.builder(updatedState).routingTable(routingTable.build()).build();
 
-                RoutingAllocation.Result result = allocationService.reroute(updatedState, "reroute");
-                return ClusterState.builder(updatedState).routingResult(result).build();
+                return allocationService.reroute(updatedState, "reroute");
 
             }
 
@@ -158,8 +157,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 builder.nodes(DiscoveryNodes.builder(currentState.nodes()).remove("_non_existent"));
 
                 currentState = builder.build();
-                RoutingAllocation.Result result = allocationService.deassociateDeadNodes(currentState, true, "reroute");
-                return ClusterState.builder(currentState).routingResult(result).build();
+                return allocationService.deassociateDeadNodes(currentState, true, "reroute");
 
             }
 

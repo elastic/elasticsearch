@@ -180,7 +180,7 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(PercentileRanksParser.VALUES_FIELD.getPreferredName(), values);
+        builder.array(PercentileRanksParser.VALUES_FIELD.getPreferredName(), values);
         builder.field(AbstractPercentilesParser.KEYED_FIELD.getPreferredName(), keyed);
         builder.startObject(method.getName());
         if (method == PercentilesMethod.TDIGEST) {

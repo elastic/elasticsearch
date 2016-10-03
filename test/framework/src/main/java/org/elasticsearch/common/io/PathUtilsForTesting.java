@@ -30,7 +30,7 @@ public class PathUtilsForTesting {
 
     /** Sets a new default filesystem for testing */
     public static void setup() {
-        installMock(LuceneTestCase.getBaseTempDirForTestClass().getFileSystem());
+        installMock(LuceneTestCase.createTempDir().getFileSystem());
     }
 
     /** Installs a mock filesystem for testing */

@@ -25,7 +25,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -251,9 +250,9 @@ public class SimpleSortIT extends ESIntegTestCase {
                     .setSource(jsonBuilder()
                             .startObject()
                                 .field("ord", i)
-                                .field("svalue", new String[]{"" + i, "" + (i + 1), "" + (i + 2)})
-                                .field("lvalue", new long[]{i, i + 1, i + 2})
-                                .field("dvalue", new double[]{i, i + 1, i + 2})
+                                .array("svalue", new String[]{"" + i, "" + (i + 1), "" + (i + 2)})
+                                .array("lvalue", new long[]{i, i + 1, i + 2})
+                                .array("dvalue", new double[]{i, i + 1, i + 2})
                                 .startObject("gvalue")
                                     .field("lat", (double) i + 1)
                                     .field("lon", (double) i)

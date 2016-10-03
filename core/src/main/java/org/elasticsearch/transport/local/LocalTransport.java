@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport.local;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -27,7 +29,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -71,9 +72,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
-/**
- *
- */
 public class LocalTransport extends AbstractLifecycleComponent implements Transport {
 
     public static final String LOCAL_TRANSPORT_THREAD_NAME_PREFIX = "local_transport";
@@ -92,7 +90,6 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
     public static final String TRANSPORT_LOCAL_WORKERS = "transport.local.workers";
     public static final String TRANSPORT_LOCAL_QUEUE = "transport.local.queue";
 
-    @Inject
     public LocalTransport(Settings settings, ThreadPool threadPool,
                           NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super(settings);
@@ -306,7 +303,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
                     });
                 }
             } else {
-                logger.warn("Failed to receive message for action [{}]", e, action);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to receive message for action [{}]", action), e);
             }
         }
     }
@@ -355,7 +352,9 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
                                 transportChannel.sendResponse(e);
                             } catch (Exception inner) {
                                 inner.addSuppressed(e);
-                                logger.warn("Failed to send error message back to client for action [{}]", inner, action);
+                                logger.warn(
+                                    (Supplier<?>) () -> new ParameterizedMessage(
+                                        "Failed to send error message back to client for action [{}]", action), inner);
                             }
                         }
                     }
@@ -366,7 +365,9 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
                 transportChannel.sendResponse(e);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
-                logger.warn("Failed to send error message back to client for action [{}]", inner, action);
+                logger.warn(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "Failed to send error message back to client for action [{}]", action), inner);
             }
 
         }
@@ -414,7 +415,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
         try {
             handler.handleException(rtx);
         } catch (Exception e) {
-            logger.error("failed to handle exception response [{}]", e, handler);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to handle exception response [{}]", handler), e);
         }
     }
 

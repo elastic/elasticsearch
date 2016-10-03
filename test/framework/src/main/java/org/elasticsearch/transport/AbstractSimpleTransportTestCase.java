@@ -19,6 +19,8 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -222,8 +224,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (Exception e) {
             assertThat(e.getMessage(), false, equalTo(true));
         }
-
-        serviceA.removeHandler("sayHello");
     }
 
     public void testThreadContext() throws ExecutionException, InterruptedException {
@@ -279,8 +279,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertEquals("ping_user", threadPool.getThreadContext().getHeader("test.ping.user"));
         assertSame(context, threadPool.getThreadContext().getTransient("my_private_context"));
         assertNull("this header is only visible in the handler context", threadPool.getThreadContext().getHeader("some.temp.header"));
-
-        serviceA.removeHandler("sayHello");
     }
 
     public void testLocalNodeConnection() throws InterruptedException {
@@ -373,8 +371,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (Exception e) {
             assertThat(e.getMessage(), false, equalTo(true));
         }
-
-        serviceA.removeHandler("sayHello");
     }
 
     public void testHelloWorldCompressed() {
@@ -424,8 +420,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (Exception e) {
             assertThat(e.getMessage(), false, equalTo(true));
         }
-
-        serviceA.removeHandler("sayHello");
     }
 
     public void testErrorMessage() {
@@ -467,8 +461,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (Exception e) {
             assertThat(e.getCause().getMessage(), equalTo("runtime_exception: bad message !!!"));
         }
-
-        serviceA.removeHandler("sayHelloException");
     }
 
     public void testDisconnectListener() throws Exception {
@@ -535,7 +527,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                             listener.actionGet();
 
                         } catch (Exception e) {
-                            logger.trace("caught exception while sending to node {}", e, nodeA);
+                            logger.trace(
+                                (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", nodeA), e);
                         }
                     }
                 }
@@ -570,7 +563,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         } catch (ConnectTransportException e) {
                             // ok!
                         } catch (Exception e) {
-                            logger.error("caught exception while sending to node {}", e, node);
+                            logger.error(
+                                (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", node), e);
                             sendingErrors.add(e);
                         }
                     }
@@ -631,7 +625,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (TransportException ex) {
 
         }
-        serviceA.removeHandler("sayHelloTimeoutDelayedResponse");
     }
 
     public void testTimeoutSendExceptionWithNeverSendingBackResponse() throws Exception {
@@ -674,8 +667,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (Exception e) {
             assertThat(e, instanceOf(ReceiveTimeoutTransportException.class));
         }
-
-        serviceA.removeHandler("sayHelloTimeoutNoResponse");
     }
 
     public void testTimeoutSendExceptionWithDelayedResponse() throws Exception {
@@ -781,13 +772,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         for (Runnable runnable : assertions) {
             runnable.run();
         }
-        serviceA.removeHandler("sayHelloTimeoutDelayedResponse");
         waitForever.countDown();
         doneWaitingForever.await();
         assertTrue(inFlight.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
     }
 
-    @TestLogging(value = "test.transport.tracer:TRACE")
+    @TestLogging(value = "org.elasticsearch.test.transport.tracer:TRACE")
     public void testTracerLog() throws InterruptedException {
         TransportRequestHandler handler = new TransportRequestHandler<StringMessageRequest>() {
             @Override
@@ -1321,8 +1311,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (ConnectTransportException e) {
             // all is well
         }
-
-        serviceA.removeHandler("sayHello");
     }
 
     public void testMockUnresponsiveRule() {
@@ -1381,8 +1369,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (ConnectTransportException e) {
             // all is well
         }
-
-        serviceA.removeHandler("sayHello");
     }
 
 
@@ -1684,7 +1670,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public void handleException(TransportException exp) {
-                logger.debug("---> received exception for id {}", exp, id);
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("---> received exception for id {}", id), exp);
                 allRequestsDone.countDown();
                 Throwable unwrap = ExceptionsHelper.unwrap(exp, IOException.class);
                 assertNotNull(unwrap);
@@ -1716,5 +1702,17 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         logger.debug("DONE");
         serviceC.close();
 
+    }
+
+    public void testRegisterHandlerTwice() {
+        serviceB.registerRequestHandler("action1", TestRequest::new, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
+            (request, message) -> {throw new AssertionError("boom");});
+        expectThrows(IllegalArgumentException.class, () ->
+            serviceB.registerRequestHandler("action1", TestRequest::new, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
+                (request, message) -> {throw new AssertionError("boom");})
+        );
+
+        serviceA.registerRequestHandler("action1", TestRequest::new, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
+            (request, message) -> {throw new AssertionError("boom");});
     }
 }

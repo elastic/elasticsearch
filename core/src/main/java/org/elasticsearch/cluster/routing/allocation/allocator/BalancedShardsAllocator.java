@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -37,7 +38,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -209,7 +209,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
      * A {@link Balancer}
      */
     public static class Balancer {
-        private final ESLogger logger;
+        private final Logger logger;
         private final Map<String, ModelNode> nodes = new HashMap<>();
         private final RoutingAllocation allocation;
         private final RoutingNodes routingNodes;
@@ -219,7 +219,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         private final MetaData metaData;
         private final float avgShardsPerNode;
 
-        public Balancer(ESLogger logger, RoutingAllocation allocation, WeightFunction weight, float threshold) {
+        public Balancer(Logger logger, RoutingAllocation allocation, WeightFunction weight, float threshold) {
             this.logger = logger;
             this.allocation = allocation;
             this.weight = weight;
@@ -792,10 +792,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     long shardSize = allocation.clusterInfo().getShardSize(candidate, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
                     if (decision.type() == Type.YES) { /* only allocate on the cluster if we are not throttled */
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("Relocate shard [{}] from node [{}] to node [{}]", candidate, maxNode.getNodeId(),
+                        logger.debug("Relocate shard [{}] from node [{}] to node [{}]", candidate, maxNode.getNodeId(),
                                     minNode.getNodeId());
-                        }
                         /* now allocate on the cluster */
                         minNode.addShard(routingNodes.relocateShard(candidate, minNode.getNodeId(), shardSize, allocation.changes()).v1());
                         return true;

@@ -28,10 +28,9 @@ import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.DocValueField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -53,15 +52,16 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
     private final boolean trackScores;
     private final List<SortBuilder<?>> sorts;
     private final HighlightBuilder highlightBuilder;
-    private final List<String> fieldNames;
+    private final StoredFieldsContext storedFieldsContext;
     private final List<String> docValueFields;
     private final Set<ScriptField> scriptFields;
     private final FetchSourceContext fetchSourceContext;
 
     public TopHitsAggregatorFactory(String name, Type type, int from, int size, boolean explain, boolean version, boolean trackScores,
-            List<SortBuilder<?>> sorts, HighlightBuilder highlightBuilder, List<String> fieldNames, List<String> docValueFields,
-            Set<ScriptField> scriptFields, FetchSourceContext fetchSourceContext, AggregationContext context, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
+            List<SortBuilder<?>> sorts, HighlightBuilder highlightBuilder, StoredFieldsContext storedFieldsContext,
+            List<String> docValueFields, Set<ScriptField> scriptFields, FetchSourceContext fetchSourceContext,
+            AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories,
+            Map<String, Object> metaData) throws IOException {
         super(name, type, context, parent, subFactories, metaData);
         this.from = from;
         this.size = size;
@@ -70,7 +70,7 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
         this.trackScores = trackScores;
         this.sorts = sorts;
         this.highlightBuilder = highlightBuilder;
-        this.fieldNames = fieldNames;
+        this.storedFieldsContext = storedFieldsContext;
         this.docValueFields = docValueFields;
         this.scriptFields = scriptFields;
         this.fetchSourceContext = fetchSourceContext;
@@ -92,16 +92,11 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
                 subSearchContext.sort(optionalSort.get());
             }
         }
-        if (fieldNames != null) {
-            subSearchContext.fieldNames().addAll(fieldNames);
+        if (storedFieldsContext != null) {
+            subSearchContext.storedFieldsContext(storedFieldsContext);
         }
         if (docValueFields != null) {
-            DocValueFieldsContext docValueFieldsContext = subSearchContext
-                    .getFetchSubPhaseContext(DocValueFieldsFetchSubPhase.CONTEXT_FACTORY);
-            for (String field : docValueFields) {
-                docValueFieldsContext.add(new DocValueField(field));
-            }
-            docValueFieldsContext.setHitExecutionNeeded(true);
+            subSearchContext.docValueFieldsContext(new DocValueFieldsContext(docValueFields));
         }
         if (scriptFields != null) {
             for (ScriptField field : scriptFields) {

@@ -38,7 +38,11 @@ specific index module:
 
     The number of primary shards that an index should have.  Defaults to 5.
     This setting can only be set at index creation time.  It cannot be
-    changed on a closed index.
+    changed on a closed index. Note: the number of shards are limited to `1024` per
+    index. This limitation is a safety limit to prevent accidental creation of indices
+    that can destabilize a cluster due to resource allocation. The limit can be modified
+    by specifying `export ES_JAVA_OPTS="-Des.index.max_number_of_shards=128"` system property on every node that is
+    part of the cluster.
 
 `index.shard.check_on_startup`::
 +

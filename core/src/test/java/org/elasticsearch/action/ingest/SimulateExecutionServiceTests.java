@@ -34,7 +34,7 @@ import org.junit.Before;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.ingest.IngestDocumentTests.assertIngestDocument;
+import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -42,6 +42,8 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class SimulateExecutionServiceTests extends ESTestCase {
+
+    private final Integer version = randomBoolean() ? randomInt() : null;
 
     private ThreadPool threadPool;
     private SimulateExecutionService executionService;
@@ -65,7 +67,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
     public void testExecuteVerboseItem() throws Exception {
         TestProcessor processor = new TestProcessor("test-id", "mock", ingestDocument -> {});
-        Pipeline pipeline = new Pipeline("_id", "_description", new CompoundProcessor(processor, processor));
+        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor, processor));
         SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
         assertThat(processor.getInvokedCounter(), equalTo(2));
         assertThat(actualItemResponse, instanceOf(SimulateDocumentVerboseResult.class));
@@ -90,7 +92,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
     public void testExecuteItem() throws Exception {
         TestProcessor processor = new TestProcessor("processor_0", "mock", ingestDocument -> {});
-        Pipeline pipeline = new Pipeline("_id", "_description", new CompoundProcessor(processor, processor));
+        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor, processor));
         SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, false);
         assertThat(processor.getInvokedCounter(), equalTo(2));
         assertThat(actualItemResponse, instanceOf(SimulateDocumentBaseResult.class));
@@ -103,7 +105,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         TestProcessor processor1 = new TestProcessor("processor_0", "mock", ingestDocument -> {});
         TestProcessor processor2 = new TestProcessor("processor_1", "mock", ingestDocument -> { throw new RuntimeException("processor failed"); });
         TestProcessor processor3 = new TestProcessor("processor_2", "mock", ingestDocument -> {});
-        Pipeline pipeline = new Pipeline("_id", "_description", new CompoundProcessor(processor1, processor2, processor3));
+        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor1, processor2, processor3));
         SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
         assertThat(processor1.getInvokedCounter(), equalTo(1));
         assertThat(processor2.getInvokedCounter(), equalTo(1));
@@ -127,7 +129,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         TestProcessor processor1 = new TestProcessor("processor_0", "mock", ingestDocument -> { throw new RuntimeException("processor failed"); });
         TestProcessor processor2 = new TestProcessor("processor_1", "mock", ingestDocument -> {});
         TestProcessor processor3 = new TestProcessor("processor_2", "mock", ingestDocument -> {});
-        Pipeline pipeline = new Pipeline("_id", "_description",
+        Pipeline pipeline = new Pipeline("_id", "_description", version,
                 new CompoundProcessor(new CompoundProcessor(false, Collections.singletonList(processor1),
                                 Collections.singletonList(processor2)), processor3));
         SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
@@ -163,7 +165,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         RuntimeException exception = new RuntimeException("processor failed");
         TestProcessor testProcessor = new TestProcessor("processor_0", "mock", ingestDocument -> { throw exception; });
         CompoundProcessor processor = new CompoundProcessor(true, Collections.singletonList(testProcessor), Collections.emptyList());
-        Pipeline pipeline = new Pipeline("_id", "_description", new CompoundProcessor(processor));
+        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor));
         SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
         assertThat(testProcessor.getInvokedCounter(), equalTo(1));
         assertThat(actualItemResponse, instanceOf(SimulateDocumentVerboseResult.class));
@@ -179,7 +181,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     public void testExecuteVerboseItemWithoutExceptionAndWithIgnoreFailure() throws Exception {
         TestProcessor testProcessor = new TestProcessor("processor_0", "mock", ingestDocument -> { });
         CompoundProcessor processor = new CompoundProcessor(true, Collections.singletonList(testProcessor), Collections.emptyList());
-        Pipeline pipeline = new Pipeline("_id", "_description", new CompoundProcessor(processor));
+        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor));
         SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
         assertThat(testProcessor.getInvokedCounter(), equalTo(1));
         assertThat(actualItemResponse, instanceOf(SimulateDocumentVerboseResult.class));
@@ -194,7 +196,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
     public void testExecuteItemWithFailure() throws Exception {
         TestProcessor processor = new TestProcessor(ingestDocument -> { throw new RuntimeException("processor failed"); });
-        Pipeline pipeline = new Pipeline("_id", "_description", new CompoundProcessor(processor, processor));
+        Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor, processor));
         SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, false);
         assertThat(processor.getInvokedCounter(), equalTo(1));
         assertThat(actualItemResponse, instanceOf(SimulateDocumentBaseResult.class));

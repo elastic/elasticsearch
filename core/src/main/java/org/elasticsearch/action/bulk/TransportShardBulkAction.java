@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
@@ -156,11 +158,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             BulkItemRequest item = request.items()[requestIndex];
             DocumentRequest<?> documentRequest = item.request();
             if (ExceptionsHelper.status(e) == RestStatus.CONFLICT) {
-                logger.trace("{} failed to execute bulk item ({}) {}", e, request.shardId(),
-                    documentRequest.opType().getLowercase(), request);
+                logger.trace((Supplier<?>) () -> new ParameterizedMessage("{} failed to execute bulk item ({}) {}",
+                        request.shardId(), documentRequest.opType().getLowercase(), request), e);
             } else {
-                logger.debug("{} failed to execute bulk item ({}) {}", e, request.shardId(),
-                    documentRequest.opType().getLowercase(), request);
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} failed to execute bulk item ({}) {}",
+                        request.shardId(), documentRequest.opType().getLowercase(), request), e);
             }
             // if its a conflict failure, and we already executed the request on a primary (and we execute it
             // again, due to primary relocation and only processing up to N bulk items when the shard gets closed)

@@ -155,7 +155,7 @@ curl 'localhost:9200/_mget' -d '{
 [[mget-fields]]
 === Fields
 
-Specific stored fields can be specified to be retrieved per document to get, similar to the <<get-fields,fields>> parameter of the Get API.
+Specific stored fields can be specified to be retrieved per document to get, similar to the <<get-stored-fields,stored_fields>> parameter of the Get API.
 For example:
 
 [source,js]
@@ -166,31 +166,31 @@ curl 'localhost:9200/_mget' -d '{
             "_index" : "test",
             "_type" : "type",
             "_id" : "1",
-            "fields" : ["field1", "field2"]
+            "stored_fields" : ["field1", "field2"]
         },
         {
             "_index" : "test",
             "_type" : "type",
             "_id" : "2",
-            "fields" : ["field3", "field4"]
+            "stored_fields" : ["field3", "field4"]
         }
     ]
 }'
 --------------------------------------------------
 
-Alternatively, you can specify the `fields` parameter in the query string
+Alternatively, you can specify the `stored_fields` parameter in the query string
 as a default to be applied to all documents.
 
 [source,js]
 --------------------------------------------------
-curl 'localhost:9200/test/type/_mget?fields=field1,field2' -d '{
+curl 'localhost:9200/test/type/_mget?stored_fields=field1,field2' -d '{
     "docs" : [
         {
             "_id" : "1" <1>
         },
         {
             "_id" : "2",
-            "fields" : ["field3", "field4"] <2>
+            "stored_fields" : ["field3", "field4"] <2>
         }
     ]
 }'
@@ -201,7 +201,7 @@ curl 'localhost:9200/test/type/_mget?fields=field1,field2' -d '{
 [float]
 === Generated fields
 
-See <<generated-fields>> for fields are generated only when indexing. 
+See <<generated-fields>> for fields generated only when indexing.
 
 [float]
 [[mget-routing]]

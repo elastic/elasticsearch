@@ -68,7 +68,8 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 /**
- *
+ * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
+ * (document ids and score or sort criteria) so that matches can be reduced on the coordinating node
  */
 public class QueryPhase implements SearchPhase {
 
@@ -84,7 +85,7 @@ public class QueryPhase implements SearchPhase {
 
     @Override
     public void preProcess(SearchContext context) {
-        context.preProcess();
+        context.preProcess(true);
     }
 
     @Override

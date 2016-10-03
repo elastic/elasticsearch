@@ -34,7 +34,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -78,10 +77,9 @@ public class LegacyShortFieldMapper extends LegacyNumberFieldMapper {
                 throw new IllegalStateException("Cannot use legacy numeric types after 5.0");
             }
             setupFieldType(context);
-            LegacyShortFieldMapper fieldMapper = new LegacyShortFieldMapper(name, fieldType, defaultFieldType,
-                    ignoreMalformed(context), coerce(context),
+            return new LegacyShortFieldMapper(name, fieldType, defaultFieldType,
+                    ignoreMalformed(context), coerce(context), includeInAll,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return (LegacyShortFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
 
         @Override
@@ -181,9 +179,9 @@ public class LegacyShortFieldMapper extends LegacyNumberFieldMapper {
     }
 
     protected LegacyShortFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                               Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+                               Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Boolean includeInAll,
                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, includeInAll, indexSettings, multiFields, copyTo);
     }
 
     @Override

@@ -142,7 +142,7 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
                 } else if (context.getParseFieldMatcher().match(currentFieldName, GAP_POLICY)) {
                     gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
                 } else if (context.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, context.getParseFieldMatcher());
+                    script = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
@@ -164,7 +164,7 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (context.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, context.getParseFieldMatcher());
+                    script = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                 } else if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
                     Map<String, Object> map = parser.map();
                     bucketsPathsMap = new HashMap<>();

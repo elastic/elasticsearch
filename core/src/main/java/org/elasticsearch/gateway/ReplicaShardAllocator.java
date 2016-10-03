@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -31,24 +31,25 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
-import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.UnassignedShardDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 /**
  */
-public abstract class ReplicaShardAllocator extends AbstractComponent {
+public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
 
     public ReplicaShardAllocator(Settings settings) {
         super(settings);
@@ -76,8 +77,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 }
 
                 // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
-                IndexMetaData indexMetaData = metaData.getIndexSafe(shard.index());
-                if (shard.allocatedPostIndexCreate(indexMetaData) == false) {
+                if (shard.unassignedInfo() != null && shard.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
                     continue;
                 }
 
@@ -97,7 +97,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                     continue;
                 }
 
-                MatchingNodes matchingNodes = findMatchingNodes(shard, allocation, primaryStore, shardStores);
+                MatchingNodes matchingNodes = findMatchingNodes(shard, allocation, primaryStore, shardStores, false);
                 if (matchingNodes.getNodeWithHighestMatch() != null) {
                     DiscoveryNode currentNode = allocation.nodes().get(shard.currentNodeId());
                     DiscoveryNode nodeWithHighestMatch = matchingNodes.getNodeWithHighestMatch();
@@ -119,7 +119,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                             "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node ["+ nodeWithHighestMatch + "]",
                             null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false, UnassignedInfo.AllocationStatus.NO_ATTEMPT);
                         // don't cancel shard in the loop as it will cause a ConcurrentModificationException
-                        shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo, indexMetaData, allocation.changes()));
+                        shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo, metaData.getIndexSafe(shard.index()), allocation.changes()));
                     }
                 }
             }
@@ -129,88 +129,88 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
         }
     }
 
-    public void allocateUnassigned(RoutingAllocation allocation) {
-        final RoutingNodes routingNodes = allocation.routingNodes();
-        final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
-        MetaData metaData = allocation.metaData();
-        while (unassignedIterator.hasNext()) {
-            ShardRouting shard = unassignedIterator.next();
-            if (shard.primary()) {
-                continue;
-            }
-
-            // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
-            IndexMetaData indexMetaData = metaData.getIndexSafe(shard.index());
-            if (shard.allocatedPostIndexCreate(indexMetaData) == false) {
-                continue;
-            }
-
-            // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
-            Decision decision = canBeAllocatedToAtLeastOneNode(shard, allocation);
-            if (decision.type() != Decision.Type.YES) {
-                logger.trace("{}: ignoring allocation, can't be allocated on any node", shard);
-                unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.fromDecision(decision), allocation.changes());
-                continue;
-            }
-
-            AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores = fetchData(shard, allocation);
-            if (shardStores.hasData() == false) {
-                logger.trace("{}: ignoring allocation, still fetching shard stores", shard);
-                allocation.setHasPendingAsyncFetch();
-                unassignedIterator.removeAndIgnore(AllocationStatus.FETCHING_SHARD_DATA, allocation.changes());
-                continue; // still fetching
-            }
-
-            ShardRouting primaryShard = routingNodes.activePrimary(shard.shardId());
-            assert primaryShard != null : "the replica shard can be allocated on at least one node, so there must be an active primary";
-            TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore = findStore(primaryShard, allocation, shardStores);
-            if (primaryStore == null) {
-                // if we can't find the primary data, it is probably because the primary shard is corrupted (and listing failed)
-                // we want to let the replica be allocated in order to expose the actual problem with the primary that the replica
-                // will try and recover from
-                // Note, this is the existing behavior, as exposed in running CorruptFileTest#testNoPrimaryData
-                logger.trace("{}: no primary shard store found or allocated, letting actual allocation figure it out", shard);
-                continue;
-            }
-
-            MatchingNodes matchingNodes = findMatchingNodes(shard, allocation, primaryStore, shardStores);
-
-            if (matchingNodes.getNodeWithHighestMatch() != null) {
-                RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.getNodeWithHighestMatch().getId());
-                // we only check on THROTTLE since we checked before before on NO
-                decision = allocation.deciders().canAllocate(shard, nodeWithHighestMatch, allocation);
-                if (decision.type() == Decision.Type.THROTTLE) {
-                    logger.debug("[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent store", shard.index(), shard.id(), shard, nodeWithHighestMatch.node());
-                    // we are throttling this, but we have enough to allocate to this node, ignore it for now
-                    unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.fromDecision(decision), allocation.changes());
-                } else {
-                    logger.debug("[{}][{}]: allocating [{}] to [{}] in order to reuse its unallocated persistent store", shard.index(), shard.id(), shard, nodeWithHighestMatch.node());
-                    // we found a match
-                    unassignedIterator.initialize(nodeWithHighestMatch.nodeId(), null, allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
-                }
-            } else if (matchingNodes.hasAnyData() == false) {
-                // if we didn't manage to find *any* data (regardless of matching sizes), check if the allocation of the replica shard needs to be delayed
-                ignoreUnassignedIfDelayed(unassignedIterator, shard, allocation.changes());
-            }
-        }
+    /**
+     * Is the allocator responsible for allocating the given {@link ShardRouting}?
+     */
+    private static boolean isResponsibleFor(final ShardRouting shard) {
+        return shard.primary() == false // must be a replica
+                   && shard.unassigned() // must be unassigned
+                   // if we are allocating a replica because of index creation, no need to go and find a copy, there isn't one...
+                   && shard.unassignedInfo().getReason() != UnassignedInfo.Reason.INDEX_CREATED;
     }
 
-    /**
-     * Check if the allocation of the replica is to be delayed. Compute the delay and if it is delayed, add it to the ignore unassigned list
-     * Note: we only care about replica in delayed allocation, since if we have an unassigned primary it
-     *       will anyhow wait to find an existing copy of the shard to be allocated
-     * Note: the other side of the equation is scheduling a reroute in a timely manner, which happens in the RoutingService
-     *
-     * PUBLIC FOR TESTS!
-     *
-     * @param unassignedIterator iterator over unassigned shards
-     * @param shard the shard which might be delayed
-     */
-    public void ignoreUnassignedIfDelayed(RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator, ShardRouting shard, RoutingChangesObserver changes) {
-        if (shard.unassignedInfo().isDelayed()) {
-            logger.debug("{}: allocation of [{}] is delayed", shard.shardId(), shard);
-            unassignedIterator.removeAndIgnore(AllocationStatus.DELAYED_ALLOCATION, changes);
+    @Override
+    public UnassignedShardDecision makeAllocationDecision(final ShardRouting unassignedShard,
+                                                          final RoutingAllocation allocation,
+                                                          final Logger logger) {
+        if (isResponsibleFor(unassignedShard) == false) {
+            // this allocator is not responsible for deciding on this shard
+            return UnassignedShardDecision.DECISION_NOT_TAKEN;
         }
+
+        final RoutingNodes routingNodes = allocation.routingNodes();
+        final boolean explain = allocation.debugDecision();
+        // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
+        Tuple<Decision, Map<String, Decision>> allocateDecision = canBeAllocatedToAtLeastOneNode(unassignedShard, allocation, explain);
+        if (allocateDecision.v1().type() != Decision.Type.YES) {
+            logger.trace("{}: ignoring allocation, can't be allocated on any node", unassignedShard);
+            return UnassignedShardDecision.noDecision(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.v1()),
+                "all nodes returned a " + allocateDecision.v1().type() + " decision for allocating the replica shard",
+                allocateDecision.v2());
+        }
+
+        AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores = fetchData(unassignedShard, allocation);
+        if (shardStores.hasData() == false) {
+            logger.trace("{}: ignoring allocation, still fetching shard stores", unassignedShard);
+            allocation.setHasPendingAsyncFetch();
+            return UnassignedShardDecision.noDecision(AllocationStatus.FETCHING_SHARD_DATA,
+                "still fetching shard state from the nodes in the cluster");
+        }
+
+        ShardRouting primaryShard = routingNodes.activePrimary(unassignedShard.shardId());
+        assert primaryShard != null : "the replica shard can be allocated on at least one node, so there must be an active primary";
+        TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore = findStore(primaryShard, allocation, shardStores);
+        if (primaryStore == null) {
+            // if we can't find the primary data, it is probably because the primary shard is corrupted (and listing failed)
+            // we want to let the replica be allocated in order to expose the actual problem with the primary that the replica
+            // will try and recover from
+            // Note, this is the existing behavior, as exposed in running CorruptFileTest#testNoPrimaryData
+            logger.trace("{}: no primary shard store found or allocated, letting actual allocation figure it out", unassignedShard);
+            return UnassignedShardDecision.DECISION_NOT_TAKEN;
+        }
+
+        MatchingNodes matchingNodes = findMatchingNodes(unassignedShard, allocation, primaryStore, shardStores, explain);
+        assert explain == false || matchingNodes.nodeDecisions != null : "in explain mode, we must have individual node decisions";
+
+        if (matchingNodes.getNodeWithHighestMatch() != null) {
+            RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.getNodeWithHighestMatch().getId());
+            // we only check on THROTTLE since we checked before before on NO
+            Decision decision = allocation.deciders().canAllocate(unassignedShard, nodeWithHighestMatch, allocation);
+            if (decision.type() == Decision.Type.THROTTLE) {
+                logger.debug("[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent store",
+                    unassignedShard.index(), unassignedShard.id(), unassignedShard, nodeWithHighestMatch.node());
+                // we are throttling this, as we have enough other shards to allocate to this node, so ignore it for now
+                return UnassignedShardDecision.throttleDecision(
+                    "returned a THROTTLE decision on each node that has an existing copy of the shard, so waiting to re-use one " +
+                    "of those copies", matchingNodes.nodeDecisions);
+            } else {
+                logger.debug("[{}][{}]: allocating [{}] to [{}] in order to reuse its unallocated persistent store",
+                    unassignedShard.index(), unassignedShard.id(), unassignedShard, nodeWithHighestMatch.node());
+                // we found a match
+                return UnassignedShardDecision.yesDecision(
+                    "allocating to node [" + nodeWithHighestMatch.nodeId() + "] in order to re-use its unallocated persistent store",
+                    nodeWithHighestMatch.nodeId(), null, matchingNodes.nodeDecisions);
+            }
+        } else if (matchingNodes.hasAnyData() == false && unassignedShard.unassignedInfo().isDelayed()) {
+            // if we didn't manage to find *any* data (regardless of matching sizes), and the replica is
+            // unassigned due to a node leaving, so we delay allocation of this replica to see if the
+            // node with the shard copy will rejoin so we can re-use the copy it has
+            logger.debug("{}: allocation of [{}] is delayed", unassignedShard.shardId(), unassignedShard);
+            return UnassignedShardDecision.noDecision(AllocationStatus.DELAYED_ALLOCATION,
+                "not allocating this shard, no nodes contain data for the replica and allocation is delayed");
+        }
+
+        return UnassignedShardDecision.DECISION_NOT_TAKEN;
     }
 
     /**
@@ -218,10 +218,15 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
      *
      * Returns the best allocation decision for allocating the shard on any node (i.e. YES if at least one
      * node decided YES, THROTTLE if at least one node decided THROTTLE, and NO if none of the nodes decided
-     * YES or THROTTLE.
+     * YES or THROTTLE). If the explain flag is turned on AND the decision is NO or THROTTLE, then this method
+     * also returns a map of nodes to decisions (second value in the tuple) to use for explanations; if the explain
+     * flag is off, the second value in the return tuple will be null.
      */
-    private Decision canBeAllocatedToAtLeastOneNode(ShardRouting shard, RoutingAllocation allocation) {
+    private Tuple<Decision, Map<String, Decision>> canBeAllocatedToAtLeastOneNode(ShardRouting shard,
+                                                                                  RoutingAllocation allocation,
+                                                                                  boolean explain) {
         Decision madeDecision = Decision.NO;
+        Map<String, Decision> nodeDecisions = new HashMap<>();
         for (ObjectCursor<DiscoveryNode> cursor : allocation.nodes().getDataNodes().values()) {
             RoutingNode node = allocation.routingNodes().node(cursor.value.getId());
             if (node == null) {
@@ -230,13 +235,16 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             // if we can't allocate it on a node, ignore it, for example, this handles
             // cases for only allocating a replica after a primary
             Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
+            if (explain) {
+                nodeDecisions.put(node.nodeId(), decision);
+            }
             if (decision.type() == Decision.Type.YES) {
-                return decision;
+                return Tuple.tuple(decision, null);
             } else if (madeDecision.type() == Decision.Type.NO && decision.type() == Decision.Type.THROTTLE) {
                 madeDecision = decision;
             }
         }
-        return madeDecision;
+        return Tuple.tuple(madeDecision, explain ? nodeDecisions : null);
     }
 
     /**
@@ -257,8 +265,10 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
 
     private MatchingNodes findMatchingNodes(ShardRouting shard, RoutingAllocation allocation,
                                             TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
-                                            AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> data) {
+                                            AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> data,
+                                            boolean explain) {
         ObjectLongMap<DiscoveryNode> nodesToSize = new ObjectLongHashMap<>();
+        Map<String, Decision> nodeDecisions = new HashMap<>();
         for (Map.Entry<DiscoveryNode, TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> nodeStoreEntry : data.getData().entrySet()) {
             DiscoveryNode discoNode = nodeStoreEntry.getKey();
             TransportNodesListShardStoreMetaData.StoreFilesMetaData storeFilesMetaData = nodeStoreEntry.getValue().storeFilesMetaData();
@@ -276,6 +286,10 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             // we only check for NO, since if this node is THROTTLING and it has enough "same data"
             // then we will try and assign it next time
             Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
+            if (explain) {
+                nodeDecisions.put(node.nodeId(), decision);
+            }
+
             if (decision.type() == Decision.Type.NO) {
                 continue;
             }
@@ -300,7 +314,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             }
         }
 
-        return new MatchingNodes(nodesToSize);
+        return new MatchingNodes(nodesToSize, explain ? nodeDecisions : null);
     }
 
     protected abstract AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetchData(ShardRouting shard, RoutingAllocation allocation);
@@ -308,9 +322,12 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
     static class MatchingNodes {
         private final ObjectLongMap<DiscoveryNode> nodesToSize;
         private final DiscoveryNode nodeWithHighestMatch;
+        @Nullable
+        private final Map<String, Decision> nodeDecisions;
 
-        public MatchingNodes(ObjectLongMap<DiscoveryNode> nodesToSize) {
+        public MatchingNodes(ObjectLongMap<DiscoveryNode> nodesToSize, @Nullable Map<String, Decision> nodeDecisions) {
             this.nodesToSize = nodesToSize;
+            this.nodeDecisions = nodeDecisions;
 
             long highestMatchSize = 0;
             DiscoveryNode highestMatchNode = null;
@@ -342,6 +359,14 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
          */
         public boolean hasAnyData() {
             return nodesToSize.isEmpty() == false;
+        }
+
+        /**
+         * The decisions map for all nodes with a shard copy, if available.
+         */
+        @Nullable
+        public Map<String, Decision> getNodeDecisions() {
+            return nodeDecisions;
         }
     }
 }

@@ -32,24 +32,28 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class OsProbeTests extends ESTestCase {
-    OsProbe probe = OsProbe.getInstance();
+    private final OsProbe probe = OsProbe.getInstance();
 
     public void testOsInfo() {
-        OsInfo info = probe.osInfo();
+        int allocatedProcessors = randomIntBetween(1, Runtime.getRuntime().availableProcessors());
+        long refreshInterval = randomBoolean() ? -1 : randomPositiveLong();
+        OsInfo info = probe.osInfo(refreshInterval, allocatedProcessors);
         assertNotNull(info);
-        assertThat(info.getRefreshInterval(), anyOf(equalTo(-1L), greaterThanOrEqualTo(0L)));
-        assertThat(info.getName(), equalTo(Constants.OS_NAME));
-        assertThat(info.getArch(), equalTo(Constants.OS_ARCH));
-        assertThat(info.getVersion(), equalTo(Constants.OS_VERSION));
-        assertThat(info.getAvailableProcessors(), equalTo(Runtime.getRuntime().availableProcessors()));
+        assertEquals(refreshInterval, info.getRefreshInterval());
+        assertEquals(Constants.OS_NAME, info.getName());
+        assertEquals(Constants.OS_ARCH, info.getArch());
+        assertEquals(Constants.OS_VERSION, info.getVersion());
+        assertEquals(allocatedProcessors, info.getAllocatedProcessors());
+        assertEquals(Runtime.getRuntime().availableProcessors(), info.getAvailableProcessors());
     }
 
     public void testOsStats() {
         OsStats stats = probe.osStats();
         assertNotNull(stats);
         assertThat(stats.getTimestamp(), greaterThan(0L));
-        assertThat(stats.getCpu().getPercent(), anyOf(equalTo((short) -1), is(both(greaterThanOrEqualTo((short) 0)).and(lessThanOrEqualTo((short) 100)))));
-        double[] loadAverage = stats.getCpu().loadAverage;
+        assertThat(stats.getCpu().getPercent(), anyOf(equalTo((short) -1),
+                is(both(greaterThanOrEqualTo((short) 0)).and(lessThanOrEqualTo((short) 100)))));
+        double[] loadAverage = stats.getCpu().getLoadAverage();
         if (loadAverage != null) {
             assertThat(loadAverage.length, equalTo(3));
         }
@@ -84,25 +88,25 @@ public class OsProbeTests extends ESTestCase {
         }
 
         assertNotNull(stats.getMem());
-        assertThat(stats.getMem().getTotal().bytes(), greaterThan(0L));
-        assertThat(stats.getMem().getFree().bytes(), greaterThan(0L));
+        assertThat(stats.getMem().getTotal().getBytes(), greaterThan(0L));
+        assertThat(stats.getMem().getFree().getBytes(), greaterThan(0L));
         assertThat(stats.getMem().getFreePercent(), allOf(greaterThanOrEqualTo((short) 0), lessThanOrEqualTo((short) 100)));
-        assertThat(stats.getMem().getUsed().bytes(), greaterThan(0L));
+        assertThat(stats.getMem().getUsed().getBytes(), greaterThan(0L));
         assertThat(stats.getMem().getUsedPercent(), allOf(greaterThanOrEqualTo((short) 0), lessThanOrEqualTo((short) 100)));
 
         assertNotNull(stats.getSwap());
         assertNotNull(stats.getSwap().getTotal());
 
-        long total = stats.getSwap().getTotal().bytes();
+        long total = stats.getSwap().getTotal().getBytes();
         if (total > 0) {
-            assertThat(stats.getSwap().getTotal().bytes(), greaterThan(0L));
-            assertThat(stats.getSwap().getFree().bytes(), greaterThan(0L));
-            assertThat(stats.getSwap().getUsed().bytes(), greaterThanOrEqualTo(0L));
+            assertThat(stats.getSwap().getTotal().getBytes(), greaterThan(0L));
+            assertThat(stats.getSwap().getFree().getBytes(), greaterThan(0L));
+            assertThat(stats.getSwap().getUsed().getBytes(), greaterThanOrEqualTo(0L));
         } else {
             // On platforms with no swap
-            assertThat(stats.getSwap().getTotal().bytes(), equalTo(0L));
-            assertThat(stats.getSwap().getFree().bytes(), equalTo(0L));
-            assertThat(stats.getSwap().getUsed().bytes(), equalTo(0L));
+            assertThat(stats.getSwap().getTotal().getBytes(), equalTo(0L));
+            assertThat(stats.getSwap().getFree().getBytes(), equalTo(0L));
+            assertThat(stats.getSwap().getUsed().getBytes(), equalTo(0L));
         }
     }
 }

@@ -76,11 +76,11 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
                     .startObject()
                     .field("str_value", "s" + i)
-                    .field("str_values", new String[]{"s" + (i * 2), "s" + (i * 2 + 1)})
+                    .array("str_values", new String[]{"s" + (i * 2), "s" + (i * 2 + 1)})
                     .field("l_value", i)
-                    .field("l_values", new int[]{i * 2, i * 2 + 1})
+                    .array("l_values", new int[]{i * 2, i * 2 + 1})
                     .field("d_value", i)
-                    .field("d_values", new double[]{i * 2, i * 2 + 1})
+                    .array("d_values", new double[]{i * 2, i * 2 + 1})
                     .endObject());
         }
         indexRandom(true, builders);
@@ -109,7 +109,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             String nodePrefix = "(" + Pattern.quote(InternalTestCluster.TRANSPORT_CLIENT_PREFIX) + ")?(" +
                     Pattern.quote(ESIntegTestCase.SUITE_CLUSTER_NODE_PREFIX) + "|" +
                     Pattern.quote(ESIntegTestCase.TEST_CLUSTER_NODE_PREFIX) + "|" +
-                    Pattern.quote(TribeIT.SECOND_CLUSTER_NODE_PREFIX) + ")";
+                    Pattern.quote("node_tribe2") + ")";
             assertThat(threadName, RegexMatcher.matches("\\[" + nodePrefix + "\\d+\\]"));
         }
     }

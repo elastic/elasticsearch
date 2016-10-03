@@ -38,7 +38,7 @@ public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 ExitCodes.OK,
                 true,
                 output -> {},
-                (foreground, pidFile, esSettings) -> {
+                (foreground, pidFile, quiet, esSettings) -> {
                     assertThat(esSettings.size(), equalTo(1));
                     assertThat(esSettings, hasEntry("path.home", value));
                 });
@@ -49,7 +49,7 @@ public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 ExitCodes.OK,
                 true,
                 output -> {},
-                (foreground, pidFile, esSettings) -> {
+                (foreground, pidFile, quiet, esSettings) -> {
                     assertThat(esSettings.size(), equalTo(1));
                     assertThat(esSettings, hasEntry("path.home", commandLineValue));
                 },

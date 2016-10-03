@@ -452,6 +452,22 @@ wait_for_elasticsearch_status() {
     }
 }
 
+# Checks the current elasticsearch version using the Info REST endpoint
+# $1 - expected version
+check_elasticsearch_version() {
+    local version=$1
+    local versionToCheck=$(echo $version | sed -e 's/-SNAPSHOT//')
+
+    run curl -s localhost:9200
+    [ "$status" -eq 0 ]
+
+    echo $output | grep \"number\"\ :\ \"$versionToCheck\" || {
+        echo "Installed an unexpected version:"
+        curl -s localhost:9200
+        false
+    }
+}
+
 install_elasticsearch_test_scripts() {
     install_script is_guide.groovy
     install_script is_guide.mustache
@@ -476,7 +492,8 @@ run_elasticsearch_tests() {
       "query": {
         "script": {
           "script": {
-            "file": "is_guide"
+            "file": "is_guide",
+            "lang": "groovy"
           }
         }
       }
@@ -499,7 +516,7 @@ move_config() {
     mv "$oldConfig"/* "$ESCONFIG"
     chown -R elasticsearch:elasticsearch "$ESCONFIG"
     assert_file_exist "$ESCONFIG/elasticsearch.yml"
-    assert_file_exist "$ESCONFIG/logging.yml"
+    assert_file_exist "$ESCONFIG/log4j2.properties"
 }
 
 # Copies a script into the Elasticsearch install.

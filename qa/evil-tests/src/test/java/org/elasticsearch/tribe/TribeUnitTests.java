@@ -30,6 +30,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -38,6 +39,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -55,7 +57,7 @@ public class TribeUnitTests extends ESTestCase {
 
 
     @BeforeClass
-    public static void createTribes() {
+    public static void createTribes() throws NodeValidationException {
         Settings baseSettings = Settings.builder()
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
             .put("transport.type", "local")
@@ -70,14 +72,14 @@ public class TribeUnitTests extends ESTestCase {
                 .put("cluster.name", "tribe1")
                 .put("node.name", "tribe1_node")
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
-                .build()).start();
+                .build(), Collections.emptyList()).start();
         tribe2 = new TribeClientNode(
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe2")
                 .put("node.name", "tribe2_node")
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
-                .build()).start();
+                .build(), Collections.emptyList()).start();
     }
 
     @AfterClass

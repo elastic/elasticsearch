@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -34,8 +35,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESAllocationTestCase;
-import org.elasticsearch.test.gateway.NoopGatewayAllocator;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Collections;
 import java.util.List;
@@ -43,6 +43,8 @@ import java.util.List;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
 
@@ -53,7 +55,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         super.setUp();
         strategy = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
             Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
-            NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
+            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
     }
 
     private ClusterState createInitialClusterState() {
@@ -86,34 +88,37 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         final int retries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
         // now fail it N-1 times
         for (int i = 0; i < retries-1; i++) {
-            List<FailedRerouteAllocation.FailedShard> failedShards = Collections.singletonList(
-                new FailedRerouteAllocation.FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom" + i,
+            List<FailedShard> failedShards = Collections.singletonList(
+                new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom" + i,
                     new UnsupportedOperationException()));
-            RoutingAllocation.Result result = strategy.applyFailedShards(clusterState, failedShards);
-            assertTrue(result.changed());
-            routingTable = result.routingTable();
-            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+            ClusterState newState = strategy.applyFailedShards(clusterState, failedShards);
+            assertThat(newState, not(equalTo(clusterState)));
+            clusterState = newState;
+            routingTable = newState.routingTable();
             assertEquals(routingTable.index("idx").shards().size(), 1);
             assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
             assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), i+1);
             assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getMessage(), "boom" + i);
         }
         // now we go and check that we are actually stick to unassigned on the next failure
-        List<FailedRerouteAllocation.FailedShard> failedShards = Collections.singletonList(
-            new FailedRerouteAllocation.FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom",
+        List<FailedShard> failedShards = Collections.singletonList(
+            new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom",
                 new UnsupportedOperationException()));
-        RoutingAllocation.Result result = strategy.applyFailedShards(clusterState, failedShards);
-        assertTrue(result.changed());
-        routingTable = result.routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        ClusterState newState = strategy.applyFailedShards(clusterState, failedShards);
+        assertThat(newState, not(equalTo(clusterState)));
+        clusterState = newState;
+        routingTable = newState.routingTable();
         assertEquals(routingTable.index("idx").shards().size(), 1);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), retries);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), UNASSIGNED);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getMessage(), "boom");
 
-        result = strategy.reroute(clusterState, new AllocationCommands(), false, true); // manual reroute should retry once
-        assertTrue(result.changed());
-        routingTable = result.routingTable();
+        // manual reroute should retry once
+        newState = strategy.reroute(clusterState, new AllocationCommands(), false, true).getClusterState();
+        assertThat(newState, not(equalTo(clusterState)));
+        clusterState = newState;
+        routingTable = newState.routingTable();
+
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertEquals(routingTable.index("idx").shards().size(), 1);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), retries);
@@ -122,12 +127,13 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
 
         // now we go and check that we are actually stick to unassigned on the next failure ie. no retry
         failedShards = Collections.singletonList(
-            new FailedRerouteAllocation.FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom",
+            new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom",
                 new UnsupportedOperationException()));
-        result = strategy.applyFailedShards(clusterState, failedShards);
-        assertTrue(result.changed());
-        routingTable = result.routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+
+        newState = strategy.applyFailedShards(clusterState, failedShards);
+        assertThat(newState, not(equalTo(clusterState)));
+        clusterState = newState;
+        routingTable = newState.routingTable();
         assertEquals(routingTable.index("idx").shards().size(), 1);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), retries+1);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), UNASSIGNED);
@@ -141,13 +147,13 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         final int retries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
         // now fail it N-1 times
         for (int i = 0; i < retries-1; i++) {
-            List<FailedRerouteAllocation.FailedShard> failedShards = Collections.singletonList(
-                new FailedRerouteAllocation.FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom" + i,
+            List<FailedShard> failedShards = Collections.singletonList(
+                new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom" + i,
                     new UnsupportedOperationException()));
-            RoutingAllocation.Result result = strategy.applyFailedShards(clusterState, failedShards);
-            assertTrue(result.changed());
-            routingTable = result.routingTable();
-            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+            ClusterState newState = strategy.applyFailedShards(clusterState, failedShards);
+            assertThat(newState, not(equalTo(clusterState)));
+            clusterState = newState;
+            routingTable = newState.routingTable();
             assertEquals(routingTable.index("idx").shards().size(), 1);
             ShardRouting unassignedPrimary = routingTable.index("idx").shard(0).shards().get(0);
             assertEquals(unassignedPrimary.state(), INITIALIZING);
@@ -159,13 +165,13 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         }
         // now we go and check that we are actually stick to unassigned on the next failure
         {
-            List<FailedRerouteAllocation.FailedShard> failedShards = Collections.singletonList(
-                new FailedRerouteAllocation.FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom",
+            List<FailedShard> failedShards = Collections.singletonList(
+                new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom",
                     new UnsupportedOperationException()));
-            RoutingAllocation.Result result = strategy.applyFailedShards(clusterState, failedShards);
-            assertTrue(result.changed());
-            routingTable = result.routingTable();
-            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+            ClusterState newState = strategy.applyFailedShards(clusterState, failedShards);
+            assertThat(newState, not(equalTo(clusterState)));
+            clusterState = newState;
+            routingTable = newState.routingTable();
             assertEquals(routingTable.index("idx").shards().size(), 1);
             ShardRouting unassignedPrimary = routingTable.index("idx").shard(0).shards().get(0);
             assertEquals(unassignedPrimary.unassignedInfo().getNumFailedAllocations(), retries);
@@ -183,10 +189,10 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                     Settings.builder().put(clusterState.metaData().index("idx").getSettings()).put("index.allocation.max_retries",
                         retries+1).build()
                 ).build(), true).build()).build();
-        RoutingAllocation.Result result = strategy.reroute(clusterState, "settings changed", false);
-        assertTrue(result.changed());
-        routingTable = result.routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        ClusterState newState = strategy.reroute(clusterState, "settings changed", false);
+        assertThat(newState, not(equalTo(clusterState)));
+        clusterState = newState;
+        routingTable = newState.routingTable();
         // good we are initializing and we are maintaining failure information
         assertEquals(routingTable.index("idx").shards().size(), 1);
         ShardRouting unassignedPrimary = routingTable.index("idx").shard(0).shards().get(0);
@@ -198,9 +204,9 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             routingTable.index("idx").shard(0).shards().get(0), null, new RoutingAllocation(null, null, clusterState, null, 0, false)));
 
         // now we start the shard
-        routingTable = strategy.applyStartedShards(clusterState, Collections.singletonList(
-            routingTable.index("idx").shard(0).shards().get(0))).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.applyStartedShards(clusterState, Collections.singletonList(
+            routingTable.index("idx").shard(0).shards().get(0)));
+        routingTable = clusterState.routingTable();
 
         // all counters have been reset to 0 ie. no unassigned info
         assertEquals(routingTable.index("idx").shards().size(), 1);
@@ -208,17 +214,17 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), STARTED);
 
         // now fail again and see if it has a new counter
-        List<FailedRerouteAllocation.FailedShard> failedShards = Collections.singletonList(
-            new FailedRerouteAllocation.FailedShard(routingTable.index("idx").shard(0).shards().get(0), "ZOOOMG",
+        List<FailedShard> failedShards = Collections.singletonList(
+            new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "ZOOOMG",
                 new UnsupportedOperationException()));
-        result = strategy.applyFailedShards(clusterState, failedShards);
-        assertTrue(result.changed());
-        routingTable = result.routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        newState = strategy.applyFailedShards(clusterState, failedShards);
+        assertThat(newState, not(equalTo(clusterState)));
+        clusterState = newState;
+        routingTable = newState.routingTable();
         assertEquals(routingTable.index("idx").shards().size(), 1);
         unassignedPrimary = routingTable.index("idx").shard(0).shards().get(0);
         assertEquals(unassignedPrimary.unassignedInfo().getNumFailedAllocations(), 1);
-        assertEquals(unassignedPrimary.state(), INITIALIZING);
+        assertEquals(unassignedPrimary.state(), UNASSIGNED);
         assertEquals(unassignedPrimary.unassignedInfo().getMessage(), "ZOOOMG");
         // Counter reset, so MaxRetryAllocationDecider#canForceAllocatePrimary should return a YES decision
         assertEquals(Decision.YES, new MaxRetryAllocationDecider(Settings.EMPTY).canForceAllocatePrimary(

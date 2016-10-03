@@ -23,7 +23,10 @@ import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -50,6 +53,11 @@ public abstract class Command {
 
     /** Parses options for this command from args and executes it. */
     public final int main(String[] args, Terminal terminal) throws Exception {
+        // initialize default for es.logger.level because we will not read the log4j2.properties
+        final String loggerLevel = System.getProperty("es.logger.level", Level.INFO.name());
+        final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
+        LogConfigurator.configureWithoutConfig(settings);
+
         try {
             mainWithoutErrorHandling(args, terminal);
         } catch (OptionException e) {

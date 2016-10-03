@@ -42,11 +42,16 @@ import static junit.framework.TestCase.fail;
 public class ClusterServiceUtils {
 
     public static ClusterService createClusterService(ThreadPool threadPool) {
+        DiscoveryNode discoveryNode = new DiscoveryNode("node", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
+                                                           new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())),Version.CURRENT);
+        return createClusterService(threadPool, discoveryNode);
+    }
+
+    public static ClusterService createClusterService(ThreadPool threadPool, DiscoveryNode localNode) {
         ClusterService clusterService = new ClusterService(Settings.builder().put("cluster.name", "ClusterServiceTests").build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadPool);
-        clusterService.setLocalNode(new DiscoveryNode("node", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
-                new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())),Version.CURRENT));
+        clusterService.setLocalNode(localNode);
         clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
             public void connectToAddedNodes(ClusterChangedEvent event) {

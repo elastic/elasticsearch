@@ -21,9 +21,10 @@ package org.elasticsearch.http.netty3;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
@@ -147,9 +148,9 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         Setting.byteSizeSetting("transport.netty.receive_predictor_size",
             settings -> {
                 long defaultReceiverPredictor = 512 * 1024;
-                if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes() > 0) {
+                if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().getBytes() > 0) {
                     // we can guess a better default...
-                    long l = (long) ((0.3 * JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes()) / SETTING_HTTP_WORKER_COUNT.get
+                    long l = (long) ((0.3 * JvmInfo.jvmInfo().getMem().getDirectMemoryMax().getBytes()) / SETTING_HTTP_WORKER_COUNT.get
                             (settings));
                     defaultReceiverPredictor = Math.min(defaultReceiverPredictor, Math.max(l, 64 * 1024));
                 }
@@ -216,7 +217,6 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
 
     private final Netty3CorsConfig corsConfig;
 
-    @Inject
     public Netty3HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool) {
         super(settings);
         this.networkService = networkService;
@@ -246,11 +246,11 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
         ByteSizeValue receivePredictorMin = SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MIN.get(settings);
         ByteSizeValue receivePredictorMax = SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MAX.get(settings);
-        if (receivePredictorMax.bytes() == receivePredictorMin.bytes()) {
-            receiveBufferSizePredictorFactory = new FixedReceiveBufferSizePredictorFactory((int) receivePredictorMax.bytes());
+        if (receivePredictorMax.getBytes() == receivePredictorMin.getBytes()) {
+            receiveBufferSizePredictorFactory = new FixedReceiveBufferSizePredictorFactory((int) receivePredictorMax.getBytes());
         } else {
             receiveBufferSizePredictorFactory = new AdaptiveReceiveBufferSizePredictorFactory(
-                (int) receivePredictorMin.bytes(), (int) receivePredictorMin.bytes(), (int) receivePredictorMax.bytes());
+                (int) receivePredictorMin.getBytes(), (int) receivePredictorMin.getBytes(), (int) receivePredictorMax.getBytes());
         }
 
         this.compression = SETTING_HTTP_COMPRESSION.get(settings);
@@ -260,7 +260,7 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         this.corsConfig = buildCorsConfig(settings);
 
         // validate max content length
-        if (maxContentLength.bytes() > Integer.MAX_VALUE) {
+        if (maxContentLength.getBytes() > Integer.MAX_VALUE) {
             logger.warn("maxContentLength[{}] set to high value, resetting it to [100mb]", maxContentLength);
             maxContentLength = new ByteSizeValue(100, ByteSizeUnit.MB);
         }
@@ -285,25 +285,25 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         this.serverOpenChannels = new Netty3OpenChannelsHandler(logger);
         if (blockingServer) {
             serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_boss")),
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_worker"))
+                Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_BOSS_THREAD_NAME_PREFIX)),
+                Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX))
             ));
         } else {
             serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_boss")),
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_worker")),
+                Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_BOSS_THREAD_NAME_PREFIX)),
+                Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)),
                 workerCount));
         }
         serverBootstrap.setPipelineFactory(configureServerChannelPipelineFactory());
 
         serverBootstrap.setOption("child.tcpNoDelay", tcpNoDelay);
         serverBootstrap.setOption("child.keepAlive", tcpKeepAlive);
-        if (tcpSendBufferSize.bytes() > 0) {
+        if (tcpSendBufferSize.getBytes() > 0) {
 
-            serverBootstrap.setOption("child.sendBufferSize", tcpSendBufferSize.bytes());
+            serverBootstrap.setOption("child.sendBufferSize", tcpSendBufferSize.getBytes());
         }
-        if (tcpReceiveBufferSize.bytes() > 0) {
-            serverBootstrap.setOption("child.receiveBufferSize", tcpReceiveBufferSize.bytes());
+        if (tcpReceiveBufferSize.getBytes() > 0) {
+            serverBootstrap.setOption("child.receiveBufferSize", tcpReceiveBufferSize.getBytes());
         }
         serverBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
         serverBootstrap.setOption("child.receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
@@ -466,7 +466,7 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         if (boundTransportAddress == null) {
             return null;
         }
-        return new HttpInfo(boundTransportAddress, maxContentLength.bytes());
+        return new HttpInfo(boundTransportAddress, maxContentLength.getBytes());
     }
 
     @Override
@@ -495,10 +495,18 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
                 return;
             }
             if (!NetworkExceptionHelper.isCloseConnectionException(e.getCause())) {
-                logger.warn("Caught exception while handling client http traffic, closing connection {}", e.getCause(), ctx.getChannel());
+                logger.warn(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "Caught exception while handling client http traffic, closing connection {}",
+                        ctx.getChannel()),
+                    e.getCause());
                 ctx.getChannel().close();
             } else {
-                logger.debug("Caught exception while handling client http traffic, closing connection {}", e.getCause(), ctx.getChannel());
+                logger.debug(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "Caught exception while handling client http traffic, closing connection {}",
+                        ctx.getChannel()),
+                    e.getCause());
                 ctx.getChannel().close();
             }
         }
@@ -523,15 +531,15 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
             ChannelPipeline pipeline = Channels.pipeline();
             pipeline.addLast("openChannels", transport.serverOpenChannels);
             HttpRequestDecoder requestDecoder = new HttpRequestDecoder(
-                    (int) transport.maxInitialLineLength.bytes(),
-                    (int) transport.maxHeaderSize.bytes(),
-                    (int) transport.maxChunkSize.bytes()
+                    (int) transport.maxInitialLineLength.getBytes(),
+                    (int) transport.maxHeaderSize.getBytes(),
+                    (int) transport.maxChunkSize.getBytes()
             );
-            if (transport.maxCumulationBufferCapacity.bytes() >= 0) {
-                if (transport.maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
+            if (transport.maxCumulationBufferCapacity.getBytes() >= 0) {
+                if (transport.maxCumulationBufferCapacity.getBytes() > Integer.MAX_VALUE) {
                     requestDecoder.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
                 } else {
-                    requestDecoder.setMaxCumulationBufferCapacity((int) transport.maxCumulationBufferCapacity.bytes());
+                    requestDecoder.setMaxCumulationBufferCapacity((int) transport.maxCumulationBufferCapacity.getBytes());
                 }
             }
             if (transport.maxCompositeBufferComponents != -1) {
@@ -539,7 +547,7 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
             }
             pipeline.addLast("decoder", requestDecoder);
             pipeline.addLast("decoder_compress", new HttpContentDecompressor());
-            HttpChunkAggregator httpChunkAggregator = new HttpChunkAggregator((int) transport.maxContentLength.bytes());
+            HttpChunkAggregator httpChunkAggregator = new HttpChunkAggregator((int) transport.maxContentLength.getBytes());
             if (transport.maxCompositeBufferComponents != -1) {
                 httpChunkAggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             }

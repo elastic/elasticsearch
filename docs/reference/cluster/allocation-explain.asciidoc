@@ -5,6 +5,8 @@ The cluster allocation explanation API is designed to assist in answering the
 question "why is this shard unassigned?". To explain the allocation (on
 unassigned state) of a shard, issue a request like:
 
+experimental[The cluster allocation explain API is new and should still be considered experimental. The API may change in ways that are not backwards compatible]
+
 [source,js]
 --------------------------------------------------
 $ curl -XGET 'http://localhost:9200/_cluster/allocation/explain' -d'{
@@ -39,7 +41,7 @@ The response looks like:
   "remaining_delay_ms" : 0,                       <5>
   "nodes" : {
     "V-Spi0AyRZ6ZvKbaI3691w" : {
-      "node_name" : "node1",
+      "node_name" : "H5dfFeA",
       "node_attributes" : {                       <6>
         "bar" : "baz"
       },
@@ -56,7 +58,7 @@ The response looks like:
       } ]
     },
     "Qc6VL8c5RWaw1qXZ0Rg57g" : {
-      "node_name" : "node2",
+      "node_name" : "bGG90GE",
       "node_attributes" : {
         "bar" : "baz",
         "foo" : "bar"
@@ -74,7 +76,7 @@ The response looks like:
       } ]
     },
     "PzdyMZGXQdGhqTJHF_hGgA" : {
-      "node_name" : "node3",
+      "node_name" : "DKDM97B",
       "node_attributes" : { },
       "store" : {
         "shard_copy" : "NONE"
@@ -120,7 +122,7 @@ For a shard that is already assigned, the output looks similar to:
   "remaining_delay_ms" : 0,
   "nodes" : {
     "V-Spi0AyRZ6ZvKbaI3691w" : {
-      "node_name" : "Susan Storm",
+      "node_name" : "bGG90GE",
       "node_attributes" : {
         "bar" : "baz"
       },
@@ -137,7 +139,7 @@ For a shard that is already assigned, the output looks similar to:
       } ]
     },
     "Qc6VL8c5RWaw1qXZ0Rg57g" : {
-      "node_name" : "Slipstream",
+      "node_name" : "I8hydUG",
       "node_attributes" : {
         "bar" : "baz",
         "foo" : "bar"
@@ -155,7 +157,7 @@ For a shard that is already assigned, the output looks similar to:
       } ]
     },
     "PzdyMZGXQdGhqTJHF_hGgA" : {
-      "node_name" : "The Symbiote",
+      "node_name" : "H5dfFeA",
       "node_attributes" : { },
       "store" : {
         "shard_copy" : "NONE"

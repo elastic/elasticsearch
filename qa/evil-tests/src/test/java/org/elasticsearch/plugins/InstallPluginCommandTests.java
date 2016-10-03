@@ -291,6 +291,12 @@ public class InstallPluginCommandTests extends ESTestCase {
         }
     }
 
+    public void testMissingPluginId() throws IOException {
+        final Tuple<Path, Environment> env = createEnv(fs, temp);
+        final UserException e = expectThrows(UserException.class, () -> installPlugin(null, env.v1()));
+        assertTrue(e.getMessage(), e.getMessage().contains("plugin id is required"));
+    }
+
     public void testSomethingWorks() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);

@@ -20,8 +20,6 @@ package org.elasticsearch.gradle.test
 
 import org.gradle.api.GradleException
 import org.gradle.api.Project
-import org.gradle.api.artifacts.Configuration
-import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 
 /** Configuration for an elasticsearch cluster, used for integration tests. */
@@ -47,6 +45,17 @@ class ClusterConfiguration {
     @Input
     int transportPort = 0
 
+    /**
+     * An override of the data directory. This may only be used with a single node.
+     * The value is lazily evaluated at runtime as a String path.
+     */
+    @Input
+    Object dataDir = null
+
+    /** Optional override of the cluster name. */
+    @Input
+    String clusterName = null
+
     @Input
     boolean daemonize = true
 
@@ -54,16 +63,29 @@ class ClusterConfiguration {
     boolean debug = false
 
     @Input
-    String jvmArgs = System.getProperty('tests.jvm.argline', '')
+    String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
+            " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
+            " " + System.getProperty('tests.jvm.argline', '')
 
     /**
-     * The seed nodes port file. In the case the cluster has more than one node we use a seed node
-     * to form the cluster. The file is null if there is no seed node yet available.
+     * A closure to call which returns the unicast host to connect to for cluster formation.
      *
-     * Note: this can only be null if the cluster has only one node or if the first node is not yet
-     * configured. All nodes but the first node should see a non null value.
+     * This allows multi node clusters, or a new cluster to connect to an existing cluster.
+     * The closure takes two arguments, the NodeInfo for the first node in the cluster, and
+     * an AntBuilder which may be used to wait on conditions before returning.
      */
-    File seedNodePortsFile
+    @Input
+    Closure unicastTransportUri = { NodeInfo seedNode, NodeInfo node, AntBuilder ant ->
+        if (seedNode == node) {
+            return null
+        }
+        ant.waitfor(maxwait: '20', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond') {
+            resourceexists {
+                file(file: seedNode.transportPortsFile.toString())
+            }
+        }
+        return seedNode.transportUri()
+    }
 
     /**
      * A closure to call before the cluster is considered ready. The closure is passed the node info,
@@ -73,7 +95,11 @@ class ClusterConfiguration {
     @Input
     Closure waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}",
+        ant.echo("==> [${new Date()}] checking health: http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}")
+        // checking here for wait_for_nodes to be >= the number of nodes because its possible
+        // this cluster is attempting to connect to nodes created by another task (same cluster name),
+        // so there will be more nodes in that case in the cluster state
+        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}",
                 dest: tmpFile.toString(),
                 ignoreerrors: true, // do not fail on error, so logging buffers can be flushed by the wait task
                 retries: 10)
@@ -134,13 +160,5 @@ class ClusterConfiguration {
             throw new GradleException('Overwriting elasticsearch.yml is not allowed, add additional settings using cluster { setting "foo", "bar" }')
         }
         extraConfigFiles.put(path, sourceFile)
-    }
-
-    /** Returns an address and port suitable for a uri to connect to this clusters seed node over transport protocol*/
-    String seedNodeTransportUri() {
-        if (seedNodePortsFile != null) {
-            return seedNodePortsFile.readLines("UTF-8").get(0)
-        }
-        return null;
     }
 }

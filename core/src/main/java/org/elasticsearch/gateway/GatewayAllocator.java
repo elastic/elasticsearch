@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -27,19 +28,18 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -115,21 +115,28 @@ public class GatewayAllocator extends AbstractComponent {
         return count;
     }
 
-    public void applyStartedShards(StartedRerouteAllocation allocation) {
-        for (ShardRouting shard : allocation.startedShards()) {
-            Releasables.close(asyncFetchStarted.remove(shard.shardId()));
-            Releasables.close(asyncFetchStore.remove(shard.shardId()));
+    public void applyStartedShards(final RoutingAllocation allocation, final List<ShardRouting> startedShards) {
+        for (ShardRouting startedShard : startedShards) {
+            Releasables.close(asyncFetchStarted.remove(startedShard.shardId()));
+            Releasables.close(asyncFetchStore.remove(startedShard.shardId()));
         }
     }
 
-    public void applyFailedShards(FailedRerouteAllocation allocation) {
-        for (FailedRerouteAllocation.FailedShard shard : allocation.failedShards()) {
-            Releasables.close(asyncFetchStarted.remove(shard.routingEntry.shardId()));
-            Releasables.close(asyncFetchStore.remove(shard.routingEntry.shardId()));
+    public void applyFailedShards(final RoutingAllocation allocation, final List<FailedShard> failedShards) {
+        for (FailedShard failedShard : failedShards) {
+            Releasables.close(asyncFetchStarted.remove(failedShard.getRoutingEntry().shardId()));
+            Releasables.close(asyncFetchStore.remove(failedShard.getRoutingEntry().shardId()));
         }
     }
 
     public void allocateUnassigned(final RoutingAllocation allocation) {
+        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator);
+    }
+
+    // allow for testing infra to change shard allocators implementation
+    protected static void innerAllocatedUnassigned(RoutingAllocation allocation,
+                                                   PrimaryShardAllocator primaryShardAllocator,
+                                                   ReplicaShardAllocator replicaShardAllocator) {
         RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
         unassigned.sort(PriorityComparator.getAllocationComparator(allocation)); // sort for priority ordering
 
@@ -140,7 +147,7 @@ public class GatewayAllocator extends AbstractComponent {
 
     class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {
 
-        public InternalAsyncFetch(ESLogger logger, String type, ShardId shardId, Lister<? extends BaseNodesResponse<T>, T> action) {
+        public InternalAsyncFetch(Logger logger, String type, ShardId shardId, Lister<? extends BaseNodesResponse<T>, T> action) {
             super(logger, type, shardId, action);
         }
 

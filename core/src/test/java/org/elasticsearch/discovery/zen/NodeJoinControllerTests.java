@@ -18,7 +18,8 @@
  */
 package org.elasticsearch.discovery.zen;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -42,7 +43,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -77,19 +77,20 @@ import java.util.stream.StreamSupport;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.shuffle;
+import static org.elasticsearch.cluster.ESAllocationTestCase.createAllocationService;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.routing.RoutingTableTests.updateActiveAllocations;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
-import static org.elasticsearch.test.ESAllocationTestCase.createAllocationService;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-@TestLogging("discovery.zen:TRACE")
+@TestLogging("org.elasticsearch.discovery.zen:TRACE,org.elasticsearch.cluster.service:TRACE")
 public class NodeJoinControllerTests extends ESTestCase {
 
     private static ThreadPool threadPool;
@@ -597,7 +598,6 @@ public class NodeJoinControllerTests extends ESTestCase {
                 .put(SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(SETTING_CREATION_DATE, System.currentTimeMillis())).build();
-            stateBuilder.metaData(MetaData.builder().put(indexMetaData, false).generateClusterUuidIfNeeded());
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetaData.getIndex());
             RoutingTable.Builder routing = new RoutingTable.Builder();
             routing.addAsNew(indexMetaData);
@@ -607,20 +607,23 @@ public class NodeJoinControllerTests extends ESTestCase {
             final DiscoveryNode primaryNode = randomBoolean() ? masterNode : otherNode;
             final DiscoveryNode replicaNode = primaryNode.equals(masterNode) ? otherNode : masterNode;
             final boolean primaryStarted = randomBoolean();
-            indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, primaryNode.getId(), null, null, true,
+            indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, primaryNode.getId(), null, true,
                 primaryStarted ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING,
                 primaryStarted ? null : new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "getting there")));
             if (primaryStarted) {
                 boolean replicaStared = randomBoolean();
-                indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, replicaNode.getId(), null, null, false,
+                indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, replicaNode.getId(), null, false,
                     replicaStared ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING,
                     replicaStared ? null : new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "getting there")));
             } else {
-                indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, null, null, null, false,
+                indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, null, null, false,
                     ShardRoutingState.UNASSIGNED, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "life sucks")));
             }
             indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
-            stateBuilder.routingTable(RoutingTable.builder().add(indexRoutingTableBuilder.build()).build());
+            IndexRoutingTable indexRoutingTable = indexRoutingTableBuilder.build();
+            IndexMetaData updatedIndexMetaData = updateActiveAllocations(indexRoutingTable, indexMetaData);
+            stateBuilder.metaData(MetaData.builder().put(updatedIndexMetaData, false).generateClusterUuidIfNeeded())
+                        .routingTable(RoutingTable.builder().add(indexRoutingTable).build());
         }
 
         setState(clusterService, stateBuilder.build());
@@ -720,7 +723,7 @@ public class NodeJoinControllerTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("unexpected error for {}", e, future);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected error for {}", future), e);
                 future.markAsFailed(e);
             }
         });

@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.GeoPointParser;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -110,28 +110,29 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
-            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
-        if (geoPointParser.token(aggregationName, currentFieldName, token, parser, parseFieldMatcher, otherOptions)) {
+    protected boolean token(String aggregationName, String currentFieldName, Token token,
+                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
+        XContentParser parser = context.getParser();
+        if (geoPointParser.token(aggregationName, currentFieldName, token, parser, context.getParseFieldMatcher(), otherOptions)) {
             return true;
         } else if (token == XContentParser.Token.VALUE_STRING) {
-            if (parseFieldMatcher.match(currentFieldName, UNIT_FIELD)) {
+            if (context.matchField(currentFieldName, UNIT_FIELD)) {
                 DistanceUnit unit = DistanceUnit.fromString(parser.text());
                 otherOptions.put(UNIT_FIELD, unit);
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, DISTANCE_TYPE_FIELD)) {
+            } else if (context.matchField(currentFieldName, DISTANCE_TYPE_FIELD)) {
                 GeoDistance distanceType = GeoDistance.fromString(parser.text());
                 otherOptions.put(DISTANCE_TYPE_FIELD, distanceType);
                 return true;
             }
         } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-            if (parseFieldMatcher.match(currentFieldName, RangeAggregator.KEYED_FIELD)) {
+            if (context.matchField(currentFieldName, RangeAggregator.KEYED_FIELD)) {
                 boolean keyed = parser.booleanValue();
                 otherOptions.put(RangeAggregator.KEYED_FIELD, keyed);
                 return true;
             }
         } else if (token == XContentParser.Token.START_ARRAY) {
-            if (parseFieldMatcher.match(currentFieldName, RangeAggregator.RANGES_FIELD)) {
+            if (context.matchField(currentFieldName, RangeAggregator.RANGES_FIELD)) {
                 List<Range> ranges = new ArrayList<>();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     String fromAsStr = null;
@@ -144,17 +145,17 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             toOrFromOrKey = parser.currentName();
                         } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                            if (parseFieldMatcher.match(toOrFromOrKey, Range.FROM_FIELD)) {
+                            if (context.matchField(toOrFromOrKey, Range.FROM_FIELD)) {
                                 from = parser.doubleValue();
-                            } else if (parseFieldMatcher.match(toOrFromOrKey, Range.TO_FIELD)) {
+                            } else if (context.matchField(toOrFromOrKey, Range.TO_FIELD)) {
                                 to = parser.doubleValue();
                             }
                         } else if (token == XContentParser.Token.VALUE_STRING) {
-                            if (parseFieldMatcher.match(toOrFromOrKey, Range.KEY_FIELD)) {
+                            if (context.matchField(toOrFromOrKey, Range.KEY_FIELD)) {
                                 key = parser.text();
-                            } else if (parseFieldMatcher.match(toOrFromOrKey, Range.FROM_FIELD)) {
+                            } else if (context.matchField(toOrFromOrKey, Range.FROM_FIELD)) {
                                 fromAsStr = parser.text();
-                            } else if (parseFieldMatcher.match(toOrFromOrKey, Range.TO_FIELD)) {
+                            } else if (context.matchField(toOrFromOrKey, Range.TO_FIELD)) {
                                 toAsStr = parser.text();
                             }
                         }

@@ -81,10 +81,9 @@ public class LegacyIntegerFieldMapper extends LegacyNumberFieldMapper {
                 throw new IllegalStateException("Cannot use legacy numeric types after 5.0");
             }
             setupFieldType(context);
-            LegacyIntegerFieldMapper fieldMapper = new LegacyIntegerFieldMapper(name, fieldType, defaultFieldType,
-                    ignoreMalformed(context), coerce(context),
+            return new LegacyIntegerFieldMapper(name, fieldType, defaultFieldType,
+                    ignoreMalformed(context), coerce(context), includeInAll,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return (LegacyIntegerFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
         @Override
         protected int maxPrecisionStep() {
@@ -175,9 +174,9 @@ public class LegacyIntegerFieldMapper extends LegacyNumberFieldMapper {
     }
 
     protected LegacyIntegerFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                 Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+                                 Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Boolean includeInAll,
                                  Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, includeInAll, indexSettings, multiFields, copyTo);
     }
 
     @Override

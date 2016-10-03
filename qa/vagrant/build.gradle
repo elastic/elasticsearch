@@ -37,7 +37,8 @@ List<String> availableBoxes = [
     'sles-12',
     'ubuntu-1204',
     'ubuntu-1404',
-    'ubuntu-1504'
+    'ubuntu-1504',
+    'ubuntu-1604'
 ]
 
 String vagrantBoxes = getProperties().get('vagrant.boxes', 'sample')
@@ -122,13 +123,24 @@ task stop {
 
 Set<String> getVersions() {
   Node xml
-  new URL('http://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
+  new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
     xml = new XmlParser().parse(s)
   }
-  return new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /2\.\d\.\d/ })
+
+  // List all N-1 releases from maven central
+  int major = Integer.parseInt(project.version.substring(0, project.version.indexOf('.'))) - 1
+  Set<String> versions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /$major\.\d\.\d/ })
+  if (versions.isEmpty() == false) {
+    return versions;
+  }
+
+  // If no version is found, we run the tests with the current version
+  return Collections.singleton(project.version);
 }
 
 task updatePackagingTestUpgradeFromVersions {
+  group 'Verification'
+  description 'Update file containing options for the\n    "starting" version in the "upgrade from" packaging tests.'
   doLast {
     Set<String> versions = getVersions()
     new File(project.projectDir, 'versions').text = versions.join('\n') + '\n'

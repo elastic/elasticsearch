@@ -246,6 +246,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         super(simpleName);
         assert indexSettings != null;
         this.indexCreatedVersion = Version.indexCreated(indexSettings);
+        if (indexCreatedVersion.onOrAfter(Version.V_5_0_0_beta1)) {
+            if (simpleName.isEmpty()) {
+                throw new IllegalArgumentException("name cannot be empty string");
+            }
+        }
         fieldType.freeze();
         this.fieldType = fieldType;
         defaultFieldType.freeze();
@@ -537,11 +542,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             ImmutableOpenMap.Builder<String, FieldMapper> builder = new ImmutableOpenMap.Builder<>();
             // we disable the all in multi-field mappers
             for (ObjectObjectCursor<String, FieldMapper> cursor : mappers) {
-                FieldMapper mapper = cursor.value;
-                if (mapper instanceof AllFieldMapper.IncludeInAll) {
-                    mapper = (FieldMapper) ((AllFieldMapper.IncludeInAll) mapper).unsetIncludeInAll();
-                }
-                builder.put(cursor.key, mapper);
+                builder.put(cursor.key, cursor.value);
             }
             this.mappers = builder.build();
         }
@@ -568,10 +569,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 FieldMapper mergeWithMapper = cursor.value;
                 FieldMapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
                 if (mergeIntoMapper == null) {
-                    // we disable the all in multi-field mappers
-                    if (mergeWithMapper instanceof AllFieldMapper.IncludeInAll) {
-                        mergeWithMapper = (FieldMapper) ((AllFieldMapper.IncludeInAll) mergeWithMapper).unsetIncludeInAll();
-                    }
                     newMappersBuilder.put(mergeWithMapper.simpleName(), mergeWithMapper);
                 } else {
                     FieldMapper merged = mergeIntoMapper.merge(mergeWithMapper, false);
@@ -666,16 +663,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         public List<String> copyToFields() {
             return copyToFields;
         }
-    }
-
-    /**
-     * Fields might not be available before indexing, for example _all, token_count,...
-     * When get is called and these fields are requested, this case needs special treatment.
-     *
-     * @return If the field is available before indexing or not.
-     */
-    public boolean isGenerated() {
-        return false;
     }
 
 }

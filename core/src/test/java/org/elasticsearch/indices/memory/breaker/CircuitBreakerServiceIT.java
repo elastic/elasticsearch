@@ -48,7 +48,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
 import org.junit.Before;
 
@@ -468,11 +467,11 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
                 for (BulkItemResponse bulkItemResponse : response) {
                     Throwable cause = ExceptionsHelper.unwrapCause(bulkItemResponse.getFailure().getCause());
                     assertThat(cause, instanceOf(CircuitBreakingException.class));
-                    assertEquals(((CircuitBreakingException) cause).getByteLimit(), inFlightRequestsLimit.bytes());
+                    assertEquals(((CircuitBreakingException) cause).getByteLimit(), inFlightRequestsLimit.getBytes());
                 }
             }
         } catch (CircuitBreakingException ex) {
-            assertEquals(ex.getByteLimit(), inFlightRequestsLimit.bytes());
+            assertEquals(ex.getByteLimit(), inFlightRequestsLimit.getBytes());
         }
     }
 }

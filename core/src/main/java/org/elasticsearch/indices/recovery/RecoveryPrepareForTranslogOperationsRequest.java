@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -31,6 +32,7 @@ import java.io.IOException;
  */
 public class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
 
+    private long maxUnsafeAutoIdTimestamp = IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
     private long recoveryId;
     private ShardId shardId;
     private int totalTranslogOps = RecoveryState.Translog.UNKNOWN;
@@ -38,10 +40,11 @@ public class RecoveryPrepareForTranslogOperationsRequest extends TransportReques
     public RecoveryPrepareForTranslogOperationsRequest() {
     }
 
-    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps) {
+    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps, long maxUnsafeAutoIdTimestamp) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.totalTranslogOps = totalTranslogOps;
+        this.maxUnsafeAutoIdTimestamp = maxUnsafeAutoIdTimestamp;
     }
 
     public long recoveryId() {
@@ -56,12 +59,17 @@ public class RecoveryPrepareForTranslogOperationsRequest extends TransportReques
         return totalTranslogOps;
     }
 
+    public long getMaxUnsafeAutoIdTimestamp() {
+        return maxUnsafeAutoIdTimestamp;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
         totalTranslogOps = in.readVInt();
+        maxUnsafeAutoIdTimestamp = in.readLong();
     }
 
     @Override
@@ -70,5 +78,6 @@ public class RecoveryPrepareForTranslogOperationsRequest extends TransportReques
         out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeVInt(totalTranslogOps);
+        out.writeLong(maxUnsafeAutoIdTimestamp);
     }
 }

@@ -12,8 +12,10 @@ block until the previous force merge is complete.
 
 [source,js]
 --------------------------------------------------
-$ curl -XPOST 'http://localhost:9200/twitter/_forcemerge'
+POST /twitter/_forcemerge
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 [float]
 [[forcemerge-parameters]]
@@ -45,7 +47,9 @@ even on `_all` the indices.
 
 [source,js]
 --------------------------------------------------
-$ curl -XPOST 'http://localhost:9200/kimchy,elasticsearch/_forcemerge'
+POST /kimchy,elasticsearch/_forcemerge
 
-$ curl -XPOST 'http://localhost:9200/_forcemerge'
+POST /_forcemerge
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]

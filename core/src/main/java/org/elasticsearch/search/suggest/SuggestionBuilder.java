@@ -319,7 +319,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> extends 
                 suggestionContext.setAnalyzer(fieldType.searchAnalyzer());
             }
         } else {
-            Analyzer luceneAnalyzer = mapperService.analysisService().analyzer(analyzer);
+            Analyzer luceneAnalyzer = mapperService.getIndexAnalyzers().get(analyzer);
             if (luceneAnalyzer == null) {
                 throw new IllegalArgumentException("analyzer [" + analyzer + "] doesn't exists");
             }

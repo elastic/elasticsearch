@@ -30,7 +30,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardTests;
+import org.elasticsearch.index.shard.IndexShardIT;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -442,13 +442,13 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
                 shard.writeIndexingBuffer();
             }
         };
-        final IndexShard newShard = IndexShardTests.newIndexShard(indexService, shard, wrapper, imc);
+        final IndexShard newShard = IndexShardIT.newIndexShard(indexService, shard, wrapper, imc);
         shardRef.set(newShard);
         try {
             assertEquals(0, imc.availableShards().size());
             ShardRouting routing = newShard.routingEntry();
             DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
-            newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
+            newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
 
             assertEquals(1, imc.availableShards().size());
             assertTrue(newShard.recoverFromStore());

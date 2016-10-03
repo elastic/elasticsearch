@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -85,6 +86,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
     public boolean hasIndex(String index) {
         return indicesRouting.containsKey(index);
+    }
+
+    public boolean hasIndex(Index index) {
+        IndexRoutingTable indexRouting = index(index.getName());
+        return indexRouting != null && indexRouting.getIndex().equals(index);
     }
 
     public IndexRoutingTable index(String index) {
@@ -540,16 +546,16 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             return this;
         }
 
-        public Builder addAsRestore(IndexMetaData indexMetaData, RestoreSource restoreSource) {
+        public Builder addAsRestore(IndexMetaData indexMetaData, SnapshotRecoverySource recoverySource) {
             IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())
-                    .initializeAsRestore(indexMetaData, restoreSource);
+                    .initializeAsRestore(indexMetaData, recoverySource);
             add(indexRoutingBuilder);
             return this;
         }
 
-        public Builder addAsNewRestore(IndexMetaData indexMetaData, RestoreSource restoreSource, IntSet ignoreShards) {
+        public Builder addAsNewRestore(IndexMetaData indexMetaData, SnapshotRecoverySource recoverySource, IntSet ignoreShards) {
             IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())
-                    .initializeAsNewRestore(indexMetaData, restoreSource, ignoreShards);
+                    .initializeAsNewRestore(indexMetaData, recoverySource, ignoreShards);
             add(indexRoutingBuilder);
             return this;
         }

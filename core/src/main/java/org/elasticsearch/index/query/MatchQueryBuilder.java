@@ -444,7 +444,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         // validate context specific fields
-        if (analyzer != null && context.getAnalysisService().analyzer(analyzer) == null) {
+        if (analyzer != null && context.getIndexAnalyzers().get(analyzer) == null) {
             throw new QueryShardException(context, "[" + NAME + "] analyzer [" + analyzer + "] not found");
         }
 

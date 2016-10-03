@@ -20,8 +20,10 @@
 package org.elasticsearch.action.search;
 
 import com.carrotsearch.hppc.IntArrayList;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.TransportActions;
@@ -35,18 +37,14 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.action.SearchTransportService;
-import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
-import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -58,7 +56,7 @@ import static org.elasticsearch.action.search.TransportSearchHelper.internalSear
 
 abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> extends AbstractAsyncAction {
 
-    protected final ESLogger logger;
+    protected final Logger logger;
     protected final SearchTransportService searchTransportService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     protected final SearchPhaseController searchPhaseController;
@@ -77,7 +75,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     private final Object shardFailuresMutex = new Object();
     protected volatile ScoreDoc[] sortedShardDocs;
 
-    protected AbstractSearchAsyncAction(ESLogger logger, SearchTransportService searchTransportService, ClusterService clusterService,
+    protected AbstractSearchAsyncAction(Logger logger, SearchTransportService searchTransportService, ClusterService clusterService,
                                         IndexNameExpressionResolver indexNameExpressionResolver,
                                         SearchPhaseController searchPhaseController, ThreadPool threadPool, SearchRequest request,
                                         ActionListener<SearchResponse> listener) {
@@ -191,7 +189,12 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                 innerMoveToSecondPhase();
             } catch (Exception e) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("{}: Failed to execute [{}] while moving to second phase", e, shardIt.shardId(), request);
+                    logger.debug(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                            "{}: Failed to execute [{}] while moving to second phase",
+                            shardIt.shardId(),
+                            request),
+                        e);
                 }
                 raiseEarlyFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e, buildShardFailures()));
             }
@@ -211,15 +214,21 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         if (totalOps.incrementAndGet() == expectedTotalOps) {
             if (logger.isDebugEnabled()) {
                 if (e != null && !TransportActions.isShardNotAvailableException(e)) {
-                    logger.debug("{}: Failed to execute [{}]", e, shard != null ? shard.shortSummary() : shardIt.shardId(), request);
+                    logger.debug(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                            "{}: Failed to execute [{}]",
+                            shard != null ? shard.shortSummary() :
+                                shardIt.shardId(),
+                            request),
+                        e);
                 } else if (logger.isTraceEnabled()) {
-                    logger.trace("{}: Failed to execute [{}]", e, shard, request);
+                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("{}: Failed to execute [{}]", shard, request), e);
                 }
             }
             final ShardSearchFailure[] shardSearchFailures = buildShardFailures();
             if (successfulOps.get() == 0) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("All shards failed for phase: [{}]", e, firstPhaseName());
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("All shards failed for phase: [{}]", firstPhaseName()), e);
                 }
 
                 // no successful ops, raise an exception
@@ -236,10 +245,13 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
             final ShardRouting nextShard = shardIt.nextOrNull();
             final boolean lastShard = nextShard == null;
             // trace log this exception
-            if (logger.isTraceEnabled()) {
-                logger.trace("{}: Failed to execute [{}] lastShard [{}]", e, shard != null ? shard.shortSummary() : shardIt.shardId(),
-                    request, lastShard);
-            }
+            logger.trace(
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "{}: Failed to execute [{}] lastShard [{}]",
+                    shard != null ? shard.shortSummary() : shardIt.shardId(),
+                    request,
+                    lastShard),
+                e);
             if (!lastShard) {
                 try {
                     performFirstPhase(shardIndex, shardIt, nextShard);
@@ -251,8 +263,14 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                 // no more shards active, add a failure
                 if (logger.isDebugEnabled() && !logger.isTraceEnabled()) { // do not double log this exception
                     if (e != null && !TransportActions.isShardNotAvailableException(e)) {
-                        logger.debug("{}: Failed to execute [{}] lastShard [{}]", e,
-                            shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard);
+                        logger.debug(
+                            (Supplier<?>) () -> new ParameterizedMessage(
+                                "{}: Failed to execute [{}] lastShard [{}]",
+                                shard != null ? shard.shortSummary() :
+                                    shardIt.shardId(),
+                                request,
+                                lastShard),
+                            e);
                     }
                 }
             }

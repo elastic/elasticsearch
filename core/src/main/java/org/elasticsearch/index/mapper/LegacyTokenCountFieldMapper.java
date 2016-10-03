@@ -73,10 +73,9 @@ public class LegacyTokenCountFieldMapper extends LegacyIntegerFieldMapper {
                 throw new IllegalStateException("Cannot use legacy numeric types after 5.0");
             }
             setupFieldType(context);
-            LegacyTokenCountFieldMapper fieldMapper = new LegacyTokenCountFieldMapper(name, fieldType, defaultFieldType,
-                    ignoreMalformed(context), coerce(context), context.indexSettings(),
+            return new LegacyTokenCountFieldMapper(name, fieldType, defaultFieldType,
+                    ignoreMalformed(context), coerce(context), includeInAll, context.indexSettings(),
                     analyzer, multiFieldsBuilder.build(this, context), copyTo);
-            return (LegacyTokenCountFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
 
         @Override
@@ -98,7 +97,7 @@ public class LegacyTokenCountFieldMapper extends LegacyIntegerFieldMapper {
                     builder.nullValue(nodeIntegerValue(propNode));
                     iterator.remove();
                 } else if (propName.equals("analyzer")) {
-                    NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
+                    NamedAnalyzer analyzer = parserContext.getIndexAnalyzers().get(propNode.toString());
                     if (analyzer == null) {
                         throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                     }
@@ -117,8 +116,8 @@ public class LegacyTokenCountFieldMapper extends LegacyIntegerFieldMapper {
     private NamedAnalyzer analyzer;
 
     protected LegacyTokenCountFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Explicit<Boolean> ignoreMalformed,
-                                    Explicit<Boolean> coerce, Settings indexSettings, NamedAnalyzer analyzer, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);
+                                    Explicit<Boolean> coerce, Boolean includeInAll, Settings indexSettings, NamedAnalyzer analyzer, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, includeInAll, indexSettings, multiFields, copyTo);
         this.analyzer = analyzer;
     }
 
@@ -186,11 +185,6 @@ public class LegacyTokenCountFieldMapper extends LegacyIntegerFieldMapper {
         super.doXContentBody(builder, includeDefaults, params);
 
         builder.field("analyzer", analyzer());
-    }
-
-    @Override
-    public boolean isGenerated() {
-        return true;
     }
 
 }

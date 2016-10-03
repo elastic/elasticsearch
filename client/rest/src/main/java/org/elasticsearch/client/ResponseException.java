@@ -33,7 +33,7 @@ public final class ResponseException extends IOException {
 
     private Response response;
 
-    ResponseException(Response response) throws IOException {
+    public ResponseException(Response response) throws IOException {
         super(buildMessage(response));
         this.response = response;
     }

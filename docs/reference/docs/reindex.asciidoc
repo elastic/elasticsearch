@@ -424,7 +424,7 @@ supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`, 
 
 Sending the `refresh` url parameter will cause all indexes to which the request
 wrote to be refreshed. This is different than the Index API's `refresh`
-parameter which causes just the shard that received the new data to be indexed.
+parameter which causes just the shard that received the new data to be refreshed.
 
 If the request contains `wait_for_completion=false` then Elasticsearch will
 perform some preflight checks, launch the request, and then return a `task`
@@ -435,7 +435,7 @@ to keep or remove as you see fit. When you are done with it, delete it so
 Elasticsearch can reclaim the space it uses.
 
 `wait_for_active_shards` controls how many copies of a shard must be active
-before proceeding with the reindexing. See <<index-wait-for-active-shards,here>> 
+before proceeding with the reindexing. See <<index-wait-for-active-shards,here>>
 for details. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
 <<docs-bulk,Bulk API>>.
@@ -528,7 +528,7 @@ The responses looks like:
 {
   "nodes" : {
     "r1A2WoRbTwKZ516z6NEs5A" : {
-      "name" : "Tyrannus",
+      "name" : "r1A2WoR",
       "transport_address" : "127.0.0.1:9300",
       "host" : "127.0.0.1",
       "ip" : "127.0.0.1:9300",
@@ -628,6 +628,7 @@ take effect on after completing the current batch. This prevents scroll
 timeouts.
 
 [float]
+[[docs-reindex-change-name]]
 === Reindex to change the name of a field
 
 `_reindex` can be used to build a copy of an index with renamed fields. Say you
@@ -692,3 +693,120 @@ and it'll look like:
 // TESTRESPONSE
 
 Or you can search by `tag` or whatever you want.
+
+[float]
+=== Manually slicing
+
+Reindex supports <<sliced-scroll>> allowing you to manually parallelize the
+process relatively easily:
+
+[source,js]
+----------------------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "twitter",
+    "slice": {
+      "id": 0,
+      "max": 2
+    }
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+POST _reindex
+{
+  "source": {
+    "index": "twitter",
+    "slice": {
+      "id": 1,
+      "max": 2
+    }
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
+
+Which you can verify works with:
+
+[source,js]
+----------------------------------------------------------------
+GET _refresh
+POST new_twitter/_search?size=0&filter_path=hits.total
+----------------------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Which results in a sensible `total` like this one:
+
+[source,js]
+----------------------------------------------------------------
+{
+  "hits": {
+    "total": 120
+  }
+}
+----------------------------------------------------------------
+// TESTRESPONSE
+
+[float]
+=== Reindex daily indices
+
+You can use `_reindex` in combination with <<modules-scripting-painless, Painless>>
+ to reindex daily indices to apply a new template to the existing documents.
+
+Assuming you have indices consisting of documents as following:
+
+[source,js]
+----------------------------------------------------------------
+PUT metricbeat-2016.05.30/beat/1?refresh
+{"system.cpu.idle.pct": 0.908}
+PUT metricbeat-2016.05.31/beat/1?refresh
+{"system.cpu.idle.pct": 0.105}
+----------------------------------------------------------------
+// CONSOLE
+
+The new template for the `metricbeat-*` indices is already loaded into elasticsearch
+but it applies only to the newly created indices. Painless can be used to reindex
+the existing documents and apply the new template.
+
+The script below extracts the date from the index name and creates a new index
+with `-1` appended. All data from `metricbeat-2016.05.31` will be reindex
+into `metricbeat-2016.05.31-1`.
+
+[source,js]
+----------------------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "metricbeat-*"
+  },
+  "dest": {
+    "index": "metricbeat"
+  },
+  "script": {
+    "lang": "painless",
+    "inline": "ctx._index = 'metricbeat-' + (ctx._index.substring('metricbeat-'.length(), ctx._index.length())) + '-1'"
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+All documents from the previous metricbeat indices now can be found in the `*-1` indices.
+
+[source,js]
+----------------------------------------------------------------
+GET metricbeat-2016.05.30-1/beat/1
+GET metricbeat-2016.05.31-1/beat/1
+----------------------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+The previous method can also be used in combination with <<docs-reindex-change-name, change the name of a field>>
+to only load the existing data into the new index, but also rename fields if needed.

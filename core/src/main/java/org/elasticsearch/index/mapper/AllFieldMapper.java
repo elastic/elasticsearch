@@ -47,28 +47,6 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
  */
 public class AllFieldMapper extends MetadataFieldMapper {
 
-    public interface IncludeInAll {
-
-        /**
-         * If {@code includeInAll} is not null then return a copy of this mapper
-         * that will include values in the _all field according to {@code includeInAll}.
-         */
-        Mapper includeInAll(Boolean includeInAll);
-
-        /**
-         * If {@code includeInAll} is not null and not set on this mapper yet, then
-         * return a copy of this mapper that will include values in the _all field
-         * according to {@code includeInAll}.
-         */
-        Mapper includeInAllIfNotSet(Boolean includeInAll);
-
-        /**
-         * If {@code includeInAll} was already set on this mapper then return a copy
-         * of this mapper that has {@code includeInAll} not set.
-         */
-        Mapper unsetIncludeInAll();
-    }
-
     public static final String NAME = "_all";
 
     public static final String CONTENT_TYPE = "_all";
@@ -128,9 +106,9 @@ public class AllFieldMapper extends MetadataFieldMapper {
         public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node,
                                                  ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
-            builder.fieldType().setIndexAnalyzer(parserContext.analysisService().defaultIndexAnalyzer());
-            builder.fieldType().setSearchAnalyzer(parserContext.analysisService().defaultSearchAnalyzer());
-            builder.fieldType().setSearchQuoteAnalyzer(parserContext.analysisService().defaultSearchQuoteAnalyzer());
+            builder.fieldType().setIndexAnalyzer(parserContext.getIndexAnalyzers().getDefaultIndexAnalyzer());
+            builder.fieldType().setSearchAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchAnalyzer());
+            builder.fieldType().setSearchQuoteAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchQuoteAnalyzer());
 
             // parseField below will happily parse the doc_values setting, but it is then never passed to
             // the AllFieldMapper ctor in the builder since it is not valid. Here we validate
@@ -313,8 +291,4 @@ public class AllFieldMapper extends MetadataFieldMapper {
         super.doMerge(mergeWith, updateAllTypes);
     }
 
-    @Override
-    public boolean isGenerated() {
-        return true;
-    }
 }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.discovery.local;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,7 +31,6 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -45,6 +46,7 @@ import org.elasticsearch.discovery.BlockingClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
+import org.elasticsearch.discovery.zen.publish.PendingClusterStateStats;
 
 import java.util.HashSet;
 import java.util.Optional;
@@ -144,7 +146,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
 
                     @Override
                     public void onFailure(String source, Exception e) {
-                        logger.error("unexpected failure during [{}]", e, source);
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
                     }
                 });
             } else if (firstMaster != null) {
@@ -164,16 +166,12 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                         }
                         nodesBuilder.localNodeId(master.localNode().getId()).masterNodeId(master.localNode().getId());
                         currentState = ClusterState.builder(currentState).nodes(nodesBuilder).build();
-                        RoutingAllocation.Result result =  master.allocationService.reroute(currentState, "node_add");
-                        if (result.changed()) {
-                            currentState = ClusterState.builder(currentState).routingResult(result).build();
-                        }
-                        return currentState;
+                        return master.allocationService.reroute(currentState, "node_add");
                     }
 
                     @Override
                     public void onFailure(String source, Exception e) {
-                        logger.error("unexpected failure during [{}]", e, source);
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
                     }
 
                 });
@@ -231,14 +229,12 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                         }
                         // reroute here, so we eagerly remove dead nodes from the routing
                         ClusterState updatedState = ClusterState.builder(currentState).nodes(newNodes).build();
-                        RoutingAllocation.Result routingResult = master.allocationService.deassociateDeadNodes(
-                                ClusterState.builder(updatedState).build(), true, "node stopped");
-                        return ClusterState.builder(updatedState).routingResult(routingResult).build();
+                        return master.allocationService.deassociateDeadNodes(updatedState, true, "node stopped");
                     }
 
                     @Override
                     public void onFailure(String source, Exception e) {
-                        logger.error("unexpected failure during [{}]", e, source);
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
                     }
                 });
             }
@@ -279,7 +275,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
 
     @Override
     public DiscoveryStats stats() {
-        return new DiscoveryStats(null);
+        return new DiscoveryStats((PendingClusterStateStats)null);
     }
 
     @Override
@@ -329,7 +325,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                             newNodeSpecificClusterState = discovery.lastProcessedClusterState.readDiffFrom(StreamInput.wrap(clusterStateDiffBytes)).apply(discovery.lastProcessedClusterState);
                             logger.trace("sending diff cluster state version [{}] with size {} to [{}]", clusterState.version(), clusterStateDiffBytes.length, discovery.localNode().getName());
                         } catch (IncompatibleClusterStateVersionException ex) {
-                            logger.warn("incompatible cluster state version [{}] - resending complete cluster state", ex, clusterState.version());
+                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("incompatible cluster state version [{}] - resending complete cluster state", clusterState.version()), ex);
                         }
                     }
                     if (newNodeSpecificClusterState == null) {
@@ -380,7 +376,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
 
                         @Override
                         public void onFailure(String source, Exception e) {
-                            logger.error("unexpected failure during [{}]", e, source);
+                            logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
                             publishResponseHandler.onFailure(discovery.localNode(), e);
                         }
 

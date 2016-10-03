@@ -98,7 +98,8 @@ public class PipelineStoreTests extends ESTestCase {
 
     public void testUpdatePipelines() {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
-        store.innerUpdatePipelines(clusterState);
+        ClusterState previousClusterState = clusterState;
+        store.innerUpdatePipelines(previousClusterState, clusterState);
         assertThat(store.pipelines.size(), is(0));
 
         PipelineConfiguration pipeline = new PipelineConfiguration(
@@ -108,7 +109,7 @@ public class PipelineStoreTests extends ESTestCase {
         clusterState = ClusterState.builder(clusterState)
             .metaData(MetaData.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
             .build();
-        store.innerUpdatePipelines(clusterState);
+        store.innerUpdatePipelines(previousClusterState, clusterState);
         assertThat(store.pipelines.size(), is(1));
         assertThat(store.pipelines.get("_id").getId(), equalTo("_id"));
         assertThat(store.pipelines.get("_id").getDescription(), nullValue());
@@ -124,8 +125,9 @@ public class PipelineStoreTests extends ESTestCase {
 
         // add a new pipeline:
         PutPipelineRequest putRequest = new PutPipelineRequest(id, new BytesArray("{\"processors\": []}"));
+        ClusterState previousClusterState = clusterState;
         clusterState = store.innerPut(putRequest, clusterState);
-        store.innerUpdatePipelines(clusterState);
+        store.innerUpdatePipelines(previousClusterState, clusterState);
         pipeline = store.get(id);
         assertThat(pipeline, notNullValue());
         assertThat(pipeline.getId(), equalTo(id));
@@ -134,8 +136,9 @@ public class PipelineStoreTests extends ESTestCase {
 
         // overwrite existing pipeline:
         putRequest = new PutPipelineRequest(id, new BytesArray("{\"processors\": [], \"description\": \"_description\"}"));
+        previousClusterState = clusterState;
         clusterState = store.innerPut(putRequest, clusterState);
-        store.innerUpdatePipelines(clusterState);
+        store.innerUpdatePipelines(previousClusterState, clusterState);
         pipeline = store.get(id);
         assertThat(pipeline, notNullValue());
         assertThat(pipeline.getId(), equalTo(id));
@@ -150,9 +153,10 @@ public class PipelineStoreTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
 
         PutPipelineRequest putRequest = new PutPipelineRequest(id, new BytesArray("{\"description\": \"empty processors\"}"));
+        ClusterState previousClusterState = clusterState;
         clusterState = store.innerPut(putRequest, clusterState);
         try {
-            store.innerUpdatePipelines(clusterState);
+            store.innerUpdatePipelines(previousClusterState, clusterState);
             fail("should fail");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[processors] required property is missing"));
@@ -166,16 +170,18 @@ public class PipelineStoreTests extends ESTestCase {
             "_id",new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}")
         );
         IngestMetadata ingestMetadata = new IngestMetadata(Collections.singletonMap("_id", config));
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
-            .build();
-        store.innerUpdatePipelines(clusterState);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousClusterState = clusterState;
+        clusterState = ClusterState.builder(clusterState).metaData(MetaData.builder()
+            .putCustom(IngestMetadata.TYPE, ingestMetadata)).build();
+        store.innerUpdatePipelines(previousClusterState, clusterState);
         assertThat(store.get("_id"), notNullValue());
 
         // Delete pipeline:
         DeletePipelineRequest deleteRequest = new DeletePipelineRequest("_id");
+        previousClusterState = clusterState;
         clusterState = store.innerDelete(deleteRequest, clusterState);
-        store.innerUpdatePipelines(clusterState);
+        store.innerUpdatePipelines(previousClusterState, clusterState);
         assertThat(store.get("_id"), nullValue());
 
         // Delete existing pipeline:
@@ -236,8 +242,9 @@ public class PipelineStoreTests extends ESTestCase {
 
         PutPipelineRequest putRequest = new PutPipelineRequest(id,
                 new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"));
+        ClusterState previousClusterState = clusterState;
         clusterState = store.innerPut(putRequest, clusterState);
-        store.innerUpdatePipelines(clusterState);
+        store.innerUpdatePipelines(previousClusterState, clusterState);
         pipeline = store.get(id);
         assertThat(pipeline, notNullValue());
         assertThat(pipeline.getId(), equalTo(id));
@@ -246,8 +253,9 @@ public class PipelineStoreTests extends ESTestCase {
         assertThat(pipeline.getProcessors().get(0).getType(), equalTo("set"));
 
         DeletePipelineRequest deleteRequest = new DeletePipelineRequest(id);
+        previousClusterState = clusterState;
         clusterState = store.innerDelete(deleteRequest, clusterState);
-        store.innerUpdatePipelines(clusterState);
+        store.innerUpdatePipelines(previousClusterState, clusterState);
         pipeline = store.get(id);
         assertThat(pipeline, nullValue());
     }

@@ -20,6 +20,8 @@ package org.elasticsearch.transport;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -106,8 +108,8 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 
 public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent implements Transport {
 
-    public static final String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";
-    public static final String HTTP_SERVER_BOSS_THREAD_NAME_PREFIX = "http_server_boss";
+    public static final String TRANSPORT_SERVER_WORKER_THREAD_NAME_PREFIX = "transport_server_worker";
+    public static final String TRANSPORT_SERVER_BOSS_THREAD_NAME_PREFIX = "transport_server_boss";
     public static final String TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX = "transport_client_worker";
     public static final String TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX = "transport_client_boss";
 
@@ -143,7 +145,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         Setting.byteSizeSetting("transport.tcp.receive_buffer_size", NetworkService.TcpSettings.TCP_RECEIVE_BUFFER_SIZE,
             Setting.Property.NodeScope);
 
-    private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().bytes() * 0.9);
+    private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
     private static final int PING_DATA_SIZE = -1;
 
     protected final int connectionsPerNodeRecovery;
@@ -258,10 +260,13 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                         sendMessage(channel, pingHeader, successfulPings::inc, false);
                     } catch (Exception e) {
                         if (isOpen(channel)) {
-                            logger.debug("[{}] failed to send ping transport message", e, node);
+                            logger.debug(
+                                (Supplier<?>) () -> new ParameterizedMessage("[{}] failed to send ping transport message", node), e);
                             failedPings.inc();
                         } else {
-                            logger.trace("[{}] failed to send ping transport message (channel closed)", e, node);
+                            logger.trace(
+                                (Supplier<?>) () -> new ParameterizedMessage(
+                                    "[{}] failed to send ping transport message (channel closed)", node), e);
                         }
                     }
                 }
@@ -397,7 +402,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                         try {
                             nodeChannels = connectToChannels(node);
                         } catch (Exception e) {
-                            logger.trace("failed to connect to [{}], cleaning dangling connections", e, node);
+                            logger.trace(
+                                (Supplier<?>) () -> new ParameterizedMessage(
+                                    "failed to connect to [{}], cleaning dangling connections", node), e);
                             throw e;
                         }
                     }
@@ -772,7 +779,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     try {
                         closeChannels(entry.getValue());
                     } catch (Exception e) {
-                        logger.debug("Error closing serverChannel for profile [{}]", e, entry.getKey());
+                        logger.debug(
+                            (Supplier<?>) () -> new ParameterizedMessage(
+                                "Error closing serverChannel for profile [{}]", entry.getKey()), e);
                     }
                 }
 
@@ -802,21 +811,27 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             return;
         }
         if (isCloseConnectionException(e)) {
-            logger.trace("close connection exception caught on transport layer [{}], disconnecting from relevant node", e,
-                channel);
+            logger.trace(
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "close connection exception caught on transport layer [{}], disconnecting from relevant node",
+                    channel),
+                e);
             // close the channel, which will cause a node to be disconnected if relevant
             disconnectFromNodeChannel(channel, e);
         } else if (isConnectException(e)) {
-            logger.trace("connect exception caught on transport layer [{}]", e, channel);
+            logger.trace((Supplier<?>) () -> new ParameterizedMessage("connect exception caught on transport layer [{}]", channel), e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
             disconnectFromNodeChannel(channel, e);
         } else if (e instanceof BindException) {
-            logger.trace("bind exception caught on transport layer [{}]", e, channel);
+            logger.trace((Supplier<?>) () -> new ParameterizedMessage("bind exception caught on transport layer [{}]", channel), e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
             disconnectFromNodeChannel(channel, e);
         } else if (e instanceof CancelledKeyException) {
-            logger.trace("cancelled key exception caught on transport layer [{}], disconnecting from relevant node", e,
-                channel);
+            logger.trace(
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "cancelled key exception caught on transport layer [{}], disconnecting from relevant node",
+                    channel),
+                e);
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
             disconnectFromNodeChannel(channel, e);
         } else if (e instanceof TcpTransport.HttpOnTransportException) {
@@ -825,7 +840,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 sendMessage(channel, new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8)), () -> {}, true);
             }
         } else {
-            logger.warn("exception caught on transport layer [{}], closing connection", e, channel);
+            logger.warn(
+                (Supplier<?>) () -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
             // close the channel, which will cause a node to be disconnected if relevant
             disconnectFromNodeChannel(channel, e);
         }
@@ -1260,7 +1276,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             try {
                 handler.handleException(rtx);
             } catch (Exception e) {
-                logger.error("failed to handle exception response [{}]", e, handler);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to handle exception response [{}]", handler), e);
             }
         });
     }
@@ -1297,7 +1313,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 transportChannel.sendResponse(e);
             } catch (IOException inner) {
                 inner.addSuppressed(e);
-                logger.warn("Failed to send error message back to client for action [{}]", inner, action);
+                logger.warn(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "Failed to send error message back to client for action [{}]", action), inner);
             }
         }
         return action;
@@ -1343,7 +1361,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     transportChannel.sendResponse(e);
                 } catch (Exception inner) {
                     inner.addSuppressed(e);
-                    logger.warn("Failed to send error message back to client for action [{}]", inner, reg.getAction());
+                    logger.warn(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                            "Failed to send error message back to client for action [{}]", reg.getAction()), inner);
                 }
             }
         }

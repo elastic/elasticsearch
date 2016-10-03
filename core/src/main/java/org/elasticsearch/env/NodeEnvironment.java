@@ -19,6 +19,9 @@
 
 package org.elasticsearch.env;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
@@ -36,7 +39,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -83,7 +85,7 @@ import static java.util.Collections.unmodifiableSet;
  */
 public final class NodeEnvironment  implements Closeable {
 
-    private final ESLogger logger;
+    private final Logger logger;
 
     public static class NodePath {
         /* ${data.paths}/nodes/{node.id} */
@@ -196,7 +198,7 @@ public final class NodeEnvironment  implements Closeable {
         boolean success = false;
 
         // trace logger to debug issues before the default node name is derived from the node id
-        ESLogger startupTraceLogger = Loggers.getLogger(getClass(), settings);
+        Logger startupTraceLogger = Loggers.getLogger(getClass(), settings);
 
         try {
             sharedDataPath = environment.sharedDataFile();
@@ -207,13 +209,6 @@ public final class NodeEnvironment  implements Closeable {
                 for (int dirIndex = 0; dirIndex < environment.dataFiles().length; dirIndex++) {
                     Path dataDirWithClusterName = environment.dataWithClusterFiles()[dirIndex];
                     Path dataDir = environment.dataFiles()[dirIndex];
-                    // TODO: Remove this in 6.0, we are no longer going to read from the cluster name directory
-                    if (readFromDataPathWithClusterName(dataDirWithClusterName)) {
-                        DeprecationLogger deprecationLogger = new DeprecationLogger(startupTraceLogger);
-                        deprecationLogger.deprecated("ES has detected the [path.data] folder using the cluster name as a folder [{}], " +
-                                        "Elasticsearch 6.0 will not allow the cluster name as a folder within the data path", dataDir);
-                        dataDir = dataDirWithClusterName;
-                    }
                     Path dir = dataDir.resolve(NODES_FOLDER).resolve(Integer.toString(possibleLockId));
                     Files.createDirectories(dir);
 
@@ -231,7 +226,8 @@ public final class NodeEnvironment  implements Closeable {
                         }
 
                     } catch (IOException e) {
-                        startupTraceLogger.trace("failed to obtain node lock on {}", e, dir.toAbsolutePath());
+                        startupTraceLogger.trace(
+                            (Supplier<?>) () -> new ParameterizedMessage("failed to obtain node lock on {}", dir.toAbsolutePath()), e);
                         lastException = new IOException("failed to obtain lock on " + dir.toAbsolutePath(), e);
                         // release all the ones that were obtained up until now
                         releaseAndNullLocks(locks);
@@ -284,25 +280,6 @@ public final class NodeEnvironment  implements Closeable {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
             return stream.iterator().hasNext() == false;
         }
-    }
-
-    // Visible for testing
-    /** Returns true if data should be read from the data path that includes the cluster name (ie, it has data in it) */
-    static boolean readFromDataPathWithClusterName(Path dataPathWithClusterName) throws IOException {
-        if (Files.exists(dataPathWithClusterName) == false ||          // If it doesn't exist
-                Files.isDirectory(dataPathWithClusterName) == false || // Or isn't a directory
-                dirEmpty(dataPathWithClusterName)) {                   // Or if it's empty
-            // No need to read from cluster-name folder!
-            return false;
-        }
-        // The "nodes" directory inside of the cluster name
-        Path nodesPath = dataPathWithClusterName.resolve(NODES_FOLDER);
-        if (Files.isDirectory(nodesPath)) {
-            // The cluster has data in the "nodes" so we should read from the cluster-named folder for now
-            return true;
-        }
-        // Hey the nodes directory didn't exist, so we can safely use whatever directory we feel appropriate
-        return false;
     }
 
     private static void releaseAndNullLocks(Lock[] locks) {
@@ -392,7 +369,7 @@ public final class NodeEnvironment  implements Closeable {
      * scans the node paths and loads existing metaData file. If not found a new meta data will be generated
      * and persisted into the nodePaths
      */
-    private static NodeMetaData loadOrCreateNodeMetaData(Settings settings, ESLogger logger,
+    private static NodeMetaData loadOrCreateNodeMetaData(Settings settings, Logger logger,
                                                          NodePath... nodePaths) throws IOException {
         final Path[] paths = Arrays.stream(nodePaths).map(np -> np.path).toArray(Path[]::new);
         NodeMetaData metaData = NodeMetaData.FORMAT.loadLatestState(logger, paths);
@@ -884,7 +861,7 @@ public final class NodeEnvironment  implements Closeable {
                     logger.trace("releasing lock [{}]", lock);
                     lock.close();
                 } catch (IOException e) {
-                    logger.trace("failed to release lock [{}]", e, lock);
+                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to release lock [{}]", lock), e);
                 }
             }
         }

@@ -22,12 +22,12 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 
 import java.io.IOException;
 
@@ -104,8 +104,9 @@ public class JLHScore extends SignificanceHeuristic {
         return builder;
     }
 
-    public static SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher)
+    public static SignificanceHeuristic parse(XContentParseContext context)
             throws IOException, QueryShardException {
+        XContentParser parser = context.getParser();
         // move to the closing bracket
         if (!parser.nextToken().equals(XContentParser.Token.END_OBJECT)) {
             throw new ElasticsearchParseException(

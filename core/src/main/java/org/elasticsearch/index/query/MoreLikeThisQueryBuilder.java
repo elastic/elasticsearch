@@ -147,7 +147,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
      */
     public static final class Item implements ToXContent, Writeable {
         public static final Item[] EMPTY_ARRAY = new Item[0];
-        
+
         public interface Field {
             ParseField INDEX = new ParseField("_index");
             ParseField TYPE = new ParseField("_type");
@@ -780,7 +780,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         if (fields != null) {
-            builder.field(Field.FIELDS.getPreferredName(), fields);
+            builder.array(Field.FIELDS.getPreferredName(), fields);
         }
         buildLikeField(builder, Field.LIKE.getPreferredName(), likeTexts, likeItems);
         buildLikeField(builder, Field.UNLIKE.getPreferredName(), unlikeTexts, unlikeItems);
@@ -791,7 +791,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         builder.field(Field.MIN_WORD_LENGTH.getPreferredName(), minWordLength);
         builder.field(Field.MAX_WORD_LENGTH.getPreferredName(), maxWordLength);
         if (stopWords != null) {
-            builder.field(Field.STOP_WORDS.getPreferredName(), stopWords);
+            builder.array(Field.STOP_WORDS.getPreferredName(), stopWords);
         }
         if (analyzer != null) {
             builder.field(Field.ANALYZER.getPreferredName(), analyzer);
@@ -1021,7 +1021,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
 
         // set analyzer
-        Analyzer analyzerObj = context.getAnalysisService().analyzer(analyzer);
+        Analyzer analyzerObj = context.getIndexAnalyzers().get(analyzer);
         if (analyzerObj == null) {
             analyzerObj = context.getMapperService().searchAnalyzer();
         }

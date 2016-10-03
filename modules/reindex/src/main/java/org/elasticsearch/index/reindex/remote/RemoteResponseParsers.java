@@ -47,10 +47,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Parsers to convert the response from the remote host into objects useful for {@link RemoteScrollableHitSource}. Lots of data is
- * intentionally thrown on the floor because we don't need it but ObjectParser and friends are strict about blowing up when they see
- * elements they don't understand. So you'll see a lot of BiConsumers that look like "(b, v) -&gt; {}". That means "I don't care about the
- * value here, just throw it away and don't blow up.
+ * Parsers to convert the response from the remote host into objects useful for {@link RemoteScrollableHitSource}.
  */
 final class RemoteResponseParsers {
     private RemoteResponseParsers() {}
@@ -58,8 +55,8 @@ final class RemoteResponseParsers {
     /**
      * Parser for an individual {@code hit} element.
      */
-    public static final ConstructingObjectParser<BasicHit, ParseFieldMatcherSupplier> HIT_PARSER = new ConstructingObjectParser<>("hit",
-            a -> {
+    public static final ConstructingObjectParser<BasicHit, ParseFieldMatcherSupplier> HIT_PARSER =
+            new ConstructingObjectParser<>("hit", true, a -> {
                 int i = 0;
                 String index = (String) a[i++];
                 String type = (String) a[i++];
@@ -90,26 +87,23 @@ final class RemoteResponseParsers {
         HIT_PARSER.declareString(BasicHit::setParent, new ParseField("_parent"));
         HIT_PARSER.declareLong(BasicHit::setTTL, new ParseField("_ttl"));
         HIT_PARSER.declareLong(BasicHit::setTimestamp, new ParseField("_timestamp"));
-        HIT_PARSER.declareField((b, v) -> {}, p -> null, new ParseField("_score"), ValueType.FLOAT_OR_NULL);
-        HIT_PARSER.declareStringArray((b, v) -> {}, new ParseField("sort"));
     }
 
     /**
      * Parser for the {@code hits} element. Parsed to an array of {@code [total (Long), hits (List<Hit>)]}.
      */
-    public static final ConstructingObjectParser<Object[], ParseFieldMatcherSupplier> HITS_PARSER = new ConstructingObjectParser<>("hits",
-            a -> a);
+    public static final ConstructingObjectParser<Object[], ParseFieldMatcherSupplier> HITS_PARSER =
+            new ConstructingObjectParser<>("hits", true, a -> a);
     static {
         HITS_PARSER.declareLong(constructorArg(), new ParseField("total"));
         HITS_PARSER.declareObjectArray(constructorArg(), HIT_PARSER, new ParseField("hits"));
-        HITS_PARSER.declareField((b, v) -> {}, p -> null, new ParseField("max_score"), ValueType.FLOAT_OR_NULL);
     }
 
     /**
      * Parser for {@code failed} shards in the {@code _shards} elements.
      */
     public static final ConstructingObjectParser<SearchFailure, ParseFieldMatcherSupplier> SEARCH_FAILURE_PARSER =
-            new ConstructingObjectParser<>("failure", a -> {
+            new ConstructingObjectParser<>("failure", true, a -> {
                 int i = 0;
                 String index = (String) a[i++];
                 Integer shardId = (Integer) a[i++];
@@ -135,7 +129,6 @@ final class RemoteResponseParsers {
                 return p.text();
             }
         }, new ParseField("reason"), ValueType.OBJECT_OR_STRING);
-        SEARCH_FAILURE_PARSER.declareInt((b, v) -> {}, new ParseField("status"));
     }
 
     /**
@@ -143,7 +136,7 @@ final class RemoteResponseParsers {
      * parses to an empty list.
      */
     public static final ConstructingObjectParser<List<Throwable>, ParseFieldMatcherSupplier> SHARDS_PARSER =
-            new ConstructingObjectParser<>("_shards", a -> {
+            new ConstructingObjectParser<>("_shards", true, a -> {
                 @SuppressWarnings("unchecked")
                 List<Throwable> failures = (List<Throwable>) a[0];
                 failures = failures == null ? emptyList() : failures;
@@ -151,13 +144,10 @@ final class RemoteResponseParsers {
             });
     static {
         SHARDS_PARSER.declareObjectArray(optionalConstructorArg(), SEARCH_FAILURE_PARSER, new ParseField("failures"));
-        SHARDS_PARSER.declareInt((b, v) -> {}, new ParseField("total"));
-        SHARDS_PARSER.declareInt((b, v) -> {}, new ParseField("successful"));
-        SHARDS_PARSER.declareInt((b, v) -> {}, new ParseField("failed"));
     }
 
     public static final ConstructingObjectParser<Response, ParseFieldMatcherSupplier> RESPONSE_PARSER =
-            new ConstructingObjectParser<>("search_response", a -> {
+            new ConstructingObjectParser<>("search_response", true, a -> {
                 int i = 0;
                 Throwable catastrophicFailure = (Throwable) a[i++];
                 if (catastrophicFailure != null) {
@@ -189,9 +179,6 @@ final class RemoteResponseParsers {
         RESPONSE_PARSER.declareString(optionalConstructorArg(), new ParseField("_scroll_id"));
         RESPONSE_PARSER.declareObject(optionalConstructorArg(), HITS_PARSER, new ParseField("hits"));
         RESPONSE_PARSER.declareObject(optionalConstructorArg(), SHARDS_PARSER, new ParseField("_shards"));
-        RESPONSE_PARSER.declareInt((b, v) -> {}, new ParseField("took"));
-        RESPONSE_PARSER.declareBoolean((b, v) -> {}, new ParseField("terminated_early"));
-        RESPONSE_PARSER.declareInt((b, v) -> {}, new ParseField("status"));
     }
 
     /**
@@ -200,7 +187,7 @@ final class RemoteResponseParsers {
     public static class ThrowableBuilder {
         public static final BiFunction<XContentParser, ParseFieldMatcherSupplier, Throwable> PARSER;
         static {
-            ObjectParser<ThrowableBuilder, ParseFieldMatcherSupplier> parser = new ObjectParser<>("reason", ThrowableBuilder::new);
+            ObjectParser<ThrowableBuilder, ParseFieldMatcherSupplier> parser = new ObjectParser<>("reason", true, ThrowableBuilder::new);
             PARSER = parser.andThen(ThrowableBuilder::build);
             parser.declareString(ThrowableBuilder::setType, new ParseField("type"));
             parser.declareString(ThrowableBuilder::setReason, new ParseField("reason"));
@@ -209,14 +196,6 @@ final class RemoteResponseParsers {
             // So we can give a nice error for parsing exceptions
             parser.declareInt(ThrowableBuilder::setLine, new ParseField("line"));
             parser.declareInt(ThrowableBuilder::setColumn, new ParseField("col"));
-
-            // So we don't blow up on search exceptions
-            parser.declareString((b, v) -> {}, new ParseField("phase"));
-            parser.declareBoolean((b, v) -> {}, new ParseField("grouped"));
-            parser.declareField((p, v, c) -> p.skipChildren(), new ParseField("failed_shards"), ValueType.OBJECT_ARRAY);
-
-            // Just throw away the root_cause
-            parser.declareField((p, v, c) -> p.skipChildren(), new ParseField("root_cause"), ValueType.OBJECT_ARRAY);
         }
 
         private String type;
@@ -270,32 +249,14 @@ final class RemoteResponseParsers {
     }
 
     /**
-     * Parses the {@code version} field of the main action. There are a surprising number of fields in this that we don't need!
-     */
-    public static final ConstructingObjectParser<Version, ParseFieldMatcherSupplier> VERSION_PARSER = new ConstructingObjectParser<>(
-            "version", a -> Version.fromString((String) a[0]));
-    static {
-        VERSION_PARSER.declareString(constructorArg(), new ParseField("number"));
-        VERSION_PARSER.declareBoolean((p, v) -> {}, new ParseField("snapshot_build"));
-        VERSION_PARSER.declareBoolean((p, v) -> {}, new ParseField("build_snapshot"));
-        VERSION_PARSER.declareString((p, v) -> {}, new ParseField("build_hash"));
-        VERSION_PARSER.declareString((p, v) -> {}, new ParseField("build_date"));
-        VERSION_PARSER.declareString((p, v) -> {}, new ParseField("build_timestamp"));
-        VERSION_PARSER.declareString((p, v) -> {}, new ParseField("lucene_version"));
-    }
-
-    /**
      * Parses the main action to return just the {@linkplain Version} that it returns. We throw everything else out.
      */
     public static final ConstructingObjectParser<Version, ParseFieldMatcherSupplier> MAIN_ACTION_PARSER = new ConstructingObjectParser<>(
-            "/", a -> (Version) a[0]);
+            "/", true, a -> (Version) a[0]);
     static {
-        MAIN_ACTION_PARSER.declareBoolean((p, v) -> {}, new ParseField("ok"));
-        MAIN_ACTION_PARSER.declareInt((p, v) -> {}, new ParseField("status"));
-        MAIN_ACTION_PARSER.declareString((p, v) -> {}, new ParseField("name"));
-        MAIN_ACTION_PARSER.declareString((p, v) -> {}, new ParseField("cluster_name"));
-        MAIN_ACTION_PARSER.declareString((p, v) -> {}, new ParseField("name"));
-        MAIN_ACTION_PARSER.declareString((p, v) -> {}, new ParseField("tagline"));
-        MAIN_ACTION_PARSER.declareObject(constructorArg(), VERSION_PARSER, new ParseField("version"));
+        ConstructingObjectParser<Version, ParseFieldMatcherSupplier> versionParser = new ConstructingObjectParser<>(
+                "version", true, a -> Version.fromString((String) a[0]));
+        versionParser.declareString(constructorArg(), new ParseField("number"));
+        MAIN_ACTION_PARSER.declareObject(constructorArg(), versionParser, new ParseField("version"));
     }
 }

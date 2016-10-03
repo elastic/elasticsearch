@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -26,7 +27,6 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -71,7 +71,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
      */
     private final BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> scriptApplier;
 
-    public AbstractAsyncBulkIndexByScrollAction(BulkByScrollTask task, ESLogger logger, ParentTaskAssigningClient client,
+    public AbstractAsyncBulkIndexByScrollAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                                                 ThreadPool threadPool, Request mainRequest,
                                                 ActionListener<BulkIndexByScrollResponse> listener,
                                                 ScriptService scriptService, ClusterState clusterState) {

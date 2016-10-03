@@ -77,7 +77,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
                     return feature;
                 }
             }
-            throw new IllegalArgumentException("No feature for name [" + name + "]");
+            throw new IllegalArgumentException("No endpoint or operation is available at [" + name + "]");
         }
 
         public static Feature fromId(byte id) {

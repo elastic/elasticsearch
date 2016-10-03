@@ -27,7 +27,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
-import static org.elasticsearch.test.ESTestCase.createAnalysisService;
+import static org.elasticsearch.test.ESTestCase.createTestAnalysis;
 import static org.hamcrest.Matchers.containsString;
 
 public class PatternCaptureTokenFilterTests extends ESTokenStreamTestCase {
@@ -40,17 +40,16 @@ public class PatternCaptureTokenFilterTests extends ESTokenStreamTestCase {
                 .build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        AnalysisService analysisService = createAnalysisService(idxSettings, settings);
-
-        NamedAnalyzer analyzer1 = analysisService.analyzer("single");
+        IndexAnalyzers indexAnalyzers = createTestAnalysis(idxSettings, settings).indexAnalyzers;
+        NamedAnalyzer analyzer1 = indexAnalyzers.get("single");
 
         assertTokenStreamContents(analyzer1.tokenStream("test", "foobarbaz"), new String[]{"foobarbaz","foobar","foo"});
 
-        NamedAnalyzer analyzer2 = analysisService.analyzer("multi");
+        NamedAnalyzer analyzer2 = indexAnalyzers.get("multi");
 
         assertTokenStreamContents(analyzer2.tokenStream("test", "abc123def"), new String[]{"abc123def","abc","123","def"});
 
-        NamedAnalyzer analyzer3 = analysisService.analyzer("preserve");
+        NamedAnalyzer analyzer3 = indexAnalyzers.get("preserve");
 
         assertTokenStreamContents(analyzer3.tokenStream("test", "foobarbaz"), new String[]{"foobar","foo"});
     }

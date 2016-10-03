@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -30,16 +33,13 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
 
 import java.util.ArrayList;
@@ -348,13 +348,13 @@ public class NodeJoinController extends AbstractComponent {
 
     static class JoinTaskListener implements ClusterStateTaskListener {
         final List<MembershipAction.JoinCallback> callbacks;
-        private final ESLogger logger;
+        private final Logger logger;
 
-        JoinTaskListener(MembershipAction.JoinCallback callback, ESLogger logger) {
+        JoinTaskListener(MembershipAction.JoinCallback callback, Logger logger) {
             this(Collections.singletonList(callback), logger);
         }
 
-        JoinTaskListener(List<MembershipAction.JoinCallback> callbacks, ESLogger logger) {
+        JoinTaskListener(List<MembershipAction.JoinCallback> callbacks, Logger logger) {
             this.callbacks = callbacks;
             this.logger = logger;
         }
@@ -365,7 +365,7 @@ public class NodeJoinController extends AbstractComponent {
                 try {
                     callback.onFailure(e);
                 } catch (Exception inner) {
-                    logger.error("error handling task failure [{}]", inner, e);
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("error handling task failure [{}]", e), inner);
                 }
             }
         }
@@ -376,7 +376,7 @@ public class NodeJoinController extends AbstractComponent {
                 try {
                     callback.onSuccess();
                 } catch (Exception e) {
-                    logger.error("unexpected error during [{}]", e, source);
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected error during [{}]", source), e);
                 }
             }
         }
@@ -455,17 +455,12 @@ public class NodeJoinController extends AbstractComponent {
 
             if (nodesChanged) {
                 newState.nodes(nodesBuilder);
-                final ClusterState tmpState = newState.build();
-                RoutingAllocation.Result result = allocationService.reroute(tmpState, "node_join");
-                newState = ClusterState.builder(tmpState);
-                if (result.changed()) {
-                    newState.routingResult(result);
-                }
+                return results.build(allocationService.reroute(newState.build(), "node_join"));
+            } else {
+                // we must return a new cluster state instance to force publishing. This is important
+                // for the joining node to finalize its join and set us as a master
+                return results.build(newState.build());
             }
-
-            // we must return a new cluster state instance to force publishing. This is important
-            // for the joining node to finalize its join and set us as a master
-            return results.build(newState.build());
         }
 
         private ClusterState.Builder becomeMasterAndTrimConflictingNodes(ClusterState currentState, List<DiscoveryNode> joiningNodes) {
@@ -485,9 +480,8 @@ public class NodeJoinController extends AbstractComponent {
             // now trim any left over dead nodes - either left there when the previous master stepped down
             // or removed by us above
             ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).blocks(clusterBlocks).build();
-            RoutingAllocation.Result result = allocationService.deassociateDeadNodes(tmpState, false,
-                "removed dead nodes on election");
-            return ClusterState.builder(tmpState).routingResult(result);
+            return ClusterState.builder(allocationService.deassociateDeadNodes(tmpState, false,
+                "removed dead nodes on election"));
         }
 
         @Override

@@ -95,3 +95,26 @@
   - match: {test_index.aliases.test_clias.filter.term.field: value}
   - is_false: test_index.aliases.test_clias.index_routing
   - is_false: test_index.aliases.test_clias.search_routing
+
+---
+"Create index with no type mappings":
+  - do:
+      catch: /illegal_argument_exception/
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+           "" : {}
+
+---
+"Create index with invalid mappings":
+  - do:
+      catch: /illegal_argument_exception/
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            test_type:
+              properties:
+                "":
+                  type:     keyword

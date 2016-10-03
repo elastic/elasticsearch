@@ -140,6 +140,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         PrimaryShardAllocator.INDEX_RECOVERY_INITIAL_SHARDS_SETTING,
         FsDirectoryService.INDEX_LOCK_FACTOR_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
+        EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
         IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS,
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {
@@ -185,6 +186,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             case IndexMetaData.SETTING_INDEX_UUID:
             case IndexMetaData.SETTING_VERSION_CREATED:
             case IndexMetaData.SETTING_VERSION_UPGRADED:
+            case IndexMetaData.SETTING_INDEX_PROVIDED_NAME:
             case MergePolicyConfig.INDEX_MERGE_ENABLED:
                 return true;
             default:

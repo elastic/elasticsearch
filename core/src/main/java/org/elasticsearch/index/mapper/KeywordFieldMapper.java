@@ -24,6 +24,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,18 +33,28 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
  */
-public final class KeywordFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
+public final class KeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "keyword";
+
+    private static final List<String> SUPPORTED_PARAMETERS_FOR_AUTO_DOWNGRADE_TO_STRING = unmodifiableList(Arrays.asList(
+            "type",
+            // common keyword parameters, for which the upgrade is straightforward
+            "index", "store", "doc_values", "omit_norms", "norms", "boost", "fields", "copy_to",
+            "include_in_all", "ignore_above", "index_options", "similarity"));
 
     public static class Defaults {
         public static final MappedFieldType FIELD_TYPE = new KeywordFieldType();
@@ -94,16 +105,38 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
         @Override
         public KeywordFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            KeywordFieldMapper fieldMapper = new KeywordFieldMapper(
-                    name, fieldType, defaultFieldType, ignoreAbove,
+            return new KeywordFieldMapper(
+                    name, fieldType, defaultFieldType, ignoreAbove, includeInAll,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return fieldMapper.includeInAll(includeInAll);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1)) {
+                // Downgrade "keyword" to "string" in indexes created in 2.x so you can use modern syntax against old indexes
+                Set<String> unsupportedParameters = new HashSet<>(node.keySet());
+                unsupportedParameters.removeAll(SUPPORTED_PARAMETERS_FOR_AUTO_DOWNGRADE_TO_STRING);
+                if (false == SUPPORTED_PARAMETERS_FOR_AUTO_DOWNGRADE_TO_STRING.containsAll(node.keySet())) {
+                    throw new IllegalArgumentException("Automatic downgrade from [keyword] to [string] failed because parameters "
+                            + unsupportedParameters + " are not supported for automatic downgrades.");
+                }
+                {   // Downgrade "index"
+                    Object index = node.get("index");
+                    if (index == null || Boolean.TRUE.equals(index)) {
+                        index = "not_analyzed";
+                    } else if (Boolean.FALSE.equals(index)) {
+                        index = "no";
+                    } else {
+                        throw new IllegalArgumentException(
+                                "Can't parse [index] value [" + index + "] for field [" + name + "], expected [true] or [false]");
+                    }
+                    node.put("index", index);
+                }
+                
+                return new StringFieldMapper.TypeParser().parse(name, node, parserContext);
+            }
             KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder(name);
             parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -177,10 +210,11 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
     private int ignoreAbove;
 
     protected KeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                int ignoreAbove, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+                                int ignoreAbove, Boolean includeInAll, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.ignoreAbove = ignoreAbove;
+        this.includeInAll = includeInAll;
     }
 
     /** Values that have more chars than the return value of this method will
@@ -198,39 +232,6 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
     // pkg-private for testing
     Boolean includeInAll() {
         return includeInAll;
-    }
-
-    @Override
-    public KeywordFieldMapper includeInAll(Boolean includeInAll) {
-        if (includeInAll != null) {
-            KeywordFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public KeywordFieldMapper includeInAllIfNotSet(Boolean includeInAll) {
-        if (includeInAll != null && this.includeInAll == null) {
-            KeywordFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public KeywordFieldMapper unsetIncludeInAll() {
-        if (includeInAll != null) {
-            KeywordFieldMapper clone = clone();
-            clone.includeInAll = null;
-            return clone;
-        } else {
-            return this;
-        }
     }
 
     @Override

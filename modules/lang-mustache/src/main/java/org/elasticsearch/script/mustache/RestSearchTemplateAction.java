@@ -68,6 +68,8 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             request.setScriptType(ScriptService.ScriptType.STORED);
             request.setScript(s);
         }, new ParseField("id"));
+        PARSER.declareBoolean(SearchTemplateRequest::setExplain, new ParseField("explain"));
+        PARSER.declareBoolean(SearchTemplateRequest::setProfile, new ParseField("profile"));
         PARSER.declareField((parser, request, value) -> {
             request.setScriptType(ScriptService.ScriptType.INLINE);
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {

@@ -30,8 +30,9 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -42,13 +43,14 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseContext;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
@@ -64,10 +66,20 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public abstract class SearchContext implements Releasable {
+/**
+ * This class encapsulates the state needed to execute a search. It holds a reference to the
+ * shards point in time snapshot (IndexReader / ContextIndexSearcher) and allows passing on
+ * state from one query / fetch phase to another.
+ *
+ * This class also implements {@link RefCounted} since in some situations like in {@link org.elasticsearch.search.SearchService}
+ * a SearchContext can be closed concurrently due to independent events ie. when an index gets removed. To prevent accessing closed
+ * IndexReader / IndexSearcher instances the SearchContext can be guarded by a reference count and fail if it's been closed by
+ * an external event.
+ */
+// For reference why we use RefCounted here see #20095
+public abstract class SearchContext extends AbstractRefCounted implements Releasable {
 
     private static ThreadLocal<SearchContext> current = new ThreadLocal<>();
     public static final int DEFAULT_TERMINATE_AFTER = 0;
@@ -91,6 +103,7 @@ public abstract class SearchContext implements Releasable {
     protected final ParseFieldMatcher parseFieldMatcher;
 
     protected SearchContext(ParseFieldMatcher parseFieldMatcher) {
+        super("search_context");
         this.parseFieldMatcher = parseFieldMatcher;
     }
 
@@ -100,23 +113,34 @@ public abstract class SearchContext implements Releasable {
 
     @Override
     public final void close() {
-        if (closed.compareAndSet(false, true)) { // prevent double release
-            try {
-                clearReleasables(Lifetime.CONTEXT);
-            } finally {
-                doClose();
-            }
+        if (closed.compareAndSet(false, true)) { // prevent double closing
+            decRef();
         }
     }
 
     private boolean nowInMillisUsed;
 
+    @Override
+    protected final void closeInternal() {
+        try {
+            clearReleasables(Lifetime.CONTEXT);
+        } finally {
+            doClose();
+        }
+    }
+
+    @Override
+    protected void alreadyClosed() {
+        throw new IllegalStateException("search context is already closed can't increment refCount current count [" + refCount() + "]");
+    }
+
     protected abstract void doClose();
 
     /**
      * Should be called before executing the main query and after all other parameters have been set.
+     * @param rewrite if the set query should be rewritten against the searcher returned from {@link #searcher()}
      */
-    public abstract void preProcess();
+    public abstract void preProcess(boolean rewrite);
 
     public abstract Query searchFilter(String[] types);
 
@@ -161,7 +185,9 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SearchContext aggregations(SearchContextAggregations aggregations);
 
-    public abstract  <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory);
+    public abstract void addSearchExt(SearchExtBuilder searchExtBuilder);
+
+    public abstract SearchExtBuilder getSearchExt(String name);
 
     public abstract SearchContextHighlight highlight();
 
@@ -200,13 +226,15 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext);
 
+    public abstract DocValueFieldsContext docValueFieldsContext();
+
+    public abstract SearchContext docValueFieldsContext(DocValueFieldsContext docValueFieldsContext);
+
     public abstract ContextIndexSearcher searcher();
 
     public abstract IndexShard indexShard();
 
     public abstract MapperService mapperService();
-
-    public abstract AnalysisService analysisService();
 
     public abstract SimilarityService similarityService();
 
@@ -265,11 +293,18 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SearchContext size(int size);
 
-    public abstract boolean hasFieldNames();
+    public abstract boolean hasStoredFields();
 
-    public abstract List<String> fieldNames();
+    public abstract boolean hasStoredFieldsContext();
 
-    public abstract void emptyFieldNames();
+    /**
+     * A shortcut function to see whether there is a storedFieldsContext and it says the fields are requested.
+     */
+    public abstract boolean storedFieldsRequested();
+
+    public abstract StoredFieldsContext storedFieldsContext();
+
+    public abstract SearchContext storedFieldsContext(StoredFieldsContext storedFieldsContext);
 
     public abstract boolean explain();
 

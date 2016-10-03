@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-@TestLogging("_root:DEBUG,action.admin.indices.shards:TRACE,cluster.service:TRACE")
+@TestLogging("_root:DEBUG,org.elasticsearch.action.admin.indices.shards:TRACE,org.elasticsearch.cluster.service:TRACE")
 public class IndicesShardStoreRequestIT extends ESIntegTestCase {
 
     @Override
@@ -213,7 +213,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
             builders[i] = client().prepareIndex(index, "type").setSource("field", "value");
         }
         indexRandom(true, builders);
-        client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setForce(true).execute().actionGet();
     }
 
     private static final class IndexNodePredicate implements Predicate<Settings> {

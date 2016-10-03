@@ -192,6 +192,9 @@ class InstallPluginCommand extends SettingCommand {
 
     // pkg private for testing
     void execute(Terminal terminal, String pluginId, boolean isBatch, Map<String, String> settings) throws Exception {
+        if (pluginId == null) {
+            throw new UserException(ExitCodes.USAGE, "plugin id is required");
+        }
         final Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
         // TODO: remove this leniency!! is it needed anymore?
         if (Files.exists(env.pluginsFile()) == false) {
@@ -212,11 +215,11 @@ class InstallPluginCommand extends SettingCommand {
             final String stagingHash = System.getProperty(PROPERTY_STAGING_ID);
             if (stagingHash != null) {
                 url = String.format(Locale.ROOT,
-                    "https://staging.elastic.co/%1$s/download/elasticsearch-plugins/%2$s/%2$s-%3$s.zip",
+                    "https://staging.elastic.co/%3$s-%1$s/downloads/elasticsearch-plugins/%2$s/%2$s-%3$s.zip",
                     stagingHash, pluginId, version);
             } else {
                 url = String.format(Locale.ROOT,
-                    "https://artifacts.elastic.co/download/elasticsearch-plugins/%1$s/%1$s-%2$s.zip",
+                    "https://artifacts.elastic.co/downloads/elasticsearch-plugins/%1$s/%1$s-%2$s.zip",
                     pluginId, version);
             }
             terminal.println("-> Downloading " + pluginId + " from elastic");

@@ -42,7 +42,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
-import org.elasticsearch.index.mapper.GeoPointFieldMapperLegacy;
+import org.elasticsearch.index.mapper.LegacyGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.LegacyByteFieldMapper;
 import org.elasticsearch.index.mapper.LegacyDoubleFieldMapper;
 import org.elasticsearch.index.mapper.LegacyFloatFieldMapper;
@@ -119,7 +119,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
             fieldType = new LegacyByteFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
         } else if (type.equals("geo_point")) {
             if (indexService.getIndexSettings().getIndexVersionCreated().before(Version.V_2_2_0)) {
-                fieldType =  new GeoPointFieldMapperLegacy.Builder(fieldName).docValues(docValues).build(context).fieldType();
+                fieldType =  new LegacyGeoPointFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
             } else {
                 fieldType = new GeoPointFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
             }

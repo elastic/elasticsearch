@@ -50,7 +50,7 @@ import java.util.List;
 import java.util.Map;
 
 /** A {@link FieldMapper} for ip addresses. */
-public class IpFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
+public class IpFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "ip";
 
@@ -81,9 +81,8 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
         @Override
         public IpFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            IpFieldMapper fieldMapper = new IpFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return (IpFieldMapper) fieldMapper.includeInAll(includeInAll);
+            return new IpFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
+                    includeInAll, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -261,11 +260,13 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
             MappedFieldType fieldType,
             MappedFieldType defaultFieldType,
             Explicit<Boolean> ignoreMalformed,
+            Boolean includeInAll,
             Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
+        this.includeInAll = includeInAll;
     }
 
     @Override
@@ -281,39 +282,6 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
     @Override
     protected IpFieldMapper clone() {
         return (IpFieldMapper) super.clone();
-    }
-
-    @Override
-    public Mapper includeInAll(Boolean includeInAll) {
-        if (includeInAll != null) {
-            IpFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public Mapper includeInAllIfNotSet(Boolean includeInAll) {
-        if (includeInAll != null && this.includeInAll == null) {
-            IpFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public Mapper unsetIncludeInAll() {
-        if (includeInAll != null) {
-            IpFieldMapper clone = clone();
-            clone.includeInAll = null;
-            return clone;
-        } else {
-            return this;
-        }
     }
 
     @Override

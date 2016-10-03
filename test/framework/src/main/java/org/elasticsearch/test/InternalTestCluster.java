@@ -24,6 +24,7 @@ import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -51,7 +52,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -83,6 +83,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
@@ -147,7 +148,7 @@ import static org.junit.Assert.fail;
  */
 public final class InternalTestCluster extends TestCluster {
 
-    private final ESLogger logger = Loggers.getLogger(getClass());
+    private final Logger logger = Loggers.getLogger(getClass());
 
     /**
      * The number of ports in the range used for this JVM
@@ -825,7 +826,11 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         void startNode() {
-            node.start();
+            try {
+                node.start();
+            } catch (NodeValidationException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         void closeNode() throws IOException {
@@ -1655,10 +1660,18 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public void clearDisruptionScheme() {
+        clearDisruptionScheme(true);
+    }
+
+    public void clearDisruptionScheme(boolean ensureHealthyCluster) {
         if (activeDisruptionScheme != null) {
             TimeValue expectedHealingTime = activeDisruptionScheme.expectedTimeToHeal();
             logger.info("Clearing active scheme {}, expected healing time {}", activeDisruptionScheme, expectedHealingTime);
-            activeDisruptionScheme.removeAndEnsureHealthy(this);
+            if (ensureHealthyCluster) {
+                activeDisruptionScheme.removeAndEnsureHealthy(this);
+            } else {
+                activeDisruptionScheme.removeFromCluster(this);
+            }
         }
         activeDisruptionScheme = null;
     }

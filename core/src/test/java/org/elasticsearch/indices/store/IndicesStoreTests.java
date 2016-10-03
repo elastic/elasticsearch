@@ -88,7 +88,7 @@ public class IndicesStoreTests extends ESTestCase {
     public void before() {
         localNode = new DiscoveryNode("abc", new LocalTransportAddress("abc"), emptyMap(), emptySet(), Version.CURRENT);
         clusterService = createClusterService(threadPool);
-        indicesStore = new IndicesStore(Settings.EMPTY, null, clusterService, new TransportService(clusterService.getSettings(), null, null), null);
+        indicesStore = new IndicesStore(Settings.EMPTY, null, clusterService, new TransportService(clusterService.getSettings(), null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR), null);
     }
 
     @After
@@ -129,7 +129,7 @@ public class IndicesStoreTests extends ESTestCase {
                 if (state == ShardRoutingState.UNASSIGNED) {
                     unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
                 }
-                routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", null, null, j == 0, state, unassignedInfo));
+                routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", null, j == 0, state, unassignedInfo));
             }
         }
         assertFalse(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));

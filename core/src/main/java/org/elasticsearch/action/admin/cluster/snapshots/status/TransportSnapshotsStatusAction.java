@@ -214,7 +214,14 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 SnapshotId snapshotId = matchedSnapshotIds.get(snapshotName);
                 if (snapshotId == null) {
                     // neither in the current snapshot entries nor found in the repository
-                    throw new SnapshotMissingException(repositoryName, snapshotName);
+                    if (request.ignoreUnavailable()) {
+                        // ignoring unavailable snapshots, so skip over
+                        logger.debug("snapshot status request ignoring snapshot [{}], not found in repository [{}]",
+                                     snapshotName, repositoryName);
+                        continue;
+                    } else {
+                        throw new SnapshotMissingException(repositoryName, snapshotName);
+                    }
                 }
                 SnapshotInfo snapshotInfo = snapshotsService.snapshot(repositoryName, snapshotId);
                 List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();

@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -237,6 +238,15 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testListHasFieldIndexOutOfBounds() {
         assertFalse(ingestDocument.hasField("list.10"));
+    }
+
+    public void testListHasFieldIndexOutOfBounds_fail() {
+        assertTrue(ingestDocument.hasField("list.0", true));
+        assertTrue(ingestDocument.hasField("list.1", true));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ingestDocument.hasField("list.2", true));
+        assertThat(e.getMessage(), equalTo("[2] is out of bounds for array with length [2] as part of path [list.2]"));
+        e = expectThrows(IllegalArgumentException.class, () -> ingestDocument.hasField("list.10", true));
+        assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list.10]"));
     }
 
     public void testListHasFieldIndexNotNumeric() {
@@ -995,34 +1005,4 @@ public class IngestDocumentTests extends ESTestCase {
         }
     }
 
-    public static void assertIngestDocument(Object a, Object b) {
-        if (a instanceof Map) {
-            Map<?, ?> mapA = (Map<?, ?>) a;
-            Map<?, ?> mapB = (Map<?, ?>) b;
-            for (Map.Entry<?, ?> entry : mapA.entrySet()) {
-                if (entry.getValue() instanceof List || entry.getValue() instanceof Map) {
-                    assertIngestDocument(entry.getValue(), mapB.get(entry.getKey()));
-                }
-            }
-        } else if (a instanceof List) {
-            List<?> listA = (List<?>) a;
-            List<?> listB = (List<?>) b;
-            for (int i = 0; i < listA.size(); i++) {
-                Object value = listA.get(i);
-                if (value instanceof List || value instanceof Map) {
-                    assertIngestDocument(value, listB.get(i));
-                }
-            }
-        } else if (a instanceof byte[]) {
-            assertArrayEquals((byte[]) a, (byte[])b);
-        } else if (a instanceof IngestDocument) {
-            IngestDocument docA = (IngestDocument) a;
-            IngestDocument docB = (IngestDocument) b;
-            assertIngestDocument(docA.getSourceAndMetadata(), docB.getSourceAndMetadata());
-            assertIngestDocument(docA.getIngestMetadata(), docB.getIngestMetadata());
-        } else {
-            String msg = String.format(Locale.ROOT, "Expected %s class to be equal to %s", a.getClass().getName(), b.getClass().getName());
-            assertThat(msg, a, equalTo(b));
-        }
-    }
 }

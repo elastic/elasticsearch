@@ -26,6 +26,9 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -34,16 +37,11 @@ import java.util.Set;
  */
 public class AllocationDeciders extends AllocationDecider {
 
-    private final AllocationDecider[] allocations;
+    private final Collection<AllocationDecider> allocations;
 
-    public AllocationDeciders(Settings settings, AllocationDecider[] allocations) {
+    public AllocationDeciders(Settings settings, Collection<AllocationDecider> allocations) {
         super(settings);
-        this.allocations = allocations;
-    }
-
-    @Inject
-    public AllocationDeciders(Settings settings, Set<AllocationDecider> allocations) {
-        this(settings, allocations.toArray(new AllocationDecider[allocations.size()]));
+        this.allocations = Collections.unmodifiableCollection(allocations);
     }
 
     @Override
@@ -76,7 +74,7 @@ public class AllocationDeciders extends AllocationDecider {
             // short track if a NO is returned.
             if (decision == Decision.NO) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("Can not allocate [{}] on node [{}] due to [{}]", shardRouting, node.nodeId(), allocationDecider.getClass().getSimpleName());
+                    logger.trace("Can not allocate [{}] on node [{}] due to [{}]", shardRouting, node.node(), allocationDecider.getClass().getSimpleName());
                 }
                 // short circuit only if debugging is not enabled
                 if (!allocation.debugDecision()) {

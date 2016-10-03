@@ -20,6 +20,8 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -32,7 +34,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -280,16 +281,13 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                     routingTableBuilder.version(0);
 
                     // now, reroute
-                    RoutingAllocation.Result routingResult = allocationService.reroute(
-                            ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
-                            "state recovered");
-
-                    return ClusterState.builder(updatedState).routingResult(routingResult).build();
+                    updatedState = ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build();
+                    return allocationService.reroute(updatedState, "state recovered");
                 }
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    logger.error("unexpected failure during [{}]", e, source);
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
                     GatewayRecoveryListener.this.onFailure("failed to updated cluster state");
                 }
 

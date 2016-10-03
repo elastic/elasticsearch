@@ -22,10 +22,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -35,9 +35,9 @@ import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayAllocator;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -50,12 +50,12 @@ public final class Allocators {
         }
 
         @Override
-        public void applyStartedShards(StartedRerouteAllocation allocation) {
+        public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
             // noop
         }
 
         @Override
-        public void applyFailedShards(FailedRerouteAllocation allocation) {
+        public void applyFailedShards(RoutingAllocation allocation, List<FailedShard> failedShards) {
             // noop
         }
 
@@ -72,7 +72,7 @@ public final class Allocators {
 
     public static AllocationService createAllocationService(Settings settings) throws NoSuchMethodException, InstantiationException,
         IllegalAccessException, InvocationTargetException {
-        return createAllocationService(settings, new ClusterSettings(Settings.Builder.EMPTY_SETTINGS, ClusterSettings
+        return createAllocationService(settings, new ClusterSettings(Settings.EMPTY, ClusterSettings
             .BUILT_IN_CLUSTER_SETTINGS));
     }
 
@@ -85,19 +85,9 @@ public final class Allocators {
 
     public static AllocationDeciders defaultAllocationDeciders(Settings settings, ClusterSettings clusterSettings) throws
         IllegalAccessException, InvocationTargetException, InstantiationException, NoSuchMethodException {
-        List<AllocationDecider> list = new ArrayList<>();
-        // Keep a deterministic order of allocation deciders for the benchmark
-        for (Class<? extends AllocationDecider> deciderClass : ClusterModule.DEFAULT_ALLOCATION_DECIDERS) {
-            try {
-                Constructor<? extends AllocationDecider> constructor = deciderClass.getConstructor(Settings.class, ClusterSettings
-                    .class);
-                list.add(constructor.newInstance(settings, clusterSettings));
-            } catch (NoSuchMethodException e) {
-                Constructor<? extends AllocationDecider> constructor = deciderClass.getConstructor(Settings.class);
-                list.add(constructor.newInstance(settings));
-            }
-        }
-        return new AllocationDeciders(settings, list.toArray(new AllocationDecider[0]));
+        Collection<AllocationDecider> deciders =
+            ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList());
+        return new AllocationDeciders(settings, deciders);
 
     }
 

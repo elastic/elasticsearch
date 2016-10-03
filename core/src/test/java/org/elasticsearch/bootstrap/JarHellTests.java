@@ -111,15 +111,15 @@ public class JarHellTests extends ESTestCase {
         }
     }
 
-    public void testLog4jLeniency() throws Exception {
+    public void testLog4jThrowableProxyLeniency() throws Exception {
         Path dir = createTempDir();
-        URL[] jars = {makeJar(dir, "foo.jar", null, "org/apache/log4j/DuplicateClass.class"), makeJar(dir, "bar.jar", null, "org/apache/log4j/DuplicateClass.class")};
+        URL[] jars = {makeJar(dir, "foo.jar", null, "org.apache.logging.log4j.core.impl.ThrowableProxy.class"), makeJar(dir, "bar.jar", null, "org.apache.logging.log4j.core.impl.ThrowableProxy.class")};
         JarHell.checkJarHell(jars);
     }
 
-    public void testBaseDateTimeLeniency() throws Exception {
+    public void testLog4jServerLeniency() throws Exception {
         Path dir = createTempDir();
-        URL[] jars = {makeJar(dir, "foo.jar", null, "org/joda/time/base/BaseDateTime.class"), makeJar(dir, "bar.jar", null, "org/joda/time/base/BaseDateTime.class")};
+        URL[] jars = {makeJar(dir, "foo.jar", null, "org.apache.logging.log4j.core.jmx.Server.class"), makeJar(dir, "bar.jar", null, "org.apache.logging.log4j.core.jmx.Server.class")};
         JarHell.checkJarHell(jars);
     }
 

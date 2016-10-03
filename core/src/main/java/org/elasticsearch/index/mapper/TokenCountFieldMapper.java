@@ -89,7 +89,7 @@ public class TokenCountFieldMapper extends FieldMapper {
                     builder.nullValue(nodeIntegerValue(propNode));
                     iterator.remove();
                 } else if (propName.equals("analyzer")) {
-                    NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
+                    NamedAnalyzer analyzer = parserContext.getIndexAnalyzers().get(propNode.toString());
                     if (analyzer == null) {
                         throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                     }
@@ -180,11 +180,6 @@ public class TokenCountFieldMapper extends FieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
         builder.field("analyzer", analyzer());
-    }
-
-    @Override
-    public boolean isGenerated() {
-        return true;
     }
 
 }

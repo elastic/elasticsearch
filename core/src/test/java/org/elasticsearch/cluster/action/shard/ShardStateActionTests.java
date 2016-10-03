@@ -106,7 +106,7 @@ public class ShardStateActionTests extends ESTestCase {
         super.setUp();
         this.transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL);
+        transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL, TransportService.NOOP_TRANSPORT_INTERCEPTOR);
         transportService.start();
         transportService.acceptIncomingRequests();
         shardStateAction = new TestShardStateAction(Settings.EMPTY, clusterService, transportService, null, null);
@@ -339,7 +339,8 @@ public class ShardStateActionTests extends ESTestCase {
 
         long primaryTerm = clusterService.state().metaData().index(index).primaryTerm(failedShard.id());
         assertThat(primaryTerm, greaterThanOrEqualTo(1L));
-        shardStateAction.remoteShardFailed(failedShard, primaryTerm + 1, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+        shardStateAction.remoteShardFailed(failedShard.shardId(), failedShard.allocationId().getId(), primaryTerm + 1, "test",
+            getSimulatedFailure(), new ShardStateAction.Listener() {
             @Override
             public void onSuccess() {
                 failure.set(null);

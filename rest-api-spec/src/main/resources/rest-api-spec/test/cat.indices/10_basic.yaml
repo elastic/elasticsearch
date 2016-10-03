@@ -71,6 +71,47 @@
                 $/
 
 ---
+"Test cat indices using health status":
+
+  - do:
+      cluster.health: {}
+
+  - set: { number_of_data_nodes: count }
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+  - do:
+      indices.create:
+        index: bar
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: $count
+
+  - do:
+      cat.indices:
+        health: green
+        h: index
+
+  - match:
+      $body: |
+                /^(foo)$/
+
+  - do:
+      cat.indices:
+        health: yellow
+        h: index
+
+  - match:
+      $body: |
+               /^(bar)$/
+
+---
 "Test cat indices using wildcards":
 
   - do:

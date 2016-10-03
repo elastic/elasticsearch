@@ -27,7 +27,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -38,13 +37,13 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.FetchSubPhaseContext;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
@@ -70,13 +69,38 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public boolean hasStoredFields() {
+        return in.hasStoredFields();
+    }
+
+    @Override
+    public boolean hasStoredFieldsContext() {
+        return in.hasStoredFieldsContext();
+    }
+
+    @Override
+    public boolean storedFieldsRequested() {
+        return in.storedFieldsRequested();
+    }
+
+    @Override
+    public StoredFieldsContext storedFieldsContext() {
+        return in.storedFieldsContext();
+    }
+
+    @Override
+    public SearchContext storedFieldsContext(StoredFieldsContext storedFieldsContext) {
+        return in.storedFieldsContext(storedFieldsContext);
+    }
+
+    @Override
     protected void doClose() {
         in.doClose();
     }
 
     @Override
-    public void preProcess() {
-        in.preProcess();
+    public void preProcess(boolean rewrite) {
+        in.preProcess(rewrite);
     }
 
     @Override
@@ -235,11 +259,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public AnalysisService analysisService() {
-        return in.analysisService();
-    }
-
-    @Override
     public SimilarityService similarityService() {
         return in.similarityService();
     }
@@ -374,20 +393,6 @@ public abstract class FilteredSearchContext extends SearchContext {
         return in.size(size);
     }
 
-    @Override
-    public boolean hasFieldNames() {
-        return in.hasFieldNames();
-    }
-
-    @Override
-    public List<String> fieldNames() {
-        return in.fieldNames();
-    }
-
-    @Override
-    public void emptyFieldNames() {
-        in.emptyFieldNames();
-    }
 
     @Override
     public boolean explain() {
@@ -500,8 +505,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(FetchSubPhase.ContextFactory<SubPhaseContext> contextFactory) {
-        return in.getFetchSubPhaseContext(contextFactory);
+    public void addSearchExt(SearchExtBuilder searchExtBuilder) {
+        in.addSearchExt(searchExtBuilder);
+    }
+
+    @Override
+    public SearchExtBuilder getSearchExt(String name) {
+        return in.getSearchExt(name);
     }
 
     @Override

@@ -19,6 +19,7 @@
 
 package org.elasticsearch;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -101,7 +102,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public ElasticsearchException(StreamInput in) throws IOException {
         super(in.readOptionalString(), in.readException());
         readStackTrace(this, in);
-        headers.putAll(in.readMapOfLists());
+        headers.putAll(in.readMapOfLists(StreamInput::readString, StreamInput::readString));
     }
 
     /**
@@ -196,7 +197,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         out.writeOptionalString(this.getMessage());
         out.writeException(this.getCause());
         writeStackTraces(this, out);
-        out.writeMapOfLists(headers);
+        out.writeMapOfLists(headers, StreamOutput::writeString, StreamOutput::writeString);
     }
 
     public static ElasticsearchException readException(StreamInput input, int id) throws IOException {
@@ -632,8 +633,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.repositories.RepositoryMissingException::new, 107),
         DOCUMENT_SOURCE_MISSING_EXCEPTION(org.elasticsearch.index.engine.DocumentSourceMissingException.class,
                 org.elasticsearch.index.engine.DocumentSourceMissingException::new, 109),
-        FLUSH_NOT_ALLOWED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.FlushNotAllowedEngineException.class,
-                org.elasticsearch.index.engine.FlushNotAllowedEngineException::new, 110),
+        // 110 used to be FlushNotAllowedEngineException
         NO_CLASS_SETTINGS_EXCEPTION(org.elasticsearch.common.settings.NoClassSettingsException.class,
                 org.elasticsearch.common.settings.NoClassSettingsException::new, 111),
         BIND_TRANSPORT_EXCEPTION(org.elasticsearch.transport.BindTransportException.class,

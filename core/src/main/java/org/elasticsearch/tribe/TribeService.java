@@ -19,6 +19,8 @@
 
 package org.elasticsearch.tribe;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -56,10 +58,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -180,7 +184,8 @@ public class TribeService extends AbstractLifecycleComponent {
 
     private final List<Node> nodes = new CopyOnWriteArrayList<>();
 
-    public TribeService(Settings settings, ClusterService clusterService, final String tribeNodeId) {
+    public TribeService(Settings settings, ClusterService clusterService, final String tribeNodeId,
+                        Collection<Class<? extends Plugin>> classpathPlugins) {
         super(settings);
         this.clusterService = clusterService;
         Map<String, Settings> nodesSettings = new HashMap<>(settings.getGroups("tribe", true));
@@ -188,7 +193,7 @@ public class TribeService extends AbstractLifecycleComponent {
         nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
             Settings clientSettings = buildClientSettings(entry.getKey(), tribeNodeId, settings, entry.getValue());
-            nodes.add(new TribeClientNode(clientSettings));
+            nodes.add(new TribeClientNode(clientSettings, classpathPlugins));
         }
 
         this.blockIndicesMetadata = BLOCKS_METADATA_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
@@ -274,7 +279,7 @@ public class TribeService extends AbstractLifecycleComponent {
                         otherNode.close();
                     } catch (Exception inner) {
                         inner.addSuppressed(e);
-                        logger.warn("failed to close node {} on failed start", inner, otherNode);
+                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to close node {} on failed start", otherNode), inner);
                     }
                 }
                 if (e instanceof RuntimeException) {
@@ -296,7 +301,7 @@ public class TribeService extends AbstractLifecycleComponent {
             try {
                 node.close();
             } catch (Exception e) {
-                logger.warn("failed to close node {}", e, node);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to close node {}", node), e);
             }
         }
     }
@@ -320,7 +325,7 @@ public class TribeService extends AbstractLifecycleComponent {
                     event,
                     ClusterStateTaskConfig.build(Priority.NORMAL),
                     executor,
-                    (source, e) -> logger.warn("failed to process [{}]", e, source));
+                    (source, e) -> logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to process [{}]", source), e));
         }
     }
 

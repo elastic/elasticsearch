@@ -1,6 +1,8 @@
 [[lang-python]]
 === Python Language Plugin
 
+deprecated[5.0.0,Python will be replaced by the new scripting language {ref}/modules-scripting-painless.html[`Painless`]]
+
 The Python language plugin enables the use of Python in Elasticsearch
 scripts, via the http://www.jython.org/[Jython] Java implementation of Python.
 
@@ -14,10 +16,12 @@ This plugin can be installed using the plugin manager:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin install lang-python
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
+
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/lang-python/{version}/lang-python-{version}.zip.
 
 [[lang-python-remove]]
 [float]
@@ -29,7 +33,6 @@ The plugin can be removed with the following command:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin remove lang-python
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The node must be stopped before removing the plugin.
 

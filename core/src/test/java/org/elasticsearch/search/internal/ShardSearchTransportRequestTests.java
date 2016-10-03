@@ -20,60 +20,20 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.SearchRequestTests;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.elasticsearch.search.AbstractSearchTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
-import static java.util.Collections.emptyList;
-
-public class ShardSearchTransportRequestTests extends ESTestCase {
-
-    private static NamedWriteableRegistry namedWriteableRegistry;
-
-    @BeforeClass
-    public static void beforeClass() {
-        IndicesModule indicesModule = new IndicesModule(emptyList()) {
-            @Override
-            protected void configure() {
-                bindMapperExtension();
-            }
-        };
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList()) {
-            @Override
-            protected void configureSearch() {
-                // Skip me
-            }
-        };
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(indicesModule.getNamedWriteables());
-        entries.addAll(searchModule.getNamedWriteables());
-        namedWriteableRegistry = new NamedWriteableRegistry(entries);
-    }
-
-    @AfterClass
-    public static void afterClass() {
-        namedWriteableRegistry = null;
-    }
+public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
 
     public void testSerialization() throws Exception {
         ShardSearchTransportRequest shardSearchTransportRequest = createShardSearchTransportRequest();
@@ -93,19 +53,17 @@ public class ShardSearchTransportRequestTests extends ESTestCase {
                 assertEquals(deserializedRequest.searchType(), shardSearchTransportRequest.searchType());
                 assertEquals(deserializedRequest.shardId(), shardSearchTransportRequest.shardId());
                 assertEquals(deserializedRequest.numberOfShards(), shardSearchTransportRequest.numberOfShards());
+                assertEquals(deserializedRequest.cacheKey(), shardSearchTransportRequest.cacheKey());
                 assertNotSame(deserializedRequest, shardSearchTransportRequest);
             }
         }
     }
 
-    private static ShardSearchTransportRequest createShardSearchTransportRequest() throws IOException {
-        SearchRequest searchRequest = SearchRequestTests.createSearchRequest();
+    private ShardSearchTransportRequest createShardSearchTransportRequest() throws IOException {
+        SearchRequest searchRequest = createSearchRequest();
         ShardId shardId = new ShardId(randomAsciiOfLengthBetween(2, 10), randomAsciiOfLengthBetween(2, 10), randomInt());
-        Snapshot snapshot = new Snapshot(randomAsciiOfLengthBetween(3, 10),
-                new SnapshotId(randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10)));
-        RestoreSource restoreSource = new RestoreSource(snapshot, VersionUtils.randomVersion(random()), randomAsciiOfLengthBetween(3, 10));
-        ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, restoreSource, randomBoolean(),
-                new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "reason"));
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, null, null, randomBoolean(), ShardRoutingState.UNASSIGNED,
+            new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "reason"));
         String[] filteringAliases;
         if (randomBoolean()) {
             filteringAliases = generateRandomStringArray(10, 10, false, false);

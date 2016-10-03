@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,6 +48,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         static {
             FIELD_TYPE.setName(NAME);
             FIELD_TYPE.setDocValuesType(DocValuesType.NUMERIC);
+            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.freeze();
         }

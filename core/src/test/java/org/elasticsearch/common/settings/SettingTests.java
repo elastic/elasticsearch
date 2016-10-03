@@ -22,6 +22,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -32,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class SettingTests extends ESTestCase {
@@ -47,11 +49,11 @@ public class SettingTests extends ESTestCase {
             Setting.byteSizeSetting("a.byte.size", new ByteSizeValue(1024), Property.Dynamic, Property.NodeScope);
         assertFalse(byteSizeValueSetting.isGroupSetting());
         ByteSizeValue byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
-        assertEquals(byteSizeValue.bytes(), 1024);
+        assertEquals(byteSizeValue.getBytes(), 1024);
 
         byteSizeValueSetting = Setting.byteSizeSetting("a.byte.size", s -> "2048b", Property.Dynamic, Property.NodeScope);
         byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
-        assertEquals(byteSizeValue.bytes(), 2048);
+        assertEquals(byteSizeValue.getBytes(), 2048);
 
 
         AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
@@ -66,6 +68,44 @@ public class SettingTests extends ESTestCase {
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
         assertEquals(new ByteSizeValue(12), value.get());
+    }
+
+    public void testMemorySize() {
+        Setting<ByteSizeValue> memorySizeValueSetting = Setting.memorySizeSetting("a.byte.size", new ByteSizeValue(1024), Property.Dynamic,
+                Property.NodeScope);
+
+        assertFalse(memorySizeValueSetting.isGroupSetting());
+        ByteSizeValue memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
+        assertEquals(memorySizeValue.getBytes(), 1024);
+
+        memorySizeValueSetting = Setting.memorySizeSetting("a.byte.size", s -> "2048b", Property.Dynamic, Property.NodeScope);
+        memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
+        assertEquals(memorySizeValue.getBytes(), 2048);
+
+        memorySizeValueSetting = Setting.memorySizeSetting("a.byte.size", "50%", Property.Dynamic, Property.NodeScope);
+        assertFalse(memorySizeValueSetting.isGroupSetting());
+        memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
+        assertEquals(memorySizeValue.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.5, 1.0);
+
+        memorySizeValueSetting = Setting.memorySizeSetting("a.byte.size", s -> "25%", Property.Dynamic, Property.NodeScope);
+        memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
+        assertEquals(memorySizeValue.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.25, 1.0);
+
+        AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
+        ClusterSettings.SettingUpdater<ByteSizeValue> settingUpdater = memorySizeValueSetting.newUpdater(value::set, logger);
+        try {
+            settingUpdater.apply(Settings.builder().put("a.byte.size", 12).build(), Settings.EMPTY);
+            fail("no unit");
+        } catch (IllegalArgumentException ex) {
+            assertEquals("failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized",
+                    ex.getMessage());
+        }
+
+        assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
+        assertEquals(new ByteSizeValue(12), value.get());
+
+        assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "20%").build(), Settings.EMPTY));
+        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2)), value.get());
     }
 
     public void testSimpleUpdate() {
@@ -477,5 +517,17 @@ public class SettingTests extends ESTestCase {
         } catch (IllegalArgumentException ex) {
             assertThat(ex.getMessage(), containsString("properties cannot be null for setting"));
         }
+    }
+
+    public void testTimeValue() {
+        final TimeValue random = TimeValue.parseTimeValue(randomTimeValue(), "test");
+
+        Setting<TimeValue> setting = Setting.timeSetting("foo", random);
+        assertThat(setting.get(Settings.EMPTY), equalTo(random));
+
+        final int factor = randomIntBetween(1, 10);
+        setting = Setting.timeSetting("foo", (s) -> TimeValue.timeValueMillis(random.getMillis() * factor), TimeValue.ZERO);
+        assertThat(setting.get(Settings.builder().put("foo", "12h").build()), equalTo(TimeValue.timeValueHours(12)));
+        assertThat(setting.get(Settings.EMPTY).getMillis(), equalTo(random.getMillis() * factor));
     }
 }

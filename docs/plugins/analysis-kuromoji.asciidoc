@@ -14,10 +14,12 @@ This plugin can be installed using the plugin manager:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin install analysis-kuromoji
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
+
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/analysis-kuromoji/{version}/analysis-kuromoji-{version}.zip.
 
 [[analysis-kuromoji-remove]]
 [float]
@@ -29,7 +31,6 @@ The plugin can be removed with the following command:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin remove analysis-kuromoji
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The node must be stopped before removing the plugin.
 
@@ -474,10 +475,11 @@ The above request returns:
     "start_offset" : 5,
     "end_offset" : 8,
     "type" : "word",
-    "position" : 3
+    "position" : 2
   } ]
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 [[analysis-kuromoji-number]]
 ===== `kuromoji_number` token filter

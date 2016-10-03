@@ -46,7 +46,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
@@ -354,49 +353,6 @@ public class StoreTests extends ESTestCase {
         IOUtils.close(store);
     }
 
-    public void testRenameFile() throws IOException {
-        final ShardId shardId = new ShardId("index", "_na_", 1);
-        DirectoryService directoryService = new LuceneManagedDirectoryService(random(), false);
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
-        {
-            IndexOutput output = store.directory().createOutput("foo.bar", IOContext.DEFAULT);
-            int iters = scaledRandomIntBetween(10, 100);
-            for (int i = 0; i < iters; i++) {
-                BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
-                output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-            }
-            CodecUtil.writeFooter(output);
-            output.close();
-        }
-        store.renameFile("foo.bar", "bar.foo");
-        assertThat(numNonExtraFiles(store), is(1));
-        final long lastChecksum;
-        try (IndexInput input = store.directory().openInput("bar.foo", IOContext.DEFAULT)) {
-            lastChecksum = CodecUtil.checksumEntireFile(input);
-        }
-
-        try {
-            store.directory().openInput("foo.bar", IOContext.DEFAULT);
-            fail("file was renamed");
-        } catch (FileNotFoundException | NoSuchFileException ex) {
-            // expected
-        }
-        {
-            IndexOutput output = store.directory().createOutput("foo.bar", IOContext.DEFAULT);
-            int iters = scaledRandomIntBetween(10, 100);
-            for (int i = 0; i < iters; i++) {
-                BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
-                output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-            }
-            CodecUtil.writeFooter(output);
-            output.close();
-        }
-        store.renameFile("foo.bar", "bar.foo");
-        assertThat(numNonExtraFiles(store), is(1));
-        assertDeleteContent(store, directoryService);
-        IOUtils.close(store);
-    }
-
     public void testCheckIntegrity() throws IOException {
         Directory dir = newDirectory();
         long luceneFileLength = 0;
@@ -519,9 +475,6 @@ public class StoreTests extends ESTestCase {
         public LuceneManagedDirectoryService(Random random, boolean preventDoubleWrite) {
             super(new ShardId(INDEX_SETTINGS.getIndex(), 1), INDEX_SETTINGS);
             dir = StoreTests.newDirectory(random);
-            if (dir instanceof MockDirectoryWrapper) {
-                ((MockDirectoryWrapper) dir).setPreventDoubleWrite(preventDoubleWrite);
-            }
             this.random = random;
         }
 
@@ -812,7 +765,7 @@ public class StoreTests extends ESTestCase {
             initialStoreSize += store.directory().fileLength(extraFiles);
         }
         StoreStats stats = store.stats();
-        assertEquals(stats.getSize().bytes(), initialStoreSize);
+        assertEquals(stats.getSize().getBytes(), initialStoreSize);
 
         Directory dir = store.directory();
         final long length;
@@ -963,11 +916,8 @@ public class StoreTests extends ESTestCase {
         }
         writer.commit();
         writer.close();
-        MockDirectoryWrapper leaf = DirectoryUtils.getLeaf(store.directory(), MockDirectoryWrapper.class);
-        if (leaf != null) {
-            leaf.setPreventDoubleWrite(false); // I do this on purpose
-        }
         SegmentInfos segmentCommitInfos = store.readLastCommittedSegmentsInfo();
+        store.directory().deleteFile(segmentCommitInfos.getSegmentsFileName());
         try (IndexOutput out = store.directory().createOutput(segmentCommitInfos.getSegmentsFileName(), IOContext.DEFAULT)) {
             // empty file
         }

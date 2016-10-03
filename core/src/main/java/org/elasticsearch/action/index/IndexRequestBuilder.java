@@ -207,15 +207,6 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     }
 
     /**
-     * Sets a string representation of the {@link #setOpType(DocumentRequest.OpType)}. Can
-     * be either "index" or "create".
-     */
-    public IndexRequestBuilder setOpType(String opType) {
-        request.opType(opType);
-        return this;
-    }
-
-    /**
      * Set to <tt>true</tt> to force this index to use {@link org.elasticsearch.action.index.IndexRequest.OpType#CREATE}.
      */
     public IndexRequestBuilder setCreate(boolean create) {

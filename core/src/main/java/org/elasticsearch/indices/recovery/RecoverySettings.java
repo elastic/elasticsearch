@@ -61,7 +61,7 @@ public class RecoverySettings extends AbstractComponent {
      */
     public static final Setting<TimeValue> INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING =
         Setting.timeSetting("indices.recovery.internal_action_long_timeout",
-            (s) -> TimeValue.timeValueMillis(INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.get(s).millis() * 2).toString(),
+            (s) -> TimeValue.timeValueMillis(INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.get(s).millis() * 2),
             TimeValue.timeValueSeconds(0), Property.Dynamic,  Property.NodeScope);
 
     /**
@@ -70,7 +70,7 @@ public class RecoverySettings extends AbstractComponent {
      */
     public static final Setting<TimeValue> INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING =
         Setting.timeSetting("indices.recovery.recovery_activity_timeout",
-            (s) -> INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.getRaw(s) , TimeValue.timeValueSeconds(0),
+                INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING::get, TimeValue.timeValueSeconds(0),
             Property.Dynamic, Property.NodeScope);
 
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
@@ -99,10 +99,10 @@ public class RecoverySettings extends AbstractComponent {
 
         this.activityTimeout = INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.get(settings);
         this.maxBytesPerSec = INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings);
-        if (maxBytesPerSec.bytes() <= 0) {
+        if (maxBytesPerSec.getBytes() <= 0) {
             rateLimiter = null;
         } else {
-            rateLimiter = new SimpleRateLimiter(maxBytesPerSec.mbFrac());
+            rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
         }
 
 
@@ -172,12 +172,12 @@ public class RecoverySettings extends AbstractComponent {
 
     private void setMaxBytesPerSec(ByteSizeValue maxBytesPerSec) {
         this.maxBytesPerSec = maxBytesPerSec;
-        if (maxBytesPerSec.bytes() <= 0) {
+        if (maxBytesPerSec.getBytes() <= 0) {
             rateLimiter = null;
         } else if (rateLimiter != null) {
-            rateLimiter.setMBPerSec(maxBytesPerSec.mbFrac());
+            rateLimiter.setMBPerSec(maxBytesPerSec.getMbFrac());
         } else {
-            rateLimiter = new SimpleRateLimiter(maxBytesPerSec.mbFrac());
+            rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
         }
     }
 }

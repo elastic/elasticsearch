@@ -21,7 +21,7 @@ package org.elasticsearch.test.store;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
@@ -34,7 +34,6 @@ import org.apache.lucene.util.TestRuleMarkFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -113,7 +112,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
         throw new UnsupportedOperationException();
     }
 
-    public static void checkIndex(ESLogger logger, Store store, ShardId shardId) {
+    public static void checkIndex(Logger logger, Store store, ShardId shardId) {
         if (store.tryIncRef()) {
             logger.info("start check index");
             try {
@@ -172,7 +171,6 @@ public class MockFSDirectoryService extends FsDirectoryService {
         w.setRandomIOExceptionRateOnOpen(randomIOExceptionRateOnOpen);
         w.setThrottling(throttle);
         w.setCheckIndexOnClose(false); // we do this on the index level
-        w.setPreventDoubleWrite(preventDoubleWrite);
         // TODO: make this test robust to virus scanner
         w.setAssertNoDeleteOpenFile(false);
         w.setUseSlowOpenClosers(false);

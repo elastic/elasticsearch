@@ -71,6 +71,7 @@ PUT place_path_category
     }
 }
 --------------------------------------------------
+// CONSOLE
 // TESTSETUP
 <1> Defines a `category` context named 'place_type' where the categories must be
     sent with the suggestions.
@@ -219,7 +220,6 @@ at index time. At query time, suggestions can be filtered and boosted if they ar
 a certain distance of a specified geo location.
 
 Internally, geo points are encoded as geohashes with the specified precision.
-See <<geohash>> for more background details.
 
 [float]
 ===== Geo Mapping
@@ -330,6 +330,7 @@ POST place/_suggest?pretty
     }
 }
 --------------------------------------------------
+// CONSOLE
 // TEST[continued]
 <1> The context query filters for suggestions that fall under
     the geo location represented by a geohash of '(43.662, -79.380)'

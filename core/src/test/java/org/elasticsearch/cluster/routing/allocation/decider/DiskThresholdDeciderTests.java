@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.MockInternalClusterInfoService.DevNullClusterInfo;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -49,8 +50,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
-import org.elasticsearch.test.ESAllocationTestCase;
-import org.elasticsearch.test.gateway.NoopGatewayAllocator;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -65,11 +65,10 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DiskThresholdDeciderTests extends ESAllocationTestCase {
-    
+
     DiskThresholdDecider makeDecider(Settings settings) {
         return new DiskThresholdDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
@@ -114,35 +113,32 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), cis);
+                .build(), deciders, new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), cis);
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
-        RoutingTable routingTable = RoutingTable.builder()
+        final RoutingTable initialRoutingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
                 .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData)
-                .routingTable(routingTable).build();
+                .routingTable(initialRoutingTable).build();
 
         logger.info("--> adding two nodes");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .add(newNode("node1"))
                 .add(newNode("node2"))
         ).build();
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
         logShardStates(clusterState);
 
         // Primary shard should be initializing, replica should not
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
 
         logger.info("--> start the shards (primaries)");
-        routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))
-                .routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
 
         logShardStates(clusterState);
         // Assert that we're able to start the primary
@@ -151,9 +147,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(0));
 
         logger.info("--> start the shards (replicas)");
-        routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))
-                .routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
 
         logShardStates(clusterState);
         // Assert that the replica couldn't be started since node1 doesn't have enough space
@@ -164,8 +158,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .add(newNode("node3"))
         ).build();
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
 
         logShardStates(clusterState);
         // Assert that the replica is initialized now that node3 is available with enough space
@@ -173,9 +166,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
 
         logger.info("--> start the shards (replicas)");
-        routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))
-                .routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
 
         logShardStates(clusterState);
         // Assert that the replica couldn't be started since node1 doesn't have enough space
@@ -203,10 +194,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), cis);
+                .build(), deciders, new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), cis);
 
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
         logShardStates(clusterState);
 
         // Shards remain started
@@ -234,10 +224,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), cis);
+                .build(), deciders, new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), cis);
 
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
 
         logShardStates(clusterState);
         // Shards remain started
@@ -252,8 +241,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .add(newNode("node4"))
         ).build();
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
 
         logShardStates(clusterState);
         // Shards remain started
@@ -261,9 +249,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
 
         logger.info("--> apply INITIALIZING shards");
-        routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))
-                .routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
 
         logShardStates(clusterState);
         assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(0));
@@ -315,18 +301,18 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), cis);
+                .build(), deciders, new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), cis);
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
                 .build();
 
-        RoutingTable routingTable = RoutingTable.builder()
+        RoutingTable initialRoutingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
                 .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData)
-                .routingTable(routingTable).build();
+                .routingTable(initialRoutingTable).build();
 
         logger.info("--> adding node1 and node2 node");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -334,8 +320,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .add(newNode("node2"))
         ).build();
 
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
         logShardStates(clusterState);
 
         // Primary should initialize, even though both nodes are over the limit initialize
@@ -373,19 +358,16 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), cis);
+                .build(), deciders, new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), cis);
 
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
         logShardStates(clusterState);
 
         // Now the replica should be able to initialize
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
 
         logger.info("--> start the shards (primaries)");
-        routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))
-                .routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
 
         logShardStates(clusterState);
         // Assert that we're able to start the primary and replica, since they were both initializing
@@ -403,8 +385,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .add(newNode("node3"))
         ).build();
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
 
         logShardStates(clusterState);
         // Assert that the replica is initialized now that node3 is available with enough space
@@ -412,9 +393,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
 
         logger.info("--> start the shards (replicas)");
-        routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))
-                .routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
 
         logShardStates(clusterState);
         // Assert that all replicas could be started
@@ -442,10 +421,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), cis);
+                .build(), deciders, new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), cis);
 
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
         logShardStates(clusterState);
 
         // Shards remain started
@@ -473,10 +451,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), cis);
+                .build(), deciders, new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), cis);
 
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
 
         logShardStates(clusterState);
         // Shards remain started
@@ -491,8 +468,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .add(newNode("node4"))
         ).build();
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
 
         logShardStates(clusterState);
         // Shards remain started
@@ -502,9 +478,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
 
         logger.info("--> apply INITIALIZING shards");
-        routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))
-                .routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
 
         logShardStates(clusterState);
         // primary shard already has been relocated away
@@ -519,8 +493,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .add(newNode("node5"))
         ).build();
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
 
         logShardStates(clusterState);
         // Shards remain started on node3 and node4
@@ -531,9 +504,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
 
         logger.info("--> apply INITIALIZING shards");
-        routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))
-                .routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
 
         logger.info("--> final cluster state:");
         logShardStates(clusterState);
@@ -584,7 +555,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), cis);
+                .build(), deciders, new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), cis);
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
@@ -654,7 +625,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), cis);
+                .build(), deciders, new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), cis);
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
@@ -737,10 +708,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
+        DiskThresholdDecider decider = makeDecider(diskSettings);
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
-                new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
-                        makeDecider(diskSettings))));
+                new HashSet<>(Arrays.asList(new SameShardAllocationDecider(Settings.EMPTY), decider)));
 
         ClusterInfoService cis = new ClusterInfoService() {
             @Override
@@ -759,37 +729,34 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), cis);
+                .build(), deciders, new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), cis);
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
-        RoutingTable routingTable = RoutingTable.builder()
+        RoutingTable initialRoutingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
                 .addAsNew(metaData.index("test2"))
                 .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData)
-                .routingTable(routingTable).build();
+                .routingTable(initialRoutingTable).build();
 
         logger.info("--> adding two nodes");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .add(newNode("node1"))
                 .add(newNode("node2"))
         ).build();
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
         logShardStates(clusterState);
 
         // shards should be initializing
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(4));
 
         logger.info("--> start the shards");
-        routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))
-                .routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
 
         logShardStates(clusterState);
         // Assert that we're able to start the primary and replicas
@@ -803,8 +770,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         AllocationCommand relocate1 = new MoveAllocationCommand("test", 0, "node2", "node3");
         AllocationCommands cmds = new AllocationCommands(relocate1);
 
-        routingTable = strategy.reroute(clusterState, cmds, false, false).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterState = strategy.reroute(clusterState, cmds, false, false).getClusterState();
         logShardStates(clusterState);
 
         AllocationCommand relocate2 = new MoveAllocationCommand("test2", 0, "node2", "node3");
@@ -815,7 +781,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             // node3, which will put it over the low watermark when it
             // completes, with shard relocations taken into account this should
             // throw an exception about not being able to complete
-            strategy.reroute(clusterState, cmds, false, false).routingTable();
+            strategy.reroute(clusterState, cmds, false, false);
             fail("should not have been able to reroute the shard");
         } catch (IllegalArgumentException e) {
             assertThat("can't allocated because there isn't enough room: " + e.getMessage(),
@@ -841,6 +807,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
         shardSizesBuilder.put("[test][0][p]", 40L);
         shardSizesBuilder.put("[test][1][p]", 40L);
+        shardSizesBuilder.put("[foo][0][p]", 10L);
         ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
 
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
@@ -848,10 +815,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         DiskThresholdDecider diskThresholdDecider = makeDecider(diskSettings);
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
+                .put(IndexMetaData.builder("foo").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
                 .build();
 
-        RoutingTable routingTable = RoutingTable.builder()
+        RoutingTable initialRoutingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
+                .addAsNew(metaData.index("foo"))
                 .build();
 
         DiscoveryNode discoveryNode1 = new DiscoveryNode("node1", new LocalTransportAddress("1"), emptyMap(),
@@ -862,13 +831,13 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         ClusterState baseClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metaData(metaData)
-                .routingTable(routingTable)
+                .routingTable(initialRoutingTable)
                 .nodes(discoveryNodes)
                 .build();
 
         // Two shards consuming each 80% of disk space while 70% is allowed, so shard 0 isn't allowed here
-        ShardRouting firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, null, true, ShardRoutingState.STARTED);
-        ShardRouting secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", null, null, true, ShardRoutingState.STARTED);
+        ShardRouting firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED);
+        ShardRouting secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", null, true, ShardRoutingState.STARTED);
         RoutingNode firstRoutingNode = new RoutingNode("node1", discoveryNode1, firstRouting, secondRouting);
         RoutingTable.Builder builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder(firstRouting.index())
@@ -888,8 +857,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(decision.type(), equalTo(Decision.Type.NO));
 
         // Two shards consuming each 80% of disk space while 70% is allowed, but one is relocating, so shard 0 can stay
-        firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, null, true, ShardRoutingState.STARTED);
-        secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", "node2", null, true, ShardRoutingState.RELOCATING);
+        firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED);
+        secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", "node2", true, ShardRoutingState.RELOCATING);
+        ShardRouting fooRouting = TestShardRouting.newShardRouting("foo", 0, "node1", null, true, ShardRoutingState.UNASSIGNED);
         firstRoutingNode = new RoutingNode("node1", discoveryNode1, firstRouting, secondRouting);
         builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder(firstRouting.index())
@@ -907,6 +877,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             false);
         decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
+        decision = diskThresholdDecider.canAllocate(fooRouting, firstRoutingNode, routingAllocation);
+        assertThat(decision.type(), equalTo(Decision.Type.NO));
 
         // Creating AllocationService instance and the services it depends on...
         ClusterInfoService cis = new ClusterInfoService() {
@@ -928,11 +900,11 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), cis);
+                .build(), deciders, new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), cis);
         // Ensure that the reroute call doesn't alter the routing table, since the first primary is relocating away
         // and therefor we will have sufficient disk space on node1.
-        RoutingAllocation.Result result = strategy.reroute(clusterState, "reroute");
-        assertThat(result.changed(), is(false));
+        ClusterState result = strategy.reroute(clusterState, "reroute");
+        assertThat(result, equalTo(clusterState));
         assertThat(result.routingTable().index("test").getShards().get(0).primaryShard().state(), equalTo(STARTED));
         assertThat(result.routingTable().index("test").getShards().get(0).primaryShard().currentNodeId(), equalTo("node1"));
         assertThat(result.routingTable().index("test").getShards().get(0).primaryShard().relocatingNodeId(), nullValue());
@@ -965,7 +937,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
                 .build();
 
-        RoutingTable routingTable = RoutingTable.builder()
+        RoutingTable initialRoutingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
                 .build();
 
@@ -978,13 +950,13 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(discoveryNode1).add(discoveryNode2).build();
         ClusterState baseClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metaData(metaData)
-                .routingTable(routingTable)
+                .routingTable(initialRoutingTable)
                 .nodes(discoveryNodes)
                 .build();
 
         // Two shards consumes 80% of disk space in data node, but we have only one data node, shards should remain.
-        ShardRouting firstRouting = TestShardRouting.newShardRouting("test", 0, "node2", null, null, true, ShardRoutingState.STARTED);
-        ShardRouting secondRouting = TestShardRouting.newShardRouting("test", 1, "node2", null, null, true, ShardRoutingState.STARTED);
+        ShardRouting firstRouting = TestShardRouting.newShardRouting("test", 0, "node2", null, true, ShardRoutingState.STARTED);
+        ShardRouting secondRouting = TestShardRouting.newShardRouting("test", 1, "node2", null, true, ShardRoutingState.STARTED);
         RoutingNode firstRoutingNode = new RoutingNode("node2", discoveryNode2, firstRouting, secondRouting);
 
         RoutingTable.Builder builder = RoutingTable.builder().add(
@@ -1026,8 +998,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
 
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(), deciders, NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), cis);
-        RoutingAllocation.Result result = strategy.reroute(clusterState, "reroute");
+                .build(), deciders, new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), cis);
+        ClusterState result = strategy.reroute(clusterState, "reroute");
 
         assertThat(result.routingTable().index("test").getShards().get(0).primaryShard().state(), equalTo(STARTED));
         assertThat(result.routingTable().index("test").getShards().get(0).primaryShard().currentNodeId(), equalTo("node2"));
@@ -1043,8 +1015,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         ClusterState updateClusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .add(discoveryNode3)).build();
 
-        firstRouting = TestShardRouting.newShardRouting("test", 0, "node2", null, null, true, ShardRoutingState.STARTED);
-        secondRouting = TestShardRouting.newShardRouting("test", 1, "node2", "node3", null, true, ShardRoutingState.RELOCATING);
+        firstRouting = TestShardRouting.newShardRouting("test", 0, "node2", null, true, ShardRoutingState.STARTED);
+        secondRouting = TestShardRouting.newShardRouting("test", 1, "node2", "node3", true, ShardRoutingState.RELOCATING);
         firstRoutingNode = new RoutingNode("node2", discoveryNode2, firstRouting, secondRouting);
         builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder(firstRouting.index())

@@ -395,13 +395,13 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         generator.setField(this.field);
         transferIfNotNull(this.size, generator::size);
         if (this.preFilter != null) {
-            generator.preFilter(mapperService.analysisService().analyzer(this.preFilter));
+            generator.preFilter(mapperService.getIndexAnalyzers().get(this.preFilter));
             if (generator.preFilter() == null) {
                 throw new IllegalArgumentException("Analyzer [" + this.preFilter + "] doesn't exists");
             }
         }
         if (this.postFilter != null) {
-            generator.postFilter(mapperService.analysisService().analyzer(this.postFilter));
+            generator.postFilter(mapperService.getIndexAnalyzers().get(this.postFilter));
             if (generator.postFilter() == null) {
                 throw new IllegalArgumentException("Analyzer [" + this.postFilter + "] doesn't exists");
             }

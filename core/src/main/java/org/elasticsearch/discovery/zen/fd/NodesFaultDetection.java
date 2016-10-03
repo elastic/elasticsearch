@@ -19,6 +19,8 @@
 
 package org.elasticsearch.discovery.zen.fd;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -28,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -36,9 +37,12 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -90,6 +94,14 @@ public class NodesFaultDetection extends FaultDetection {
     }
 
     /**
+     * Gets the current set of nodes involved in node fault detection.
+     * NB: For testing purposes.
+     */
+    public Set<DiscoveryNode> getNodes() {
+        return Collections.unmodifiableSet(nodesFD.keySet());
+    }
+
+    /**
      * make sure that nodes in clusterState are pinged. Any pinging to nodes which are not
      * part of the cluster will be stopped
      */
@@ -127,7 +139,6 @@ public class NodesFaultDetection extends FaultDetection {
     public void close() {
         super.close();
         stop();
-        transportService.removeHandler(PING_ACTION_NAME);
     }
 
     @Override
@@ -166,7 +177,12 @@ public class NodesFaultDetection extends FaultDetection {
                 }
             });
         } catch (EsRejectedExecutionException ex) {
-            logger.trace("[node  ] [{}] ignoring node failure (reason [{}]). Local node is shutting down", ex, node, reason);
+            logger.trace(
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "[node  ] [{}] ignoring node failure (reason [{}]). Local node is shutting down",
+                    node,
+                    reason),
+                ex);
         }
     }
 
@@ -231,7 +247,13 @@ public class NodesFaultDetection extends FaultDetection {
                             }
 
                             retryCount++;
-                            logger.trace("[node  ] failed to ping [{}], retry [{}] out of [{}]", exp, node, retryCount, pingRetryCount);
+                            logger.trace(
+                                (Supplier<?>) () -> new ParameterizedMessage(
+                                    "[node  ] failed to ping [{}], retry [{}] out of [{}]",
+                                    node,
+                                    retryCount,
+                                    pingRetryCount),
+                                exp);
                             if (retryCount >= pingRetryCount) {
                                 logger.debug("[node  ] failed to ping [{}], tried [{}] times, each with  maximum [{}] timeout", node,
                                     pingRetryCount, pingRetryTimeout);

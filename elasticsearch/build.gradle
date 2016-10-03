@@ -13,6 +13,7 @@ esplugin {
   description 'Elasticsearch Expanded Pack Plugin'
   classname 'org.elasticsearch.xpack.XPackPlugin'
 }
+archivesBaseName = 'x-pack' // for api jar
 
 ext.versions = [
   okhttp: '2.7.5'

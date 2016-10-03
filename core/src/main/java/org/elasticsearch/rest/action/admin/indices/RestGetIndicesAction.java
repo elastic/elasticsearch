@@ -85,7 +85,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
         getIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, getIndexRequest.indicesOptions()));
         getIndexRequest.local(request.paramAsBoolean("local", getIndexRequest.local()));
         getIndexRequest.humanReadable(request.paramAsBoolean("human", false));
-        final boolean includeDefaults = request.paramAsBoolean("include_defaults", false);
+        final boolean defaults = request.paramAsBoolean("include_defaults", false);
         return () -> client.admin().indices().getIndex(getIndexRequest, new RestBuilderListener<GetIndexResponse>(channel) {
 
             @Override
@@ -105,7 +105,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
                             writeMappings(response.mappings().get(index), builder, request);
                             break;
                         case SETTINGS:
-                            writeSettings(response.settings().get(index), builder, request, includeDefaults);
+                            writeSettings(response.settings().get(index), builder, request, defaults);
                             break;
                         default:
                             throw new IllegalStateException("feature [" + feature + "] is not valid");
@@ -141,17 +141,15 @@ public class RestGetIndicesAction extends BaseRestHandler {
                 builder.endObject();
             }
 
-            private void writeSettings(
-                final Settings settings,
-                final XContentBuilder builder,
-                final Params params, final boolean includeDefaults) throws IOException {
+            private void writeSettings(Settings settings, XContentBuilder builder, Params params, boolean defaults) throws IOException {
                 builder.startObject(Fields.SETTINGS);
                 settings.toXContent(builder, params);
                 builder.endObject();
-                if (includeDefaults) {
+                if (defaults) {
                     builder.startObject("defaults");
-                    settingsFilter.filter(indexScopedSettings.diff(settings, RestGetIndicesAction.this.settings)).toXContent(builder,
-                            request);
+                    settingsFilter
+                        .filter(indexScopedSettings.diff(settings, RestGetIndicesAction.this.settings))
+                        .toXContent(builder, request);
                     builder.endObject();
                 }
             }

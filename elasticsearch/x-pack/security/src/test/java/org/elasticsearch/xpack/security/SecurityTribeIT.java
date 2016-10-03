@@ -235,12 +235,22 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
             assertNoTimeout(response);
         }
 
-        for (String username : shouldFailUsers) {
-            ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () ->
-                    tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
-                            UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString("password".toCharArray()))))
-                            .admin().cluster().prepareHealth().get());
-            assertThat(e.getMessage(), containsString("authenticate"));
+        if (shouldBeSuccessfulUsers.isEmpty()) {
+            // there is no security index so these users can authenticate...
+            for (String username : shouldFailUsers) {
+                ClusterHealthResponse response = tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
+                        UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString("password".toCharArray()))))
+                        .admin().cluster().prepareHealth().get();
+                assertNoTimeout(response);
+            }
+        } else {
+            for (String username : shouldFailUsers) {
+                ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () ->
+                        tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
+                                UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString("password".toCharArray()))))
+                                .admin().cluster().prepareHealth().get());
+                assertThat(e.getMessage(), containsString("authenticate"));
+            }
         }
     }
 

@@ -41,6 +41,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
@@ -551,19 +552,6 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         for (Map.Entry<String, Settings> tribeSettings : tribesSettings.entrySet()) {
             String tribePrefix = "tribe." + tribeSettings.getKey() + ".";
 
-            // we copy over existing mandatory plugins under additional settings, as they would get overridden
-            // otherwise (arrays don't get merged)
-            String[] existingMandatoryPlugins = tribeSettings.getValue().getAsArray("plugin.mandatory", null);
-            if (existingMandatoryPlugins == null) {
-                //x-pack is mandatory on every tribe if installed and enabled on the tribe node
-                settingsBuilder.putArray(tribePrefix + "plugin.mandatory", XPackPlugin.NAME);
-            } else {
-                if (Arrays.binarySearch(existingMandatoryPlugins, XPackPlugin.NAME) < 0) {
-                    throw new IllegalStateException("when [plugin.mandatory] is explicitly configured, [" +
-                            XPackPlugin.NAME + "] must be included in this list");
-                }
-            }
-
             final String tribeEnabledSetting = tribePrefix + XPackSettings.SECURITY_ENABLED.getKey();
             if (settings.get(tribeEnabledSetting) != null) {
                 boolean enabled = XPackSettings.SECURITY_ENABLED.get(tribeSettings.getValue());
@@ -582,6 +570,19 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
                 if (key.startsWith("xpack.security.")) {
                     settingsBuilder.put(tribePrefix + key, entry.getValue());
                 }
+            }
+        }
+
+        Map<String, Settings> realmsSettings = settings.getGroups(setting("authc.realms"), true);
+        final boolean hasNativeRealm = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings) ||
+                realmsSettings.isEmpty() ||
+                realmsSettings.entrySet().stream()
+                        .anyMatch((e) -> NativeRealm.TYPE.equals(e.getValue().get("type")) && e.getValue().getAsBoolean("enabled", true));
+        if (hasNativeRealm) {
+            if (TribeService.ON_CONFLICT_SETTING.get(settings).startsWith("prefer_") == false) {
+                throw new IllegalArgumentException("use of security on tribe nodes requires setting [tribe.on_conflict] to specify the " +
+                        "name of the tribe to prefer such as [prefer_t1] as the security index can exist in multiple tribes but only one" +
+                        " can be used by the tribe node");
             }
         }
     }

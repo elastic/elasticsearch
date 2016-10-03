@@ -266,7 +266,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 } else {
                     assertTrue("Found no indexed geo query.", query instanceof LegacyInMemoryGeoBoundingBoxQuery);
                 }
-            } else if (context.indexVersionCreated().before(Version.V_5_0_0_alpha6)) {
+            } else if (context.indexVersionCreated().before(Version.V_5_0_0_beta1)) {
                 assertTrue("Found no indexed geo query.", query instanceof GeoPointInBBoxQuery);
             } else {
                 assertTrue("Found no indexed geo query.", query instanceof Query);
@@ -431,7 +431,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
             assertThat(filter.topLeft().lon(), closeTo(-70, 1E-5));
             assertThat(filter.bottomRight().lat(), closeTo(30, 1E-5));
             assertThat(filter.bottomRight().lon(), closeTo(-80, 1E-5));
-        } else if (shardContext.indexVersionCreated().before(Version.V_5_0_0_alpha6)) {
+        } else if (shardContext.indexVersionCreated().before(Version.V_5_0_0_beta1)) {
             GeoPointInBBoxQuery q = (GeoPointInBBoxQuery) parsedQuery;
             assertThat(q.getField(), equalTo(GEO_POINT_FIELD_NAME));
             assertThat(q.getMaxLat(), closeTo(40, 1E-5));

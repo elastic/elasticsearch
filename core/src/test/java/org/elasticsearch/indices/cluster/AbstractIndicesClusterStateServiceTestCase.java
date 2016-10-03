@@ -341,7 +341,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             assertThat(this.shardId(), equalTo(shardRouting.shardId()));
             assertTrue("current: " + this.shardRouting + ", got: " + shardRouting, this.shardRouting.isSameAllocation(shardRouting));
             if (this.shardRouting.active()) {
-                assertTrue("and active shard must state active, current: " + this.shardRouting + ", got: " + shardRouting,
+                assertTrue("and active shard must stay active, current: " + this.shardRouting + ", got: " + shardRouting,
                     shardRouting.active());
             }
             this.shardRouting = shardRouting;

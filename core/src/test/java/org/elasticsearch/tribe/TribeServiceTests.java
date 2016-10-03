@@ -19,9 +19,16 @@
 
 package org.elasticsearch.tribe;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestCustomMetaData;
+
+import java.util.EnumSet;
 
 public class TribeServiceTests extends ESTestCase {
     public void testMinimalSettings() {
@@ -95,5 +102,107 @@ public class TribeServiceTests extends ESTestCase {
         assertEquals("6.6.6.6", clientSettings.get("transport.host"));
         assertEquals("7.7.7.7", clientSettings.get("transport.bind_host"));
         assertEquals("8.8.8.8", clientSettings.get("transport.publish_host"));
+    }
+
+    public void testReduceCustomMetaData() {
+        MetaData existingMetaData = randomMetaData(new CustomMetaData1("data1"));
+        MetaData newMetaData = randomMetaData(new CustomMetaData1("data2"));
+        ImmutableOpenMap<String, MetaData.Custom> reducedCustoms =
+                TribeService.reduceCustomMetaData(existingMetaData.customs(), newMetaData.customs(),
+                        (existingCustoms, newCustoms) -> {
+                            existingCustoms.put(CustomMetaData1.TYPE, newCustoms.get(CustomMetaData1.TYPE));
+                            return existingCustoms;
+                        }
+                );
+        assertTrue(reducedCustoms != existingMetaData.customs());
+        assertEquals(((TestCustomMetaData) reducedCustoms.get(CustomMetaData1.TYPE)).getData(), "data2");
+    }
+
+    public void testNoopReduceCustomMetaData() {
+        MetaData existingMetaData = randomMetaData(new CustomMetaData1("data1"));
+        MetaData newMetaData = randomMetaData(new CustomMetaData1("data2"));
+        ImmutableOpenMap<String, MetaData.Custom> reducedCustoms =
+                TribeService.reduceCustomMetaData(existingMetaData.customs(), newMetaData.customs(),
+                        (existingCustoms, newCustoms) -> existingCustoms
+                );
+        assertTrue(reducedCustoms == existingMetaData.customs());
+        assertEquals(((TestCustomMetaData) reducedCustoms.get(CustomMetaData1.TYPE)).getData(), "data1");
+    }
+
+    public void testReduceMultipleCustomMetaData() {
+        MetaData existingMetaData = randomMetaData(new CustomMetaData1("existing_data1"), new CustomMetaData2("existing_data2"));
+        MetaData newMetaData = randomMetaData(new CustomMetaData1("new_data1"), new CustomMetaData2("new_data2"));
+        ImmutableOpenMap<String, MetaData.Custom> reducedCustoms =
+                TribeService.reduceCustomMetaData(existingMetaData.customs(), newMetaData.customs(),
+                        (existingCustoms, newCustoms) -> {
+                            existingCustoms.put(CustomMetaData1.TYPE, newCustoms.get(CustomMetaData1.TYPE));
+                            existingCustoms.put(CustomMetaData2.TYPE, newCustoms.get(CustomMetaData2.TYPE));
+                            return existingCustoms;
+                        }
+                );
+        assertTrue(reducedCustoms != existingMetaData.customs());
+        assertEquals(((TestCustomMetaData) reducedCustoms.get(CustomMetaData1.TYPE)).getData(), "new_data1");
+        assertEquals(((TestCustomMetaData) reducedCustoms.get(CustomMetaData2.TYPE)).getData(), "new_data2");
+    }
+
+    private static class CustomMetaData1 extends TestCustomMetaData {
+        public static final String TYPE = "custom_md_1";
+
+        protected CustomMetaData1(String data) {
+            super(data);
+        }
+
+        @Override
+        protected TestCustomMetaData newTestCustomMetaData(String data) {
+            return new CustomMetaData1(data);
+        }
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        public EnumSet<MetaData.XContentContext> context() {
+            return EnumSet.of(MetaData.XContentContext.GATEWAY);
+        }
+    }
+
+    private static class CustomMetaData2 extends TestCustomMetaData {
+        public static final String TYPE = "custom_md_2";
+
+        protected CustomMetaData2(String data) {
+            super(data);
+        }
+
+        @Override
+        protected TestCustomMetaData newTestCustomMetaData(String data) {
+            return new CustomMetaData2(data);
+        }
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        public EnumSet<MetaData.XContentContext> context() {
+            return EnumSet.of(MetaData.XContentContext.GATEWAY);
+        }
+    }
+
+    private static MetaData randomMetaData(TestCustomMetaData... customMetaDatas) {
+        MetaData.Builder builder = MetaData.builder();
+        for (TestCustomMetaData customMetaData : customMetaDatas) {
+            builder.putCustom(customMetaData.type(), customMetaData);
+        }
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            builder.put(IndexMetaData.builder(randomAsciiOfLength(10))
+                            .settings(settings(Version.CURRENT))
+                            .numberOfReplicas(randomIntBetween(0, 3))
+                            .numberOfShards(randomIntBetween(1, 5))
+            );
+        }
+        return builder.build();
     }
 }

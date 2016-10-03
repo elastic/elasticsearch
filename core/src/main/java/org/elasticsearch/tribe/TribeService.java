@@ -19,6 +19,8 @@
 
 package org.elasticsearch.tribe;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.BytesRef;
@@ -42,6 +44,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.network.NetworkModule;
@@ -71,6 +74,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.BinaryOperator;
 import java.util.function.Function;
 
 import static java.util.Collections.unmodifiableMap;
@@ -183,9 +187,11 @@ public class TribeService extends AbstractLifecycleComponent {
     private final Set<String> droppedIndices = ConcurrentCollections.newConcurrentSet();
 
     private final List<Node> nodes = new CopyOnWriteArrayList<>();
+    private final BinaryOperator<Map<String, MetaData.Custom>> metaDataReducer;
 
     public TribeService(Settings settings, ClusterService clusterService, final String tribeNodeId,
-                        Collection<Class<? extends Plugin>> classpathPlugins) {
+                        Collection<Class<? extends Plugin>> classpathPlugins,
+                        BinaryOperator<Map<String, MetaData.Custom>> metaDataReducer) {
         super(settings);
         this.clusterService = clusterService;
         Map<String, Settings> nodesSettings = new HashMap<>(settings.getGroups("tribe", true));
@@ -210,6 +216,7 @@ public class TribeService extends AbstractLifecycleComponent {
         }
 
         this.onConflict = ON_CONFLICT_SETTING.get(settings);
+        this.metaDataReducer = metaDataReducer;
     }
 
     // pkg private for testing
@@ -463,6 +470,19 @@ public class TribeService extends AbstractLifecycleComponent {
                 }
             }
 
+            ImmutableOpenMap<String, MetaData.Custom> reducedCustoms = reduceCustomMetaData(
+                    currentState.metaData().customs(), tribeState.metaData().customs(), metaDataReducer);
+
+            if (currentState.metaData().customs() != reducedCustoms) {
+                clusterStateChanged = true;
+                for (ObjectCursor<String> cursor : currentState.metaData().customs().keys()) {
+                    metaData.removeCustom(cursor.value);
+                }
+                for (ObjectObjectCursor<String, MetaData.Custom> reducedCustom : reducedCustoms) {
+                    metaData.putCustom(reducedCustom.key, reducedCustom.value);
+                }
+            }
+
             if (!clusterStateChanged) {
                 return currentState;
             } else {
@@ -492,6 +512,32 @@ public class TribeService extends AbstractLifecycleComponent {
             if (Regex.simpleMatch(blockIndicesWrite, tribeIndex.getIndex().getName())) {
                 blocks.addIndexBlock(tribeIndex.getIndex().getName(), IndexMetaData.INDEX_WRITE_BLOCK);
             }
+        }
+    }
+
+    // pkg-private for testing
+    static ImmutableOpenMap<String, MetaData.Custom> reduceCustomMetaData(
+            ImmutableOpenMap<String, MetaData.Custom> currentCustomMetaData,
+            ImmutableOpenMap<String, MetaData.Custom> newCustomMetaData,
+            BinaryOperator<Map<String, MetaData.Custom>> metaDataReducer) {
+
+        Map<String, MetaData.Custom> existingCustoms = new HashMap<>();
+        for (ObjectObjectCursor<String, MetaData.Custom> customCursor : currentCustomMetaData) {
+            existingCustoms.put(customCursor.key, customCursor.value);
+        }
+        Map<String, MetaData.Custom> newCustoms = new HashMap<>();
+        for (ObjectObjectCursor<String, MetaData.Custom> customCursor : newCustomMetaData) {
+            newCustoms.put(customCursor.key, customCursor.value);
+        }
+        Map<String, MetaData.Custom> reducedCustoms = metaDataReducer.apply(new HashMap<>(existingCustoms), newCustoms);
+        if (reducedCustoms.equals(existingCustoms) == false) {
+            ImmutableOpenMap.Builder<String, MetaData.Custom> builder = ImmutableOpenMap.builder();
+            for (Map.Entry<String, MetaData.Custom> customEntry : reducedCustoms.entrySet()) {
+                builder.put(customEntry.getKey(), customEntry.getValue());
+            }
+            return builder.build();
+        } else {
+            return currentCustomMetaData;
         }
     }
 }

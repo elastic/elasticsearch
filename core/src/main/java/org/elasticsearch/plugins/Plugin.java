@@ -46,6 +46,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Map;
+import java.util.function.BinaryOperator;
 import java.util.function.UnaryOperator;
 
 /**
@@ -146,6 +147,18 @@ public abstract class Plugin {
      */
     public UnaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataUpgrader() {
         return UnaryOperator.identity();
+    }
+
+    /**
+     * Provides a function to reduce a global custom meta data from multiple custom meta data in tribe node.
+     * The selected global custom meta data is stored in the tribe node in case of multiple underlying clusters
+     * have same global custom meta data type.
+     * <p>
+     * Plugins should return the original custom map if no reduction is required.
+     * @return Never {@code null}. The original custom map or upgraded {@code MetaData.Custom} map.
+     */
+    public BinaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataReducer() {
+        return (originalCustoms, newCustoms) -> originalCustoms;
     }
 
     /**

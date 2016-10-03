@@ -22,14 +22,18 @@ package org.elasticsearch.tribe;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -44,18 +48,25 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
+import org.elasticsearch.test.TestCustomMetaData;
 import org.elasticsearch.transport.Transport;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -102,6 +113,11 @@ public class TribeIT extends ESIntegTestCase {
      **/
     private static final Predicate<InternalTestCluster> ALL = c -> true;
 
+    /**
+     * Custom meta data comparator for testing reducing custom metadata on tribe node
+     */
+    private static final Comparator<TestCustomMetaData> CUSTOM_META_DATA_COMPARATOR = (o1, o2) -> o1.getData().compareTo(o2.getData());
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -113,7 +129,57 @@ public class TribeIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return getMockPlugins();
+        List<Class<? extends Plugin>> nodePlugins = new ArrayList<>();
+        nodePlugins.add(TestPluginWithCustomMetaData.class);
+        nodePlugins.addAll(getMockPlugins());
+        return nodePlugins;
+    }
+
+
+    public static class TestPluginWithCustomMetaData extends Plugin {
+        static {
+            MetaData.registerPrototype(CustomMetaData1.TYPE, new CustomMetaData1(""));
+        }
+        @Override
+        public BinaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataReducer() {
+            return (existingCustoms, newCustoms) -> {
+                List<TestCustomMetaData> customs = new ArrayList<>();
+                if (existingCustoms.containsKey(CustomMetaData1.TYPE)) {
+                    customs.add(((TestCustomMetaData) existingCustoms.get(CustomMetaData1.TYPE)));
+                }
+                if (newCustoms.containsKey(CustomMetaData1.TYPE)) {
+                    customs.add(((TestCustomMetaData) newCustoms.get(CustomMetaData1.TYPE)));
+                }
+                if (customs.isEmpty() == false) {
+                    Collections.sort(customs, CUSTOM_META_DATA_COMPARATOR);
+                    existingCustoms.put(CustomMetaData1.TYPE, customs.get(0));
+                }
+                return existingCustoms;
+            };
+        }
+    }
+
+    private static class CustomMetaData1 extends TestCustomMetaData {
+        public static final String TYPE = "custom_md_1";
+
+        protected CustomMetaData1(String data) {
+            super(data);
+        }
+
+        @Override
+        protected TestCustomMetaData newTestCustomMetaData(String data) {
+            return new CustomMetaData1(data);
+        }
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        public EnumSet<MetaData.XContentContext> context() {
+            return EnumSet.of(MetaData.XContentContext.GATEWAY);
+        }
     }
 
     @Before
@@ -457,6 +523,53 @@ public class TribeIT extends ESIntegTestCase {
                 assertNodes(predicate);
             }
         }
+    }
+
+    public void testCustomMetaDataReduce() throws Exception {
+        CustomMetaData1 customMetaData1 = new CustomMetaData1(randomAsciiOfLength(10));
+        CustomMetaData1 customMetaData2 = new CustomMetaData1(randomAsciiOfLength(10));
+        List<TestCustomMetaData> customMetaDatas = Arrays.asList(customMetaData1, customMetaData2);
+        Collections.sort(customMetaDatas, CUSTOM_META_DATA_COMPARATOR);
+        final CustomMetaData1 tribeNodeCustomMetaData = ((CustomMetaData1) customMetaDatas.get(0));
+        try (Releasable tribeNode = startTribeNode()) {
+            CountDownLatch expectedCustomMetaDataFound = new CountDownLatch(1);
+            assertThat(internalCluster().getNodeNames().length, equalTo(1));
+            internalCluster().getInstance(ClusterService.class, internalCluster().getNodeNames()[0]).add(event -> {
+                ImmutableOpenMap<String, MetaData.Custom> customs = event.state().metaData().customs();
+                MetaData.Custom custom = customs.get(CustomMetaData1.TYPE);
+                if (custom.equals(tribeNodeCustomMetaData)) {
+                    expectedCustomMetaDataFound.countDown();
+                }
+            });
+            updateCustomMetaData(cluster1, customMetaData1);
+            updateCustomMetaData(cluster2, customMetaData2);
+            expectedCustomMetaDataFound.await();
+        }
+    }
+
+    private static void updateCustomMetaData(InternalTestCluster cluster, final CustomMetaData1 customMetaData)
+            throws InterruptedException {
+        ClusterService clusterService = cluster.getInstance(ClusterService.class, cluster.getMasterName());
+        final CountDownLatch latch = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("update customMetaData", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+            @Override
+            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+                latch.countDown();
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                MetaData.Builder builder = MetaData.builder(currentState.metaData());
+                builder.putCustom(CustomMetaData1.TYPE, customMetaData);
+                return new ClusterState.Builder(currentState).metaData(builder).build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                fail("failed to apply cluster state from [" + source + "] with " + e.getMessage());
+            }
+        });
+        latch.await();
     }
 
     private void assertIndicesExist(Client client, String... indices) throws Exception {

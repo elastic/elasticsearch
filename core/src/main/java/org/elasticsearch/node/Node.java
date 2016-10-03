@@ -145,10 +145,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -314,7 +316,12 @@ public class Node implements Closeable {
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             clusterService.add(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
-            final TribeService tribeService = new TribeService(settings, clusterService, nodeEnvironment.nodeId(), classpathPlugins);
+            Collection<BinaryOperator<Map<String, MetaData.Custom>>> customMetaDataReducers =
+                    pluginsService.filterPlugins(Plugin.class).stream()
+                            .map(Plugin::getCustomMetaDataReducer)
+                            .collect(Collectors.toList());
+            final TribeService tribeService = new TribeService(settings, clusterService, nodeEnvironment.nodeId(), classpathPlugins,
+                    getCustomMetaDataReducer(customMetaDataReducers));
             resourcesToClose.add(tribeService);
             final IngestService ingestService = new IngestService(settings, threadPool, this.environment,
                 scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(), pluginsService.filterPlugins(IngestPlugin.class));
@@ -859,5 +866,15 @@ public class Node implements Closeable {
             }
         }
         return customNameResolvers;
+    }
+
+    private BinaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataReducer(
+            final Collection<BinaryOperator<Map<String, MetaData.Custom>>> customMetaDataReducers) {
+        return (originalCustoms, newCustoms) -> {
+            for (BinaryOperator<Map<String, MetaData.Custom>> customMetaDataReducer : customMetaDataReducers) {
+                originalCustoms = customMetaDataReducer.apply(originalCustoms, newCustoms);
+            }
+            return originalCustoms;
+        };
     }
 }

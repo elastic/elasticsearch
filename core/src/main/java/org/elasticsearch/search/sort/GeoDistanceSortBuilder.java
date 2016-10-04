@@ -558,6 +558,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 && nested == null
                 && finalSortMode == MultiValueMode.MIN // LatLonDocValuesField internally picks the closest point
                 && unit == DistanceUnit.METERS
+                && reverse == false
                 && localPoints.size() == 1) {
             return new SortFieldAndFormat(
                     LatLonDocValuesField.newDistanceSort(fieldName, localPoints.get(0).lat(), localPoints.get(0).lon()),

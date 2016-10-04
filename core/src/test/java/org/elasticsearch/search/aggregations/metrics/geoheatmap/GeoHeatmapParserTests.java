@@ -40,12 +40,12 @@ public class GeoHeatmapParserTests extends ESTestCase {
     public void testParsing() throws Exception {
         StringBuilder sb = new StringBuilder();
         sb.append("{");
-        sb.append("\"field\": \"my_loc\",");
+        sb.append("\"field\": \"my_loc\"");
         if (randomBoolean()) {
             appendRandomNumericOrString(sb, "grid_level", ""+randomInt()+"");
         } else {
             if (randomBoolean()) {
-                sb.append("\"dist_err\": \""+randomDouble()+" "+randomUnits()+ "\",");
+                sb.append(", \"dist_err\": \""+randomDouble()+" "+randomUnits()+ "\"");
             }
             appendRandomNumericOrString(sb, "dist_err_pct", ""+randomDouble()+"");            
         }
@@ -54,7 +54,7 @@ public class GeoHeatmapParserTests extends ESTestCase {
         }
         if (randomBoolean()) {
             sb.append(
-                "\"geom\":{"
+                ", \"geom\":{"
                 + "     \"geo_shape\": {"
                 + "         \"location\": {" 
                 + "             \"shape\": {"
@@ -77,9 +77,9 @@ public class GeoHeatmapParserTests extends ESTestCase {
     
     private void appendRandomNumericOrString(StringBuilder sb, String field, String value) {
         if (randomBoolean()) {
-            sb.append("\""+field+"\": \""+value+"\",");
+            sb.append(", \""+field+"\": \""+value+"\"");
         } else {
-            sb.append("\"grid_level\": "+value+",");                
+            sb.append(", \"grid_level\": "+value);                
         }  
     }
     

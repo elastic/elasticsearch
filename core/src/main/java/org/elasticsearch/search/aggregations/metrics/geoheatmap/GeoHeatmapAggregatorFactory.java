@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics.geoheatmap;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -97,7 +98,7 @@ public class GeoHeatmapAggregatorFactory extends AggregatorFactory<GeoHeatmapAgg
             GeoShapeFieldType geoFieldType = (GeoShapeFieldType) fieldType;
             this.strategy = geoFieldType.resolveStrategy(SpatialStrategy.RECURSIVE);
         } else {
-            throw new AggregationInitializationException(String.format(
+            throw new AggregationInitializationException(String.format(Locale.ROOT,
                     "Field [%s] is a %s instead of a %s type",
                     field, fieldType.typeName(), GeoShapeFieldMapper.CONTENT_TYPE));
         }
@@ -120,7 +121,7 @@ public class GeoHeatmapAggregatorFactory extends AggregatorFactory<GeoHeatmapAgg
         spatialArgs.setDistErrPct(distErrPctOp.orElse(DEFAULT_DIST_ERR_PCT));
         double distErr = spatialArgs.resolveDistErr(strategy.getSpatialContext(), DEFAULT_DIST_ERR_PCT);
         if (distErr <= 0) {
-          throw new AggregationInitializationException(String.format(
+          throw new AggregationInitializationException(String.format(Locale.ROOT,
               "%s or %s should be > 0 or instead provide %s=%s for absolute maximum detail", 
                   GeoHeatmapAggregationBuilder.DIST_ERR_PCT_FIELD, 
                   GeoHeatmapAggregationBuilder.DIST_ERR_FIELD,

@@ -31,6 +31,10 @@ enable <<setup-configuration-memory,`mlockall`>>.
 [[file-descriptors]]
 ==== File Descriptors
 
+[NOTE]
+This is only a problem for Linux and macOS and can be safely ignored if running
+Elasticsearch on Windows.
+
 Make sure to increase the number of open files descriptors on the
 machine (or for the user running elasticsearch). Setting it to 32k or
 even 64k is recommended.

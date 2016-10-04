@@ -29,12 +29,11 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class RangeAggregatorFactory extends AbstractRangeAggregatorFactory<RangeAggregatorFactory, RangeAggregator.Range> {
 
-    public RangeAggregatorFactory(String name, Type type, ValuesSourceConfig<Numeric> config, List<Range> ranges, boolean keyed,
+    public RangeAggregatorFactory(String name, Type type, ValuesSourceConfig<Numeric> config, Range[] ranges, boolean keyed,
             Factory<?, ?> rangeFactory, AggregationContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, type, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder, metaData);

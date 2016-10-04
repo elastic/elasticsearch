@@ -526,7 +526,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // be cached. If it is still present in the request (e.g. in a range
             // aggregation) it will still be caught when the aggregation is
             // evaluated.
-            context.resetNowInMillisUsed();
+            context.resetCanCache();
             if (request.scroll() != null) {
                 context.scrollContext(new ScrollContext());
                 context.scrollContext().scroll = request.scroll();
@@ -735,7 +735,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (source.scriptFields() != null) {
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
-                SearchScript searchScript = context.scriptService().search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH,
+                SearchScript searchScript = scriptService.search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH,
                         Collections.emptyMap());
                 context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));
             }

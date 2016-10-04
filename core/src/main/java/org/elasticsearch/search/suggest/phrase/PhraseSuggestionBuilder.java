@@ -633,6 +633,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         }
 
         if (this.collateQuery != null) {
+            context.markAsNotCachable();
             CompiledScript compiledScript = context.getScriptService().compile(this.collateQuery, ScriptContext.Standard.SEARCH,
                     Collections.emptyMap());
             suggestionContext.setCollateQueryScript(compiledScript);

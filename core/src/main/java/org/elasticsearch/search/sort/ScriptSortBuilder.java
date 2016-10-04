@@ -55,9 +55,7 @@ import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -286,6 +284,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
+        context.markAsNotCachable();
         final SearchScript searchScript = context.getScriptService().search(
                 context.lookup(), script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
 

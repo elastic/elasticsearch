@@ -182,6 +182,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     @Override
     protected ScriptedMetricAggregatorFactory doBuild(AggregationContext context, AggregatorFactory<?> parent,
             Builder subfactoriesBuilder) throws IOException {
+        context.searchContext().markAsNotCachable();
         return new ScriptedMetricAggregatorFactory(name, type, initScript, mapScript, combineScript, reduceScript, params, context,
                 parent, subfactoriesBuilder, metaData);
     }

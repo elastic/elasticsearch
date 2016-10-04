@@ -118,7 +118,7 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
         }
     }
 
-    private boolean nowInMillisUsed;
+    private boolean canCache = true;
 
     @Override
     protected final void closeInternal() {
@@ -163,16 +163,16 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract long getOriginNanoTime();
 
     public final long nowInMillis() {
-        nowInMillisUsed = true;
+        markAsNotCachable();
         return nowInMillisImpl();
     }
 
-    public final boolean nowInMillisUsed() {
-        return nowInMillisUsed;
+    public final boolean isCachable() {
+        return canCache;
     }
 
-    public final void resetNowInMillisUsed() {
-        this.nowInMillisUsed = false;
+    public final void resetCanCache() {
+        this.canCache = true;
     }
 
     protected abstract long nowInMillisImpl();
@@ -401,6 +401,10 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     /** Return a view of the additional query collectors that should be run for this context. */
     public abstract Map<Class<?>, Collector> queryCollectors();
+
+    public final void markAsNotCachable() {
+        this.canCache = false;
+    }
 
     /**
      * The life time of an object that is used during search execution.

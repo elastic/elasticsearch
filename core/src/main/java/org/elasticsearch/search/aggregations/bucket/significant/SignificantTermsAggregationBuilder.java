@@ -220,6 +220,9 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+        if (significanceHeuristic.canCache()) {
+            context.searchContext().markAsNotCachable();
+        }
         return new SignificantTermsAggregatorFactory(name, type, config, includeExclude, executionHint, filterBuilder,
                 bucketCountThresholds, significanceHeuristic, context, parent, subFactoriesBuilder, metaData);
     }

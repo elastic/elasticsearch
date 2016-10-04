@@ -630,10 +630,22 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     private QueryBuilder rewriteQuery(QB queryBuilder, QueryRewriteContext rewriteContext) throws IOException {
+        final boolean wasCachable = rewriteContext.isCachable();
         QueryBuilder rewritten = QueryBuilder.rewriteQuery(queryBuilder, rewriteContext);
+        if (wasCachable == true) { // it's not resettable so we can only check it once
+            if (isCachable(queryBuilder)) {
+                assert rewriteContext.isCachable() : queryBuilder.toString();
+            } else {
+                assert rewriteContext.isCachable() == false;
+            }
+        }
         // extra safety to fail fast - serialize the rewritten version to ensure it's serializable.
         assertSerialization(rewritten);
         return rewritten;
+    }
+
+    protected boolean isCachable(QB queryBuilder) {
+        return true;
     }
 
     /**

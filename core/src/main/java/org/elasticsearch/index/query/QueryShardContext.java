@@ -324,6 +324,15 @@ public class QueryShardContext extends QueryRewriteContext {
         }
     }
 
+    @Override
+    public void markAsNotCachable() {
+        super.markAsNotCachable();
+        SearchContext current = SearchContext.current();
+        if (current != null) {
+           current.markAsNotCachable();
+        }
+    }
+
     public final Index index() {
         return indexSettings.getIndex();
     }

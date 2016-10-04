@@ -527,6 +527,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     @Override
     protected TopHitsAggregatorFactory doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subfactoriesBuilder)
             throws IOException {
+        if (scriptFields != null && scriptFields.isEmpty() == false) {
+            context.searchContext().markAsNotCachable();
+        }
         return new TopHitsAggregatorFactory(name, type, from, size, explain, version, trackScores, sorts, highlightBuilder,
             storedFieldsContext, fieldDataFields, scriptFields, fetchSourceContext, context,
             parent, subfactoriesBuilder, metaData);

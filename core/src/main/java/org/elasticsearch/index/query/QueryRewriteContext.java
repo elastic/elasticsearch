@@ -41,6 +41,7 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     protected final Client client;
     protected final IndexReader reader;
     protected final ClusterState clusterState;
+    protected boolean cachable;
 
     public QueryRewriteContext(IndexSettings indexSettings, MapperService mapperService, ScriptService scriptService,
                                IndicesQueriesRegistry indicesQueriesRegistry, Client client, IndexReader reader,
@@ -115,5 +116,13 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     public QueryParseContext newParseContextWithLegacyScriptLanguage(XContentParser parser) {
         String defaultScriptLanguage = ScriptSettings.getLegacyDefaultLang(indexSettings.getNodeSettings());
         return new QueryParseContext(defaultScriptLanguage, indicesQueriesRegistry, parser, indexSettings.getParseFieldMatcher());
+    }
+
+    public void markAsNotCachable() {
+        this.cachable = false;
+    }
+
+    public boolean isCachable() {
+        return cachable;
     }
 }

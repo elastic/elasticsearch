@@ -95,6 +95,7 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
 
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) {
+        context.markAsNotCachable();
         try {
             SearchScript searchScript = context.getScriptService().search(context.lookup(), script, ScriptContext.Standard.SEARCH,
                     Collections.emptyMap());

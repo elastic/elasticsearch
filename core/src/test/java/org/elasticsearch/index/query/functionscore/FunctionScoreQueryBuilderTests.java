@@ -789,4 +789,15 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                     RandomScoreFunctionBuilderWithFixedSeed::new, RandomScoreFunctionBuilderWithFixedSeed::fromXContent));
         }
     }
+
+    @Override
+    protected boolean isCachable(FunctionScoreQueryBuilder queryBuilder) {
+        FilterFunctionBuilder[] filterFunctionBuilders = queryBuilder.filterFunctionBuilders();
+        for (FilterFunctionBuilder builder : filterFunctionBuilders) {
+            if (builder.getScoreFunction() instanceof ScriptScoreFunctionBuilder) {
+                return false;
+            }
+        }
+        return true;
+    }
 }

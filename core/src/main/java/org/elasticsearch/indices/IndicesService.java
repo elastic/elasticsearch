@@ -1082,7 +1082,7 @@ public class IndicesService extends AbstractLifecycleComponent
         }
         // if now in millis is used (or in the future, a more generic "isDeterministic" flag
         // then we can't cache based on "now" key within the search request, as it is not deterministic
-        if (context.nowInMillisUsed()) {
+        if (context.isCachable() == false) {
             return false;
         }
         return true;

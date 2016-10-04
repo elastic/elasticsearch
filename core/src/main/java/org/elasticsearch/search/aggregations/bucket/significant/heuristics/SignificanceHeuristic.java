@@ -57,4 +57,8 @@ public abstract class SignificanceHeuristic implements NamedWriteable, ToXConten
     public void initialize(SearchContext context) {
 
     }
+
+    public boolean canCache() {
+        return true;
+    }
 }

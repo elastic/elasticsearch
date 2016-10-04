@@ -99,6 +99,7 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
             subSearchContext.docValueFieldsContext(new DocValueFieldsContext(docValueFields));
         }
         if (scriptFields != null) {
+            subSearchContext.markAsNotCachable();
             for (ScriptField field : scriptFields) {
                 SearchScript searchScript = subSearchContext.scriptService().search(subSearchContext.lookup(), field.script(),
                         ScriptContext.Standard.SEARCH, Collections.emptyMap());

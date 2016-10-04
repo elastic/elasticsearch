@@ -78,6 +78,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public void initialize(SearchContext context) {
+        context.markAsNotCachable();
         initialize(context.scriptService());
     }
 
@@ -216,6 +217,11 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         public String toString() {
             return Long.toString(value);
         }
+    }
+
+    @Override
+    public boolean canCache() {
+        return false;
     }
 }
 

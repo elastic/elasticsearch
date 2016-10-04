@@ -31,12 +31,14 @@ import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -54,7 +56,7 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
     private final HighlightBuilder highlightBuilder;
     private final StoredFieldsContext storedFieldsContext;
     private final List<String> docValueFields;
-    private final Set<ScriptField> scriptFields;
+    private final List<ScriptFieldsContext.ScriptField> scriptFields;
     private final FetchSourceContext fetchSourceContext;
 
     public TopHitsAggregatorFactory(String name, Type type, int from, int size, boolean explain, boolean version, boolean trackScores,
@@ -72,7 +74,15 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
         this.highlightBuilder = highlightBuilder;
         this.storedFieldsContext = storedFieldsContext;
         this.docValueFields = docValueFields;
-        this.scriptFields = scriptFields;
+        this.scriptFields = new ArrayList<>();
+        if (scriptFields != null) {
+            for (ScriptField field : scriptFields) {
+                SearchScript searchScript = context.searchContext().scriptService().search(
+                        context.searchContext().lookup(), field.script(), ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                this.scriptFields.add(new ScriptFieldsContext.ScriptField(
+                        field.fieldName(), searchScript, field.ignoreFailure()));
+            }
+        }
         this.fetchSourceContext = fetchSourceContext;
     }
 
@@ -98,13 +108,8 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
         if (docValueFields != null) {
             subSearchContext.docValueFieldsContext(new DocValueFieldsContext(docValueFields));
         }
-        if (scriptFields != null) {
-            for (ScriptField field : scriptFields) {
-                SearchScript searchScript = subSearchContext.scriptService().search(subSearchContext.lookup(), field.script(),
-                        ScriptContext.Standard.SEARCH, Collections.emptyMap());
-                subSearchContext.scriptFields().add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
-                        field.fieldName(), searchScript, field.ignoreFailure()));
-            }
+        for (ScriptFieldsContext.ScriptField field : scriptFields) {
+            subSearchContext.scriptFields().add(field);
         }
         if (fetchSourceContext != null) {
             subSearchContext.fetchSourceContext(fetchSourceContext);

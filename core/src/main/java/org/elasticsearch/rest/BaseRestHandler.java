@@ -29,9 +29,9 @@ import org.elasticsearch.plugins.ActionPlugin;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Base handler for REST requests.
@@ -58,17 +58,8 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
         final RestChannelConsumer action = prepareRequest(request, client);
 
         // validate unconsumed params, but we must exclude params used to format the response
-        final List<String> unconsumedParams = request.unconsumedParams();
-        final Set<String> responseParams = responseParams();
-        final Iterator<String> it = unconsumedParams.iterator();
-
-        // this has to use an iterator lest a ConcurrentModificationException will arise
-        while (it.hasNext()) {
-            final String unconsumedParam = it.next();
-            if (responseParams.contains(unconsumedParam)) {
-                it.remove();
-            }
-        }
+        final List<String> unconsumedParams =
+            request.unconsumedParams().stream().filter(p -> !responseParams().contains(p)).collect(Collectors.toList());
 
         // validate the non-response params
         if (!unconsumedParams.isEmpty()) {

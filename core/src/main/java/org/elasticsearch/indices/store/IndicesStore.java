@@ -122,7 +122,9 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         logger.debug("using indices.store.throttle.type [{}], with index.store.throttle.max_bytes_per_sec [{}]", rateLimitingType, rateLimitingThrottle);
 
         nodeSettingsService.addListener(applySettings);
-        clusterService.addLast(this);
+        if (DiscoveryNode.dataNode(settings)) {
+            clusterService.addLast(this);
+        }
     }
 
     IndicesStore() {
@@ -140,7 +142,9 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
     @Override
     public void close() {
         nodeSettingsService.removeListener(applySettings);
-        clusterService.remove(this);
+        if (DiscoveryNode.dataNode(settings)) {
+            clusterService.remove(this);
+        }
     }
 
     @Override

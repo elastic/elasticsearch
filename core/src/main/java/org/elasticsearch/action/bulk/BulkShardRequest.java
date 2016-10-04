@@ -45,7 +45,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
         setRefreshPolicy(refreshPolicy);
     }
 
-    BulkItemRequest[] items() {
+    public BulkItemRequest[] items() {
         return items;
     }
 

@@ -126,11 +126,10 @@ project.afterEvaluate {
       String apiFileName = jarFile.fileName.toString().replace(project.version, "api-${project.version}")
       Files.copy(jarFile, jarFile.resolveSibling(apiFileName), StandardCopyOption.REPLACE_EXISTING)
 
-      /*String pomFileName = jarFile.fileName.toString().replace('.jar', '.pom')
+      String pomFileName = jarFile.fileName.toString().replace('.jar', '.pom')
       String apiPomFileName = apiFileName.replace('.jar', '.pom')
       Files.copy(jarFile.resolveSibling(pomFileName), jarFile.resolveSibling(apiPomFileName),
                  StandardCopyOption.REPLACE_EXISTING)
-      */
     }
   }
   assemble.dependsOn(apiJar)

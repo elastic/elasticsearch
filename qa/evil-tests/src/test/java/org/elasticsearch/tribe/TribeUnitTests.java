@@ -29,11 +29,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -60,7 +62,7 @@ public class TribeUnitTests extends ESTestCase {
     public static void createTribes() throws NodeValidationException {
         Settings baseSettings = Settings.builder()
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-            .put("transport.type", "local")
+            .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local")
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
@@ -72,14 +74,14 @@ public class TribeUnitTests extends ESTestCase {
                 .put("cluster.name", "tribe1")
                 .put("node.name", "tribe1_node")
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
-                .build(), Collections.emptyList()).start();
+                .build(),  Collections.singleton(MockTcpTransportPlugin.class)).start();
         tribe2 = new TribeClientNode(
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe2")
                 .put("node.name", "tribe2_node")
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
-                .build(), Collections.emptyList()).start();
+                .build(),  Collections.singleton(MockTcpTransportPlugin.class)).start();
     }
 
     @AfterClass
@@ -101,13 +103,14 @@ public class TribeUnitTests extends ESTestCase {
     private static void assertTribeNodeSuccessfullyCreated(Settings extraSettings) throws Exception {
         //The tribe clients do need it to make sure they can find their corresponding tribes using the proper transport
         Settings settings = Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).put("node.name", "tribe_node")
-                .put("transport.type", "local").put("discovery.type", "local")
-                .put("tribe.t1.transport.type", "local").put("tribe.t2.transport.type", "local")
+                .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).put("discovery.type", "local")
+                .put("tribe.t1.transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
+                .put("tribe.t2.transport.type",MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
                 .put("tribe.t1.discovery.type", "local").put("tribe.t2.discovery.type", "local")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(extraSettings).build();
 
-        try (Node node = new Node(settings).start()) {
+        try (Node node = new MockNode(settings, Collections.singleton(MockTcpTransportPlugin.class)).start()) {
             try (Client client = node.client()) {
                 assertBusy(() -> {
                     ClusterState state = client.admin().cluster().prepareState().clear().setNodes(true).get().getState();

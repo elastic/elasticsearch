@@ -49,8 +49,7 @@ public class PluginBuildPlugin extends BuildPlugin {
         project.afterEvaluate {
             boolean isModule = project.path.startsWith(':modules:')
             String name = project.pluginProperties.extension.name
-            project.jar.baseName = name
-            project.bundlePlugin.baseName = name
+            project.archivesBaseName = name
 
             if (project.pluginProperties.extension.hasClientJar) {
                 // for plugins which work with the transport client, we copy the jar

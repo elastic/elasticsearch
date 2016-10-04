@@ -47,7 +47,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.action.admin.cluster.RestListTasksAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
@@ -66,7 +65,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.hamcrest.Matchers.containsString;
@@ -536,7 +534,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         // Try to cancel main task using action name
         CancelTasksRequest request = new CancelTasksRequest();
-        request.setNodesIds(testNodes[0].discoveryNode.getId());
+        request.setNodes(testNodes[0].discoveryNode.getId());
         request.setReason("Testing Cancellation");
         request.setActions(actionName);
         CancelTasksResponse response = testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction.execute(request)

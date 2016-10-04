@@ -79,6 +79,11 @@ public class GeoHeatmapIT extends ESIntegTestCase {
         if (randomBoolean()) {
             int gridLevel = randomIntBetween(1, 12);
             factory.gridLevel(gridLevel);
+        } else {
+            if (randomBoolean()) {
+                factory.distErr(randomDoubleBetween(0.0, 0.5, false));
+            }
+            factory.distErrPct(randomDoubleBetween(0.0, 0.5, false));
         }
         if (randomBoolean()) {
             factory.maxCells(randomIntBetween(1, Integer.MAX_VALUE));
@@ -105,36 +110,8 @@ public class GeoHeatmapIT extends ESIntegTestCase {
     }
 
     // @see org.apache.solr.handler.component.SpatialHeatmapFacetsTest
-    public void testSpecificShapes() throws IOException {
-        client().admin().indices().prepareCreate("test").addMapping("type1", "location", "type=geo_shape,tree=quadtree").execute()
-                .actionGet();
-
-        // on right side
-        client().prepareIndex("test", "type1", "1")
-                .setSource(jsonBuilder().startObject().field("name", "Document 1").startObject("location").field("type", "envelope")
-                        .startArray("coordinates").startArray().value(100).value(80).endArray().startArray().value(120).value(40).endArray()
-                        .endArray().endObject().endObject())
-                .setRefreshPolicy(IMMEDIATE).get();
-
-        // on left side (outside heatmap)
-        client().prepareIndex("test", "type1", "2")
-                .setSource(jsonBuilder().startObject().field("name", "Document 2").startObject("location").field("type", "envelope")
-                        .startArray("coordinates").startArray().value(-120).value(80).endArray().startArray().value(-110).value(20)
-                        .endArray().endArray().endObject().endObject())
-                .setRefreshPolicy(IMMEDIATE).get();
-
-        // just left of BOX 0
-        client().prepareIndex("test", "type1", "3")
-                .setSource(jsonBuilder().startObject().field("name", "Document 3").startObject("location").field("type", "point")
-                        .startArray("coordinates").value(70).value(60).endArray().endObject().endObject())
-                .setRefreshPolicy(IMMEDIATE).get();
-
-        // just outside box 0 (above it) near pole,
-        client().prepareIndex("test", "type1", "4")
-                .setSource(jsonBuilder().startObject().field("name", "Document 4").startObject("location").field("type", "point")
-                        .startArray("coordinates").value(91).value(89).endArray().endObject().endObject())
-                .setRefreshPolicy(IMMEDIATE).get();
-
+    public void testSpecificShapes() throws Exception {
+        createPrecalculatedIndex();
         ShapeBuilder query = ShapeBuilders.newEnvelope(new Coordinate(50, 90), new Coordinate(180, 20));
         GeoShapeQueryBuilder geo = QueryBuilders.geoShapeQuery("location", query).relation(ShapeRelation.WITHIN);
         
@@ -155,5 +132,87 @@ public class GeoHeatmapIT extends ESIntegTestCase {
 
         assertThat(responseString, containsString(expected));
     }
+    
+    /**
+     * Tests the various ways grid_level is calculated
+     */
+    // @see org.apache.solr.handler.component.SpatialHeatmapFacetsTest
+    public void testGridLevelCalc() throws Exception {
+        createPrecalculatedIndex();
+        ShapeBuilder query = ShapeBuilders.newEnvelope(new Coordinate(50, 90), new Coordinate(180, 20));
+        GeoShapeQueryBuilder geo = QueryBuilders.geoShapeQuery("location", query).relation(ShapeRelation.WITHIN);
+        
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type1").setQuery(QueryBuilders.matchAllQuery())
+                .addAggregation(heatmap("heatmap1").geom(geo).field("location").gridLevel(4).maxCells(100_000)).execute().actionGet();
 
+        assertSearchResponse(searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4L));
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+
+        // Default
+        searchResponse = client().prepareSearch("test").setTypes("type1").setQuery(QueryBuilders.matchAllQuery())
+                .addAggregation(heatmap("heatmap1").geom(geo).field("location")).execute().actionGet();
+        assertGridLevel("heatmap1", 7, searchResponse);
+        
+        // Explicit grid_level
+        searchResponse = client().prepareSearch("test").setTypes("type1").setQuery(QueryBuilders.matchAllQuery())
+                .addAggregation(heatmap("heatmap1").geom(geo).field("location").gridLevel(3)).execute().actionGet();
+        assertGridLevel("heatmap1", 3, searchResponse);
+
+        // Just dist_err
+        searchResponse = client().prepareSearch("test").setTypes("type1").setQuery(QueryBuilders.matchAllQuery())
+                .addAggregation(heatmap("heatmap1").geom(geo).field("location").distErr(100.0)).execute().actionGet();
+        assertGridLevel("heatmap1", 1, searchResponse);
+
+        // Just dist_err_pct
+        searchResponse = client().prepareSearch("test").setTypes("type1").setQuery(QueryBuilders.matchAllQuery())
+                .addAggregation(heatmap("heatmap1").geom(geo).field("location").distErrPct(0.05)).execute().actionGet();
+        assertGridLevel("heatmap1", 8, searchResponse);
+
+        // dist_err_pct with default geom
+        searchResponse = client().prepareSearch("test").setTypes("type1").setQuery(QueryBuilders.matchAllQuery())
+                .addAggregation(heatmap("heatmap1").field("location").distErrPct(0.1).maxCells(100_000)).execute().actionGet();
+        assertGridLevel("heatmap1", 6, searchResponse);
+        
+    }
+    
+    private void createPrecalculatedIndex() throws Exception {
+        client().admin().indices().prepareCreate("test")
+        .addMapping("type1", "location", "type=geo_shape,tree=quadtree").execute()
+        .actionGet();
+
+        // on right side
+        client().prepareIndex("test", "type1", "1")
+                .setSource(jsonBuilder().startObject().field("name", "Document 1").startObject("location").field("type", "envelope")
+                        .startArray("coordinates").startArray().value(100).value(80).endArray().startArray().value(120).value(40).endArray()
+                        .endArray().endObject().endObject())
+                .setRefreshPolicy(IMMEDIATE).get();
+        
+        // on left side (outside heatmap)
+        client().prepareIndex("test", "type1", "2")
+                .setSource(jsonBuilder().startObject().field("name", "Document 2").startObject("location").field("type", "envelope")
+                        .startArray("coordinates").startArray().value(-120).value(80).endArray().startArray().value(-110).value(20)
+                        .endArray().endArray().endObject().endObject())
+                .setRefreshPolicy(IMMEDIATE).get();
+        
+        // just left of BOX 0
+        client().prepareIndex("test", "type1", "3")
+                .setSource(jsonBuilder().startObject().field("name", "Document 3").startObject("location").field("type", "point")
+                        .startArray("coordinates").value(70).value(60).endArray().endObject().endObject())
+                .setRefreshPolicy(IMMEDIATE).get();
+        
+        // just outside box 0 (above it) near pole,
+        client().prepareIndex("test", "type1", "4")
+                .setSource(jsonBuilder().startObject().field("name", "Document 4").startObject("location").field("type", "point")
+                        .startArray("coordinates").value(91).value(89).endArray().endObject().endObject())
+                .setRefreshPolicy(IMMEDIATE).get();
+        
+        
+    }
+    
+    private void assertGridLevel(String aggName, int expected, SearchResponse actual) {
+        GeoHeatmap heatmap = actual.getAggregations().get(aggName);
+        assertEquals(expected, heatmap.getGridLevel());
+    }
+    
 }

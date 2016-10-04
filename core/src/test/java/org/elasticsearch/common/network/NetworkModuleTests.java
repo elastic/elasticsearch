@@ -30,13 +30,13 @@ import org.elasticsearch.http.HttpServerAdapter;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 
+import java.io.IOException;
 import java.util.Collections;
 
 public class NetworkModuleTests extends ModuleTestCase {
@@ -78,7 +78,7 @@ public class NetworkModuleTests extends ModuleTestCase {
             super(null);
         }
         @Override
-        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {}
+        public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException { return channel -> {}; }
     }
 
     static class FakeCatRestHandler extends AbstractCatAction {
@@ -86,7 +86,7 @@ public class NetworkModuleTests extends ModuleTestCase {
             super(null);
         }
         @Override
-        protected void doRequest(RestRequest request, RestChannel channel, NodeClient client) {}
+        protected RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) { return channel -> {}; }
         @Override
         protected void documentation(StringBuilder sb) {}
         @Override

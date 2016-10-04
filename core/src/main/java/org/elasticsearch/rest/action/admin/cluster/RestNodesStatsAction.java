@@ -27,11 +27,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 
+import java.io.IOException;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -53,7 +53,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         Set<String> metrics = Strings.splitStringByCommaToSet(request.param("metric", "_all"));
 
@@ -111,7 +111,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
             nodesStatsRequest.indices().includeSegmentFileSizes(true);
         }
 
-        client.admin().cluster().nodesStats(nodesStatsRequest, new NodesResponseRestListener<>(channel));
+        return channel -> client.admin().cluster().nodesStats(nodesStatsRequest, new NodesResponseRestListener<>(channel));
     }
 
     @Override

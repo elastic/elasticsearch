@@ -712,7 +712,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         Action action = new Action(Settings.EMPTY, "testActionWithExceptions", transportService, clusterService, shardStateAction,
             threadPool) {
             @Override
-            protected ReplicaResult shardOperationOnReplica(Request request) {
+            protected ReplicaResult shardOperationOnReplica(Request request, IndexShard replica) {
                 assertIndexShardCounter(1);
                 assertPhase(task, "replica");
                 if (throwException) {
@@ -832,7 +832,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         Action action = new Action(Settings.EMPTY, "testActionWithExceptions", transportService, clusterService, shardStateAction,
             threadPool) {
             @Override
-            protected ReplicaResult shardOperationOnReplica(Request request) {
+            protected ReplicaResult shardOperationOnReplica(Request request, IndexShard replica) {
                 assertPhase(task, "replica");
                 if (throwException.get()) {
                     throw new RetryOnReplicaException(shardId, "simulation");
@@ -958,14 +958,14 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected PrimaryResult shardOperationOnPrimary(Request shardRequest) throws Exception {
+        protected PrimaryResult shardOperationOnPrimary(Request shardRequest, IndexShard primary) throws Exception {
             boolean executedBefore = shardRequest.processedOnPrimary.getAndSet(true);
             assert executedBefore == false : "request has already been executed on the primary";
             return new PrimaryResult(shardRequest, new Response());
         }
 
         @Override
-        protected ReplicaResult shardOperationOnReplica(Request request) {
+        protected ReplicaResult shardOperationOnReplica(Request request, IndexShard replica) {
             request.processedOnReplicas.incrementAndGet();
             return new ReplicaResult();
         }

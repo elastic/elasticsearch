@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -69,7 +69,7 @@ public class SimpleNetty3TransportTests extends AbstractSimpleTransportTestCase 
 
     public void testConnectException() throws UnknownHostException {
         try {
-            serviceA.connectToNode(new DiscoveryNode("C", new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9876),
+            serviceA.connectToNode(new DiscoveryNode("C", new TransportAddress(InetAddress.getByName("localhost"), 9876),
                     emptyMap(), emptySet(),Version.CURRENT));
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {

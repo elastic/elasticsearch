@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -31,13 +32,19 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.common.transport.TransportAddress;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
 public class ClusterSerializationTests extends ESAllocationTestCase {
+    private static final AtomicInteger port = new AtomicInteger(0);
+
     public void testClusterStateSerialization() throws Exception {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))

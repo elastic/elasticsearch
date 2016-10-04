@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.test.ESTestCase;
 
@@ -43,7 +42,7 @@ public class ZenPingTests extends ESTestCase {
         long clusterStateVersionPerNode[] = new long[nodes.length];
         ArrayList<ZenPing.PingResponse> pings = new ArrayList<>();
         for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = new DiscoveryNode("" + i, LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+            nodes[i] = new DiscoveryNode("" + i, buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         }
 
         for (int pingCount = scaledRandomIntBetween(10, nodes.length * 10); pingCount > 0; pingCount--) {

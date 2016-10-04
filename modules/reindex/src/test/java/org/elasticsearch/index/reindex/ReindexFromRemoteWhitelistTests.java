@@ -20,7 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -43,7 +42,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
 
     @Before
     public void setupLocalhost() throws UnknownHostException {
-        localhost = new InetSocketTransportAddress(InetAddress.getByAddress(new byte[] { 0x7f, 0x00, 0x00, 0x01 }), 9200);
+        localhost = new TransportAddress(InetAddress.getByAddress(new byte[] { 0x7f, 0x00, 0x00, 0x01 }), 9200);
     }
 
     public void testLocalRequestWithoutWhitelist() {
@@ -66,7 +65,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
     public void testMyselfInWhitelistRemote() throws UnknownHostException {
         Set<String> whitelist = randomWhitelist();
         whitelist.add("myself");
-        TransportAddress publishAddress = new InetSocketTransportAddress(InetAddress.getByAddress(new byte[] {0x7f,0x00,0x00,0x01}), 9200);
+        TransportAddress publishAddress = new TransportAddress(InetAddress.getByAddress(new byte[] {0x7f,0x00,0x00,0x01}), 9200);
         checkRemoteWhitelist(whitelist,
                 new RemoteInfo(randomAsciiOfLength(5), "127.0.0.1", 9200, new BytesArray("test"), null, null, emptyMap()), publishAddress);
     }

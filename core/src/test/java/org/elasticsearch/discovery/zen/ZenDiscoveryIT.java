@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -210,7 +209,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assert node != null;
 
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(state.nodes())
-                .add(new DiscoveryNode("abc", new LocalTransportAddress("abc"), emptyMap(),
+                .add(new DiscoveryNode("abc", buildNewFakeTransportAddress(), emptyMap(),
                         emptySet(), Version.CURRENT)).masterNodeId("abc");
         ClusterState.Builder builder = ClusterState.builder(state);
         builder.nodes(nodes);

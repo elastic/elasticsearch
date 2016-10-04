@@ -86,7 +86,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -1678,7 +1677,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         for (String stringAddress : stringAddresses) {
             URL url = new URL("http://" + stringAddress);
             InetAddress inetAddress = InetAddress.getByName(url.getHost());
-            transportAddresses[i++] = new InetSocketTransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
+            transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
         }
         return new ExternalTestCluster(createTempDir(), externalClusterClientSettings(), transportClientPlugins(), transportAddresses);
     }
@@ -2082,8 +2081,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         for (NodeInfo node : nodes) {
             if (node.getHttp() != null) {
                 TransportAddress publishAddress = node.getHttp().address().publishAddress();
-                assertEquals(1, publishAddress.uniqueAddressTypeId());
-                InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
+                InetSocketAddress address = publishAddress.address();
                 hosts.add(new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), protocol));
             }
         }
@@ -2119,12 +2117,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public @interface SuiteScopeTestCase {
     }
 
-
     public static Index resolveIndex(String index) {
         GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetaData.SETTING_INDEX_UUID);
         return new Index(index, uuid);
     }
-
 }

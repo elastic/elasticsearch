@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
@@ -353,7 +352,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             roles.add(mustHaveRole);
         }
         final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
-        return new DiscoveryNode(id, id, LocalTransportAddress.buildUnique(), Collections.emptyMap(), roles,
+        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles,
             Version.CURRENT);
     }
 

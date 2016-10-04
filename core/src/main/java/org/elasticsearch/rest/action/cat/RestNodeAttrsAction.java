@@ -31,7 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -109,8 +109,8 @@ public class RestNodeAttrsAction extends AbstractCatAction {
                 table.addCell(info == null ? null : info.getProcess().getId());
                 table.addCell(node.getHostName());
                 table.addCell(node.getHostAddress());
-                if (node.getAddress() instanceof InetSocketTransportAddress) {
-                    table.addCell(((InetSocketTransportAddress) node.getAddress()).address().getPort());
+                if (node.getAddress() instanceof TransportAddress) {
+                    table.addCell(((TransportAddress) node.getAddress()).address().getPort());
                 } else {
                     table.addCell("-");
                 }

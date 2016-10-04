@@ -42,7 +42,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
@@ -448,7 +447,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
 
     public  static final IndexShard recoverShard(IndexShard newShard) throws IOException {
-        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(newShard.recoverFromStore());
         newShard.updateRoutingEntry(newShard.routingEntry().moveToStarted());

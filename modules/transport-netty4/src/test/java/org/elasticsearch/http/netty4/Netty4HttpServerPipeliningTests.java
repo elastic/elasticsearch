@@ -33,7 +33,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
@@ -89,8 +89,8 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             .build();
         try (final HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
             httpServerTransport.start();
-            final InetSocketTransportAddress transportAddress =
-                (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());
+            final TransportAddress transportAddress =
+                (TransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
             final int numberOfRequests = randomIntBetween(4, 16);
             final List<String> requests = new ArrayList<>(numberOfRequests);
@@ -117,8 +117,8 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             .build();
         try (final HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
             httpServerTransport.start();
-            final InetSocketTransportAddress transportAddress =
-                (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());
+            final TransportAddress transportAddress =
+                (TransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
             final int numberOfRequests = randomIntBetween(4, 16);
             final Set<Integer> slowIds = new HashSet<>();

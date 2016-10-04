@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -229,16 +228,16 @@ public class UnicastZenPingTests extends ESTestCase {
         final DiscoveryNode node = new DiscoveryNode(nodeId, transportService.boundAddress().publishAddress(), emptyMap(), emptySet(),
             version);
         transportService.setLocalNode(node);
-        return new NetworkHandle((InetSocketTransportAddress)transport.boundAddress().publishAddress(), transportService, node, counters);
+        return new NetworkHandle((TransportAddress)transport.boundAddress().publishAddress(), transportService, node, counters);
     }
 
     private static class NetworkHandle {
-        public final InetSocketTransportAddress address;
+        public final TransportAddress address;
         public final TransportService transportService;
         public final DiscoveryNode node;
         public final ConcurrentMap<TransportAddress, AtomicInteger> counters;
 
-        public NetworkHandle(InetSocketTransportAddress address, TransportService transportService, DiscoveryNode discoveryNode,
+        public NetworkHandle(TransportAddress address, TransportService transportService, DiscoveryNode discoveryNode,
                              ConcurrentMap<TransportAddress, AtomicInteger> counters) {
             this.address = address;
             this.transportService = transportService;

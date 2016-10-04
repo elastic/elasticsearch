@@ -32,7 +32,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -123,7 +123,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             transport.httpServerAdapter((request, channel, context) ->
                     channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done"))));
             transport.start();
-            InetSocketTransportAddress remoteAddress = (InetSocketTransportAddress) randomFrom(transport.boundAddress().boundAddresses());
+            TransportAddress remoteAddress = (TransportAddress) randomFrom(transport.boundAddress().boundAddresses());
 
             try (Netty4HttpClient client = new Netty4HttpClient()) {
                 FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");

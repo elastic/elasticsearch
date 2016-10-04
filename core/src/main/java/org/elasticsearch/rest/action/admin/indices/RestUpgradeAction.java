@@ -62,8 +62,9 @@ public class RestUpgradeAction extends BaseRestHandler {
             return handleGet(request, client);
         } else if (request.method().equals(RestRequest.Method.POST)) {
             return handlePost(request, client);
+        } else {
+            throw new IllegalArgumentException("illegal method [" + request.method() + "] for request [" + request.path() + "]");
         }
-        return channel -> {};
     }
 
     private RestChannelConsumer handleGet(final RestRequest request, NodeClient client) {

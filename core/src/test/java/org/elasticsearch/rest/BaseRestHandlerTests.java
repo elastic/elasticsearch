@@ -33,6 +33,7 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.core.AnyOf.anyOf;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
 import static org.mockito.Mockito.mock;
@@ -51,12 +52,18 @@ public class BaseRestHandlerTests extends ESTestCase {
 
         final HashMap<String, String> params = new HashMap<>();
         params.put("consumed", randomAsciiOfLength(8));
-        params.put("unconsumed", randomAsciiOfLength(8));
+        params.put("unconsumed-first", randomAsciiOfLength(8));
+        params.put("unconsumed-second", randomAsciiOfLength(8));
         RestRequest request = new FakeRestRequest.Builder().withParams(params).build();
         RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
         final IllegalArgumentException e =
             expectThrows(IllegalArgumentException.class, () -> handler.handleRequest(request, channel, mock(NodeClient.class)));
-        assertThat(e, hasToString(containsString("request [/] contains unused params: [unconsumed]")));
+        assertThat(
+            e,
+            // we can not rely on ordering of the unconsumed parameters here
+            anyOf(
+                hasToString(containsString("request [/] contains unrecognized parameters: [unconsumed-first, unconsumed-second]")),
+                hasToString(containsString("request [/] contains unrecognized parameters: [unconsumed-second, unconsumed-first]"))));
         assertFalse(executed.get());
     }
 

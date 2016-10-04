@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -59,10 +58,10 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
     }
 
     @Override
-    protected void handleRequest(final RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
+    protected RestChannelConsumer doPrepareRequest(final RestRequest request, WatcherClient client) throws IOException {
         ExecuteWatchRequest executeWatchRequest = parseRequest(request, client);
 
-        client.executeWatch(executeWatchRequest, new RestBuilderListener<ExecuteWatchResponse>(channel) {
+        return channel -> client.executeWatch(executeWatchRequest, new RestBuilderListener<ExecuteWatchResponse>(channel) {
             @Override
             public RestResponse buildResponse(ExecuteWatchResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

@@ -9,12 +9,13 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 import org.elasticsearch.xpack.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -36,12 +37,12 @@ public class RestClearRolesCacheAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(RestRequest request, final RestChannel channel, NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
 
         String[] roles = request.paramAsStringArrayOrEmptyIfAll("name");
 
         ClearRolesCacheRequest req = new ClearRolesCacheRequest().names(roles);
 
-        new SecurityClient(client).clearRolesCache(req, new NodesResponseRestListener<>(channel));
+        return channel -> new SecurityClient(client).clearRolesCache(req, new NodesResponseRestListener<>(channel));
     }
 }

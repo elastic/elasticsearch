@@ -197,7 +197,7 @@ public class SecurityClient {
         return new PutRoleRequestBuilder(client).name(name);
     }
 
-    public PutRoleRequestBuilder preparePutRole(String name, BytesReference source) throws Exception {
+    public PutRoleRequestBuilder preparePutRole(String name, BytesReference source) throws IOException {
         return new PutRoleRequestBuilder(client).source(name, source);
     }
 

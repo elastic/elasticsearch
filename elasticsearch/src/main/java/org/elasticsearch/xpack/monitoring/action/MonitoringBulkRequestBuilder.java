@@ -9,6 +9,8 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 
+import java.io.IOException;
+
 public class MonitoringBulkRequestBuilder
         extends ActionRequestBuilder<MonitoringBulkRequest, MonitoringBulkResponse, MonitoringBulkRequestBuilder> {
 
@@ -22,8 +24,9 @@ public class MonitoringBulkRequestBuilder
     }
 
     public MonitoringBulkRequestBuilder add(BytesReference content, String defaultId, String defaultApiVersion, String defaultType)
-            throws Exception {
+            throws IOException {
         request.add(content, defaultId, defaultApiVersion, defaultType);
         return this;
     }
+
 }

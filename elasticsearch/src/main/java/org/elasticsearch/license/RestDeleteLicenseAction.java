@@ -7,12 +7,13 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.rest.XPackRestHandler;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
@@ -33,9 +34,10 @@ public class RestDeleteLicenseAction extends XPackRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final XPackClient client) {
-        client.es().admin().cluster().execute(DeleteLicenseAction.INSTANCE,
+    public RestChannelConsumer doPrepareRequest(final RestRequest request, final XPackClient client) throws IOException {
+        return channel -> client.es().admin().cluster().execute(DeleteLicenseAction.INSTANCE,
                                               new DeleteLicenseRequest(),
                                               new AcknowledgedRestListener<>(channel));
     }
+
 }

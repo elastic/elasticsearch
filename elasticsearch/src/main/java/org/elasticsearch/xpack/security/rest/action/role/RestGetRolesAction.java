@@ -12,15 +12,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
-import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.security.client.SecurityClient;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -47,9 +48,9 @@ public class RestGetRolesAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String[] roles = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
-        new SecurityClient(client).prepareGetRoles(roles).execute(new RestBuilderListener<GetRolesResponse>(channel) {
+        return channel -> new SecurityClient(client).prepareGetRoles(roles).execute(new RestBuilderListener<GetRolesResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetRolesResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

@@ -85,7 +85,7 @@ public class MonitoringBulkRequest extends ActionRequest<MonitoringBulkRequest> 
      * Parses a monitoring bulk request and builds the list of documents to be indexed.
      */
     public MonitoringBulkRequest add(BytesReference content, String defaultMonitoringId, String defaultMonitoringApiVersion,
-                                     String defaultType) throws Exception {
+                                     String defaultType) throws IOException {
         // MonitoringBulkRequest accepts a body request that has the same format as the BulkRequest:
         // instead of duplicating the parsing logic here we use a new BulkRequest instance to parse the content.
         BulkRequest bulkRequest = Requests.bulkRequest().add(content, null, defaultType);

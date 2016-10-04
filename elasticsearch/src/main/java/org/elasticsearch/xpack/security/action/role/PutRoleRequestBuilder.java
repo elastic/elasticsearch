@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -29,7 +30,7 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         super(client, action, new PutRoleRequest());
     }
 
-    public PutRoleRequestBuilder source(String name, BytesReference source) throws Exception {
+    public PutRoleRequestBuilder source(String name, BytesReference source) throws IOException {
         // we pass false as last parameter because we want to reject the request if field permissions
         // are given in 2.x syntax
         RoleDescriptor descriptor = RoleDescriptor.parse(name, source, false);

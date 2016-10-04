@@ -424,7 +424,6 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         assertThat(request.getMethod(), equalTo("GET"));
         assertThat(request.getPath(), startsWith(pathPrefix + "/.marvel-es-1-*"));
         assertThat(request.getPath(), containsString("filter_path=*.aliases"));
-        assertThat(request.getPath(), containsString("master_timeout=30s"));
         assertHeaders(request, customHeaders);
 
         if (expectPost) {

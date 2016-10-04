@@ -9,7 +9,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -21,6 +20,8 @@ import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.transport.actions.activate.ActivateWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.activate.ActivateWatchResponse;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -48,35 +49,37 @@ public class RestActivateWatchAction extends WatcherRestHandler {
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
+    public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) throws IOException {
         String watchId = request.param("id");
-        client.activateWatch(new ActivateWatchRequest(watchId, true), new RestBuilderListener<ActivateWatchResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(ActivateWatchResponse response, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(RestStatus.OK, builder.startObject()
-                        .field(Watch.Field.STATUS.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)
-                        .endObject());
-            }
-        });
+        return channel ->
+                client.activateWatch(new ActivateWatchRequest(watchId, true), new RestBuilderListener<ActivateWatchResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(ActivateWatchResponse response, XContentBuilder builder) throws Exception {
+                        return new BytesRestResponse(RestStatus.OK, builder.startObject()
+                                .field(Watch.Field.STATUS.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)
+                                .endObject());
+                    }
+                });
     }
 
-    static class DeactivateRestHandler extends WatcherRestHandler {
+    private static class DeactivateRestHandler extends WatcherRestHandler {
 
-        public DeactivateRestHandler(Settings settings) {
+        DeactivateRestHandler(Settings settings) {
             super(settings);
         }
 
         @Override
-        public void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
+        public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) throws IOException {
             String watchId = request.param("id");
-            client.activateWatch(new ActivateWatchRequest(watchId, false), new RestBuilderListener<ActivateWatchResponse>(channel) {
-                @Override
-                public RestResponse buildResponse(ActivateWatchResponse response, XContentBuilder builder) throws Exception {
-                    return new BytesRestResponse(RestStatus.OK, builder.startObject()
-                            .field(Watch.Field.STATUS.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)
-                            .endObject());
-                }
-            });
+            return channel ->
+                    client.activateWatch(new ActivateWatchRequest(watchId, false), new RestBuilderListener<ActivateWatchResponse>(channel) {
+                        @Override
+                        public RestResponse buildResponse(ActivateWatchResponse response, XContentBuilder builder) throws Exception {
+                            return new BytesRestResponse(RestStatus.OK, builder.startObject()
+                                    .field(Watch.Field.STATUS.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)
+                                    .endObject());
+                        }
+                    });
         }
     }
 

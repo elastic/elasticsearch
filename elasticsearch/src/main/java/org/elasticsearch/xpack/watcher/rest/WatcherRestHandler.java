@@ -5,17 +5,14 @@
  */
 package org.elasticsearch.xpack.watcher.rest;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 
-/**
- *
- */
+import java.io.IOException;
+
 public abstract class WatcherRestHandler extends BaseRestHandler {
 
     protected static String URI_BASE = "_xpack/watcher";
@@ -25,9 +22,10 @@ public abstract class WatcherRestHandler extends BaseRestHandler {
     }
 
     @Override
-    public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        handleRequest(request, channel, new WatcherClient(client));
+    public final RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        return doPrepareRequest(request, new WatcherClient(client));
     }
 
-    protected abstract void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception;
+    protected abstract RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) throws IOException;
+
 }

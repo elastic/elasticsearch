@@ -11,7 +11,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -20,6 +19,8 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.security.action.role.PutRoleRequestBuilder;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -47,16 +48,13 @@ public class RestPutRoleAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(RestRequest request, final RestChannel channel, NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         PutRoleRequestBuilder requestBuilder = new SecurityClient(client).preparePutRole(request.param("name"), request.content());
         requestBuilder.setRefreshPolicy(request.param("refresh"));
-        requestBuilder.execute(new RestBuilderListener<PutRoleResponse>(channel) {
+        return channel -> requestBuilder.execute(new RestBuilderListener<PutRoleResponse>(channel) {
             @Override
             public RestResponse buildResponse(PutRoleResponse putRoleResponse, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(RestStatus.OK,
-                        builder.startObject()
-                                .field("role", putRoleResponse)
-                                .endObject());
+                return new BytesRestResponse(RestStatus.OK, builder.startObject().field("role", putRoleResponse).endObject());
             }
         });
     }

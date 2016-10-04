@@ -11,7 +11,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -21,6 +20,8 @@ import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkRequestBuilder;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.monitoring.rest.MonitoringRestHandler;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -41,7 +42,7 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, XPackClient client) throws Exception {
+    public RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
         String defaultType = request.param("type");
 
         String id = request.param(MONITORING_ID);
@@ -64,7 +65,7 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
 
         MonitoringBulkRequestBuilder requestBuilder = client.monitoring().prepareMonitoringBulk();
         requestBuilder.add(request.content(), id, version, defaultType);
-        requestBuilder.execute(new RestBuilderListener<MonitoringBulkResponse>(channel) {
+        return channel -> requestBuilder.execute(new RestBuilderListener<MonitoringBulkResponse>(channel) {
             @Override
             public RestResponse buildResponse(MonitoringBulkResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
@@ -87,4 +88,5 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
         static final String ERRORS = "errors";
         static final String ERROR = "error";
     }
+
 }

@@ -15,4 +15,5 @@ public abstract class MonitoringRestHandler extends XPackRestHandler {
     public MonitoringRestHandler(Settings settings) {
         super(settings);
     }
+
 }

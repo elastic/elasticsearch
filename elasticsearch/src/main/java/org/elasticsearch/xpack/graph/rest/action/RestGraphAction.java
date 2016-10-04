@@ -26,19 +26,16 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.graph.action.GraphExploreRequest;
-import org.elasticsearch.xpack.graph.action.GraphExploreResponse;
 import org.elasticsearch.xpack.graph.action.Hop;
 import org.elasticsearch.xpack.graph.action.VertexRequest;
 import org.elasticsearch.xpack.graph.action.GraphExploreRequest.TermBoost;
 import org.elasticsearch.xpack.rest.XPackRestHandler;
-
 
 /**
  * @see GraphExploreRequest
@@ -84,7 +81,7 @@ public class RestGraphAction extends XPackRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final XPackClient client) throws IOException {
+    public RestChannelConsumer doPrepareRequest(final RestRequest request, final XPackClient client) throws IOException {
         GraphExploreRequest graphRequest = new GraphExploreRequest(Strings.splitStringByCommaToArray(request.param("index")));
         graphRequest.indicesOptions(IndicesOptions.fromRequest(request, graphRequest.indicesOptions()));
         graphRequest.routing(request.param("routing"));
@@ -111,7 +108,7 @@ public class RestGraphAction extends XPackRestHandler {
         }
 
         graphRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
-        client.es().execute(INSTANCE, graphRequest, new RestToXContentListener<GraphExploreResponse>(channel));
+        return channel -> client.es().execute(INSTANCE, graphRequest, new RestToXContentListener<>(channel));
     }
 
     private void parseHop(XContentParser parser, QueryParseContext context, Hop currentHop,

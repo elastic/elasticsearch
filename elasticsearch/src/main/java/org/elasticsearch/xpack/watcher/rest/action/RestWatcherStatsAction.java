@@ -10,7 +10,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsResponse;
 
+import java.io.IOException;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -39,7 +39,7 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
     }
 
     @Override
-    protected void handleRequest(final RestRequest restRequest, RestChannel restChannel, WatcherClient client) throws Exception {
+    protected RestChannelConsumer doPrepareRequest(final RestRequest restRequest, WatcherClient client) throws IOException {
         Set<String> metrics = Strings.splitStringByCommaToSet(restRequest.param("metric", ""));
 
         WatcherStatsRequest request = new WatcherStatsRequest();
@@ -51,7 +51,7 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
             request.includeQueuedWatches(metrics.contains("pending_watches"));
         }
 
-        client.watcherStats(request, new RestBuilderListener<WatcherStatsResponse>(restChannel) {
+        return channel -> client.watcherStats(request, new RestBuilderListener<WatcherStatsResponse>(channel) {
             @Override
             public RestResponse buildResponse(WatcherStatsResponse watcherStatsResponse, XContentBuilder builder) throws Exception {
                 watcherStatsResponse.toXContent(builder, restRequest);

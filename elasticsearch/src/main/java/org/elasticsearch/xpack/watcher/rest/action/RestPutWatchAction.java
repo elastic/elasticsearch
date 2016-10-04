@@ -9,7 +9,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -20,13 +19,13 @@ import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
+import java.io.IOException;
+
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestStatus.CREATED;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-/**
- */
 public class RestPutWatchAction extends WatcherRestHandler {
 
     @Inject
@@ -41,11 +40,11 @@ public class RestPutWatchAction extends WatcherRestHandler {
     }
 
     @Override
-    protected void handleRequest(final RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
+    protected RestChannelConsumer doPrepareRequest(final RestRequest request, WatcherClient client) throws IOException {
         PutWatchRequest putWatchRequest = new PutWatchRequest(request.param("id"), request.content());
         putWatchRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putWatchRequest.masterNodeTimeout()));
         putWatchRequest.setActive(request.paramAsBoolean("active", putWatchRequest.isActive()));
-        client.putWatch(putWatchRequest, new RestBuilderListener<PutWatchResponse>(channel) {
+        return channel -> client.putWatch(putWatchRequest, new RestBuilderListener<PutWatchResponse>(channel) {
             @Override
             public RestResponse buildResponse(PutWatchResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject()
@@ -58,4 +57,5 @@ public class RestPutWatchAction extends WatcherRestHandler {
             }
         });
     }
+
 }

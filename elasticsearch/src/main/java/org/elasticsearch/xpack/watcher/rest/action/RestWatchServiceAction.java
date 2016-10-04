@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
@@ -15,11 +14,11 @@ import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 import org.elasticsearch.xpack.watcher.transport.actions.service.WatcherServiceRequest;
 
+import java.io.IOException;
+
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-/**
- */
 public class RestWatchServiceAction extends WatcherRestHandler {
 
     @Inject
@@ -37,31 +36,34 @@ public class RestWatchServiceAction extends WatcherRestHandler {
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
-        client.watcherService(new WatcherServiceRequest().restart(), new AcknowledgedRestListener<>(channel));
+    public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) throws IOException {
+        return channel -> client.watcherService(new WatcherServiceRequest().restart(), new AcknowledgedRestListener<>(channel));
     }
 
-    static class StartRestHandler extends WatcherRestHandler {
+    private static class StartRestHandler extends WatcherRestHandler {
 
-        public StartRestHandler(Settings settings) {
+        StartRestHandler(Settings settings) {
             super(settings);
         }
 
         @Override
-        public void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
-            client.watcherService(new WatcherServiceRequest().start(), new AcknowledgedRestListener<>(channel));
+        public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) throws IOException {
+            return channel -> client.watcherService(new WatcherServiceRequest().start(), new AcknowledgedRestListener<>(channel));
         }
+
     }
 
-    static class StopRestHandler extends WatcherRestHandler {
+    private static class StopRestHandler extends WatcherRestHandler {
 
-        public StopRestHandler(Settings settings) {
+        StopRestHandler(Settings settings) {
             super(settings);
         }
 
         @Override
-        public void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
-            client.watcherService(new WatcherServiceRequest().stop(), new AcknowledgedRestListener<>(channel));
+        public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) throws IOException {
+            return channel -> client.watcherService(new WatcherServiceRequest().stop(), new AcknowledgedRestListener<>(channel));
         }
+
     }
+
 }

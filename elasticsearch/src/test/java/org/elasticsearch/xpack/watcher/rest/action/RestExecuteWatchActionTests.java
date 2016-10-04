@@ -41,8 +41,8 @@ public class RestExecuteWatchActionTests extends ESTestCase {
 
                     RestExecuteWatchAction restExecuteWatchAction = new RestExecuteWatchAction(Settings.EMPTY, restController,
                             triggerService);
-                    restExecuteWatchAction.handleRequest(createFakeRestRequest(randomId, recordExecution, ignoreCondition,
-                            debugCondition), restChannel, watcherClient);
+                    restExecuteWatchAction.doPrepareRequest(createFakeRestRequest(randomId, recordExecution, ignoreCondition,
+                            debugCondition), watcherClient);
 
                     assertThat(builder.request().getId(), is(randomId));
                     assertThat(builder.request().isRecordExecution(), is(Boolean.parseBoolean(recordExecution)));

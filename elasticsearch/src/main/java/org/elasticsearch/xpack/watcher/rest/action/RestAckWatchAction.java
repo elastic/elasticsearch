@@ -9,7 +9,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -21,6 +20,8 @@ import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchResponse;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -56,14 +57,14 @@ public class RestAckWatchAction extends WatcherRestHandler {
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel restChannel, WatcherClient client) throws Exception {
+    public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) throws IOException {
         AckWatchRequest ackWatchRequest = new AckWatchRequest(request.param("id"));
         String[] actions = request.paramAsStringArray("actions", null);
         if (actions != null) {
             ackWatchRequest.setActionIds(actions);
         }
         ackWatchRequest.masterNodeTimeout(request.paramAsTime("master_timeout", ackWatchRequest.masterNodeTimeout()));
-        client.ackWatch(ackWatchRequest, new RestBuilderListener<AckWatchResponse>(restChannel) {
+        return channel -> client.ackWatch(ackWatchRequest, new RestBuilderListener<AckWatchResponse>(channel) {
             @Override
             public RestResponse buildResponse(AckWatchResponse response, XContentBuilder builder) throws Exception {
                 return new BytesRestResponse(RestStatus.OK, builder.startObject()

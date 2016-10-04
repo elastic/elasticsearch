@@ -10,7 +10,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -18,13 +17,13 @@ import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
 
+import java.io.IOException;
+
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-/**
-  */
 public class RestHijackOperationAction extends WatcherRestHandler {
 
     private static final String ALLOW_DIRECT_ACCESS_TO_WATCH_INDEX_SETTING = "xpack.watcher.index.rest.direct_access";
@@ -50,32 +49,40 @@ public class RestHijackOperationAction extends WatcherRestHandler {
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
+    public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) throws IOException {
+        // we have to consume the id parameter lest the request will fail for the wrong reason
+        if (request.hasParam("id")) {
+            request.param("id");
+        }
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
-        jsonBuilder.startObject().field("error","This endpoint is not supported for " +
+        jsonBuilder.startObject().field("error", "This endpoint is not supported for " +
                 request.method().name() + " on " + WatchStore.INDEX + " index. Please use " +
                 request.method().name() + " " + URI_BASE + "/watch/<watch_id> instead");
         jsonBuilder.field("status", RestStatus.BAD_REQUEST.getStatus());
         jsonBuilder.endObject();
-        channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, jsonBuilder));
+        return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, jsonBuilder));
     }
 
-    public static class UnsupportedHandler extends WatcherRestHandler {
+    private static class UnsupportedHandler extends WatcherRestHandler {
 
-        public UnsupportedHandler(Settings settings) {
+        private UnsupportedHandler(Settings settings) {
             super(settings);
         }
 
         @Override
-        public void handleRequest(RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
-            request.path();
+        public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) throws IOException {
+            // we have to consume the id parameter lest the request will fail for the wrong reason
+            if (request.hasParam("id")) {
+                request.param("id");
+            }
             XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
-            jsonBuilder.startObject().field("error","This endpoint is not supported for " +
+            jsonBuilder.startObject().field("error", "This endpoint is not supported for " +
                     request.method().name() + " on " + WatchStore.INDEX + " index.");
             jsonBuilder.field("status", RestStatus.BAD_REQUEST.getStatus());
             jsonBuilder.endObject();
-            channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, jsonBuilder));
+            return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, jsonBuilder));
         }
+
     }
 
 }

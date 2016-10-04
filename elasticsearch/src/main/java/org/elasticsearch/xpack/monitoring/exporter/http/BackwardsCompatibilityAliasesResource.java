@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -52,9 +53,7 @@ public class BackwardsCompatibilityAliasesResource extends HttpResource {
         boolean needNewAliases = false;
         XContentBuilder request;
         try {
-            Map<String, String> params = parameters();
-            params.put("filter_path", "*.aliases");
-            Response response = client.performRequest("GET", "/.marvel-es-1-*", params);
+            Response response = client.performRequest("GET", "/.marvel-es-1-*", Collections.singletonMap("filter_path", "*.aliases"));
             try (XContentParser parser = JsonXContent.jsonXContent.createParser(response.getEntity().getContent())) {
                 Map<String, Object> indices = parser.map();
                 request = JsonXContent.contentBuilder();

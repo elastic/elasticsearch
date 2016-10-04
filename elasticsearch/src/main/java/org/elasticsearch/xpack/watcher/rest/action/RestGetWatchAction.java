@@ -9,7 +9,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -21,6 +20,8 @@ import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -38,9 +39,9 @@ public class RestGetWatchAction extends WatcherRestHandler {
     }
 
     @Override
-    protected void handleRequest(final RestRequest request, RestChannel channel, WatcherClient client) throws Exception {
+    protected RestChannelConsumer doPrepareRequest(final RestRequest request, WatcherClient client) throws IOException {
         final GetWatchRequest getWatchRequest = new GetWatchRequest(request.param("id"));
-        client.getWatch(getWatchRequest, new RestBuilderListener<GetWatchResponse>(channel) {
+        return channel -> client.getWatch(getWatchRequest, new RestBuilderListener<GetWatchResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetWatchResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject()

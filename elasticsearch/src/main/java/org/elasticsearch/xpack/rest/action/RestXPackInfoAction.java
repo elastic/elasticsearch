@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.rest.action;
 
+import java.io.IOException;
 import java.util.EnumSet;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -35,49 +35,53 @@ public class RestXPackInfoAction extends XPackRestHandler {
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel restChannel, XPackClient client) throws Exception {
+    public RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
 
         // we piggyback verbosity on "human" output
         boolean verbose = request.paramAsBoolean("human", true);
 
         EnumSet<XPackInfoRequest.Category> categories = XPackInfoRequest.Category
                 .toSet(request.paramAsStringArray("categories", new String[] { "_all" }));
-        client.prepareInfo().setVerbose(verbose).setCategories(categories).execute(new RestBuilderListener<XPackInfoResponse>(restChannel) {
-            @Override
-            public RestResponse buildResponse(XPackInfoResponse infoResponse, XContentBuilder builder) throws Exception {
+        return channel ->
+                client.prepareInfo()
+                        .setVerbose(verbose)
+                        .setCategories(categories)
+                        .execute(new RestBuilderListener<XPackInfoResponse>(channel) {
+                            @Override
+                            public RestResponse buildResponse(XPackInfoResponse infoResponse, XContentBuilder builder) throws Exception {
 
-                // we treat HEAD requests as simple pings to ensure that X-Pack is installed
-                // we still execute the action as we want this request to be authorized
-                if (request.method() == RestRequest.Method.HEAD) {
-                    return new BytesRestResponse(OK, builder);
-                }
+                                // we treat HEAD requests as simple pings to ensure that X-Pack is installed
+                                // we still execute the action as we want this request to be authorized
+                                if (request.method() == RestRequest.Method.HEAD) {
+                                    return new BytesRestResponse(OK, builder);
+                                }
 
-                builder.startObject();
+                                builder.startObject();
 
-                if (infoResponse.getBuildInfo() != null) {
-                    builder.field("build", infoResponse.getBuildInfo(), request);
-                }
+                                if (infoResponse.getBuildInfo() != null) {
+                                    builder.field("build", infoResponse.getBuildInfo(), request);
+                                }
 
-                if (infoResponse.getLicenseInfo() != null) {
-                    builder.field("license", infoResponse.getLicenseInfo(), request);
-                } else if (categories.contains(XPackInfoRequest.Category.LICENSE)) {
-                    // if the user requested the license info, and there is no license, we should send
-                    // back an explicit null value (indicating there is no license). This is different
-                    // than not adding the license info at all
-                    builder.nullField("license");
-                }
+                                if (infoResponse.getLicenseInfo() != null) {
+                                    builder.field("license", infoResponse.getLicenseInfo(), request);
+                                } else if (categories.contains(XPackInfoRequest.Category.LICENSE)) {
+                                    // if the user requested the license info, and there is no license, we should send
+                                    // back an explicit null value (indicating there is no license). This is different
+                                    // than not adding the license info at all
+                                    builder.nullField("license");
+                                }
 
-                if (infoResponse.getFeatureSetsInfo() != null) {
-                    builder.field("features", infoResponse.getFeatureSetsInfo(), request);
-                }
+                                if (infoResponse.getFeatureSetsInfo() != null) {
+                                    builder.field("features", infoResponse.getFeatureSetsInfo(), request);
+                                }
 
-                if (verbose) {
-                    builder.field("tagline", "You know, for X");
-                }
+                                if (verbose) {
+                                    builder.field("tagline", "You know, for X");
+                                }
 
-                builder.endObject();
-                return new BytesRestResponse(OK, builder);
-            }
-        });
+                                builder.endObject();
+                                return new BytesRestResponse(OK, builder);
+                            }
+                        });
     }
 }

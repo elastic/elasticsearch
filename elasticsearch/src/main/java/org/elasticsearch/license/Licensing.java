@@ -5,28 +5,21 @@
  */
 package org.elasticsearch.license;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.support.clock.Clock;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.XPackPlugin.isTribeNode;
 import static org.elasticsearch.xpack.XPackPlugin.transportClientMode;
-
 
 public class Licensing implements ActionPlugin {
 
@@ -69,4 +62,5 @@ public class Licensing implements ActionPlugin {
         // TODO convert this wildcard to a real setting
         return Collections.singletonList(Setting.groupSetting("license.", Setting.Property.NodeScope));
     }
+
 }

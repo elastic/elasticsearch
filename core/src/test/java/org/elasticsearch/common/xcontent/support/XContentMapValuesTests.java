@@ -551,4 +551,25 @@ public class XContentMapValuesTests extends ESTestCase {
                     parser.list());
         }
     }
+
+    public void testDotsInFieldNames() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("a.b", 2);
+        Map<String, Object> sub = new HashMap<>();
+        sub.put("c", 3);
+        map.put("a", sub);
+        map.put("d", 5);
+
+        // dots in field names in includes
+        Map<String, Object> filtered = XContentMapValues.filter(map, new String[] {"a"}, new String[0]);
+        Map<String, Object> expected = new HashMap<>(map);
+        expected.remove("d");
+        assertEquals(expected, filtered);
+
+        // dots in field names in excludes
+        filtered = XContentMapValues.filter(map, new String[0], new String[] {"a"});
+        expected = new HashMap<>(map);
+        expected.keySet().retainAll(Collections.singleton("d"));
+        assertEquals(expected, filtered);
+    }
 }

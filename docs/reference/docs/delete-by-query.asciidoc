@@ -233,7 +233,7 @@ You can fetch the status of any running delete-by-query requests with the
 
 [source,js]
 --------------------------------------------------
-GET _tasks?detailed=true&action=*/delete/byquery
+GET _tasks?detailed=true&actions=*/delete/byquery
 --------------------------------------------------
 // CONSOLE
 
@@ -308,7 +308,7 @@ Any Delete By Query can be canceled using the <<tasks,Task Cancel API>>:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/taskid:1/_cancel
+POST _tasks/task_id:1/_cancel
 --------------------------------------------------
 // CONSOLE
 
@@ -327,7 +327,7 @@ using the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _delete_by_query/taskid:1/_rethrottle?requests_per_second=-1
+POST _delete_by_query/task_id:1/_rethrottle?requests_per_second=-1
 --------------------------------------------------
 // CONSOLE
 

@@ -335,7 +335,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         return add(defaultIndex, defaultType, defaultFields, defaultFetchSource, null, data, allowExplicitIndex);
     }
 
-    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, @Nullable String defaultRouting, BytesReference data, boolean allowExplicitIndex) throws Exception {
+    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, @Nullable String defaultRouting, BytesReference data, boolean allowExplicitIndex) throws IOException {
         try (XContentParser parser = XContentFactory.xContent(data).createParser(data)) {
             XContentParser.Token token;
             String currentFieldName = null;

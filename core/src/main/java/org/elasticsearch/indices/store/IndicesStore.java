@@ -94,12 +94,17 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         this.threadPool = threadPool;
         transportService.registerRequestHandler(ACTION_SHARD_EXISTS, ShardActiveRequest::new, ThreadPool.Names.SAME, new ShardActiveRequestHandler());
         this.deleteShardTimeout = INDICES_STORE_DELETE_SHARD_TIMEOUT.get(settings);
-        clusterService.addLast(this);
+        // Doesn't make sense to delete shards on non-data nodes
+        if (DiscoveryNode.isDataNode(settings)) {
+            clusterService.add(this);
+        }
     }
 
     @Override
     public void close() {
-        clusterService.remove(this);
+        if (DiscoveryNode.isDataNode(settings)) {
+            clusterService.remove(this);
+        }
     }
 
     @Override

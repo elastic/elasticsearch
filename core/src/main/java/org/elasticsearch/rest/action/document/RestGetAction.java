@@ -29,13 +29,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -50,7 +51,7 @@ public class RestGetAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         getRequest.operationThreaded(true);
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
@@ -75,7 +76,7 @@ public class RestGetAction extends BaseRestHandler {
 
         getRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 
-        client.get(getRequest, new RestBuilderListener<GetResponse>(channel) {
+        return channel -> client.get(getRequest, new RestBuilderListener<GetResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

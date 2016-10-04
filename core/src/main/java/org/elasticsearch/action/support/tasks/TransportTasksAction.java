@@ -125,7 +125,7 @@ public abstract class TransportTasksAction<
         if (request.getTaskId().isSet()) {
             return new String[]{request.getTaskId().getNodeId()};
         } else {
-            return clusterState.nodes().resolveNodes(request.getNodesIds());
+            return clusterState.nodes().resolveNodes(request.getNodes());
         }
     }
 

@@ -244,32 +244,32 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(byte[] data, int from, int length) throws Exception {
+    public BulkRequest add(byte[] data, int from, int length) throws IOException {
         return add(data, from, length, null, null);
     }
 
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
+    public BulkRequest add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType) throws IOException {
         return add(new BytesArray(data, from, length), defaultIndex, defaultType);
     }
 
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType) throws IOException {
         return add(data, defaultIndex, defaultType, null, null, null, null, null, true);
     }
 
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, boolean allowExplicitIndex) throws Exception {
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, boolean allowExplicitIndex) throws IOException {
         return add(data, defaultIndex, defaultType, null, null, null, null, null, allowExplicitIndex);
     }
 
-    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String defaultRouting, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSourceContext, @Nullable String defaultPipeline, @Nullable Object payload, boolean allowExplicitIndex) throws Exception {
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String defaultRouting, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSourceContext, @Nullable String defaultPipeline, @Nullable Object payload, boolean allowExplicitIndex) throws IOException {
         XContent xContent = XContentFactory.xContent(data);
         int line = 0;
         int from = 0;

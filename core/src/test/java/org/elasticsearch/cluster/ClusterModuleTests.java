@@ -19,17 +19,25 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
-import org.elasticsearch.cluster.metadata.IndexTemplateFilter;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -40,9 +48,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.ClusterPlugin;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -155,5 +166,35 @@ public class ClusterModuleTests extends ModuleTestCase {
         Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "bad").build();
         NullPointerException e = expectThrows(NullPointerException.class, () ->
             newClusterModuleWithShardsAllocator(settings, "bad", () -> null));
+    }
+
+    // makes sure that the allocation deciders are setup in the correct order, such that the
+    // slower allocation deciders come last and we can exit early if there is a NO decision without
+    // running them. If the order of the deciders is changed for a valid reason, the order should be
+    // changed in the test too.
+    public void testAllocationDeciderOrder() {
+        List<Class<? extends AllocationDecider>> expectedDeciders = Arrays.asList(
+            MaxRetryAllocationDecider.class,
+            ReplicaAfterPrimaryActiveAllocationDecider.class,
+            RebalanceOnlyWhenActiveAllocationDecider.class,
+            ClusterRebalanceAllocationDecider.class,
+            ConcurrentRebalanceAllocationDecider.class,
+            EnableAllocationDecider.class,
+            NodeVersionAllocationDecider.class,
+            SnapshotInProgressAllocationDecider.class,
+            FilterAllocationDecider.class,
+            SameShardAllocationDecider.class,
+            DiskThresholdDecider.class,
+            ThrottlingAllocationDecider.class,
+            ShardsLimitAllocationDecider.class,
+            AwarenessAllocationDecider.class);
+        Collection<AllocationDecider> deciders = ClusterModule.createAllocationDeciders(Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), Collections.emptyList());
+        Iterator<AllocationDecider> iter = deciders.iterator();
+        int idx = 0;
+        while (iter.hasNext()) {
+            AllocationDecider decider = iter.next();
+            assertSame(decider.getClass(), expectedDeciders.get(idx++));
+        }
     }
 }

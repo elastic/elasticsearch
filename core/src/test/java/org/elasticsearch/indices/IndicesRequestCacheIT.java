@@ -34,6 +34,8 @@ import org.joda.time.chrono.ISOChronology;
 import java.util.List;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRange;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -406,11 +408,33 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
                 equalTo(0L));
 
-        // If size > 1 and cache flag is set on the request we should cache
-        final SearchResponse r4 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(1)
-                .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-21").lte("2016-03-27")).get();
+        // If the request has an aggregation containng now we should not cache
+        final SearchResponse r4 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
+                .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
+                .addAggregation(filter("foo", QueryBuilders.rangeQuery("s").from("now-10y").to("now"))).get();
         assertSearchResponse(r4);
         assertThat(r4.getHits().getTotalHits(), equalTo(7L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(0L));
+
+        // If the request has an aggregation containng now we should not cache
+        final SearchResponse r5 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
+                .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
+                .addAggregation(dateRange("foo").field("s").addRange("now-10y", "now")).get();
+        assertSearchResponse(r5);
+        assertThat(r5.getHits().getTotalHits(), equalTo(7L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(0L));
+
+        // If size > 1 and cache flag is set on the request we should cache
+        final SearchResponse r6 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(1)
+                .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-21").lte("2016-03-27")).get();
+        assertSearchResponse(r6);
+        assertThat(r6.getHits().getTotalHits(), equalTo(7L));
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
                 equalTo(0L));
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),

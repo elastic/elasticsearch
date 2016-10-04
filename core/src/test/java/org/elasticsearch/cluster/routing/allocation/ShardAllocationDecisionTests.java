@@ -51,7 +51,7 @@ public class ShardAllocationDecisionTests extends ESTestCase {
         final AllocationStatus allocationStatus = randomFrom(
             AllocationStatus.DELAYED_ALLOCATION, AllocationStatus.NO_VALID_SHARD_COPY, AllocationStatus.FETCHING_SHARD_DATA
         );
-        ShardAllocationDecision noDecision = ShardAllocationDecision.noDecision(allocationStatus, "something is wrong");
+        ShardAllocationDecision noDecision = ShardAllocationDecision.no(allocationStatus, "something is wrong");
         assertTrue(noDecision.isDecisionTaken());
         assertEquals(Decision.Type.NO, noDecision.getFinalDecision());
         assertEquals(allocationStatus, noDecision.getAllocationStatus());
@@ -63,7 +63,7 @@ public class ShardAllocationDecisionTests extends ESTestCase {
         Map<String, Decision> nodeDecisions = new HashMap<>();
         nodeDecisions.put("node1", Decision.NO);
         nodeDecisions.put("node2", Decision.NO);
-        noDecision = ShardAllocationDecision.noDecision(AllocationStatus.DECIDERS_NO, "something is wrong", nodeDecisions);
+        noDecision = ShardAllocationDecision.no(AllocationStatus.DECIDERS_NO, "something is wrong", nodeDecisions);
         assertTrue(noDecision.isDecisionTaken());
         assertEquals(Decision.Type.NO, noDecision.getFinalDecision());
         assertEquals(AllocationStatus.DECIDERS_NO, noDecision.getAllocationStatus());
@@ -73,14 +73,14 @@ public class ShardAllocationDecisionTests extends ESTestCase {
         assertNull(noDecision.getAllocationId());
 
         // test bad values
-        expectThrows(NullPointerException.class, () -> ShardAllocationDecision.noDecision(null, "a"));
+        expectThrows(NullPointerException.class, () -> ShardAllocationDecision.no(null, "a"));
     }
 
     public void testThrottleDecision() {
         Map<String, Decision> nodeDecisions = new HashMap<>();
         nodeDecisions.put("node1", Decision.NO);
         nodeDecisions.put("node2", Decision.THROTTLE);
-        ShardAllocationDecision throttleDecision = ShardAllocationDecision.throttleDecision("too much happening", nodeDecisions);
+        ShardAllocationDecision throttleDecision = ShardAllocationDecision.throttle("too much happening", nodeDecisions);
         assertTrue(throttleDecision.isDecisionTaken());
         assertEquals(Decision.Type.THROTTLE, throttleDecision.getFinalDecision());
         assertEquals(AllocationStatus.DECIDERS_THROTTLED, throttleDecision.getAllocationStatus());
@@ -95,7 +95,7 @@ public class ShardAllocationDecisionTests extends ESTestCase {
         nodeDecisions.put("node1", Decision.YES);
         nodeDecisions.put("node2", Decision.NO);
         String allocId = randomBoolean() ? "allocId" : null;
-        ShardAllocationDecision yesDecision = ShardAllocationDecision.yesDecision(
+        ShardAllocationDecision yesDecision = ShardAllocationDecision.yes(
             "node1", "node was very kind", allocId, nodeDecisions
         );
         assertTrue(yesDecision.isDecisionTaken());
@@ -112,26 +112,26 @@ public class ShardAllocationDecisionTests extends ESTestCase {
             AllocationStatus.NO_VALID_SHARD_COPY, AllocationStatus.FETCHING_SHARD_DATA, AllocationStatus.DELAYED_ALLOCATION);
         for (AllocationStatus allocationStatus : cachableStatuses) {
             if (allocationStatus == AllocationStatus.DECIDERS_THROTTLED) {
-                ShardAllocationDecision cached = ShardAllocationDecision.throttleDecision(null, null);
-                ShardAllocationDecision another = ShardAllocationDecision.throttleDecision(null, null);
+                ShardAllocationDecision cached = ShardAllocationDecision.throttle(null, null);
+                ShardAllocationDecision another = ShardAllocationDecision.throttle(null, null);
                 assertSame(cached, another);
-                ShardAllocationDecision notCached = ShardAllocationDecision.throttleDecision("abc", null);
-                another = ShardAllocationDecision.throttleDecision("abc", null);
+                ShardAllocationDecision notCached = ShardAllocationDecision.throttle("abc", null);
+                another = ShardAllocationDecision.throttle("abc", null);
                 assertNotSame(notCached, another);
             } else {
-                ShardAllocationDecision cached = ShardAllocationDecision.noDecision(allocationStatus, null);
-                ShardAllocationDecision another = ShardAllocationDecision.noDecision(allocationStatus, null);
+                ShardAllocationDecision cached = ShardAllocationDecision.no(allocationStatus, null);
+                ShardAllocationDecision another = ShardAllocationDecision.no(allocationStatus, null);
                 assertSame(cached, another);
-                ShardAllocationDecision notCached = ShardAllocationDecision.noDecision(allocationStatus, "abc");
-                another = ShardAllocationDecision.noDecision(allocationStatus, "abc");
+                ShardAllocationDecision notCached = ShardAllocationDecision.no(allocationStatus, "abc");
+                another = ShardAllocationDecision.no(allocationStatus, "abc");
                 assertNotSame(notCached, another);
             }
         }
 
         // yes decisions are not precomputed and cached
         Map<String, Decision> dummyMap = Collections.emptyMap();
-        ShardAllocationDecision first = ShardAllocationDecision.yesDecision("node1", "abc", "alloc1", dummyMap);
-        ShardAllocationDecision second = ShardAllocationDecision.yesDecision("node1", "abc", "alloc1", dummyMap);
+        ShardAllocationDecision first = ShardAllocationDecision.yes("node1", "abc", "alloc1", dummyMap);
+        ShardAllocationDecision second = ShardAllocationDecision.yes("node1", "abc", "alloc1", dummyMap);
         // same fields for the ShardAllocationDecision, but should be different instances
         assertNotSame(first, second);
     }

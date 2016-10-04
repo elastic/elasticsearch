@@ -92,17 +92,16 @@ public class ShardAllocationDecision {
     /**
      * Returns a NO decision with the given {@link AllocationStatus} and explanation for the NO decision, if in explain mode.
      */
-    public static ShardAllocationDecision noDecision(AllocationStatus allocationStatus, @Nullable String explanation) {
-        return noDecision(allocationStatus, explanation, null);
+    public static ShardAllocationDecision no(AllocationStatus allocationStatus, @Nullable String explanation) {
+        return no(allocationStatus, explanation, null);
     }
 
     /**
      * Returns a NO decision with the given {@link AllocationStatus}, and the explanation for the NO decision
      * as well as the individual node-level decisions that comprised the final NO decision if in explain mode.
      */
-    public static ShardAllocationDecision noDecision(AllocationStatus allocationStatus,
-                                                     @Nullable String explanation,
-                                                     @Nullable Map<String, Decision> nodeDecisions) {
+    public static ShardAllocationDecision no(AllocationStatus allocationStatus, @Nullable String explanation,
+                                             @Nullable Map<String, Decision> nodeDecisions) {
         Objects.requireNonNull(allocationStatus, "allocationStatus must not be null");
         if (explanation != null) {
             return new ShardAllocationDecision(Type.NO, allocationStatus, explanation, null, null, nodeDecisions);
@@ -115,8 +114,7 @@ public class ShardAllocationDecision {
      * Returns a THROTTLE decision, with the given explanation and individual node-level decisions that
      * comprised the final THROTTLE decision if in explain mode.
      */
-    public static ShardAllocationDecision throttleDecision(@Nullable String explanation,
-                                                           @Nullable Map<String, Decision> nodeDecisions) {
+    public static ShardAllocationDecision throttle(@Nullable String explanation, @Nullable Map<String, Decision> nodeDecisions) {
         if (explanation != null) {
             return new ShardAllocationDecision(Type.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, explanation, null, null, nodeDecisions);
         } else {
@@ -129,10 +127,8 @@ public class ShardAllocationDecision {
      * comprised the final YES decision, along with the node id to which the shard is assigned and
      * the allocation id for the shard, if available.
      */
-    public static ShardAllocationDecision yesDecision(String assignedNodeId,
-                                                      @Nullable String explanation,
-                                                      @Nullable String allocationId,
-                                                      @Nullable Map<String, Decision> nodeDecisions) {
+    public static ShardAllocationDecision yes(String assignedNodeId, @Nullable String explanation, @Nullable String allocationId,
+                                              @Nullable Map<String, Decision> nodeDecisions) {
         Objects.requireNonNull(assignedNodeId, "assignedNodeId must not be null");
         return new ShardAllocationDecision(Type.YES, null, explanation, assignedNodeId, allocationId, nodeDecisions);
     }

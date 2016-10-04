@@ -155,7 +155,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         Tuple<Decision, Map<String, Decision>> allocateDecision = canBeAllocatedToAtLeastOneNode(unassignedShard, allocation, explain);
         if (allocateDecision.v1().type() != Decision.Type.YES) {
             logger.trace("{}: ignoring allocation, can't be allocated on any node", unassignedShard);
-            return ShardAllocationDecision.noDecision(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.v1()),
+            return ShardAllocationDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.v1()),
                 explain ? "all nodes returned a " + allocateDecision.v1().type() + " decision for allocating the replica shard" : null,
                 allocateDecision.v2());
         }
@@ -164,7 +164,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         if (shardStores.hasData() == false) {
             logger.trace("{}: ignoring allocation, still fetching shard stores", unassignedShard);
             allocation.setHasPendingAsyncFetch();
-            return ShardAllocationDecision.noDecision(AllocationStatus.FETCHING_SHARD_DATA,
+            return ShardAllocationDecision.no(AllocationStatus.FETCHING_SHARD_DATA,
                 explain ? "still fetching shard state from the nodes in the cluster" : null);
         }
 
@@ -191,14 +191,14 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 logger.debug("[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent store",
                     unassignedShard.index(), unassignedShard.id(), unassignedShard, nodeWithHighestMatch.node());
                 // we are throttling this, as we have enough other shards to allocate to this node, so ignore it for now
-                return ShardAllocationDecision.throttleDecision(explain ?
+                return ShardAllocationDecision.throttle(explain ?
                     "returned a THROTTLE decision on each node that has an existing copy of the shard, so waiting to re-use one " +
                     "of those copies" : null, matchingNodes.nodeDecisions);
             } else {
                 logger.debug("[{}][{}]: allocating [{}] to [{}] in order to reuse its unallocated persistent store",
                     unassignedShard.index(), unassignedShard.id(), unassignedShard, nodeWithHighestMatch.node());
                 // we found a match
-                return ShardAllocationDecision.yesDecision(nodeWithHighestMatch.nodeId(),
+                return ShardAllocationDecision.yes(nodeWithHighestMatch.nodeId(),
                     "allocating to node [" + nodeWithHighestMatch.nodeId() + "] in order to re-use its unallocated persistent store",
                     null,
                     matchingNodes.nodeDecisions);
@@ -208,7 +208,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             // unassigned due to a node leaving, so we delay allocation of this replica to see if the
             // node with the shard copy will rejoin so we can re-use the copy it has
             logger.debug("{}: allocation of [{}] is delayed", unassignedShard.shardId(), unassignedShard);
-            return ShardAllocationDecision.noDecision(AllocationStatus.DELAYED_ALLOCATION,
+            return ShardAllocationDecision.no(AllocationStatus.DELAYED_ALLOCATION,
                 explain ? "not allocating this shard, no nodes contain data for the replica and allocation is delayed" : null);
         }
 

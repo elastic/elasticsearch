@@ -122,7 +122,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         final FetchResult<NodeGatewayStartedShards> shardState = fetchData(unassignedShard, allocation);
         if (shardState.hasData() == false) {
             allocation.setHasPendingAsyncFetch();
-            return ShardAllocationDecision.noDecision(AllocationStatus.FETCHING_SHARD_DATA,
+            return ShardAllocationDecision.no(AllocationStatus.FETCHING_SHARD_DATA,
                 explain ? "still fetching shard state from the nodes in the cluster" : null);
         }
 
@@ -178,7 +178,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 // this shard will be picked up when the node joins and we do another allocation reroute
                 logger.debug("[{}][{}]: not allocating, number_of_allocated_shards_found [{}]",
                              unassignedShard.index(), unassignedShard.id(), nodeShardsResult.allocationsFound);
-                return ShardAllocationDecision.noDecision(AllocationStatus.NO_VALID_SHARD_COPY, explain ?
+                return ShardAllocationDecision.no(AllocationStatus.NO_VALID_SHARD_COPY, explain ?
                     "shard was previously allocated, but no valid shard copy could be found amongst the nodes in the cluster" : null);
             }
         }
@@ -191,7 +191,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             logger.debug("[{}][{}]: allocating [{}] to [{}] on primary allocation",
                          unassignedShard.index(), unassignedShard.id(), unassignedShard, decidedNode.nodeShardState.getNode());
             final String nodeId = decidedNode.nodeShardState.getNode().getId();
-            return ShardAllocationDecision.yesDecision(nodeId,
+            return ShardAllocationDecision.yes(nodeId,
                 "the allocation deciders returned a YES decision to allocate to node [" + nodeId + "]",
                 decidedNode.nodeShardState.allocationId(),
                 buildNodeDecisions(nodesToAllocate, explain));
@@ -207,20 +207,20 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 logger.debug("[{}][{}]: allocating [{}] to [{}] on forced primary allocation",
                              unassignedShard.index(), unassignedShard.id(), unassignedShard, nodeShardState.getNode());
                 final String nodeId = nodeShardState.getNode().getId();
-                return ShardAllocationDecision.yesDecision(nodeId,
+                return ShardAllocationDecision.yes(nodeId,
                     "allocating the primary shard to node [" + nodeId+ "], which has a complete copy of the shard data",
                     nodeShardState.allocationId(),
                     buildNodeDecisions(nodesToForceAllocate, explain));
             } else if (nodesToForceAllocate.throttleNodeShards.isEmpty() == false) {
                 logger.debug("[{}][{}]: throttling allocation [{}] to [{}] on forced primary allocation",
                              unassignedShard.index(), unassignedShard.id(), unassignedShard, nodesToForceAllocate.throttleNodeShards);
-                return ShardAllocationDecision.throttleDecision(explain ?
+                return ShardAllocationDecision.throttle(explain ?
                         "allocation throttled as all nodes to which the shard may be force allocated are busy with other recoveries" : null,
                     buildNodeDecisions(nodesToForceAllocate, explain));
             } else {
                 logger.debug("[{}][{}]: forced primary allocation denied [{}]",
                              unassignedShard.index(), unassignedShard.id(), unassignedShard);
-                return ShardAllocationDecision.noDecision(AllocationStatus.DECIDERS_NO,
+                return ShardAllocationDecision.no(AllocationStatus.DECIDERS_NO,
                     explain ? "all nodes that hold a valid shard copy returned a NO decision, and force allocation is not permitted" : null,
                     buildNodeDecisions(nodesToForceAllocate, explain));
             }
@@ -229,7 +229,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             // taking place on the node currently, ignore it for now
             logger.debug("[{}][{}]: throttling allocation [{}] to [{}] on primary allocation",
                          unassignedShard.index(), unassignedShard.id(), unassignedShard, nodesToAllocate.throttleNodeShards);
-            return ShardAllocationDecision.throttleDecision(
+            return ShardAllocationDecision.throttle(
                 explain ? "allocation throttled as all nodes to which the shard may be allocated are busy with other recoveries" : null,
                 buildNodeDecisions(nodesToAllocate, explain));
         }

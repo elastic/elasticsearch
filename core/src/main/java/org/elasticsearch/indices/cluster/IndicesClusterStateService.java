@@ -225,6 +225,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
         }
 
+        DiscoveryNode localNode = event.state().nodes().localNode();
         for (String index : event.indicesDeleted()) {
             if (logger.isDebugEnabled()) {
                 logger.debug("[{}] cleaning index, no longer part of the metadata", index);
@@ -238,7 +239,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 final IndexMetaData metaData = previousState.metaData().index(index);
                 assert metaData != null;
                 indexSettings = metaData.getSettings();
-                indicesService.deleteClosedIndex("closed index no longer part of the metadata", metaData, event.state());
+                // only delete closed indices on data / master nodes
+                if (localNode.isMasterNode() || localNode.isDataNode()) {
+                    indicesService.deleteClosedIndex("closed index no longer part of the metadata", metaData, event.state());
+                }
             }
             try {
                 nodeIndexDeletedAction.nodeIndexDeleted(event.state(), index, indexSettings, localNodeId);

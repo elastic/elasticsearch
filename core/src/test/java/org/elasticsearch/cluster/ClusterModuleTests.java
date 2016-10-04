@@ -182,12 +182,12 @@ public class ClusterModuleTests extends ModuleTestCase {
             EnableAllocationDecider.class,
             NodeVersionAllocationDecider.class,
             SnapshotInProgressAllocationDecider.class,
+            FilterAllocationDecider.class,
             SameShardAllocationDecider.class,
             DiskThresholdDecider.class,
             ThrottlingAllocationDecider.class,
             ShardsLimitAllocationDecider.class,
-            AwarenessAllocationDecider.class,
-            FilterAllocationDecider.class);
+            AwarenessAllocationDecider.class);
         Collection<AllocationDecider> deciders = ClusterModule.createAllocationDeciders(Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), Collections.emptyList());
         Iterator<AllocationDecider> iter = deciders.iterator();

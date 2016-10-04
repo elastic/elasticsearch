@@ -21,10 +21,15 @@ package org.elasticsearch.search.aggregations.metrics.geoheatmap;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
+import org.apache.lucene.spatial.query.SpatialArgs;
+import org.apache.lucene.spatial.query.SpatialOperation;
 import org.elasticsearch.common.geo.SpatialStrategy;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper.GeoShapeFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -40,6 +45,9 @@ import org.locationtech.spatial4j.shape.Shape;
 /**
  */
 public class GeoHeatmapAggregatorFactory extends AggregatorFactory<GeoHeatmapAggregatorFactory> {
+
+    public static final double DEFAULT_DIST_ERR_PCT = 0.15;
+    public static final int DEFAULT_MAX_CELLS = 100_000;
 
     private final int maxCells;
     private final int gridLevel;
@@ -62,6 +70,10 @@ public class GeoHeatmapAggregatorFactory extends AggregatorFactory<GeoHeatmapAgg
      * @param maxCells
      *            the maximum number of cells (grid squares) that could possibly
      *            be returned from the heatmap
+     * @param distErr
+     *            the maximum error distance allowable between the indexed shape and the cells 
+     * @param distErrPct
+     *            the maximum error ratio between the indexed shape and the heatmap shape
      * @param gridLevel
      *            manually set the granularity of the grid
      * @param context
@@ -75,7 +87,8 @@ public class GeoHeatmapAggregatorFactory extends AggregatorFactory<GeoHeatmapAgg
      * @throws IOException
      *             if an error occurs creating the factory
      */
-    public GeoHeatmapAggregatorFactory(String name, Type type, String field, Shape inputShape, int maxCells, int gridLevel,
+    public GeoHeatmapAggregatorFactory(String name, Type type, String field, Optional<Shape> inputShape, Optional<Integer> maxCells, 
+            Optional<Double> distErr, Optional<Double> distErrPct, Optional<Integer> gridLevel,
             AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
 
@@ -84,21 +97,38 @@ public class GeoHeatmapAggregatorFactory extends AggregatorFactory<GeoHeatmapAgg
         if (fieldType.typeName().equals(GeoShapeFieldMapper.CONTENT_TYPE)) {
             GeoShapeFieldType geoFieldType = (GeoShapeFieldType) fieldType;
             this.strategy = geoFieldType.resolveStrategy(SpatialStrategy.RECURSIVE);
-
         } else {
-            throw new AggregationInitializationException(
-                    "Field [" + field + "] is a " + fieldType.typeName() + " instead of a " + GeoShapeFieldMapper.CONTENT_TYPE + " type");
+            throw new AggregationInitializationException(String.format(Locale.ROOT,
+                    "Field [%s] is a %s instead of a %s type",
+                    field, fieldType.typeName(), GeoShapeFieldMapper.CONTENT_TYPE));
         }
-        this.inputShape = inputShape;
-        this.maxCells = maxCells;
-        this.gridLevel = gridLevel;
+        this.inputShape = inputShape.orElse(strategy.getSpatialContext().getWorldBounds());
+        this.maxCells = maxCells.orElse(DEFAULT_MAX_CELLS);
+        this.gridLevel = gridLevel.orElse(resolveGridLevel(distErr, distErrPct));
     }
 
     @Override
     public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
         return new GeoHeatmapAggregator(name, inputShape, strategy, maxCells, gridLevel, context, parent, pipelineAggregators, metaData);
-
+    }
+    
+    private Integer resolveGridLevel(Optional<Double> distErrOp, Optional<Double> distErrPctOp) {
+        SpatialArgs spatialArgs = new SpatialArgs(SpatialOperation.Intersects, this.inputShape);
+        if (distErrOp.isPresent()) {
+            spatialArgs.setDistErr(distErrOp.get() * DistanceUnit.DEFAULT.getDistancePerDegree());
+        }    
+        spatialArgs.setDistErrPct(distErrPctOp.orElse(DEFAULT_DIST_ERR_PCT));
+        double distErr = spatialArgs.resolveDistErr(strategy.getSpatialContext(), DEFAULT_DIST_ERR_PCT);
+        if (distErr <= 0) {
+          throw new AggregationInitializationException(String.format(Locale.ROOT,
+              "%s or %s should be > 0 or instead provide %s=%s for absolute maximum detail", 
+                  GeoHeatmapAggregationBuilder.DIST_ERR_PCT_FIELD, 
+                  GeoHeatmapAggregationBuilder.DIST_ERR_FIELD,
+                  GeoHeatmapAggregationBuilder.GRID_LEVEL_FIELD,
+                  strategy.getGrid().getMaxLevels()));
+        }
+        return strategy.getGrid().getLevelForDistance(distErr);
     }
 
 }

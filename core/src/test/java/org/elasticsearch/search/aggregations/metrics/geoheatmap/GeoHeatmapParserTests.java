@@ -26,7 +26,6 @@ import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.search.aggregations.metrics.geoheatmap.GeoHeatmapAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 /**
@@ -35,16 +34,37 @@ import org.elasticsearch.test.ESTestCase;
 public class GeoHeatmapParserTests extends ESTestCase {
 
     /**
-     * Verifies that integers can be used in the grid_level and max_cells
-     * parameters
-     */
-    public void testParseValidFromInts() throws Exception {
-        int gridLevel = randomIntBetween(1, 12);
-        int maxCells = randomIntBetween(1, 100_000);
-        XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"my_loc\", \"grid_level\":" + gridLevel
-                + ", \"max_cells\":" + maxCells + ", \"geom\":{\"geo_shape\": {" + "    \"location\": {" + "       \"shape\": {"
-                + "       \"type\": \"envelope\"," + "        \"coordinates\" : [[13.0, 53.0], [14.0, 52.0]]" + "     },"
-                + "      \"relation\": \"within\"" + "   }" + "}}}");
+    * Randomly verifies possible field values are able to parse, except the geo_shape query
+    * parsing which has its own tests
+    */    
+    public void testParsing() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        sb.append("\"field\": \"my_loc\"");
+        if (randomBoolean()) {
+            appendRandomNumericOrString(sb, "grid_level", ""+randomInt()+"");
+        } else {
+            if (randomBoolean()) {
+                sb.append(", \"dist_err\": \""+randomDouble()+" "+randomUnits()+ "\"");
+            }
+            appendRandomNumericOrString(sb, "dist_err_pct", ""+randomDouble()+"");            
+        }
+        if (randomBoolean()) {
+            appendRandomNumericOrString(sb, "max_cells", ""+randomInt()+"");
+        }
+        if (randomBoolean()) {
+            sb.append(
+                ", \"geom\":{"
+                + "     \"geo_shape\": {"
+                + "         \"location\": {" 
+                + "             \"shape\": {"
+                + "                 \"type\": \"envelope\","
+                + "                 \"coordinates\" : [[13.0, 53.0], [14.0, 52.0]]" 
+                + "             },"
+                + "             \"relation\": \"within\"}}}");
+        }
+        sb.append("}");
+        XContentParser stParser = JsonXContent.jsonXContent.createParser(sb.toString());
         QueryParser<GeoShapeQueryBuilder> parser = GeoShapeQueryBuilder::fromXContent;
         IndicesQueriesRegistry mockRegistry = new IndicesQueriesRegistry();
         mockRegistry.register(parser, "geo_shape");
@@ -52,30 +72,21 @@ public class GeoHeatmapParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         GeoHeatmapAggregationBuilder builder = GeoHeatmapAggregationBuilder.parse("geo_heatmap", parseContext);
-        // can create a factory
         assertNotNull(builder);
     }
-
-    /**
-     * Verifies that integer strings can be used in the grid_level and max_cells
-     * parameters
-     */
-    public void testParseValidFromStrings() throws Exception {
-        int gridLevel = randomIntBetween(1, 12);
-        int maxCells = randomIntBetween(1, 100_000);
-        XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"my_loc\", \"grid_level\":\"" + gridLevel
-                + "\", \"max_cells\": \"" + maxCells + "\"" + ", \"geom\":{\"geo_shape\": {" + "    \"location\": {" + "       \"shape\": {"
-                + "       \"type\": \"envelope\"," + "        \"coordinates\" : [[13.0, 53.0], [14.0, 52.0]]" + "     },"
-                + "      \"relation\": \"within\"" + "   }" + "}}}");
-        QueryParser<GeoShapeQueryBuilder> parser = GeoShapeQueryBuilder::fromXContent;
-        IndicesQueriesRegistry mockRegistry = new IndicesQueriesRegistry();
-        mockRegistry.register(parser, "geo_shape");
-        QueryParseContext parseContext = new QueryParseContext(mockRegistry, stParser, ParseFieldMatcher.STRICT);
-        XContentParser.Token token = stParser.nextToken();
-        assertSame(XContentParser.Token.START_OBJECT, token);
-        GeoHeatmapAggregationBuilder builder = GeoHeatmapAggregationBuilder.parse("geo_heatmap", parseContext);
-        // can create a factory
-        assertNotNull(builder);
+    
+    private void appendRandomNumericOrString(StringBuilder sb, String field, String value) {
+        if (randomBoolean()) {
+            sb.append(", \""+field+"\": \""+value+"\"");
+        } else {
+            sb.append(", \"grid_level\": "+value);                
+        }  
+    }
+    
+    private String randomUnits() {
+        // Do this the hard way because not all names for the units are visible in DistanceUnit
+        return randomFrom("in", "inch", "yd", "yard", "mi", "miles", "km", "kilometers", "m", "meters",
+                "cm", "centimeters", "mm", "millimeters");
     }
 
 }

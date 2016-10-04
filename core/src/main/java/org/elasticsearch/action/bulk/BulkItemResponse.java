@@ -21,6 +21,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.DocumentRequest.OpType;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -301,7 +302,11 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         id = in.readVInt();
-        opType = OpType.fromId(in.readByte());
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+            opType = OpType.fromId(in.readByte());
+        } else {
+            opType = OpType.fromString(in.readString());
+        }
 
         byte type = in.readByte();
         if (type == 0) {

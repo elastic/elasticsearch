@@ -106,15 +106,15 @@ public interface DocumentRequest<T> extends IndicesRequest {
      */
     enum OpType {
         /**
-         * Creates the resource. Simply adds it to the index, if there is an existing
-         * document with the id, then it won't be removed.
-         */
-        CREATE(0),
-        /**
          * Index the source. If there an existing document with the id, it will
          * be replaced.
          */
-        INDEX(1),
+        INDEX(0),
+        /**
+         * Creates the resource. Simply adds it to the index, if there is an existing
+         * document with the id, then it won't be removed.
+         */
+        CREATE(1),
         /** Updates a document */
         UPDATE(2),
         /** Deletes a document */
@@ -138,12 +138,22 @@ public interface DocumentRequest<T> extends IndicesRequest {
 
         public static OpType fromId(byte id) {
             switch (id) {
-                case 0: return CREATE;
-                case 1: return INDEX;
+                case 0: return INDEX;
+                case 1: return CREATE;
                 case 2: return UPDATE;
                 case 3: return DELETE;
                 default: throw new IllegalArgumentException("Unknown opType: [" + id + "]");
             }
+        }
+
+        public static OpType fromString(String sOpType) {
+            String lowerCase = sOpType.toLowerCase(Locale.ENGLISH);
+            for (OpType opType : OpType.values()) {
+                if (opType.getLowercase().equals(lowerCase)) {
+                    return opType;
+                }
+            }
+            throw new IllegalArgumentException("Unknown opType: [" + sOpType + "]");
         }
     }
 }

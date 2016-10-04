@@ -70,11 +70,11 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
         action.accept(channel);
     }
 
-    @FunctionalInterface
     /**
      * REST requests are handled by preparing a channel consumer that represents the execution of
      * the request against a channel.
      */
+    @FunctionalInterface
     protected interface RestChannelConsumer {
         /**
          * Executes a request against the given channel.

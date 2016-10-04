@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
@@ -30,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
@@ -81,7 +81,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
 
         String[] texts = request.paramAsStringArrayOrEmptyIfAll("text");
         deprecationLog("text", request);
@@ -111,7 +111,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
 
         handleBodyContent(request, texts, analyzeRequest);
 
-        client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<>(channel));
+        return channel -> client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<>(channel));
     }
 
     void handleBodyContent(RestRequest request, String[] texts, AnalyzeRequest analyzeRequest) {
@@ -213,4 +213,5 @@ public class RestAnalyzeAction extends BaseRestHandler {
             throw new IllegalArgumentException("Failed to parse request body", e);
         }
     }
+
 }

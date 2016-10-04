@@ -30,6 +30,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -63,7 +64,12 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
 
         // validate the non-response params
         if (!unconsumedParams.isEmpty()) {
-            throw new IllegalArgumentException("request [" + request.path() + "] contains unused params: " + unconsumedParams.toString());
+            final String message = String.format(
+                Locale.ROOT,
+                "request [%s] contains unrecognized parameters: %s",
+                request.path(),
+                unconsumedParams.toString());
+            throw new IllegalArgumentException(message);
         }
 
         // execute the action

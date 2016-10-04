@@ -33,7 +33,6 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.hamcrest.core.AnyOf.anyOf;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
 import static org.mockito.Mockito.mock;
@@ -58,12 +57,40 @@ public class BaseRestHandlerTests extends ESTestCase {
         RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
         final IllegalArgumentException e =
             expectThrows(IllegalArgumentException.class, () -> handler.handleRequest(request, channel, mock(NodeClient.class)));
+        assertThat(e, hasToString(containsString("request [/] contains unrecognized parameters: [unconsumed-first], [unconsumed-second]")));
+        assertFalse(executed.get());
+    }
+
+    public void testUnconsumedParametersDidYouMean() throws Exception {
+        final AtomicBoolean executed = new AtomicBoolean();
+        BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+            @Override
+            protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+                request.param("consumed");
+                request.param("field");
+                request.param("tokenizer");
+                request.param("very_close_to_parameter_1");
+                request.param("very_close_to_parameter_2");
+                return channel -> executed.set(true);
+            }
+        };
+
+        final HashMap<String, String> params = new HashMap<>();
+        params.put("consumed", randomAsciiOfLength(8));
+        params.put("flied", randomAsciiOfLength(8));
+        params.put("tokenzier", randomAsciiOfLength(8));
+        params.put("very_close_to_parametre", randomAsciiOfLength(8));
+        RestRequest request = new FakeRestRequest.Builder().withParams(params).build();
+        RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+        final IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> handler.handleRequest(request, channel, mock(NodeClient.class)));
         assertThat(
             e,
-            // we can not rely on ordering of the unconsumed parameters here
-            anyOf(
-                hasToString(containsString("request [/] contains unrecognized parameters: [unconsumed-first, unconsumed-second]")),
-                hasToString(containsString("request [/] contains unrecognized parameters: [unconsumed-second, unconsumed-first]"))));
+            hasToString(containsString(
+                "request [/] contains unrecognized parameters: " +
+                    "[flied] -> did you mean [field]?, " +
+                    "[tokenzier] -> did you mean [tokenizer]?, " + "" +
+                    "[very_close_to_parametre] -> did you mean any of [very_close_to_parameter_1, very_close_to_parameter_2]?")));
         assertFalse(executed.get());
     }
 

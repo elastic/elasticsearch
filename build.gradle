@@ -49,7 +49,7 @@ subprojects {
         compile group: 'log4j', name: 'log4j', version:'1.2.17'
         testCompile group: 'org.ini4j', name: 'ini4j', version:'0.5.2'
         // Includes: junit, hamcrest and mockito
-        testCompile group: 'org.elasticsearch.test', name: 'framework', version: '5.0.0-alpha5'
+        testCompile group: 'org.elasticsearch.test', name: 'framework', version: '5.0.0-beta1'
     }
 }
 

@@ -92,35 +92,36 @@ public class RestValidateQueryAction extends BaseRestHandler {
                 } else {
                     handleException(validateQueryRequest, finalBodyParsingException.getMessage(), channel);
                 }
-            }
-            client.admin().indices().validateQuery(validateQueryRequest, new RestBuilderListener<ValidateQueryResponse>(channel) {
-                @Override
-                public RestResponse buildResponse(ValidateQueryResponse response, XContentBuilder builder) throws Exception {
-                    builder.startObject();
-                    builder.field(VALID_FIELD, response.isValid());
-                    buildBroadcastShardsHeader(builder, request, response);
-                    if (response.getQueryExplanation() != null && !response.getQueryExplanation().isEmpty()) {
-                        builder.startArray(EXPLANATIONS_FIELD);
-                        for (QueryExplanation explanation : response.getQueryExplanation()) {
-                            builder.startObject();
-                            if (explanation.getIndex() != null) {
-                                builder.field(INDEX_FIELD, explanation.getIndex());
+            } else {
+                client.admin().indices().validateQuery(validateQueryRequest, new RestBuilderListener<ValidateQueryResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(ValidateQueryResponse response, XContentBuilder builder) throws Exception {
+                        builder.startObject();
+                        builder.field(VALID_FIELD, response.isValid());
+                        buildBroadcastShardsHeader(builder, request, response);
+                        if (response.getQueryExplanation() != null && !response.getQueryExplanation().isEmpty()) {
+                            builder.startArray(EXPLANATIONS_FIELD);
+                            for (QueryExplanation explanation : response.getQueryExplanation()) {
+                                builder.startObject();
+                                if (explanation.getIndex() != null) {
+                                    builder.field(INDEX_FIELD, explanation.getIndex());
+                                }
+                                builder.field(VALID_FIELD, explanation.isValid());
+                                if (explanation.getError() != null) {
+                                    builder.field(ERROR_FIELD, explanation.getError());
+                                }
+                                if (explanation.getExplanation() != null) {
+                                    builder.field(EXPLANATION_FIELD, explanation.getExplanation());
+                                }
+                                builder.endObject();
                             }
-                            builder.field(VALID_FIELD, explanation.isValid());
-                            if (explanation.getError() != null) {
-                                builder.field(ERROR_FIELD, explanation.getError());
-                            }
-                            if (explanation.getExplanation() != null) {
-                                builder.field(EXPLANATION_FIELD, explanation.getExplanation());
-                            }
-                            builder.endObject();
+                            builder.endArray();
                         }
-                        builder.endArray();
+                        builder.endObject();
+                        return new BytesRestResponse(OK, builder);
                     }
-                    builder.endObject();
-                    return new BytesRestResponse(OK, builder);
-                }
-            });
+                });
+            }
         };
     }
 

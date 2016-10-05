@@ -33,6 +33,7 @@ dependency-reduced-pom.xml
 # testing stuff
 **/.local*
 .vagrant/
+/logs/
 
 # osx stuff
 .DS_Store

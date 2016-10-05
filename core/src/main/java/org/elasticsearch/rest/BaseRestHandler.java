@@ -33,6 +33,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -70,7 +71,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
             request.unconsumedParams().stream().filter(p -> !responseParams().contains(p)).collect(Collectors.toCollection(TreeSet::new));
 
         // validate the non-response params
-        if (!unconsumedParams.isEmpty()) {
+        if (unconsumedParams.isEmpty() == false) {
             String message = String.format(
                 Locale.ROOT,
                 "request [%s] contains unrecognized parameter%s: ",
@@ -80,10 +81,13 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
             for (final String unconsumedParam : unconsumedParams) {
                 final LevensteinDistance ld = new LevensteinDistance();
                 final List<Tuple<Float, String>> scoredParams = new ArrayList<>();
-                for (String consumedParam : request.consumedParams()) {
-                    final float distance = ld.getDistance(unconsumedParam, consumedParam);
+                final Set<String> candidateParams = new HashSet<>();
+                candidateParams.addAll(request.consumedParams());
+                candidateParams.addAll(responseParams());
+                for (final String candidateParam : candidateParams) {
+                    final float distance = ld.getDistance(unconsumedParam, candidateParam);
                     if (distance > 0.5f) {
-                        scoredParams.add(new Tuple<>(distance, consumedParam));
+                        scoredParams.add(new Tuple<>(distance, candidateParam));
                     }
                 }
                 CollectionUtil.timSort(scoredParams, (a, b) -> {

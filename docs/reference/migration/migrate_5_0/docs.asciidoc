@@ -82,4 +82,7 @@ The `fields` field has been deprecated. You should use `_source` to load the fie
 ==== version type 'force' removed
 
 In 5.0.0 document modification operations may no longer specify the
-`version_type` of `force` to override any previous version checks.
+`version_type` of `force` to override any previous version checks. Forced
+versioning was an error-prone version type that allowed overriding version
+semantics. It could cause primaries and replicas to become out of sync however,
+and thas has been removed.

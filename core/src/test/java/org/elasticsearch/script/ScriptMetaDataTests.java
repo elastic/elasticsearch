@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.Script.StoredScriptSource;
 import org.elasticsearch.test.ESTestCase;
 
@@ -45,19 +46,22 @@ public class ScriptMetaDataTests extends ESTestCase {
     public void testGetScript() throws Exception {
         Map<String, StoredScriptSource> scripts = new HashMap<>();
 
-        scripts.put("template", new StoredScriptSource(true, null, "lang", "value", Collections.emptyMap()));
-        scripts.put("template_field", new StoredScriptSource(true, null, "lang", "value", Collections.emptyMap()));
-        scripts.put("script", new StoredScriptSource(false, null, "lang", "value", Collections.emptyMap()));
-        scripts.put("script_field", new StoredScriptSource(false, null, "lang", "value", Collections.emptyMap()));
-        scripts.put("any", new StoredScriptSource(false, null, "lang", "value", Collections.emptyMap()));
+        scripts.put("template", new StoredScriptSource(true, ExecutableScriptBinding.NAME, "lang", "value", Collections.emptyMap()));
+        scripts.put("template_field", new StoredScriptSource(true, ExecutableScriptBinding.NAME, "lang", "value", Collections.emptyMap()));
+        scripts.put("script", new StoredScriptSource(false, ExecutableScriptBinding.NAME, "lang", "value", Collections.emptyMap()));
+        scripts.put("script_field", new StoredScriptSource(false, ExecutableScriptBinding.NAME, "lang", "value", Collections.emptyMap()));
+        scripts.put("any", new StoredScriptSource(false, ExecutableScriptBinding.NAME, "lang", "value", Collections.emptyMap()));
 
         ScriptMetaData scriptMetaData = new ScriptMetaData(scripts);
 
-        assertEquals(new StoredScriptSource(true, null, "lang", "value", Collections.emptyMap()), scriptMetaData.getScript("template"));
+        assertEquals(new StoredScriptSource(
+            true, ExecutableScriptBinding.NAME, "lang", "value", Collections.emptyMap()), scriptMetaData.getScript("template"));
         assertEquals("value", scriptMetaData.getScript("template_field").code);
-        assertEquals(new StoredScriptSource(false, null, "lang", "value", Collections.emptyMap()), scriptMetaData.getScript("script"));
+        assertEquals(new StoredScriptSource(
+            false, ExecutableScriptBinding.NAME, "lang", "value", Collections.emptyMap()), scriptMetaData.getScript("script"));
         assertEquals("value", scriptMetaData.getScript("script_field").code);
-        assertEquals(new StoredScriptSource(false, null, "lang", "value", Collections.emptyMap()), scriptMetaData.getScript("any"));
+        assertEquals(new StoredScriptSource(
+            false, ExecutableScriptBinding.NAME, "lang", "value", Collections.emptyMap()), scriptMetaData.getScript("any"));
     }
 
     public void testToAndFromXContent() throws IOException {
@@ -90,15 +94,15 @@ public class ScriptMetaDataTests extends ESTestCase {
     public void testDiff() throws Exception {
         Map<String, StoredScriptSource> scripts = new HashMap<>();
 
-        scripts.put("1", new StoredScriptSource(false, null, "lang", "abc", Collections.emptyMap()));
-        scripts.put("2", new StoredScriptSource(false, null, "lang", "def", Collections.emptyMap()));
-        scripts.put("3", new StoredScriptSource(false, null, "lang", "ghi", Collections.emptyMap()));
+        scripts.put("1", new StoredScriptSource(false, ExecutableScriptBinding.NAME, "lang", "abc", Collections.emptyMap()));
+        scripts.put("2", new StoredScriptSource(false, ExecutableScriptBinding.NAME, "lang", "def", Collections.emptyMap()));
+        scripts.put("3", new StoredScriptSource(false, ExecutableScriptBinding.NAME, "lang", "ghi", Collections.emptyMap()));
 
         ScriptMetaData scriptMetaData1 = new ScriptMetaData(scripts);
 
-        scripts.put("2", new StoredScriptSource(false, null, "lang", "changed", Collections.emptyMap()));
+        scripts.put("2", new StoredScriptSource(false, ExecutableScriptBinding.NAME, "lang", "changed", Collections.emptyMap()));
         scripts.remove("3");
-        scripts.put("4", new StoredScriptSource(false, null, "lang", "jkl", Collections.emptyMap()));
+        scripts.put("4", new StoredScriptSource(false, ExecutableScriptBinding.NAME, "lang", "jkl", Collections.emptyMap()));
 
         ScriptMetaData scriptMetaData2 = new ScriptMetaData(scripts);
 
@@ -111,15 +115,18 @@ public class ScriptMetaDataTests extends ESTestCase {
         assertNotNull(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().get("4"));
 
         ScriptMetaData result = (ScriptMetaData) diff.apply(scriptMetaData1);
-        assertEquals(new StoredScriptSource(false, null, "lang", "abc", Collections.emptyMap()), result.getScript("1"));
-        assertEquals(new StoredScriptSource(false, null, "lang", "changed", Collections.emptyMap()), result.getScript("2"));
-        assertEquals(new StoredScriptSource(false, null, "lang", "jkl", Collections.emptyMap()), result.getScript("4"));
+        assertEquals(new StoredScriptSource(
+            false, ExecutableScriptBinding.NAME, "lang", "abc", Collections.emptyMap()), result.getScript("1"));
+        assertEquals(new StoredScriptSource(
+            false, ExecutableScriptBinding.NAME, "lang", "changed", Collections.emptyMap()), result.getScript("2"));
+        assertEquals(new StoredScriptSource(
+            false, ExecutableScriptBinding.NAME, "lang", "jkl", Collections.emptyMap()), result.getScript("4"));
     }
 
     public void testStoreScript() throws Exception {
         ClusterState empty = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState result = ScriptMetaData.storeScript(empty, "_id",
-            new StoredScriptSource(false, null, "_lang", "abc", Collections.emptyMap()));
+            new StoredScriptSource(false, ExecutableScriptBinding.NAME, "_lang", "abc", Collections.emptyMap()));
         ScriptMetaData scriptMetaData = result.getMetaData().custom(ScriptMetaData.TYPE);
         assertNotNull(scriptMetaData);
         assertEquals("abc", scriptMetaData.getScript("_id").code);
@@ -128,7 +135,7 @@ public class ScriptMetaDataTests extends ESTestCase {
     public void testDeleteScript() throws Exception {
         ClusterState empty = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState store = ScriptMetaData.storeScript(empty, "_id",
-            new StoredScriptSource(false, null, "_lang", "abc", Collections.emptyMap()));
+            new StoredScriptSource(false, ExecutableScriptBinding.NAME, "_lang", "abc", Collections.emptyMap()));
 
         ClusterState delete = ScriptMetaData.deleteScript(store, "_id");
         ScriptMetaData scriptMetaData = delete.getMetaData().custom(ScriptMetaData.TYPE);
@@ -144,9 +151,10 @@ public class ScriptMetaDataTests extends ESTestCase {
     public void testGetStoredScript() throws Exception {
         ClusterState empty = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState store = ScriptMetaData.storeScript(empty, "_id",
-            new StoredScriptSource(false, null, "_lang", "abc", Collections.emptyMap()));
+            new StoredScriptSource(false, ExecutableScriptBinding.NAME, "_lang", "abc", Collections.emptyMap()));
 
-        assertEquals(new StoredScriptSource(false, null, "_lang", "abc", Collections.emptyMap()), ScriptMetaData.getScript(store, "_id"));
+        assertEquals(new StoredScriptSource(
+            false, ExecutableScriptBinding.NAME, "_lang", "abc", Collections.emptyMap()), ScriptMetaData.getScript(store, "_id"));
         assertNull(ScriptMetaData.getScript(store, "_id2"));
 
         store = ClusterState.builder(new ClusterName("_name")).build();
@@ -158,11 +166,12 @@ public class ScriptMetaDataTests extends ESTestCase {
         int numScripts = scaledRandomIntBetween(0, 32);
 
         for (int i = 0; i < numScripts; i++) {
-            String id = randomAsciiOfLength(i + 1);
+            String id = "id_" + i;
+            String binding = randomAsciiOfLength(10);
             String lang = randomAsciiOfLength(4);
             String code = randomAsciiOfLength(between(10, 30));
 
-            scripts.put(id, new StoredScriptSource(false, null, lang, code, Collections.emptyMap()));
+            scripts.put(id, new StoredScriptSource(false, binding, lang, code, Collections.emptyMap()));
         }
 
         return new ScriptMetaData(scripts);

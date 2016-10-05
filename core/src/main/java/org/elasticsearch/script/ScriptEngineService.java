@@ -20,7 +20,6 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.script.Script.ScriptBinding;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.Closeable;
@@ -53,6 +52,10 @@ public interface ScriptEngineService extends Closeable {
      * Returns <code>true</code> if this scripting engine can safely accept inline scripts by default. The default is <code>false</code>
      */
     default boolean isInlineScriptEnabled() {
+        return false;
+    }
+
+    default boolean isScriptBindingEnabled() {
         return false;
     }
 }

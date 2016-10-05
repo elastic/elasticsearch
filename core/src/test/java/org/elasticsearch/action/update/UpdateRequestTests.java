@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.get.GetResult;
@@ -36,6 +37,7 @@ import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -60,7 +62,7 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(lookup.code, equalTo("script1"));
         assertThat(lookup.lang, equalTo(Script.DEFAULT_SCRIPT_LANG));
         Map<String, Object> params = script.params;
-        assertThat(params, nullValue());
+        assertThat(params, equalTo(Collections.emptyMap()));
 
         // simple verbose script
         request.fromXContent(XContentFactory.jsonBuilder().startObject()
@@ -73,7 +75,7 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(lookup.code, equalTo("script1"));
         assertThat(lookup.lang, equalTo(Script.DEFAULT_SCRIPT_LANG));
         params = script.params;
-        assertThat(params, nullValue());
+        assertThat(params, equalTo(Collections.emptyMap()));
 
         // script with params
         request = new UpdateRequest("test", "type", "1");

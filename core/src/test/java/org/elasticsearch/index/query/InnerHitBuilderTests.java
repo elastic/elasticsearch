@@ -366,7 +366,7 @@ public class InnerHitBuilderTests extends ESTestCase {
 
     static SearchSourceBuilder.ScriptField randomScript() {
         ScriptType randomScriptType = randomFrom(Script.ScriptType.values());
-        Map<String, Object> randomMap = null;
+        Map<String, Object> randomMap = Collections.emptyMap();
         if (randomBoolean()) {
             randomMap = new HashMap<>();
             int numEntries = randomIntBetween(0, 32);

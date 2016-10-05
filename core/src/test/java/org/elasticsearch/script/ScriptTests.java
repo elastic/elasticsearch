@@ -68,7 +68,7 @@ public class ScriptTests extends ESTestCase {
     }
 
     private ScriptInput createScript(XContent xContent) throws IOException {
-        final Map<String, Object> params = randomBoolean() ? null : Collections.singletonMap("key", "value");
+        final Map<String, Object> params = randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("key", "value");
         ScriptType scriptType = randomFrom(Script.ScriptType.values());
         String script;
         if (scriptType == Script.ScriptType.INLINE) {

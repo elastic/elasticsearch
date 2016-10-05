@@ -344,10 +344,6 @@ public final class Script {
         }
 
         public static ScriptInput parse(XContentParser parser, ParseFieldMatcher matcher, String lang) throws IOException {
-            if (lang == null) {
-                lang = DEFAULT_SCRIPT_LANG;
-            }
-
             Token token = parser.currentToken();
 
             if (token == null) {
@@ -355,7 +351,7 @@ public final class Script {
             }
 
             if (token == Token.VALUE_STRING) {
-                return inline(lang, parser.text(), Collections.emptyMap(), Collections.emptyMap());
+                return inline(lang == null ? DEFAULT_SCRIPT_LANG : lang, parser.text(), Collections.emptyMap(), Collections.emptyMap());
             } else if (token != Token.START_OBJECT) {
                 throw new ParsingException(parser.getTokenLocation(),
                     "unexpected value [" + parser.text() + "], expected [{, <code>]");
@@ -367,6 +363,7 @@ public final class Script {
             Map<String, Object> params = null;
 
             String name = null;
+            boolean langspec = false;
 
             while ((token = parser.nextToken()) != Token.END_OBJECT) {
                 if (token == Token.FIELD_NAME) {
@@ -410,6 +407,10 @@ public final class Script {
 
                     type = INLINE;
 
+                    if (lang == null) {
+                        lang = DEFAULT_SCRIPT_LANG;
+                    }
+
                     options = new HashMap<>();
 
                     if (parser.currentToken() == Token.START_OBJECT) {
@@ -422,6 +423,7 @@ public final class Script {
                 } else if (matcher.match(name, ScriptField.LANG)) {
                     if (token == Token.VALUE_STRING) {
                         lang = parser.text();
+                        langspec = true;
                     } else {
                         throw new ParsingException(parser.getTokenLocation(),
                             "unexpected value [" + parser.text() + "], expected [<lang>]");
@@ -445,20 +447,21 @@ public final class Script {
                 }
             }
 
+            if (!langspec && (type == FILE || type == STORED)) {
+                lang = null;
+            }
+
             return validate(type, lang, idOrCode, options, params == null ? Collections.emptyMap() : params);
         }
 
         @SuppressWarnings("unchecked")
         public static ScriptInput parse(Map<String, Object> parser, ParseFieldMatcher matcher, String lang) {
-            if (lang == null) {
-                lang = DEFAULT_SCRIPT_LANG;
-            }
-
             ScriptType type = null;
             String idOrCode = null;
             Map<String, Object> params = null;
 
             Iterator<Entry<String, Object>> itr = parser.entrySet().iterator();
+            boolean langspec = false;
 
             while (itr.hasNext()) {
                 Map.Entry<String, Object> entry = itr.next();
@@ -469,6 +472,7 @@ public final class Script {
                 if (matcher.match(name, ScriptField.LANG)) {
                     if (value instanceof String || value == null) {
                         lang = (String)value;
+                        langspec = true;
                     } else {
                         throw new IllegalArgumentException("[" + name + "] must have value of type [String]");
                     }
@@ -496,6 +500,10 @@ public final class Script {
                     if (value instanceof String || value == null) {
                         type = Script.ScriptType.INLINE;
                         idOrCode = (String)value;
+
+                        if (lang == null) {
+                            lang = DEFAULT_SCRIPT_LANG;
+                        }
                     } else {
                         throw new IllegalArgumentException("[" + INLINE.name + "] must have value of type [String]");
                     }
@@ -510,6 +518,10 @@ public final class Script {
                         ScriptField.LANG.getPreferredName() + ", " +
                         ScriptField.PARAMS.getPreferredName() +
                     "]");
+            }
+
+            if (!langspec && (type == FILE || type == STORED)) {
+                lang = null;
             }
 
             return validate(type, lang, idOrCode,
@@ -546,7 +558,7 @@ public final class Script {
         }
 
         private static ScriptInput validate(ScriptType type, String lang, String idOrCode,
-                                         Map<String, String> options, Map<String, Object> params) {
+                                            Map<String, String> options, Map<String, Object> params) {
             Objects.requireNonNull(params);
 
             if (type == FILE) {
@@ -934,7 +946,6 @@ public final class Script {
     }
 
     public static final String DEFAULT_SCRIPT_LANG = "painless";
-    public static final ScriptType DEFAULT_SCRIPT_TYPE = INLINE;
     public static final String DEFAULT_SCRIPT_NAME = "<inline>";
 
     public static final String CONTENT_TYPE_OPTION = "content_type";

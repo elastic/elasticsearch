@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.script;
 
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -26,11 +28,11 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.Script.ExecutableScriptBinding;
-import org.elasticsearch.script.Script.ScriptBinding;
 import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.script.Script.SearchScriptBinding;
 import org.elasticsearch.script.Script.StoredScriptSource;
-import org.elasticsearch.script.Script.ScriptType;
+import org.elasticsearch.script.Script.UnknownScriptBinding;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -116,14 +118,7 @@ public class ScriptServiceTests extends ESTestCase {
     private void buildScriptService(Settings additionalSettings) throws IOException {
         Settings finalSettings = Settings.builder().put(baseSettings).put(additionalSettings).build();
         Environment environment = new Environment(finalSettings);
-        // TODO:
-        scriptService = new ScriptService(finalSettings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
-            @Override
-            public StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
-                //mock the script that gets retrieved from an index
-                return new StoredScriptSource(false, null, "test", "100", Collections.emptyMap());
-            }
-        };
+        scriptService = new ScriptService(finalSettings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
     }
 
     public void testCompilationCircuitBreaking() throws Exception {
@@ -170,8 +165,8 @@ public class ScriptServiceTests extends ESTestCase {
             ScriptInput.file("test_script").lookup
                 .getCompiled(scriptService, ScriptContext.Standard.SEARCH, ExecutableScriptBinding.BINDING);
             fail("the script test_script should no longer exist");
-        } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), containsString("Unable to find on disk file script [test_script] using lang [test]"));
+        } catch (ResourceNotFoundException ex) {
+            assertThat(ex.getMessage(), containsString("file script [test_script] does not exist"));
         }
     }
 
@@ -196,9 +191,9 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testInlineScriptCompiledOnceCache() throws IOException {
         buildScriptService(Settings.EMPTY);
-        CompiledScript compiledScript1 = ScriptInput.file("1+1").lookup
+        CompiledScript compiledScript1 = ScriptInput.inline("1+1").lookup
             .getCompiled(scriptService, ScriptContext.Standard.SEARCH, ExecutableScriptBinding.BINDING);
-        CompiledScript compiledScript2 = ScriptInput.file("1+1").lookup
+        CompiledScript compiledScript2 = ScriptInput.inline("1+1").lookup
             .getCompiled(scriptService, ScriptContext.Standard.SEARCH, ExecutableScriptBinding.BINDING);
         assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
     }
@@ -210,49 +205,98 @@ public class ScriptServiceTests extends ESTestCase {
             builder.put("script.file", "true");
         }
         buildScriptService(builder.build());
-        createFileScripts("groovy", "mustache", "dtest");
+        createFileScripts("groovy.groovy", "mustache.mustache", "dtest.dtest");
+        createStoredScript(null, "script", "dtest", "script");
 
         for (ScriptContext scriptContext : scriptContexts) {
             // only file scripts are accepted by default
             assertCompileRejected("dtest", "script", Script.ScriptType.INLINE, scriptContext);
             assertCompileRejected("dtest", "script", Script.ScriptType.STORED, scriptContext);
-            assertCompileAccepted("dtest", "file_script", Script.ScriptType.FILE, scriptContext);
+            assertCompileAccepted("dtest", "dtest", Script.ScriptType.FILE, scriptContext);
         }
     }
 
     public void testFineGrainedSettings() throws IOException {
-        //collect the fine-grained settings to set for this run
-        int numScriptSettings = randomIntBetween(0, Script.ScriptType.values().length);
-        Map<ScriptType, Boolean> scriptSourceSettings = new HashMap<>();
-        for (int i = 0; i < numScriptSettings; i++) {
-            ScriptType scriptType;
-            do {
-                scriptType = randomFrom(Script.ScriptType.values());
-            } while (scriptSourceSettings.containsKey(scriptType));
-            scriptSourceSettings.put(scriptType, randomBoolean());
+        String[] langs = new String[] {"test", "painless", "dtest"};
+        String[] names = new String[] {"tscript", "pscript", "dscript"};
+
+        Map<ScriptType, Boolean> scriptSourceSettings = new HashMap<ScriptType, Boolean>() {
+            @Override
+            public String toString() {
+                StringBuilder builder = new StringBuilder();
+
+                for (Entry<ScriptType, Boolean> entry : entrySet()) {
+                    builder.append(entry.getKey());
+                    builder.append(':');
+                    builder.append(entry.getValue());
+                    builder.append("\n");
+                }
+
+                return builder.toString();
+            }
+        };
+
+        for (ScriptType type : ScriptType.values()) {
+            if (randomBoolean()) {
+                scriptSourceSettings.put(type, randomBoolean());
+            }
         }
-        int numScriptContextSettings = randomIntBetween(0, this.scriptContextRegistry.scriptContexts().size());
-        Map<ScriptContext, Boolean> scriptContextSettings = new HashMap<>();
-        for (int i = 0; i < numScriptContextSettings; i++) {
-            ScriptContext scriptContext;
-            do {
-                scriptContext = randomFrom(this.scriptContexts);
-            } while (scriptContextSettings.containsKey(scriptContext));
-            scriptContextSettings.put(scriptContext, randomBoolean());
+
+        System.out.println(scriptSourceSettings);
+
+        Map<ScriptContext, Boolean> scriptContextSettings = new HashMap<ScriptContext, Boolean>() {
+            @Override
+            public String toString() {
+                StringBuilder builder = new StringBuilder();
+
+                for (Entry<ScriptContext, Boolean> entry : entrySet()) {
+                    builder.append(entry.getKey());
+                    builder.append(':');
+                    builder.append(entry.getValue());
+                    builder.append("\n");
+                }
+
+                return builder.toString();
+            }
+        };
+
+        for (ScriptContext context : scriptContextRegistry.scriptContexts()) {
+            if (randomBoolean()) {
+                scriptContextSettings.put(randomFrom(scriptContexts), randomBoolean());
+            }
         }
-        int numEngineSettings = randomIntBetween(0, Script.ScriptType.values().length * scriptContexts.length);
-        Map<String, Boolean> engineSettings = new HashMap<>();
-        for (int i = 0; i < numEngineSettings; i++) {
-            String settingKey;
-            do {
-                ScriptType scriptType = randomFrom(Script.ScriptType.values());
-                ScriptContext scriptContext = randomFrom(this.scriptContexts);
-                settingKey = scriptEngineService.getType() + "." + scriptType + "." + scriptContext.getKey();
-            } while (engineSettings.containsKey(settingKey));
+
+        System.out.println(scriptContextSettings);
+
+        int numEngineSettings = randomIntBetween(0, ScriptType.values().length * scriptContexts.length);
+        Map<String, Boolean> engineSettings = new HashMap<String, Boolean>() {
+            @Override
+            public String toString() {
+                StringBuilder builder = new StringBuilder();
+
+                for (Entry<String, Boolean> entry : entrySet()) {
+                    builder.append(entry.getKey());
+                    builder.append(':');
+                    builder.append(entry.getValue());
+                    builder.append("\n");
+                }
+
+                return builder.toString();
+            }
+        };
+
+        for (int setting = 0; setting < numEngineSettings; ++setting) {
+            ScriptType scriptType = randomFrom(ScriptType.values());
+            ScriptContext scriptContext = randomFrom(this.scriptContexts);
+            String settingKey = randomFrom(langs) + "." + scriptType + "." + scriptContext.getKey();
+
             engineSettings.put(settingKey, randomBoolean());
         }
-        //set the selected fine-grained settings
+
+        System.out.println(engineSettings);
+
         Settings.Builder builder = Settings.builder();
+
         for (Map.Entry<ScriptType, Boolean> entry : scriptSourceSettings.entrySet()) {
             if (entry.getValue()) {
                 builder.put("script" + "." + entry.getKey().name, "true");
@@ -260,6 +304,7 @@ public class ScriptServiceTests extends ESTestCase {
                 builder.put("script" + "." + entry.getKey().name, "false");
             }
         }
+
         for (Map.Entry<ScriptContext, Boolean> entry : scriptContextSettings.entrySet()) {
             if (entry.getValue()) {
                 builder.put("script" + "." + entry.getKey().getKey(), "true");
@@ -267,44 +312,51 @@ public class ScriptServiceTests extends ESTestCase {
                 builder.put("script" + "." + entry.getKey().getKey(), "false");
             }
         }
+
         for (Map.Entry<String, Boolean> entry : engineSettings.entrySet()) {
             int delimiter = entry.getKey().indexOf('.');
             String part1 = entry.getKey().substring(0, delimiter);
             String part2 = entry.getKey().substring(delimiter + 1);
 
-            String lang = randomFrom(scriptEnginesByLangMap.get(part1).getType());
             if (entry.getValue()) {
-                builder.put("script.engine" + "." + lang + "." + part2, "true");
+                builder.put("script.engine" + "." + part1 + "." + part2, "true");
             } else {
-                builder.put("script.engine" + "." + lang + "." + part2, "false");
+                builder.put("script.engine" + "." + part1 + "." + part2, "false");
             }
         }
 
         buildScriptService(builder.build());
-        createFileScripts("groovy", "expression", "mustache", "dtest");
+        createFileScripts("tscript.test", "pscript.painless", "dscript.dtest");
+        ClusterState state = createStoredScript(null, "dscript", "dtest", "script");
+        state = createStoredScript(state, "pscript", "painless", "1+1");
+        createStoredScript(state, "tscript", "test", "script");
 
         for (ScriptType scriptType : Script.ScriptType.values()) {
-            //make sure file scripts have a different name than inline ones.
-            //Otherwise they are always considered file ones as they can be found in the static cache.
-            String script = scriptType == Script.ScriptType.FILE ? "file_script" : "script";
             for (ScriptContext scriptContext : this.scriptContexts) {
-                //fallback mechanism: 1) engine specific settings 2) op based settings 3) source based settings
-                Boolean scriptEnabled = engineSettings.get(dangerousScriptEngineService.getType() + "." + scriptType + "." + scriptContext.getKey());
-                if (scriptEnabled == null) {
-                    scriptEnabled = scriptContextSettings.get(scriptContext);
-                }
-                if (scriptEnabled == null) {
-                    scriptEnabled = scriptSourceSettings.get(scriptType);
-                }
-                if (scriptEnabled == null) {
-                    scriptEnabled = DEFAULT_SCRIPT_ENABLED.get(scriptType);
-                }
+                for (int lang = 0; lang < langs.length; ++lang) {
+                    //fallback mechanism: 1) engine specific settings 2) op based settings 3) source based settings
+                    Boolean scriptEnabled = engineSettings.get("dtest"/*langs[lang]*/ + "." + scriptType + "." + scriptContext.getKey());
 
-                String lang = dangerousScriptEngineService.getType();
-                if (scriptEnabled) {
-                    assertCompileAccepted(lang, script, scriptType, scriptContext);
-                } else {
-                    assertCompileRejected(lang, script, scriptType, scriptContext);
+                    if (scriptEnabled == null) {
+                        System.out.println("context: " + scriptContext);
+                        scriptEnabled = scriptContextSettings.get(scriptContext);
+                    }
+
+                    if (scriptEnabled == null) {
+                        System.out.println("type: " + scriptType);
+                        scriptEnabled = scriptSourceSettings.get(scriptType);
+                    }
+
+                    if (scriptEnabled == null) {
+                        System.out.println("default: " + scriptType);
+                        scriptEnabled = DEFAULT_SCRIPT_ENABLED.get(scriptType);
+                    }
+
+                    if (scriptEnabled) {
+                        assertCompileAccepted("dtest", "dscript" /*langs[lang], names[lang]*/, scriptType, scriptContext);
+                    } else {
+                        assertCompileRejected("dtest", "dscript" /*langs[lang], names[lang]*/, scriptType, scriptContext);
+                    }
                 }
             }
         }
@@ -323,9 +375,11 @@ public class ScriptServiceTests extends ESTestCase {
         ScriptInput input;
 
         if (type == ScriptType.FILE) {
-            input = ScriptInput.file("1+1");
+            createFileScripts("script.painless");
+            input = ScriptInput.file("script");
         } else if (type == ScriptType.STORED) {
-            input = ScriptInput.stored("1+1");
+            createStoredScript(null, "script", "painless", "1+1");
+            input = ScriptInput.stored("script");
         } else {
             input = ScriptInput.inline("test", "1+1", Collections.emptyMap());
         }
@@ -334,7 +388,7 @@ public class ScriptServiceTests extends ESTestCase {
             input.lookup.getCompiled(scriptService, new ScriptContext.Plugin(pluginName, unknownContext), ExecutableScriptBinding.BINDING);
             fail("script compilation should have been rejected");
         } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("script context [" + pluginName + "_" + unknownContext + "] not supported"));
+            assertThat(e.getMessage(), containsString("script context [" + pluginName + "_" + unknownContext + "] does not exist"));
         }
     }
 
@@ -382,13 +436,14 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testFileScriptCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        createFileScripts("test");
+        createFileScripts("file_script.test");
         ScriptInput.file("file_script").lookup.getCompiled(scriptService, randomFrom(scriptContexts), ExecutableScriptBinding.BINDING);
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
     public void testStoredScriptCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
+        createStoredScript(null, "stored_script", "test", "script");
         ScriptInput.stored("stored_script").lookup.getCompiled(scriptService, randomFrom(scriptContexts), ExecutableScriptBinding.BINDING);
         assertEquals(1L, scriptService.stats().getCompilations());
     }
@@ -416,12 +471,24 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
 
-    private void createFileScripts(String... langs) throws IOException {
-        for (String lang : langs) {
-            Path scriptPath = scriptsFilePath.resolve("file_script." + lang);
+    private void createFileScripts(String... names) throws IOException {
+        for (String name : names) {
+            Path scriptPath = scriptsFilePath.resolve(name);
             Streams.copy("10".getBytes("UTF-8"), Files.newOutputStream(scriptPath));
         }
         resourceWatcherService.notifyNow();
+    }
+
+    private ClusterState createStoredScript(ClusterState state, String name, String lang, String code) {
+        if (state == null) {
+            state = ClusterState.builder(new ClusterName("_name")).build();
+        }
+
+        ClusterState stored = ScriptMetaData.storeScript(state, name,
+            new StoredScriptSource(false, UnknownScriptBinding.NAME, lang, code, Collections.emptyMap()));
+        scriptService.clusterChanged(new ClusterChangedEvent("test", stored, state));
+
+        return stored;
     }
 
     private void assertCompileRejected(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {
@@ -437,8 +504,10 @@ public class ScriptServiceTests extends ESTestCase {
             }
 
             input.lookup.getCompiled(scriptService, scriptContext, ExecutableScriptBinding.BINDING);
+            System.out.println(scriptService.scriptModes);
+            System.out.println(scriptService.scriptModes.scriptEnabled);
             fail("compile should have been rejected for lang [" + lang + "], script_type [" + scriptType + "], scripted_op [" + scriptContext + "]");
-        } catch(IllegalStateException e) {
+        } catch(IllegalArgumentException | ResourceNotFoundException e) {
             //all good
         }
     }

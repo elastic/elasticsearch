@@ -83,12 +83,19 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     private class ScriptChangesListener implements FileChangesListener {
 
-        private static final int ID = 0;
-        private static final int BINDING = 1;
-        private static final int EXT = 1;
+        private class FileScriptSource {
+            private final ScriptEngineService engine;
+            private final String binding;
+            private final String id;
 
-        private String[] splitScriptPath(Path file) {
-            String[] split = new String[3];
+            private FileScriptSource(ScriptEngineService engine, String binding, String id) {
+                this.engine = engine;
+                this.binding = binding;
+                this.id = id;
+            }
+        }
+
+        private FileScriptSource splitScriptPath(Path file) {
             Path scriptPath = fileScriptsDirectory.relativize(file);
 
             int extIndex = scriptPath.toString().lastIndexOf('.');
@@ -97,57 +104,66 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 return null;
             }
 
-            split[EXT] = scriptPath.toString().substring(extIndex + 1);
+            String ext = scriptPath.toString().substring(extIndex + 1);
 
-            if (split[EXT].isEmpty()) {
+            if (ext.isEmpty()) {
                 return null;
             }
 
-            int contextIndex = scriptPath.toString().lastIndexOf('.', extIndex);
+            ScriptEngineService engine = getScriptEngineServiceForExt(ext);
+            String binding = null;
 
-            if (contextIndex > 0) {
-                split[BINDING] = scriptPath.toString().substring(contextIndex + 1, extIndex);
+            if (engine.isScriptBindingEnabled()) {
+                int contextIndex = scriptPath.toString().lastIndexOf('.', extIndex);
+
+                if (contextIndex <= 0) {
+                    return null;
+                }
+
+                binding = scriptPath.toString().substring(contextIndex + 1, extIndex);
+
+                if (binding.isEmpty()) {
+                    return null;
+                }
             }
 
-            split[ID] = scriptPath.toString().substring(0, extIndex).replace(scriptPath.getFileSystem().getSeparator(), "_");
+            String id = scriptPath.toString().substring(0, extIndex).replace(scriptPath.getFileSystem().getSeparator(), "_");
 
-            if (split[ID].isEmpty()) {
+            if (id.isEmpty()) {
                 return null;
             }
 
-            return split;
+            return new FileScriptSource(engine, binding, id);
         }
 
         @Override
         public void onFileInit(Path file) {
-            String[] split = splitScriptPath(file);
-
-            if (split == null) {
-                logger.debug("skipped [{}] script with invalid id/extension [{}]", FILE.name, file);
-
-                return;
-            }
-
-            if (logger.isTraceEnabled()) {
-                logger.trace("loading [{}] script [{}]", FILE.name, file);
-            }
-
             try {
-                ScriptEngineService engine = getScriptEngineServiceForExt(split[EXT]);
-                canExecuteScriptInAnyContext(FILE, engine.getType());
+                FileScriptSource source = splitScriptPath(file);
+
+                if (source == null) {
+                    logger.debug("skipped loading [{}] script with invalid an id/extension [{}]", FILE.name, file);
+
+                    return;
+                }
+
+                if (logger.isTraceEnabled()) {
+                    logger.trace("loading [{}] script [{}]", FILE.name, file);
+                }
+
+                canExecuteScriptInAnyContext(FILE, source.engine.getType());
 
                 logger.info("compiling [{}] script [{}]", FILE.name, file.toAbsolutePath());
 
                 InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8);
                 String code = Streams.copyToString(reader);
                 CompiledScript compiled =
-                    compile(UnknownScriptBinding.BINDING, FILE, split[ID], engine.getType(), code, Collections.emptyMap());
+                    compile(UnknownScriptBinding.BINDING, FILE, source.id, source.engine.getType(), code, Collections.emptyMap());
 
-                FileScriptLookup key = new FileScriptLookup(split[ID]);
+                FileScriptLookup key = new FileScriptLookup(source.id);
                 fileCache.put(key, compiled);
             } catch (Exception exception) {
-                logger.warn((Supplier<?>) () ->
-                    new ParameterizedMessage("failed to load [{}] script [{}]", FILE.name, split[ID]), exception);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to load [{}] script [{}]", FILE.name, file), exception);
             }
         }
 
@@ -163,12 +179,22 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         @Override
         public void onFileDeleted(Path file) {
-            String[] split = splitScriptPath(file);
+            try {
+                FileScriptSource source = splitScriptPath(file);
 
-            logger.info("removing script file [{}]", file.toAbsolutePath());
+                if (source == null) {
+                    logger.debug("skipped removing [{}] script with invalid an id/extension [{}]", FILE.name, file);
 
-            FileScriptLookup key = new FileScriptLookup(split[ID]);
-            fileCache.remove(key);
+                    return;
+                }
+
+                logger.info("removing [{}] script [{}]", FILE.name, file.toAbsolutePath());
+
+                FileScriptLookup key = new FileScriptLookup(source.id);
+                fileCache.remove(key);
+            } catch (Exception exception) {
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to remove [{}] script [{}]", FILE.name, file), exception);
+            }
         }
     }
 
@@ -205,7 +231,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     public static final Setting<Integer> SCRIPT_MAX_COMPILATIONS_PER_MINUTE =
         Setting.intSetting("script.max_compilations_per_minute", 15, 0, Property.Dynamic, Property.NodeScope);
 
-    private final ScriptModes scriptModes;
+    public final ScriptModes scriptModes;
     private final ScriptContextRegistry scriptContextRegistry;
     private final ScriptMetrics scriptMetrics = new ScriptMetrics();
 
@@ -335,6 +361,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         for (ScriptContext context : scriptContextRegistry.scriptContexts()) {
             try {
                 canExecuteScriptInSpecificContext(context, type, lang);
+
+                return;
             } catch (IllegalArgumentException exception) {
                 // do nothing
             }
@@ -344,11 +372,13 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     }
 
     private void canExecuteScriptInSpecificContext(ScriptContext context, ScriptType type, String lang) {
-        if (scriptContextRegistry.isSupportedContext(context) == false) {
+        if (!scriptContextRegistry.isSupportedContext(context)) {
             throw new IllegalArgumentException("script context [" + context.getKey() + "] does not exist");
         }
 
-        if (scriptModes.getScriptEnabled(lang, type, context) == false) {
+        System.out.println("here: " + lang + " " + type + " " + context + " - " + scriptModes.getScriptEnabled(lang, type, context));
+
+        if (!scriptModes.getScriptEnabled(lang, type, context)) {
             throw new IllegalArgumentException(
                 "cannot execute [" + type.name + "] script using lang [" + lang + "] under context [" + context + "]");
         }
@@ -447,21 +477,14 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return ScriptMetaData.getScript(state, request.id());
     }
 
-    protected CompiledScript getInlineScript(ScriptContext context, ScriptBinding binding, InlineScriptLookup lookup) {
-        canExecuteScriptInSpecificContext(context, INLINE, lookup.lang);
-
-        CompiledScript compiled = inlineCache.get(lookup);
+    protected CompiledScript getFileScript(ScriptContext context, ScriptBinding binding, FileScriptLookup lookup) {
+        CompiledScript compiled = fileCache.get(lookup);
 
         if (compiled == null) {
-            synchronized (this) {
-                compiled = inlineCache.get(lookup);
-
-                if (compiled == null) {
-                    compiled = compile(binding, INLINE, DEFAULT_SCRIPT_NAME, lookup.lang, lookup.code, lookup.options);
-                    inlineCache.put(lookup, compiled);
-                }
-            }
+            throw new ResourceNotFoundException("file script [" + lookup.id + "] does not exist");
         }
+
+        canExecuteScriptInSpecificContext(context, FILE, compiled.lang());
 
         return compiled;
     }
@@ -497,14 +520,21 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return compiled;
     }
 
-    protected CompiledScript getFileScript(ScriptContext context, ScriptBinding binding, FileScriptLookup lookup) {
-        CompiledScript compiled = fileCache.get(lookup);
+    protected CompiledScript getInlineScript(ScriptContext context, ScriptBinding binding, InlineScriptLookup lookup) {
+        canExecuteScriptInSpecificContext(context, INLINE, lookup.lang);
+
+        CompiledScript compiled = inlineCache.get(lookup);
 
         if (compiled == null) {
-            throw new ResourceNotFoundException("file script [" + lookup.id + "] does not exist");
-        }
+            synchronized (this) {
+                compiled = inlineCache.get(lookup);
 
-        canExecuteScriptInSpecificContext(context, FILE, compiled.lang());
+                if (compiled == null) {
+                    compiled = compile(binding, INLINE, DEFAULT_SCRIPT_NAME, lookup.lang, lookup.code, lookup.options);
+                    inlineCache.put(lookup, compiled);
+                }
+            }
+        }
 
         return compiled;
     }

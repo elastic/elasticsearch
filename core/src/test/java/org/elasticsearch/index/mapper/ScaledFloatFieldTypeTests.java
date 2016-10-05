@@ -122,7 +122,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             boolean includeLower = randomBoolean();
             boolean includeUpper = randomBoolean();
             Query doubleQ = NumberFieldMapper.NumberType.DOUBLE.rangeQuery("double", l, u, includeLower, includeUpper);
-            Query scaledFloatQ = ft.rangeQuery(l, u, includeLower, includeUpper);
+            Query scaledFloatQ = ft.rangeQuery(l, u, includeLower, includeUpper, null);
             assertEquals(searcher.count(doubleQ), searcher.count(scaledFloatQ));
         }
         IOUtils.close(reader, dir);

@@ -343,7 +343,7 @@ public abstract class MappedFieldType extends FieldType {
         return new ConstantScoreQuery(builder.build());
     }
 
-    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
         throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support range queries");
     }
 
@@ -402,7 +402,7 @@ public abstract class MappedFieldType extends FieldType {
             IndexReader reader,
             Object from, Object to,
             boolean includeLower, boolean includeUpper,
-            DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
+            DateTimeZone timeZone, DateMathParser dateMathParser, QueryShardContext context) throws IOException {
         return Relation.INTERSECTS;
     }
 

@@ -41,7 +41,7 @@ public class LegacyDoubleFieldTypeTests extends FieldTypeTestCase {
         DoubleFieldType ft = new DoubleFieldType();
         // current impl ignores args and shourd always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomDouble(), randomDouble(),
-                randomBoolean(), randomBoolean(), null, null));
+                randomBoolean(), randomBoolean(), null, null, null));
     }
 
     public void testValueForSearch() {

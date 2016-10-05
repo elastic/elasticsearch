@@ -815,7 +815,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             failIfNotIndexed();
             Query query = type.rangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper);
             if (boost() != 1f) {

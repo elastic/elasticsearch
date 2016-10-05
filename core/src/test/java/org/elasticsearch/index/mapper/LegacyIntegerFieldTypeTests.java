@@ -41,7 +41,7 @@ public class LegacyIntegerFieldTypeTests extends FieldTypeTestCase {
         IntegerFieldType ft = new IntegerFieldType();
         // current impl ignores args and shourd always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomInt(), randomInt(),
-                randomBoolean(), randomBoolean(), null, null));
+                randomBoolean(), randomBoolean(), null, null, null));
     }
 
     public void testValueForSearch() {

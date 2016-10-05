@@ -315,9 +315,10 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             origin = context.nowInMillis();
         } else {
             if (dateFieldType instanceof LegacyDateFieldMapper.DateFieldType) {
-                origin = ((LegacyDateFieldMapper.DateFieldType) dateFieldType).parseToMilliseconds(originString, false, null, null);
+                origin = ((LegacyDateFieldMapper.DateFieldType) dateFieldType).parseToMilliseconds(originString, false, null, null,
+                        context);
             } else {
-                origin = ((DateFieldMapper.DateFieldType) dateFieldType).parseToMilliseconds(originString, false, null, null);
+                origin = ((DateFieldMapper.DateFieldType) dateFieldType).parseToMilliseconds(originString, false, null, null, context);
             }
         }
 

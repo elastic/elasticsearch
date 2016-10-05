@@ -41,7 +41,7 @@ public class LegacyFloatFieldTypeTests extends FieldTypeTestCase {
         FloatFieldType ft = new FloatFieldType();
         // current impl ignores args and shourd always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomFloat(), randomFloat(),
-                randomBoolean(), randomBoolean(), null, null));
+                randomBoolean(), randomBoolean(), null, null, null));
     }
 
     public void testValueForSearch() {

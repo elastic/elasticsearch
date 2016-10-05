@@ -41,7 +41,7 @@ public class LegacyLongFieldTypeTests extends FieldTypeTestCase {
         LongFieldType ft = new LongFieldType();
         // current impl ignores args and shourd always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomLong(), randomLong(),
-                randomBoolean(), randomBoolean(), null, null));
+                randomBoolean(), randomBoolean(), null, null, null));
     }
 
     public void testValueForSearch() {

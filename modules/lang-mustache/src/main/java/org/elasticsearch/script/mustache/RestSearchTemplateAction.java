@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
@@ -97,7 +96,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         if (RestActions.hasBodyContent(request) == false) {
             throw new ElasticsearchException("request body is required");
         }
@@ -110,7 +109,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         SearchTemplateRequest searchTemplateRequest = parse(RestActions.getRestContent(request));
         searchTemplateRequest.setRequest(searchRequest);
 
-        client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestStatusToXContentListener<>(channel));
     }
 
     public static SearchTemplateRequest parse(BytesReference bytes) throws IOException {

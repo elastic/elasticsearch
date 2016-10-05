@@ -25,14 +25,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 import org.elasticsearch.script.Script.StoredScriptSource;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -48,16 +46,11 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
-        StoredScriptSource source;
-
-        try (XContentParser parser = XContentHelper.createParser(request.content())) {
-            source = StoredScriptSource.parse(parser);
-        } catch (IOException ioe) {
-            throw new UncheckedIOException(ioe);
-        }
-
+    public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
+        XContentParser parser = XContentHelper.createParser(request.content());
+        StoredScriptSource source = StoredScriptSource.parse(parser);
         PutStoredScriptRequest putRequest = new PutStoredScriptRequest(request.param("id"), source);
-        client.admin().cluster().putStoredScript(putRequest, new AcknowledgedRestListener<>(channel));
+
+        return channel -> client.admin().cluster().putStoredScript(putRequest, new AcknowledgedRestListener<>(channel));
     }
 }

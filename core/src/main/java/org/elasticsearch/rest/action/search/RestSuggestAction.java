@@ -19,8 +19,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import java.io.IOException;
-
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -35,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -46,6 +43,8 @@ import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -67,7 +66,7 @@ public class RestSuggestAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final SearchRequest searchRequest = new SearchRequest(
                 Strings.splitStringByCommaToArray(request.param("index")), new SearchSourceBuilder());
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
@@ -82,7 +81,7 @@ public class RestSuggestAction extends BaseRestHandler {
         }
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
-        client.search(searchRequest, new RestBuilderListener<SearchResponse>(channel) {
+        return channel -> client.search(searchRequest, new RestBuilderListener<SearchResponse>(channel) {
             @Override
             public RestResponse buildResponse(SearchResponse response, XContentBuilder builder) throws Exception {
                 RestStatus restStatus = RestStatus.status(response.getSuccessfulShards(),

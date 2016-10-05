@@ -295,7 +295,7 @@ You can fetch the status of all running update-by-query requests with the
 
 [source,js]
 --------------------------------------------------
-GET _tasks?detailed=true&action=*byquery
+GET _tasks?detailed=true&actions=*byquery
 --------------------------------------------------
 // CONSOLE
 
@@ -373,7 +373,7 @@ Any Update By Query can be canceled using the <<tasks,Task Cancel API>>:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/taskid:1/_cancel
+POST _tasks/task_id:1/_cancel
 --------------------------------------------------
 // CONSOLE
 
@@ -392,7 +392,7 @@ using the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _update_by_query/taskid:1/_rethrottle?requests_per_second=-1
+POST _update_by_query/task_id:1/_rethrottle?requests_per_second=-1
 --------------------------------------------------
 // CONSOLE
 

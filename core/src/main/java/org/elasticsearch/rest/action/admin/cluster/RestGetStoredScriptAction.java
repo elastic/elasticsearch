@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -34,12 +33,14 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.script.Script.StoredScriptSource;
 
+import java.io.IOException;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetStoredScriptAction extends BaseRestHandler {
     private static final String ID = "id";
     private static final String FOUND = "found";
-    private static final String CONTEXT = "context";
+    private static final String BINDING = "binding";
     private static final String LANG = "lang";
     private static final String CODE = "code";
 
@@ -51,10 +52,10 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, NodeClient client) {
-        final GetStoredScriptRequest getRequest = new GetStoredScriptRequest(request.param("id"));
+    public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
+        GetStoredScriptRequest getRequest = new GetStoredScriptRequest(request.param("id"));
 
-        client.admin().cluster().getStoredScript(getRequest, new RestBuilderListener<GetStoredScriptResponse>(channel) {
+        return channel -> client.admin().cluster().getStoredScript(getRequest, new RestBuilderListener<GetStoredScriptResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetStoredScriptResponse response, XContentBuilder builder) throws Exception {
                 StoredScriptSource source = response.getSource();
@@ -74,6 +75,7 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
                 }
 
                 builder.endObject();
+
                 return new BytesRestResponse(status, builder);
             }
         });

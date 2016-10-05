@@ -39,6 +39,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
+import java.io.IOException;
+
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -57,7 +59,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         BulkRequest bulkRequest = Requests.bulkRequest();
         String defaultIndex = request.param("index");
         String defaultType = request.param("type");
@@ -75,9 +77,10 @@ public class RestNoopBulkAction extends BaseRestHandler {
         bulkRequest.add(request.content(), defaultIndex, defaultType, defaultRouting, defaultFields, null, defaultPipeline, null, true);
 
         // short circuit the call to the transport layer
-        BulkRestBuilderListener listener = new BulkRestBuilderListener(channel, request);
-        listener.onResponse(bulkRequest);
-
+        return channel -> {
+            BulkRestBuilderListener listener = new BulkRestBuilderListener(channel, request);
+            listener.onResponse(bulkRequest);
+        };
     }
 
     private static class BulkRestBuilderListener extends RestBuilderListener<BulkRequest> {

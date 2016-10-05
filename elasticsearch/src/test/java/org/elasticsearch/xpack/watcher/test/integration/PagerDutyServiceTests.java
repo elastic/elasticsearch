@@ -60,7 +60,7 @@ public class PagerDutyServiceTests extends AbstractWatcherIntegrationTestCase {
                 true, new IncidentEventContext[] {
                 IncidentEventContext.link("_href", "_text"),
                 IncidentEventContext.image("_src", "_href", "_alt")
-        });
+        }, null);
 
         Payload payload = new Payload.Simple("_key", "_val");
 

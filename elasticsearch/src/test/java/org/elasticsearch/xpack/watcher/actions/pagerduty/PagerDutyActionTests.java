@@ -14,19 +14,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.common.http.HttpProxy;
+import org.elasticsearch.xpack.common.http.HttpRequest;
+import org.elasticsearch.xpack.common.http.HttpResponse;
+import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.notification.pagerduty.IncidentEvent;
 import org.elasticsearch.xpack.notification.pagerduty.IncidentEventContext;
 import org.elasticsearch.xpack.notification.pagerduty.IncidentEventDefaults;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.xpack.notification.pagerduty.SentEvent;
+import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.Wid;
-import org.elasticsearch.xpack.common.http.HttpRequest;
-import org.elasticsearch.xpack.common.http.HttpResponse;
-import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -102,8 +103,8 @@ public class PagerDutyActionTests extends ESTestCase {
 
         when(templateEngine.render(description, expectedModel)).thenReturn(description.getTemplate());
 
-        IncidentEvent event = new IncidentEvent(description.getTemplate(), null, wid.watchId(), null, null, accountName,
-                attachPayload, null);
+        IncidentEvent event = new IncidentEvent(description.getTemplate(), null, wid.watchId(), null, null, accountName, attachPayload,
+                null, null);
         PagerDutyAccount account = mock(PagerDutyAccount.class);
         when(account.getDefaults()).thenReturn(new IncidentEventDefaults(Settings.EMPTY));
         HttpResponse response = mock(HttpResponse.class);
@@ -163,6 +164,12 @@ public class PagerDutyActionTests extends ESTestCase {
             builder.field("attach_payload", attachPayload.booleanValue());
         }
 
+        HttpProxy proxy = null;
+        if (randomBoolean()) {
+            proxy = new HttpProxy("localhost", 8080);
+            proxy.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
+
         IncidentEventContext.Template[] contexts = null;
         if (randomBoolean()) {
             contexts = new IncidentEventContext.Template[] {
@@ -186,7 +193,7 @@ public class PagerDutyActionTests extends ESTestCase {
         assertThat(action.event, notNullValue());
         assertThat(action.event, instanceOf(IncidentEvent.Template.class));
         assertThat(action.event, is(new IncidentEvent.Template(description, eventType, incidentKey, client, clientUrl, accountName,
-                attachPayload, contexts)));
+                attachPayload, contexts, proxy)));
     }
 
     public void testParserSelfGenerated() throws Exception {
@@ -216,6 +223,9 @@ public class PagerDutyActionTests extends ESTestCase {
         }
         if (randomBoolean()) {
             event.setAccount(randomAsciiOfLength(50)).build();
+        }
+        if (randomBoolean()) {
+            event.setProxy(new HttpProxy("localhost", 8080));
         }
 
         PagerDutyAction action = pagerDutyAction(event).build();

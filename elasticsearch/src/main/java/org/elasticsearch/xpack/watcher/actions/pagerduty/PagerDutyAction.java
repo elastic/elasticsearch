@@ -16,9 +16,6 @@ import org.elasticsearch.xpack.notification.pagerduty.SentEvent;
 import java.io.IOException;
 import java.util.Objects;
 
-/**
- *
- */
 public class PagerDutyAction implements Action {
 
     public static final String TYPE = "pagerduty";

@@ -24,12 +24,12 @@ public class IncidentEventDefaults {
     final Context.ImageDefaults image;
 
     public IncidentEventDefaults(Settings accountSettings) {
-        description = accountSettings.get(IncidentEvent.XField.DESCRIPTION.getPreferredName(), null);
-        incidentKey = accountSettings.get(IncidentEvent.XField.INCIDENT_KEY.getPreferredName(), null);
-        client = accountSettings.get(IncidentEvent.XField.CLIENT.getPreferredName(), null);
-        clientUrl = accountSettings.get(IncidentEvent.XField.CLIENT_URL.getPreferredName(), null);
-        eventType = accountSettings.get(IncidentEvent.XField.EVENT_TYPE.getPreferredName(), null);
-        attachPayload = accountSettings.getAsBoolean(IncidentEvent.XField.ATTACH_PAYLOAD.getPreferredName(), false);
+        description = accountSettings.get(IncidentEvent.Fields.DESCRIPTION.getPreferredName(), null);
+        incidentKey = accountSettings.get(IncidentEvent.Fields.INCIDENT_KEY.getPreferredName(), null);
+        client = accountSettings.get(IncidentEvent.Fields.CLIENT.getPreferredName(), null);
+        clientUrl = accountSettings.get(IncidentEvent.Fields.CLIENT_URL.getPreferredName(), null);
+        eventType = accountSettings.get(IncidentEvent.Fields.EVENT_TYPE.getPreferredName(), null);
+        attachPayload = accountSettings.getAsBoolean(IncidentEvent.Fields.ATTACH_PAYLOAD.getPreferredName(), false);
         link = new Context.LinkDefaults(accountSettings.getAsSettings("link"));
         image = new Context.ImageDefaults(accountSettings.getAsSettings("image"));
 

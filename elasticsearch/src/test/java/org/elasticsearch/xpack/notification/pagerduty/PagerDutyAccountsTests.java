@@ -9,15 +9,22 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpClient;
+import org.elasticsearch.xpack.common.http.HttpProxy;
+import org.elasticsearch.xpack.common.http.HttpRequest;
+import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.notification.slack.message.SlackMessageDefaultsTests;
+import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  *
@@ -121,6 +128,23 @@ public class PagerDutyAccountsTests extends ESTestCase {
             new PagerDutyAccounts(builder.build(), httpClient, logger);
             fail("Expected a SettingsException to happen");
         } catch (SettingsException e) {}
+    }
+
+    public void testProxy() throws Exception {
+        Settings.Builder builder = Settings.builder().put("default_account", "account1");
+        addAccountSettings("account1", builder);
+        PagerDutyAccounts accounts = new PagerDutyAccounts(builder.build(), httpClient, logger);
+        PagerDutyAccount account = accounts.account("account1");
+
+        ArgumentCaptor<HttpRequest> argumentCaptor = ArgumentCaptor.forClass(HttpRequest.class);
+        when(httpClient.execute(argumentCaptor.capture())).thenReturn(new HttpResponse(200));
+
+        HttpProxy proxy = new HttpProxy("localhost", 8080);
+        IncidentEvent event = new IncidentEvent("foo", null, null, null, null, account.getName(), true, null, proxy);
+        account.send(event, Payload.EMPTY);
+
+        HttpRequest request = argumentCaptor.getValue();
+        assertThat(request.proxy(), is(proxy));
     }
 
     private void addAccountSettings(String name, Settings.Builder builder) {

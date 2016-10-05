@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.http.HttpMethod;
+import org.elasticsearch.xpack.common.http.HttpProxy;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.Scheme;
 import org.elasticsearch.xpack.common.text.TextTemplate;
@@ -41,6 +42,7 @@ public class IncidentEvent implements ToXContent {
     static final String PATH = "/generic/2010-04-15/create_event.json";
 
     final String description;
+    @Nullable final HttpProxy proxy;
     @Nullable final String incidentKey;
     @Nullable final String client;
     @Nullable final String clientUrl;
@@ -51,16 +53,17 @@ public class IncidentEvent implements ToXContent {
 
     public IncidentEvent(String description, @Nullable String eventType, @Nullable String incidentKey, @Nullable String client,
                          @Nullable String clientUrl, @Nullable String account, boolean attachPayload,
-                         @Nullable IncidentEventContext[] contexts) {
+                         @Nullable IncidentEventContext[] contexts, @Nullable HttpProxy proxy) {
         this.description = description;
         if (description == null) {
             throw new IllegalStateException("could not create pagerduty event. missing required [" +
-                    XField.DESCRIPTION.getPreferredName() + "] setting");
+                    Fields.DESCRIPTION.getPreferredName() + "] setting");
         }
         this.incidentKey = incidentKey;
         this.client = client;
         this.clientUrl = clientUrl;
         this.account = account;
+        this.proxy = proxy;
         this.attachPayload = attachPayload;
         this.contexts = contexts;
         this.eventType = Strings.hasLength(eventType) ? eventType : "trigger";
@@ -79,12 +82,13 @@ public class IncidentEvent implements ToXContent {
                 Objects.equals(attachPayload, template.attachPayload) &&
                 Objects.equals(eventType, template.eventType) &&
                 Objects.equals(account, template.account) &&
+                Objects.equals(proxy, template.proxy) &&
                 Arrays.equals(contexts, template.contexts);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(description, incidentKey, client, clientUrl, account, attachPayload, eventType);
+        int result = Objects.hash(description, incidentKey, client, clientUrl, account, attachPayload, eventType, proxy);
         result = 31 * result + Arrays.hashCode(contexts);
         return result;
     }
@@ -94,29 +98,30 @@ public class IncidentEvent implements ToXContent {
                 .method(HttpMethod.POST)
                 .scheme(Scheme.HTTPS)
                 .path(PATH)
+                .proxy(proxy)
                 .jsonBody(new ToXContent() {
                     @Override
                     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                        builder.field(XField.SERVICE_KEY.getPreferredName(), serviceKey);
-                        builder.field(XField.EVENT_TYPE.getPreferredName(), eventType);
-                        builder.field(XField.DESCRIPTION.getPreferredName(), description);
+                        builder.field(Fields.SERVICE_KEY.getPreferredName(), serviceKey);
+                        builder.field(Fields.EVENT_TYPE.getPreferredName(), eventType);
+                        builder.field(Fields.DESCRIPTION.getPreferredName(), description);
                         if (incidentKey != null) {
-                            builder.field(XField.INCIDENT_KEY.getPreferredName(), incidentKey);
+                            builder.field(Fields.INCIDENT_KEY.getPreferredName(), incidentKey);
                         }
                         if (client != null) {
-                            builder.field(XField.CLIENT.getPreferredName(), client);
+                            builder.field(Fields.CLIENT.getPreferredName(), client);
                         }
                         if (clientUrl != null) {
-                            builder.field(XField.CLIENT_URL.getPreferredName(), clientUrl);
+                            builder.field(Fields.CLIENT_URL.getPreferredName(), clientUrl);
                         }
                         if (attachPayload) {
-                            builder.startObject(XField.DETAILS.getPreferredName());
-                            builder.field(XField.PAYLOAD.getPreferredName());
+                            builder.startObject(Fields.DETAILS.getPreferredName());
+                            builder.field(Fields.PAYLOAD.getPreferredName());
                             payload.toXContent(builder, params);
                             builder.endObject();
                         }
                         if (contexts != null && contexts.length > 0) {
-                            builder.startArray(IncidentEvent.XField.CONTEXT.getPreferredName());
+                            builder.startArray(Fields.CONTEXT.getPreferredName());
                             for (IncidentEventContext context : contexts) {
                                 context.toXContent(builder, params);
                             }
@@ -131,22 +136,25 @@ public class IncidentEvent implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.field(XField.DESCRIPTION.getPreferredName(), description);
+        builder.field(Fields.DESCRIPTION.getPreferredName(), description);
         if (incidentKey != null) {
-            builder.field(XField.INCIDENT_KEY.getPreferredName(), incidentKey);
+            builder.field(Fields.INCIDENT_KEY.getPreferredName(), incidentKey);
         }
         if (client != null) {
-            builder.field(XField.CLIENT.getPreferredName(), client);
+            builder.field(Fields.CLIENT.getPreferredName(), client);
         }
         if (clientUrl != null) {
-            builder.field(XField.CLIENT_URL.getPreferredName(), clientUrl);
+            builder.field(Fields.CLIENT_URL.getPreferredName(), clientUrl);
         }
         if (account != null) {
-            builder.field(XField.ACCOUNT.getPreferredName(), account);
+            builder.field(Fields.ACCOUNT.getPreferredName(), account);
         }
-        builder.field(XField.ATTACH_PAYLOAD.getPreferredName(), attachPayload);
+        if (proxy != null) {
+            proxy.toXContent(builder, params);
+        }
+        builder.field(Fields.ATTACH_PAYLOAD.getPreferredName(), attachPayload);
         if (contexts != null) {
-            builder.startArray(XField.CONTEXT.getPreferredName());
+            builder.startArray(Fields.CONTEXT.getPreferredName());
             for (IncidentEventContext context : contexts) {
                 context.toXContent(builder, params);
             }
@@ -172,9 +180,11 @@ public class IncidentEvent implements ToXContent {
         public final String account;
         final Boolean attachPayload;
         final IncidentEventContext.Template[] contexts;
+        final HttpProxy proxy;
 
         public Template(TextTemplate description, TextTemplate eventType, TextTemplate incidentKey, TextTemplate client,
-                        TextTemplate clientUrl, String account, Boolean attachPayload, IncidentEventContext.Template[] contexts) {
+                        TextTemplate clientUrl, String account, Boolean attachPayload, IncidentEventContext.Template[] contexts,
+                        HttpProxy proxy) {
             this.description = description;
             this.eventType = eventType;
             this.incidentKey = incidentKey;
@@ -183,6 +193,7 @@ public class IncidentEvent implements ToXContent {
             this.account = account;
             this.attachPayload = attachPayload;
             this.contexts = contexts;
+            this.proxy = proxy;
         }
 
         @Override
@@ -198,12 +209,13 @@ public class IncidentEvent implements ToXContent {
                    Objects.equals(eventType, template.eventType) &&
                    Objects.equals(attachPayload, template.attachPayload) &&
                    Objects.equals(account, template.account) &&
+                   Objects.equals(proxy, template.proxy) &&
                    Arrays.equals(contexts, template.contexts);
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(description, eventType, incidentKey, client, clientUrl, attachPayload, account);
+            int result = Objects.hash(description, eventType, incidentKey, client, clientUrl, attachPayload, account, proxy);
             result = 31 * result + Arrays.hashCode(contexts);
             return result;
         }
@@ -224,33 +236,36 @@ public class IncidentEvent implements ToXContent {
                     contexts[i] = this.contexts[i].render(engine, model, defaults);
                 }
             }
-            return new IncidentEvent(description, eventType, incidentKey, client, clientUrl, account, attachPayload, contexts);
+            return new IncidentEvent(description, eventType, incidentKey, client, clientUrl, account, attachPayload, contexts, proxy);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            builder.field(XField.DESCRIPTION.getPreferredName(), description, params);
+            builder.field(Fields.DESCRIPTION.getPreferredName(), description, params);
             if (incidentKey != null) {
-                builder.field(XField.INCIDENT_KEY.getPreferredName(), incidentKey, params);
+                builder.field(Fields.INCIDENT_KEY.getPreferredName(), incidentKey, params);
             }
             if (client != null) {
-                builder.field(XField.CLIENT.getPreferredName(), client, params);
+                builder.field(Fields.CLIENT.getPreferredName(), client, params);
             }
             if (clientUrl != null) {
-                builder.field(XField.CLIENT_URL.getPreferredName(), clientUrl, params);
+                builder.field(Fields.CLIENT_URL.getPreferredName(), clientUrl, params);
             }
             if (eventType != null) {
-                builder.field(XField.EVENT_TYPE.getPreferredName(), eventType, params);
+                builder.field(Fields.EVENT_TYPE.getPreferredName(), eventType, params);
             }
             if (attachPayload != null) {
-                builder.field(XField.ATTACH_PAYLOAD.getPreferredName(), attachPayload);
+                builder.field(Fields.ATTACH_PAYLOAD.getPreferredName(), attachPayload);
             }
             if (account != null) {
-                builder.field(XField.ACCOUNT.getPreferredName(), account);
+                builder.field(Fields.ACCOUNT.getPreferredName(), account);
+            }
+            if (proxy != null) {
+                proxy.toXContent(builder, params);
             }
             if (contexts != null) {
-                builder.startArray(XField.CONTEXT.getPreferredName());
+                builder.startArray(Fields.CONTEXT.getPreferredName());
                 for (IncidentEventContext.Template context : contexts) {
                     context.toXContent(builder, params);
                 }
@@ -266,6 +281,7 @@ public class IncidentEvent implements ToXContent {
             TextTemplate clientUrl = null;
             TextTemplate eventType = null;
             String account = null;
+            HttpProxy proxy = null;
             Boolean attachPayload = null;
             IncidentEventContext.Template[] contexts = null;
 
@@ -274,56 +290,58 @@ public class IncidentEvent implements ToXContent {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.INCIDENT_KEY)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.INCIDENT_KEY)) {
                     try {
                         incidentKey = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException e) {
                         throw new ElasticsearchParseException("could not parse pager duty event template. failed to parse field [{}]",
-                                XField.INCIDENT_KEY.getPreferredName());
+                                Fields.INCIDENT_KEY.getPreferredName());
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.DESCRIPTION)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.DESCRIPTION)) {
                     try {
                         description = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException e) {
                         throw new ElasticsearchParseException("could not parse pager duty event template. failed to parse field [{}]",
-                                XField.DESCRIPTION.getPreferredName());
+                                Fields.DESCRIPTION.getPreferredName());
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.CLIENT)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.CLIENT)) {
                     try {
                         client = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException e) {
                         throw new ElasticsearchParseException("could not parse pager duty event template. failed to parse field [{}]",
-                                XField.CLIENT.getPreferredName());
+                                Fields.CLIENT.getPreferredName());
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.CLIENT_URL)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.CLIENT_URL)) {
                     try {
                         clientUrl = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException e) {
                         throw new ElasticsearchParseException("could not parse pager duty event template. failed to parse field [{}]",
-                                XField.CLIENT_URL.getPreferredName());
+                                Fields.CLIENT_URL.getPreferredName());
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.ACCOUNT)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.ACCOUNT)) {
                     try {
                         account = parser.text();
                     } catch (ElasticsearchParseException e) {
                         throw new ElasticsearchParseException("could not parse pager duty event template. failed to parse field [{}]",
-                                XField.CLIENT_URL.getPreferredName());
+                                Fields.CLIENT_URL.getPreferredName());
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.EVENT_TYPE)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.PROXY)) {
+                    proxy = HttpProxy.parse(parser);
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.EVENT_TYPE)) {
                     try {
                         eventType = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException e) {
                         throw new ElasticsearchParseException("could not parse pager duty event template. failed to parse field [{}]",
-                                XField.EVENT_TYPE.getPreferredName());
+                                Fields.EVENT_TYPE.getPreferredName());
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.ATTACH_PAYLOAD)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.ATTACH_PAYLOAD)) {
                     if (token == XContentParser.Token.VALUE_BOOLEAN) {
                         attachPayload = parser.booleanValue();
                     } else {
                         throw new ElasticsearchParseException("could not parse pager duty event template. failed to parse field [{}], " +
-                                "expected a boolean value but found [{}] instead", XField.ATTACH_PAYLOAD.getPreferredName(), token);
+                                "expected a boolean value but found [{}] instead", Fields.ATTACH_PAYLOAD.getPreferredName(), token);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.CONTEXT)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.CONTEXT)) {
                     if (token == XContentParser.Token.START_ARRAY) {
                         List<IncidentEventContext.Template> list = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -331,7 +349,7 @@ public class IncidentEvent implements ToXContent {
                                 list.add(IncidentEventContext.Template.parse(parser));
                             } catch (ElasticsearchParseException e) {
                                 throw new ElasticsearchParseException("could not parse pager duty event template. failed to parse field " +
-                                        "[{}]", XField.CONTEXT.getPreferredName());
+                                        "[{}]", Fields.CONTEXT.getPreferredName());
                             }
                         }
                         contexts = list.toArray(new IncidentEventContext.Template[list.size()]);
@@ -341,7 +359,7 @@ public class IncidentEvent implements ToXContent {
                             currentFieldName);
                 }
             }
-            return new Template(description, eventType, incidentKey, client, clientUrl, account, attachPayload, contexts);
+            return new Template(description, eventType, incidentKey, client, clientUrl, account, attachPayload, contexts, proxy);
         }
 
         public static class Builder {
@@ -352,6 +370,7 @@ public class IncidentEvent implements ToXContent {
             TextTemplate clientUrl;
             TextTemplate eventType;
             String account;
+            HttpProxy proxy;
             Boolean attachPayload;
             List<IncidentEventContext.Template> contexts = new ArrayList<>();
 
@@ -389,6 +408,11 @@ public class IncidentEvent implements ToXContent {
                 return this;
             }
 
+            public Builder setProxy(HttpProxy proxy) {
+                this.proxy = proxy;
+                return this;
+            }
+
             public Builder addContext(IncidentEventContext.Template context) {
                 this.contexts.add(context);
                 return this;
@@ -397,17 +421,18 @@ public class IncidentEvent implements ToXContent {
             public Template build() {
                 IncidentEventContext.Template[] contexts = this.contexts.isEmpty() ? null :
                         this.contexts.toArray(new IncidentEventContext.Template[this.contexts.size()]);
-                return new Template(description, eventType, incidentKey, client, clientUrl, account, attachPayload, contexts);
+                return new Template(description, eventType, incidentKey, client, clientUrl, account, attachPayload, contexts, proxy);
             }
         }
     }
 
-    interface XField {
+    interface Fields {
 
         ParseField TYPE = new ParseField("type");
         ParseField EVENT_TYPE = new ParseField("event_type");
 
         ParseField ACCOUNT = new ParseField("account");
+        ParseField PROXY = new ParseField("proxy");
         ParseField DESCRIPTION = new ParseField("description");
         ParseField INCIDENT_KEY = new ParseField("incident_key");
         ParseField CLIENT = new ParseField("client");

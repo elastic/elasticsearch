@@ -126,17 +126,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
     @Override
     protected void doStart() {
-        // Doesn't make sense to manage shards on non-master and non-data nodes
-        if (DiscoveryNode.dataNode(settings) || DiscoveryNode.masterNode(settings)) {
-            clusterService.addFirst(this);
-        }
+        clusterService.addFirst(this);
     }
 
     @Override
     protected void doStop() {
-        if (DiscoveryNode.dataNode(settings) || DiscoveryNode.masterNode(settings)) {
-            clusterService.remove(this);
-        }
+        clusterService.remove(this);
     }
 
     @Override
@@ -230,6 +225,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
         }
 
+        DiscoveryNode localNode = event.state().nodes().localNode();
         for (String index : event.indicesDeleted()) {
             if (logger.isDebugEnabled()) {
                 logger.debug("[{}] cleaning index, no longer part of the metadata", index);
@@ -243,7 +239,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 final IndexMetaData metaData = previousState.metaData().index(index);
                 assert metaData != null;
                 indexSettings = metaData.getSettings();
-                indicesService.deleteClosedIndex("closed index no longer part of the metadata", metaData, event.state());
+                // only delete closed indices on data / master nodes
+                if (localNode.isMasterNode() || localNode.isDataNode()) {
+                    indicesService.deleteClosedIndex("closed index no longer part of the metadata", metaData, event.state());
+                }
             }
             try {
                 nodeIndexDeletedAction.nodeIndexDeleted(event.state(), index, indexSettings, localNodeId);

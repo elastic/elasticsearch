@@ -51,12 +51,6 @@ import java.util.function.Supplier;
 
 public class NetworkModuleTests extends ModuleTestCase {
 
-//    static class FakeTransport extends MockTcpTransport {
-//        public FakeTransport() {
-//            super(null, null, null, null);
-//        }
-//    }
-
     static class FakeHttpTransport extends AbstractLifecycleComponent implements HttpServerTransport {
         public FakeHttpTransport() {
             super(null);
@@ -110,7 +104,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "custom")
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
             .build();
-        Supplier<Transport> custom = () -> null;
+        Supplier<Transport> custom = () -> null; // content doesn't matter we check reference equality
         NetworkPlugin plugin = new NetworkPlugin() {
             @Override
             public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
@@ -166,7 +160,7 @@ public class NetworkModuleTests extends ModuleTestCase {
             .put(NetworkModule.HTTP_DEFAULT_TYPE_SETTING.getKey(), "default_custom")
             .put(NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.getKey(), "local")
             .put(NetworkModule.TRANSPORT_TYPE_KEY, "default_custom").build();
-        Supplier<Transport> customTransport = () -> null;
+        Supplier<Transport> customTransport = () -> null;  // content doesn't matter we check reference equality
         Supplier<HttpServerTransport> custom = FakeHttpTransport::new;
         Supplier<HttpServerTransport> def = FakeHttpTransport::new;
         NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {

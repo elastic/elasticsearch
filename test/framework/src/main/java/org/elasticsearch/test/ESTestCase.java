@@ -185,7 +185,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Generates a new transport address using {@link TransportAddress#META_ADDRESS} with an incrementing port number.
-     * The port number starts at 0 and is reset before each test suite run.
+     * The port number starts at 0 and is reset after each test suite run.
      */
     public static TransportAddress buildNewFakeTransportAddress() {
         return new TransportAddress(TransportAddress.META_ADDRESS, portGenerator.incrementAndGet());

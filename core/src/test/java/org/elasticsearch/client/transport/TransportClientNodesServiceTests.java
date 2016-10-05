@@ -48,6 +48,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
@@ -245,7 +246,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     assertThat(discoveryNode.getHostName(), startsWith("liveness-"));
                     assertThat(discoveryNode.getHostAddress(), startsWith("liveness-"));
                     assertNotEquals(discoveryNode.getAddress(), iteration.livenessAddress);
-                    assertTrue(iteration.nodeAddresses.contains(discoveryNode.getAddress()));
+                    assertThat(iteration.nodeAddresses, hasItem(discoveryNode.getAddress()));
                 }
             }
         }

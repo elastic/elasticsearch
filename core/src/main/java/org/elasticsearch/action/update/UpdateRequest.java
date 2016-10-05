@@ -115,14 +115,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         if (versionType != VersionType.INTERNAL) {
             validationException = addValidationError("version type [" + versionType + "] is not supported by the update API",
                     validationException);
-        }
-
-        if (version != Versions.MATCH_ANY && retryOnConflict > 0) {
-            validationException = addValidationError("can't provide both retry_on_conflict and a specific version", validationException);
-        }
-
-        if (!versionType.validateVersionForWrites(version)) {
-            validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
+        } else {
+            if (version != Versions.MATCH_ANY && retryOnConflict > 0) {
+                validationException = addValidationError("can't provide both retry_on_conflict and a specific version", validationException);
+            }
+            if (!versionType.validateVersionForWrites(version)) {
+                validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
+            }
         }
 
         if (script == null && doc == null) {

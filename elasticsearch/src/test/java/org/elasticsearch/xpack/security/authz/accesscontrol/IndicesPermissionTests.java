@@ -126,6 +126,9 @@ public class IndicesPermissionTests extends ESTestCase {
         // did not define anything for ba so we allow all
         assertFalse(authzMap.get("ba").getFieldPermissions().hasFieldLevelSecurity());
 
+        assertTrue(core.check(SearchAction.NAME));
+        assertFalse(core.check("unknown"));
+
         // test with two indices
         group1 = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, "a1");
         group2 = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(null, new
@@ -142,5 +145,8 @@ public class IndicesPermissionTests extends ESTestCase {
         assertTrue(authzMap.get("a2").getFieldPermissions().grantsAccessTo(randomAsciiOfLength(5) + "_field"));
         assertTrue(authzMap.get("a2").getFieldPermissions().grantsAccessTo(randomAsciiOfLength(5) + "_field2"));
         assertTrue(authzMap.get("a2").getFieldPermissions().hasFieldLevelSecurity());
+
+        assertTrue(core.check(SearchAction.NAME));
+        assertFalse(core.check("unknown"));
     }
 }

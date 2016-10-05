@@ -63,17 +63,15 @@ public abstract class AbstractPrivilegeTestCase extends SecurityIntegTestCase {
 
     protected void assertAccessIsDenied(String user, String method, String uri, String body,
                                         Map<String, String> params) throws IOException {
-        try {
-            getRestClient().performRequest(method, uri, params, entityOrNull(body),
-                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                            UsernamePasswordToken.basicAuthHeaderValue(user, new SecuredString("passwd".toCharArray()))));
-            fail("request should have failed");
-        } catch(ResponseException e) {
-            StatusLine statusLine = e.getResponse().getStatusLine();
-            String message = String.format(Locale.ROOT, "%s %s body %s: Expected 403, got %s %s with body %s", method, uri, body,
-                    statusLine.getStatusCode(), statusLine.getReasonPhrase(), EntityUtils.toString(e.getResponse().getEntity()));
-            assertThat(message, statusLine.getStatusCode(), is(403));
-        }
+        ResponseException responseException = expectThrows(ResponseException.class,
+                () -> getRestClient().performRequest(method, uri, params, entityOrNull(body),
+                        new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                                UsernamePasswordToken.basicAuthHeaderValue(user, new SecuredString("passwd".toCharArray())))));
+        StatusLine statusLine = responseException.getResponse().getStatusLine();
+        String message = String.format(Locale.ROOT, "%s %s body %s: Expected 403, got %s %s with body %s", method, uri, body,
+                statusLine.getStatusCode(), statusLine.getReasonPhrase(),
+                EntityUtils.toString(responseException.getResponse().getEntity()));
+        assertThat(message, statusLine.getStatusCode(), is(403));
     }
 
     private static HttpEntity entityOrNull(String body) {

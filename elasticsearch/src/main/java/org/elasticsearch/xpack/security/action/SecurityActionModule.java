@@ -9,7 +9,7 @@ import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
-import org.elasticsearch.xpack.security.action.interceptor.BulkRequestInterceptor;
+import org.elasticsearch.xpack.security.action.interceptor.BulkShardRequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.FieldStatsRequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.SearchRequestInterceptor;
@@ -32,7 +32,7 @@ public class SecurityActionModule extends AbstractSecurityModule.Node {
         if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
             multibinder.addBinding().to(SearchRequestInterceptor.class);
             multibinder.addBinding().to(UpdateRequestInterceptor.class);
-            multibinder.addBinding().to(BulkRequestInterceptor.class);
+            multibinder.addBinding().to(BulkShardRequestInterceptor.class);
             multibinder.addBinding().to(FieldStatsRequestInterceptor.class);
         }
     }

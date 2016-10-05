@@ -11,10 +11,14 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.search.ClearScrollAction;
+import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
+import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -227,14 +231,27 @@ public class AuthorizationService extends AbstractComponent {
             throw denial(authentication, action, request);
         }
 
+        //composite actions are explicitly listed and will be authorized at the sub-request / shard level
+        if (isCompositeAction(action)) {
+            if (request instanceof CompositeIndicesRequest == false) {
+                throw new IllegalStateException("Composite actions must implement " + CompositeIndicesRequest.class.getSimpleName()
+                + ", " + request.getClass().getSimpleName() + " doesn't");
+            }
+            //we check if the user can execute the action, without looking at indices, whici will be authorized at the shard level
+            if (permission.indices().check(action)) {
+                grant(authentication, action, request);
+                return;
+            }
+            throw denial(authentication, action, request);
+        }
+
         // some APIs are indices requests that are not actually associated with indices. For example,
         // search scroll request, is categorized under the indices context, but doesn't hold indices names
         // (in this case, the security check on the indices was done on the search request that initialized
         // the scroll... and we rely on the signed scroll id to provide security over this request).
         // so we only check indices if indeed the request is an actual IndicesRequest, if it's not,
         // we just grant it if it's a scroll, deny otherwise
-        if (request instanceof IndicesRequest == false && request instanceof CompositeIndicesRequest == false
-                && request instanceof IndicesAliasesRequest == false) {
+        if (request instanceof IndicesRequest == false && request instanceof IndicesAliasesRequest == false) {
             if (isScrollRelatedAction(action)) {
                 //note that clear scroll shard level actions can originate from a clear scroll all, which doesn't require any
                 //indices permission as it's categorized under cluster. This is why the scroll check is performed
@@ -254,8 +271,8 @@ public class AuthorizationService extends AbstractComponent {
         Set<String> indexNames = resolveIndices(authentication, action, request, clusterState);
         assert !indexNames.isEmpty() : "every indices request needs to have its indices set thus the resolved indices must not be empty";
 
-        //security plugin is the only responsible for the presence of "-*", as wildcards just got resolved.
-        //'-*' matches no indices, hence we can simply let it go through, it will yield an empty response.
+        //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
+        //'-*' matches no indices so we allow the request to go through, which will yield an empty response
         if (indexNames.size() == 1 && indexNames.contains(DefaultIndicesAndAliasesResolver.NO_INDEX)) {
             setIndicesAccessControl(IndicesAccessControl.ALLOW_NO_INDICES);
             grant(authentication, action, request);
@@ -346,6 +363,16 @@ public class AuthorizationService extends AbstractComponent {
         }
         assert false : "we should be able to resolve indices for any known request that requires indices privileges";
         throw denial(authentication, action, request);
+    }
+
+    private static boolean isCompositeAction(String action) {
+        return action.equals(BulkAction.NAME) ||
+                action.equals(MultiGetAction.NAME) ||
+                action.equals(MultiTermVectorsAction.NAME) ||
+                action.equals(MultiSearchAction.NAME) ||
+                action.equals("indices:data/read/mpercolate") ||
+                action.equals("indices:data/read/msearch/template") ||
+                action.equals("indices:data/write/reindex");
     }
 
     private static boolean isScrollRelatedAction(String action) {

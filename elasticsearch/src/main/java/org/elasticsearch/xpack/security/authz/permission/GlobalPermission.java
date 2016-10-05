@@ -72,7 +72,7 @@ public class GlobalPermission implements Permission {
 
     public static class Compound extends GlobalPermission {
 
-        public Compound(List<GlobalPermission> globals) {
+        Compound(List<GlobalPermission> globals) {
             super(new ClusterPermission.Globals(globals), new IndicesPermission.Globals(globals), new RunAsPermission.Globals(globals));
         }
 

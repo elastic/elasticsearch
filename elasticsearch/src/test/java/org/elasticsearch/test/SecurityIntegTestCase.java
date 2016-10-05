@@ -6,9 +6,12 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.AbstractOldXPackIndicesBackwardsCompatibilityTestCase;
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -16,13 +19,13 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.XPackClient;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.client.SecurityClient;
-import org.elasticsearch.xpack.XPackClient;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -38,8 +41,9 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsCollectionContaining.hasItem;
 
@@ -352,10 +356,39 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    protected void assertGreenClusterState(Client client) {
+    protected static void assertGreenClusterState(Client client) {
         ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().get();
         assertNoTimeout(clusterHealthResponse);
         assertThat(clusterHealthResponse.getStatus(), is(ClusterHealthStatus.GREEN));
+    }
+
+    protected static void assertThrowsAuthorizationException(ActionRequestBuilder actionRequestBuilder) {
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, actionRequestBuilder::get);
+        SecurityTestsUtils.assertAuthorizationException(e, containsString("is unauthorized for user ["));
+    }
+
+    protected void createIndicesWithRandomAliases(String... indices) {
+        if (randomBoolean()) {
+            //no aliases
+            createIndex(indices);
+        } else {
+            if (randomBoolean()) {
+                //one alias per index with suffix "-alias"
+                for (String index : indices) {
+                    client().admin().indices().prepareCreate(index).setSettings(indexSettings()).addAlias(new Alias(index + "-alias"));
+                }
+            } else {
+                //same alias pointing to all indices
+                for (String index : indices) {
+                    client().admin().indices().prepareCreate(index).setSettings(indexSettings()).addAlias(new Alias("alias"));
+                }
+            }
+        }
+
+        for (String index : indices) {
+            client().prepareIndex(index, "type").setSource("field", "value").get();
+        }
+        refresh();
     }
 
     @Override

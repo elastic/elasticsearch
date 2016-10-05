@@ -40,9 +40,20 @@ import static java.util.Collections.unmodifiableSet;
  */
 public interface IndicesPermission extends Permission, Iterable<IndicesPermission.Group> {
 
+    /**
+     * Authorizes the provided action against the provided indices, given the current cluster metadata
+     */
     Map<String, IndicesAccessControl.IndexAccessControl> authorize(String action, Set<String> requestedIndicesOrAliases, MetaData metaData);
 
-    public static class Core implements IndicesPermission {
+    /**
+     * Checks if the permission matches the provided action, without looking at indices.
+     * To be used in very specific cases where indices actions need to be authorized regardless of their indices.
+     * The usecase for this is composite actions that are initially only authorized based on the action name (indices are not
+     * checked on the coordinating node), and properly authorized later at the shard level checking their indices as well.
+     */
+    boolean check(String action);
+
+    class Core implements IndicesPermission {
 
         public static final Core NONE = new Core() {
             @Override
@@ -99,6 +110,16 @@ public interface IndicesPermission extends Permission, Iterable<IndicesPermissio
          */
         public Predicate<String> allowedIndicesMatcher(String action) {
             return allowedIndicesMatchersForAction.computeIfAbsent(action, loadingFunction);
+        }
+
+        @Override
+        public boolean check(String action) {
+            for (Group group : groups) {
+                if (group.check(action)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override
@@ -201,6 +222,21 @@ public interface IndicesPermission extends Permission, Iterable<IndicesPermissio
                 }
             }
             return true;
+        }
+
+        @Override
+        public boolean check(String action) {
+            if (globals == null) {
+                return false;
+            }
+            for (GlobalPermission global : globals) {
+                Objects.requireNonNull(global, "global must not be null");
+                Objects.requireNonNull(global.indices(), "global.indices() must not be null");
+                if (global.indices().check(action)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override
@@ -321,13 +357,13 @@ public interface IndicesPermission extends Permission, Iterable<IndicesPermissio
             return query;
         }
 
-        public boolean indexNameMatch(String index) {
-            return indexNameMatcher.test(index);
+        private boolean check(String action) {
+            return actionMatcher.test(action);
         }
 
-        public boolean check(String action, String index) {
+        private boolean check(String action, String index) {
             assert index != null;
-            return actionMatcher.test(action) && indexNameMatcher.test(index);
+            return check(action) && indexNameMatcher.test(index);
         }
 
         public boolean hasQuery() {

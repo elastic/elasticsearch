@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -32,20 +34,28 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
+import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.MultiGetAction;
+import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.MultiSearchAction;
+import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
+import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateAction;
@@ -58,7 +68,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -83,6 +93,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
@@ -587,9 +598,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         verify(auditTrail).accessGranted(user, ClusterHealthAction.NAME, request);
 
         SearchRequest searchRequest = new SearchRequest("_all");
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
-                () -> authorizationService.authorize(createAuthentication(user), SearchAction.NAME, searchRequest));
-        assertThat(e.getMessage(), containsString("no such index"));
+        authorizationService.authorize(createAuthentication(user), SearchAction.NAME, searchRequest);
+        assertEquals(1, searchRequest.indices().length);
+        assertEquals(DefaultIndicesAndAliasesResolver.NO_INDEX, searchRequest.indices()[0]);
     }
 
     public void testGrantedNonXPackUserCanExecuteMonitoringOperationsAgainstSecurityIndex() {
@@ -662,6 +673,29 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
     }
 
+    public void testXPackUserAndSuperusersCanExecuteOperationAgainstSecurityIndexWithWildcard() {
+        final User superuser = new User("custom_admin", SuperuserRole.NAME);
+        when(rolesStore.role(SuperuserRole.NAME)).thenReturn(Role.builder(SuperuserRole.DESCRIPTOR).build());
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+        when(state.metaData()).thenReturn(MetaData.builder()
+                .put(new IndexMetaData.Builder(SecurityTemplateService.SECURITY_INDEX_NAME)
+                        .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                        .numberOfShards(1).numberOfReplicas(0).build(), true)
+                .build());
+
+        String action = SearchAction.NAME;
+        SearchRequest request = new SearchRequest("_all");
+        authorizationService.authorize(createAuthentication(XPackUser.INSTANCE), action, request);
+        verify(auditTrail).accessGranted(XPackUser.INSTANCE, action, request);
+        assertThat(request.indices(), arrayContaining(".security"));
+
+        request = new SearchRequest("_all");
+        authorizationService.authorize(createAuthentication(superuser), action, request);
+        verify(auditTrail).accessGranted(superuser, action, request);
+        assertThat(request.indices(), arrayContaining(".security"));
+    }
+
     public void testAnonymousRolesAreAppliedToOtherUsers() {
         TransportRequest request = new ClusterHealthRequest();
         ClusterState state = mock(ClusterState.class);
@@ -688,31 +722,136 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService.authorize(createAuthentication(userWithNoRoles), IndicesExistsAction.NAME, new IndicesExistsRequest("a"));
     }
 
-    public void testXPackUserAndSuperusersCanExecuteOperationAgainstSecurityIndexWithWildcard() {
-        final User superuser = new User("custom_admin", SuperuserRole.NAME);
-        when(rolesStore.role(SuperuserRole.NAME)).thenReturn(Role.builder(SuperuserRole.DESCRIPTOR).build());
-        ClusterState state = mock(ClusterState.class);
-        when(clusterService.state()).thenReturn(state);
-        when(state.metaData()).thenReturn(MetaData.builder()
-                .put(new IndexMetaData.Builder(SecurityTemplateService.SECURITY_INDEX_NAME)
-                        .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
-                        .numberOfShards(1).numberOfReplicas(0).build(), true)
-                .build());
-
-        String action = SearchAction.NAME;
-        SearchRequest request = new SearchRequest("_all");
-        authorizationService.authorize(createAuthentication(XPackUser.INSTANCE), action, request);
-        verify(auditTrail).accessGranted(XPackUser.INSTANCE, action, request);
-        assertThat(request.indices(), arrayContaining(".security"));
-
-        request = new SearchRequest("_all");
-        authorizationService.authorize(createAuthentication(superuser), action, request);
-        verify(auditTrail).accessGranted(superuser, action, request);
-        assertThat(request.indices(), arrayContaining(".security"));
+    public void testCompositeActionsAreImmediatelyRejected() {
+        //if the user has no permission for composite actions against any index, the request fails straight-away in the main action
+        Tuple<String, TransportRequest> compositeRequest = randomCompositeRequest();
+        String action = compositeRequest.v1();
+        TransportRequest request = compositeRequest.v2();
+        User user = new User("test user", "no_indices");
+        when(rolesStore.role("no_indices")).thenReturn(Role.builder("no_indices").cluster(ClusterPrivilege.action("")).build());
+        ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
+                () -> authorizationService.authorize(createAuthentication(user), action, request));
+        assertThat(securityException.status(), is(RestStatus.FORBIDDEN));
+        assertThat(securityException.getMessage(), containsString("[" + action + "] is unauthorized for user [" + user.principal() + "]"));
+        verify(auditTrail).accessDenied(user, action, request);
+        verifyNoMoreInteractions(auditTrail);
     }
 
-    private Authentication createAuthentication(User user) {
+    public void testCompositeActionsIndicesAreNotChecked() {
+        //if the user has permission for some index, the request goes through without looking at the indices, they will be checked later
+        Tuple<String, TransportRequest> compositeRequest = randomCompositeRequest();
+        String action = compositeRequest.v1();
+        TransportRequest request = compositeRequest.v2();
+        User user = new User("test user", "role");
+        when(rolesStore.role("role")).thenReturn(Role.builder("role").add(IndexPrivilege.ALL, randomBoolean() ? "a" : "index").build());
+        authorizationService.authorize(createAuthentication(user), action, request);
+        verify(auditTrail).accessGranted(user, action, request);
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testCompositeActionsMustImplementCompositeIndicesRequest() {
+        String action = randomCompositeRequest().v1();
+        TransportRequest request = mock(TransportRequest.class);
+        User user = new User("test user", "role");
+        when(rolesStore.role("role")).thenReturn(Role.builder("role").add(IndexPrivilege.ALL, randomBoolean() ? "a" : "index").build());
+        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
+                () -> authorizationService.authorize(createAuthentication(user), action, request));
+        assertThat(illegalStateException.getMessage(), containsString("Composite actions must implement CompositeIndicesRequest"));
+    }
+
+    public void testCompositeActionsIndicesAreCheckedAtTheShardLevel() {
+        String action;
+        switch(randomIntBetween(0, 6)) {
+            case 0:
+                action = MultiGetAction.NAME + "[shard]";
+                break;
+            case 1:
+                action = SearchAction.NAME;
+                break;
+            case 2:
+                action = MultiTermVectorsAction.NAME + "[shard]";
+                break;
+            case 3:
+                action = BulkAction.NAME + "[s]";
+                break;
+            case 4:
+                action = "indices:data/read/mpercolate[s]";
+                break;
+            case 5:
+                action = "indices:data/read/search/template";
+                break;
+            case 6:
+                //reindex delegates to search and index
+                action = randomBoolean() ? SearchAction.NAME : IndexAction.NAME;
+                break;
+            default:
+                throw new UnsupportedOperationException();
+        }
+
+        TransportRequest request = new MockIndicesRequest();
+        User userAllowed = new User("userAllowed", "roleAllowed");
+        when(rolesStore.role("roleAllowed")).thenReturn(Role.builder("roleAllowed").add(IndexPrivilege.ALL, "index").build());
+        User userDenied = new User("userDenied", "roleDenied");
+        when(rolesStore.role("roleDenied")).thenReturn(Role.builder("roleDenied").add(IndexPrivilege.ALL, "a").build());
+        mockEmptyMetaData();
+        authorizationService.authorize(createAuthentication(userAllowed), action, request);
+        ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
+                () -> authorizationService.authorize(createAuthentication(userDenied), action, request));
+        assertThat(securityException.status(), is(RestStatus.FORBIDDEN));
+        assertThat(securityException.getMessage(),
+                containsString("[" + action + "] is unauthorized for user [" + userDenied.principal() + "]"));
+    }
+
+    private static Tuple<String, TransportRequest> randomCompositeRequest() {
+        switch(randomIntBetween(0, 6)) {
+            case 0:
+                return Tuple.tuple(MultiGetAction.NAME, new MultiGetRequest().add("index", "type", "id"));
+            case 1:
+                return Tuple.tuple(MultiSearchAction.NAME, new MultiSearchRequest().add(new SearchRequest()));
+            case 2:
+                return Tuple.tuple(MultiTermVectorsAction.NAME, new MultiTermVectorsRequest().add("index", "type", "id"));
+            case 3:
+                return Tuple.tuple(BulkAction.NAME, new BulkRequest().add(new DeleteRequest("index", "type", "id")));
+            case 4:
+                return Tuple.tuple("indices:data/read/mpercolate", new MockCompositeIndicesRequest());
+            case 5:
+                return Tuple.tuple("indices:data/read/msearch/template", new MockCompositeIndicesRequest());
+            case 6:
+                return Tuple.tuple("indices:data/write/reindex", new MockCompositeIndicesRequest());
+            default:
+                throw new UnsupportedOperationException();
+        }
+    }
+
+    private static class MockIndicesRequest extends TransportRequest implements IndicesRequest {
+        @Override
+        public String[] indices() {
+            return new String[]{"index"};
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.strictExpandOpen();
+        }
+    }
+
+    private static class MockCompositeIndicesRequest extends TransportRequest implements CompositeIndicesRequest {
+
+        @Override
+        public List<? extends IndicesRequest> subRequests() {
+            return Collections.singletonList(new MockIndicesRequest());
+        }
+    }
+
+    private static Authentication createAuthentication(User user) {
         RealmRef lookedUpBy = user.runAs() == null ? null : new RealmRef("looked", "up", "by");
         return new Authentication(user, new RealmRef("test", "test", "foo"), lookedUpBy);
+    }
+    
+    private ClusterState mockEmptyMetaData() {
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+        when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
+        return state;
     }
 }

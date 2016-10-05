@@ -16,14 +16,14 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsAction;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
-import org.elasticsearch.action.get.MultiGetAction;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -34,11 +34,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
-import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-import org.elasticsearch.xpack.security.user.AnonymousUser;
-import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -46,11 +43,14 @@ import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.user.AnonymousUser;
+import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.security.user.XPackUser;
 import org.junit.Before;
 
 import java.util.Set;
 
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -880,137 +880,10 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertEquals("no such index", e.getMessage());
     }
 
-    //msearch is a CompositeIndicesRequest whose items (SearchRequests) implement IndicesRequest.Replaceable, wildcards will get replaced
-    @AwaitsFix(bugUrl = "multi requests endpoints need fixing, we shouldn't merge all the indices in one collection")
-    public void testResolveMultiSearchNoWildcards() {
-        MultiSearchRequest request = new MultiSearchRequest();
-        request.add(Requests.searchRequest("foo", "bar"));
-        request.add(Requests.searchRequest("bar2"));
-        Set<String> indices = defaultIndicesResolver.resolve(user, MultiSearchAction.NAME, request, metaData);
-        String[] expectedIndices = new String[]{"foo", "bar", "bar2"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.subRequests().get(0).indices(), equalTo(new String[]{"foo", "bar"}));
-        assertThat(request.subRequests().get(1).indices(), equalTo(new String[]{"bar2"}));
-    }
-
-    @AwaitsFix(bugUrl = "multi requests endpoints need fixing, we shouldn't merge all the indices in one collection")
-    public void testResolveMultiSearchNoWildcardsMissingIndex() {
-        MultiSearchRequest request = new MultiSearchRequest();
-        request.add(Requests.searchRequest("foo", "bar"));
-        request.add(Requests.searchRequest("bar2"));
-        request.add(Requests.searchRequest("missing"));
-        Set<String> indices = defaultIndicesResolver.resolve(user, MultiSearchAction.NAME, request, metaData);
-        String[] expectedIndices = new String[]{"foo", "bar", "bar2", "missing"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.subRequests().get(0).indices(), equalTo(new String[]{"foo", "bar"}));
-        assertThat(request.subRequests().get(1).indices(), equalTo(new String[]{"bar2"}));
-        assertThat(request.subRequests().get(2).indices(), equalTo(new String[]{"missing"}));
-    }
-
-    @AwaitsFix(bugUrl = "multi requests endpoints need fixing, we shouldn't merge all the indices in one collection")
-    public void testResolveMultiSearchWildcardsExpandOpen() {
-        MultiSearchRequest request = new MultiSearchRequest();
-        request.add(Requests.searchRequest("bar*")).indicesOptions(
-                randomFrom(IndicesOptions.strictExpandOpen(), IndicesOptions.lenientExpandOpen()));
-        request.add(Requests.searchRequest("foobar"));
-        Set<String> indices = defaultIndicesResolver.resolve(user, MultiSearchAction.NAME, request, metaData);
-        String[] expectedIndices = new String[]{"bar", "foobar"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.subRequests().get(0).indices(), equalTo(new String[]{"bar"}));
-        assertThat(request.subRequests().get(1).indices(), equalTo(new String[]{"foobar"}));
-    }
-
-    @AwaitsFix(bugUrl = "multi requests endpoints need fixing, we shouldn't merge all the indices in one collection")
-    public void testResolveMultiSearchWildcardsExpandOpenAndClose() {
-        MultiSearchRequest request = new MultiSearchRequest();
-        request.add(Requests.searchRequest("bar*").indicesOptions(IndicesOptions.strictExpand()));
-        request.add(Requests.searchRequest("foobar"));
-        Set<String> indices = defaultIndicesResolver.resolve(user, MultiSearchAction.NAME, request, metaData);
-        String[] expectedIndices = new String[]{"bar", "bar-closed", "foobar"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.subRequests().get(0).indices(), equalTo(new String[]{"bar", "bar-closed"}));
-        assertThat(request.subRequests().get(1).indices(), equalTo(new String[]{"foobar"}));
-    }
-
-    @AwaitsFix(bugUrl = "multi requests endpoints need fixing, we shouldn't merge all the indices in one collection")
-    public void testResolveMultiSearchWildcardsMissingIndex() {
-        MultiSearchRequest request = new MultiSearchRequest();
-        request.add(Requests.searchRequest("bar*"));
-        request.add(Requests.searchRequest("missing"));
-        Set<String> indices = defaultIndicesResolver.resolve(user, MultiSearchAction.NAME, request, metaData);
-        String[] expectedIndices = new String[]{"bar", "missing"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.subRequests().get(0).indices(), equalTo(new String[]{"bar"}));
-        assertThat(request.subRequests().get(1).indices(), equalTo(new String[]{"missing"}));
-    }
-
-    @AwaitsFix(bugUrl = "multi requests endpoints need fixing, we shouldn't merge all the indices in one collection")
-    public void testResolveMultiSearchWildcardsNoMatchingIndices() {
-        MultiSearchRequest request = new MultiSearchRequest();
-        request.add(Requests.searchRequest("missing*"));
-        request.add(Requests.searchRequest("foobar"));
-        try {
-            defaultIndicesResolver.resolve(user, MultiSearchAction.NAME, request, metaData);
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
-    }
-
-    @AwaitsFix(bugUrl = "multi requests endpoints need fixing, we shouldn't merge all the indices in one collection")
-    public void testMultiSearchWildcardsNoAuthorizedIndices() {
-        MultiSearchRequest request = new MultiSearchRequest();
-        request.add(Requests.searchRequest("foofoo*"));
-        request.add(Requests.searchRequest("foobar"));
-        try {
-            defaultIndicesResolver.resolve(userNoIndices, MultiSearchAction.NAME, request, metaData);
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
-    }
-
-    @AwaitsFix(bugUrl = "multi requests endpoints need fixing, we shouldn't merge all the indices in one collection")
-    public void testResolveMultiSearchWildcardsNoAuthorizedIndices() {
-        MultiSearchRequest request = new MultiSearchRequest();
-        request.add(Requests.searchRequest("foofoo*"));
-        request.add(Requests.searchRequest("foobar"));
-        try {
-            defaultIndicesResolver.resolve(userNoIndices, MultiSearchAction.NAME, request, metaData);
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
-    }
-
-    //mget is a CompositeIndicesRequest whose items don't support expanding wildcards
-    public void testResolveMultiGet() {
-        MultiGetRequest request = new MultiGetRequest();
-        request.add("foo", "type", "id");
-        request.add("bar", "type", "id");
-        Set<String> indices = defaultIndicesResolver.resolve(user, MultiGetAction.NAME, request, metaData);
-        String[] expectedIndices = new String[]{"foo", "bar"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.subRequests().get(0).indices(), equalTo(new String[]{"foo"}));
-        assertThat(request.subRequests().get(1).indices(), equalTo(new String[]{"bar"}));
-    }
-
-    public void testResolveMultiGetMissingIndex() {
-        MultiGetRequest request = new MultiGetRequest();
-        request.add("foo", "type", "id");
-        request.add("missing", "type", "id");
-        Set<String> indices = defaultIndicesResolver.resolve(user, MultiGetAction.NAME, request, metaData);
-        String[] expectedIndices = new String[]{"foo", "missing"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.subRequests().get(0).indices(), equalTo(new String[]{"foo"}));
-        assertThat(request.subRequests().get(1).indices(), equalTo(new String[]{"missing"}));
+    public void testCompositeIndicesRequestIsNotSupported() {
+        TransportRequest request = randomFrom(new MultiSearchRequest(), new MultiGetRequest(),
+                new MultiTermVectorsRequest(), new BulkRequest());
+        expectThrows(IllegalStateException.class, () -> defaultIndicesResolver.resolve(user, MultiSearchAction.NAME, request, metaData));
     }
 
     public void testResolveAdminAction() {
@@ -1137,34 +1010,6 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder("foo", "foofoo"));
         assertThat(request.aliases(), arrayContainingInAnyOrder("<datetime-{now/M}>"));
-    }
-
-    public void testCompositeRequestsCanResolveExpressions() {
-        // make the user authorized
-        String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed",
-                indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>")};
-        when(rolesStore.role("role")).thenReturn(Role.builder("role").add(IndexPrivilege.ALL, authorizedIndices).build());
-        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
-        multiSearchRequest.add(new SearchRequest("<datetime-{now/M}>"));
-        multiSearchRequest.add(new SearchRequest("bar"));
-        Set<String> indices = defaultIndicesResolver.resolve(user, MultiSearchAction.NAME, multiSearchRequest, metaData);
-
-        String resolvedName = indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>");
-        String[] expectedIndices = new String[]{resolvedName, "bar"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
-        assertThat(multiSearchRequest.requests().get(0).indices(), arrayContaining(resolvedName));
-        assertThat(multiSearchRequest.requests().get(1).indices(), arrayContaining("bar"));
-
-        // multi get doesn't support replacing indices but we should authorize the proper indices
-        MultiGetRequest multiGetRequest = new MultiGetRequest();
-        multiGetRequest.add("<datetime-{now/M}>", "type", "1");
-        multiGetRequest.add("bar", "type", "1");
-        indices = defaultIndicesResolver.resolve(user, MultiGetAction.NAME, multiGetRequest, metaData);
-        assertThat(indices.size(), equalTo(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
-        assertThat(multiGetRequest.getItems().get(0).indices(), arrayContaining("<datetime-{now/M}>"));
-        assertThat(multiGetRequest.getItems().get(1).indices(), arrayContaining("bar"));
     }
 
     // TODO with the removal of DeleteByQuery is there another way to test resolving a write action?

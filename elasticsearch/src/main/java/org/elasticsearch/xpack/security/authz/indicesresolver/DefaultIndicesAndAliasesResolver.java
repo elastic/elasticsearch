@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.authz.indicesresolver;
 
 import org.elasticsearch.action.AliasesRequest;
-import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -62,21 +61,10 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
             return indices;
         }
 
-        boolean isIndicesRequest = request instanceof CompositeIndicesRequest || request instanceof IndicesRequest;
         // if for some reason we are missing an action... just for safety we'll reject
-        if (isIndicesRequest == false) {
+        if (request instanceof IndicesRequest == false) {
             throw new IllegalStateException("Request [" + request + "] is not an Indices request, but should be.");
         }
-
-        if (request instanceof CompositeIndicesRequest) {
-            Set<String> indices = new HashSet<>();
-            CompositeIndicesRequest compositeIndicesRequest = (CompositeIndicesRequest) request;
-            for (IndicesRequest indicesRequest : compositeIndicesRequest.subRequests()) {
-                indices.addAll(resolveIndicesAndAliases(user, action, indicesRequest, metaData));
-            }
-            return indices;
-        }
-
         return resolveIndicesAndAliases(user, action, (IndicesRequest) request, metaData);
     }
 

@@ -80,6 +80,8 @@ public class SuperuserRoleTests extends ESTestCase {
         authzMap = SuperuserRole.INSTANCE.indices().authorize(UpdateSettingsAction.NAME, Sets.newHashSet("aaaaaa", "ba"), metaData);
         assertThat(authzMap.get("aaaaaa").isGranted(), is(true));
         assertThat(authzMap.get("b").isGranted(), is(true));
+        assertTrue(SuperuserRole.INSTANCE.indices().check(SearchAction.NAME));
+        assertFalse(SuperuserRole.INSTANCE.indices().check("unknown"));
     }
 
     public void testRunAs() {

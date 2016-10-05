@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
-import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -13,7 +12,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportMessage;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -44,34 +42,6 @@ public class AuditUtilTests extends ESTestCase {
         assertThat(result, hasItems(uniqueExpectedIndices.toArray(Strings.EMPTY_ARRAY)));
     }
 
-    public void testCompositeIndicesRequest() {
-        assertNull(AuditUtil.indices(new MockCompositeIndicesRequest(Collections.emptyList())));
-        assertNull(AuditUtil.indices(new MockCompositeIndicesRequest(Collections.singletonList(new MockIndicesRequest(null)))));
-        final int numberOfIndicesRequests = randomIntBetween(1, 10);
-        final boolean includeDuplicates = randomBoolean();
-        List<String> expectedIndices = new ArrayList<>();
-        List<IndicesRequest> indicesRequests = new ArrayList<>(numberOfIndicesRequests);
-        for (int i = 0; i < numberOfIndicesRequests; i++) {
-            final int numberOfIndices = randomIntBetween(1, 12);
-            List<String> indices = new ArrayList<>(numberOfIndices);
-            for (int j = 0; j < numberOfIndices; j++) {
-                String name = randomAsciiOfLengthBetween(1, 30);
-                indices.add(name);
-                if (includeDuplicates) {
-                    indices.add(name);
-                }
-            }
-            expectedIndices.addAll(indices);
-            indicesRequests.add(new MockIndicesRequest(indices.toArray(Strings.EMPTY_ARRAY)));
-        }
-
-        final Set<String> uniqueExpectedIndices = new HashSet<>(expectedIndices);
-        final Set<String> result = AuditUtil.indices(new MockCompositeIndicesRequest(indicesRequests));
-        assertNotNull(result);
-        assertEquals(uniqueExpectedIndices.size(), result.size());
-        assertThat(result, hasItems(uniqueExpectedIndices.toArray(Strings.EMPTY_ARRAY)));
-    }
-
     private static class MockIndicesRequest extends TransportMessage implements IndicesRequest {
 
         private final String[] indices;
@@ -88,20 +58,6 @@ public class AuditUtilTests extends ESTestCase {
         @Override
         public IndicesOptions indicesOptions() {
             return null;
-        }
-    }
-
-    private static class MockCompositeIndicesRequest extends TransportMessage implements CompositeIndicesRequest {
-
-        private final List<? extends IndicesRequest> requests;
-
-        private MockCompositeIndicesRequest(List<? extends IndicesRequest> requests) {
-            this.requests = requests;
-        }
-
-        @Override
-        public List<? extends IndicesRequest> subRequests() {
-            return requests;
         }
     }
 }

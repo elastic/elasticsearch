@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.security.authz.permission;
 
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Predicate;
 
 /**
@@ -19,7 +20,7 @@ public interface ClusterPermission extends Permission {
 
     boolean check(String action, TransportRequest request, Authentication authentication);
 
-    public static class Core implements ClusterPermission {
+    class Core implements ClusterPermission {
 
         public static final Core NONE = new Core(ClusterPrivilege.NONE) {
             @Override
@@ -56,11 +57,11 @@ public interface ClusterPermission extends Permission {
         }
     }
 
-    static class Globals implements ClusterPermission {
+    class Globals implements ClusterPermission {
 
         private final List<GlobalPermission> globals;
 
-        public Globals(List<GlobalPermission> globals) {
+        Globals(List<GlobalPermission> globals) {
             this.globals = globals;
         }
 
@@ -70,9 +71,8 @@ public interface ClusterPermission extends Permission {
                 return false;
             }
             for (GlobalPermission global : globals) {
-                if (global == null || global.cluster() == null) {
-                    throw new RuntimeException();
-                }
+                Objects.requireNonNull(global, "global must not be null");
+                Objects.requireNonNull(global.indices(), "global.indices() must not be null");
                 if (global.cluster().check(action, request, authentication)) {
                     return true;
                 }

@@ -585,7 +585,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             QB firstQuery = createTestQueryBuilder();
             QB controlQuery = copyQuery(firstQuery);
             setSearchContext(randomTypes, context); // only set search context for toQuery to be more realistic
-            Query firstLuceneQuery = rewriteQuery(firstQuery, context).toQuery(context);
+            /* we use a private rewrite context here since we want the most realistic way of asserting that we are cachabel or not.
+             * We do it this way in SearchService where
+             * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
+            QueryBuilder rewritten = rewriteQuery(firstQuery, new QueryShardContext(context));
+            Query firstLuceneQuery = rewritten.toQuery(context);
             if (isCachable(firstQuery)) {
                 assert context.isCachable() : firstQuery.toString();
             } else {

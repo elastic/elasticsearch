@@ -119,16 +119,11 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
         return new QueryParseContext(defaultScriptLanguage, indicesQueriesRegistry, parser, indexSettings.getParseFieldMatcher());
     }
 
-    protected final void markAsNotCachable() {
-        this.cachable = false;
-    }
-
+    /**
+     * Returns <code>true</code> iff the result of the processed search request is cachable. Otherwise <code>false</code>
+     */
     public boolean isCachable() {
         return cachable;
-    }
-
-    public void setCachable(boolean cachabe) {
-        this.cachable = cachabe;
     }
 
     public BytesReference getTemplateBytes(Script template) {
@@ -143,7 +138,7 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     }
 
     protected void failIfExecutionMode() {
-        markAsNotCachable();
+        this.cachable = false;
         if (executionMode.get() == Boolean.TRUE) {
             throw new IllegalArgumentException("features that prevent cachability are disabled on this context");
         } else {

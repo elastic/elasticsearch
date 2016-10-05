@@ -163,10 +163,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
         return getQueryShardContext().isCachable();
     }
 
-    public final void resetCanCache() {
-        getQueryShardContext().setCachable(true);
-    }
-
     public abstract ScrollContext scrollContext();
 
     public abstract SearchContext scrollContext(ScrollContext scroll);

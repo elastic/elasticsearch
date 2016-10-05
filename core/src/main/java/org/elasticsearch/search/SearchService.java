@@ -521,13 +521,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, searcher);
         SearchContext.setCurrent(context);
         try {
-            request.rewrite(context.getQueryShardContext());
-            // reset that we have used nowInMillis from the context since it may
-            // have been rewritten so its no longer in the query and the request can
-            // be cached. If it is still present in the request (e.g. in a range
-            // aggregation) it will still be caught when the aggregation is
-            // evaluated.
-            context.resetCanCache();
+            request.rewrite(new QueryShardContext(context.getQueryShardContext()));
             if (request.scroll() != null) {
                 context.scrollContext(new ScrollContext());
                 context.scrollContext().scroll = request.scroll();

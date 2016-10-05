@@ -215,6 +215,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, ?> innerBuild(AggregationContext context,
             ValuesSourceConfig<ValuesSource.GeoPoint> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
                     throws IOException {
+        Range[] ranges = this.ranges.toArray(new Range[this.range().size()]);
         return new GeoDistanceRangeAggregatorFactory(name, type, config, origin, ranges, unit, distanceType, keyed, context, parent,
                 subFactoriesBuilder, metaData);
     }

@@ -19,8 +19,11 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -28,9 +31,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 /**
@@ -58,12 +66,48 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
         final RestChannelConsumer action = prepareRequest(request, client);
 
         // validate unconsumed params, but we must exclude params used to format the response
-        final List<String> unconsumedParams =
-            request.unconsumedParams().stream().filter(p -> !responseParams().contains(p)).collect(Collectors.toList());
+        // use a sorted set so the unconsumed parameters appear in a reliable sorted order
+        final SortedSet<String> unconsumedParams =
+            request.unconsumedParams().stream().filter(p -> !responseParams().contains(p)).collect(Collectors.toCollection(TreeSet::new));
 
         // validate the non-response params
-        if (!unconsumedParams.isEmpty()) {
-            throw new IllegalArgumentException("request [" + request.path() + "] contains unused params: " + unconsumedParams.toString());
+        if (unconsumedParams.isEmpty() == false) {
+            String message = String.format(
+                Locale.ROOT,
+                "request [%s] contains unrecognized parameter%s: ",
+                request.path(),
+                unconsumedParams.size() > 1 ? "s" : "");
+            boolean first = true;
+            for (final String unconsumedParam : unconsumedParams) {
+                final LevensteinDistance ld = new LevensteinDistance();
+                final List<Tuple<Float, String>> scoredParams = new ArrayList<>();
+                final Set<String> candidateParams = new HashSet<>();
+                candidateParams.addAll(request.consumedParams());
+                candidateParams.addAll(responseParams());
+                for (final String candidateParam : candidateParams) {
+                    final float distance = ld.getDistance(unconsumedParam, candidateParam);
+                    if (distance > 0.5f) {
+                        scoredParams.add(new Tuple<>(distance, candidateParam));
+                    }
+                }
+                CollectionUtil.timSort(scoredParams, (a, b) -> {
+                    // sort by distance in reverse order, then parameter name for equal distances
+                    int compare = a.v1().compareTo(b.v1());
+                    if (compare != 0) return -compare;
+                    else return a.v2().compareTo(b.v2());
+                });
+                if (first == false) {
+                    message += ", ";
+                }
+                message += "[" + unconsumedParam + "]";
+                final List<String> keys = scoredParams.stream().map(Tuple::v2).collect(Collectors.toList());
+                if (keys.isEmpty() == false) {
+                    message += " -> did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]": "any of " + keys.toString()) + "?";
+                }
+                first = false;
+            }
+
+            throw new IllegalArgumentException(message);
         }
 
         // execute the action

@@ -229,6 +229,8 @@ def provision(config,
           return 1
         fi
         echo "==> Retrying installing $1, attempt $((n+1))"
+        # Add a small delay to increase chance of metalink providing updated list of mirrors
+        sleep 5
       done
     }
 

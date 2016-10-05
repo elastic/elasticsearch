@@ -36,12 +36,16 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.functionscore.WeightBuilder;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -59,6 +63,7 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 
 import static org.elasticsearch.percolator.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -96,12 +101,38 @@ public class PercolatorIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(PercolatorPlugin.class);
+        return Arrays.asList(PercolatorPlugin.class, CustomScriptPlugin.class);
+    }
+
+    public static class CustomScriptPlugin extends MockScriptPlugin {
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+            scripts.put("1==1", vars -> Boolean.TRUE);
+            return scripts;
+        }
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return Collections.singleton(PercolatorPlugin.class);
+    }
+
+    public void testPercolateScriptQuery() throws IOException {
+        client().admin().indices().prepareCreate(INDEX_NAME).addMapping(TYPE_NAME, "query", "type=percolator").get();
+        ensureGreen();
+        client().prepareIndex(INDEX_NAME, TYPE_NAME, "1")
+            .setSource(jsonBuilder().startObject().field("query", QueryBuilders.scriptQuery(
+                new Script("1==1", ScriptService.ScriptType.INLINE, CustomScriptPlugin.NAME, null))).endObject())
+            .execute().actionGet();
+        refresh();
+        PercolateResponse response = preparePercolate(client())
+            .setIndices(INDEX_NAME).setDocumentType(TYPE_NAME)
+            .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "b").endObject()))
+            .execute().actionGet();
+        assertMatchCount(response, 1L);
+        assertThat(response.getMatches(), arrayWithSize(1));
+        assertThat(convertFromTextArray(response.getMatches(), INDEX_NAME), arrayContainingInAnyOrder("1"));
     }
 
     public void testSimple1() throws Exception {

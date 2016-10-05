@@ -10,6 +10,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -36,12 +37,16 @@ import org.junit.BeforeClass;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests security with tribe nodes
@@ -160,7 +165,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
                 .build();
 
         tribeNode = new MockNode(merged, nodePlugins()).start();
-        tribeClient = tribeNode.client();
+        tribeClient = getClientWrapper().apply(tribeNode.client());
     }
 
     private String[] getUnicastHosts(Client client) {
@@ -186,6 +191,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         Client clusterClient = randomBoolean() ? client() : cluster2.client();
         securityClient(clusterClient).prepareChangePassword("elastic", "password".toCharArray()).get();
 
+        assertTribeNodeHasAllIndices();
         ClusterHealthResponse response = tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
                 UsernamePasswordToken.basicAuthHeaderValue("elastic", new SecuredString("password".toCharArray()))))
                 .admin().cluster().prepareHealth().get();
@@ -197,6 +203,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         securityClient().prepareChangePassword("elastic", "password".toCharArray()).get();
         securityClient(cluster2.client()).prepareChangePassword("elastic", "password2".toCharArray()).get();
 
+        assertTribeNodeHasAllIndices();
         ClusterHealthResponse response = tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
                 UsernamePasswordToken.basicAuthHeaderValue("elastic", new SecuredString("password".toCharArray()))))
                 .admin().cluster().prepareHealth().get();
@@ -212,6 +219,10 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         List<String> shouldBeSuccessfulUsers = new ArrayList<>();
         List<String> shouldFailUsers = new ArrayList<>();
         final Client preferredClient = "t1".equals(preferredTribe) ? cluster1Client : cluster2Client;
+        // always ensure the index exists on all of the clusters in this test
+        assertAcked(internalClient().admin().indices().prepareCreate(SecurityTemplateService.SECURITY_INDEX_NAME).get());
+        assertAcked(cluster2.getInstance(InternalClient.class).admin().indices()
+                .prepareCreate(SecurityTemplateService.SECURITY_INDEX_NAME).get());
         for (int i = 0; i < randomUsers; i++) {
             final String username = "user" + i;
             Client clusterClient = randomBoolean() ? cluster1Client : cluster2Client;
@@ -228,6 +239,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
             }
         }
 
+        assertTribeNodeHasAllIndices();
         for (String username : shouldBeSuccessfulUsers) {
             ClusterHealthResponse response = tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
                     UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString("password".toCharArray()))))
@@ -235,28 +247,45 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
             assertNoTimeout(response);
         }
 
-        if (shouldBeSuccessfulUsers.isEmpty()) {
-            // there is no security index so these users can authenticate...
-            for (String username : shouldFailUsers) {
-                ClusterHealthResponse response = tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
-                        UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString("password".toCharArray()))))
-                        .admin().cluster().prepareHealth().get();
-                assertNoTimeout(response);
-            }
-        } else {
-            for (String username : shouldFailUsers) {
-                ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () ->
-                        tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
-                                UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString("password".toCharArray()))))
-                                .admin().cluster().prepareHealth().get());
-                assertThat(e.getMessage(), containsString("authenticate"));
-            }
+        for (String username : shouldFailUsers) {
+            ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () ->
+                    tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
+                            UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString("password".toCharArray()))))
+                            .admin().cluster().prepareHealth().get());
+            assertThat(e.getMessage(), containsString("authenticate"));
+        }
+    }
+
+    public void testUsersInNonPreferredClusterOnly() throws Exception {
+        final String preferredTribe = randomBoolean() ? "t1" : "t2";
+        setupTribeNode(Settings.builder().put("tribe.on_conflict", "prefer_" + preferredTribe).build());
+        final int randomUsers = scaledRandomIntBetween(3, 8);
+        final Client cluster1Client = client();
+        final Client cluster2Client = cluster2.client();
+        List<String> shouldBeSuccessfulUsers = new ArrayList<>();
+
+        // only create users in the non preferred client
+        final Client nonPreferredClient = "t1".equals(preferredTribe) ? cluster2Client : cluster1Client;
+        for (int i = 0; i < randomUsers; i++) {
+            final String username = "user" + i;
+            PutUserResponse response =
+                    securityClient(nonPreferredClient).preparePutUser(username, "password".toCharArray(), "superuser").get();
+            assertTrue(response.created());
+                shouldBeSuccessfulUsers.add(username);
+        }
+
+        assertTribeNodeHasAllIndices();
+        for (String username : shouldBeSuccessfulUsers) {
+            ClusterHealthResponse response = tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
+                    UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString("password".toCharArray()))))
+                    .admin().cluster().prepareHealth().get();
+            assertNoTimeout(response);
         }
     }
 
     public void testUserModificationUsingTribeNodeAreDisabled() throws Exception {
         setupTribeNode(Settings.EMPTY);
-        SecurityClient securityClient = securityClient(getClientWrapper().apply(tribeClient));
+        SecurityClient securityClient = securityClient(tribeClient);
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
                 () -> securityClient.preparePutUser("joe", "password".toCharArray()).get());
         assertThat(e.getMessage(), containsString("users may not be created or modified using a tribe node"));
@@ -278,6 +307,11 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         List<String> shouldBeSuccessfulRoles = new ArrayList<>();
         List<String> shouldFailRoles = new ArrayList<>();
         final Client preferredClient = "t1".equals(preferredTribe) ? cluster1Client : cluster2Client;
+        // always ensure the index exists on all of the clusters in this test
+        assertAcked(internalClient().admin().indices().prepareCreate(SecurityTemplateService.SECURITY_INDEX_NAME).get());
+        assertAcked(cluster2.getInstance(InternalClient.class).admin().indices()
+                .prepareCreate(SecurityTemplateService.SECURITY_INDEX_NAME).get());
+
         for (int i = 0; i < randomRoles; i++) {
             final String rolename = "role" + i;
             Client clusterClient = randomBoolean() ? cluster1Client : cluster2Client;
@@ -293,7 +327,8 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
             }
         }
 
-        SecurityClient securityClient = securityClient(getClientWrapper().apply(tribeClient));
+        assertTribeNodeHasAllIndices();
+        SecurityClient securityClient = securityClient(tribeClient);
         for (String rolename : shouldBeSuccessfulRoles) {
             GetRolesResponse response = securityClient.prepareGetRoles(rolename).get();
             assertTrue(response.hasRoles());
@@ -307,6 +342,32 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         }
     }
 
+    public void testRetrieveRolesOnNonPreferredClusterOnly() throws Exception {
+        final String preferredTribe = randomBoolean() ? "t1" : "t2";
+        setupTribeNode(Settings.builder().put("tribe.on_conflict", "prefer_" + preferredTribe).build());
+        final int randomRoles = scaledRandomIntBetween(3, 8);
+        final Client cluster1Client = client();
+        final Client cluster2Client = cluster2.client();
+        List<String> shouldBeSuccessfulRoles = new ArrayList<>();
+        final Client nonPreferredClient = "t1".equals(preferredTribe) ? cluster2Client : cluster1Client;
+
+        for (int i = 0; i < randomRoles; i++) {
+            final String rolename = "role" + i;
+            PutRoleResponse response = securityClient(nonPreferredClient).preparePutRole(rolename).cluster("monitor").get();
+            assertTrue(response.isCreated());
+            shouldBeSuccessfulRoles.add(rolename);
+        }
+
+        assertTribeNodeHasAllIndices();
+        SecurityClient securityClient = securityClient(tribeClient);
+        for (String rolename : shouldBeSuccessfulRoles) {
+            GetRolesResponse response = securityClient.prepareGetRoles(rolename).get();
+            assertTrue(response.hasRoles());
+            assertEquals(1, response.roles().length);
+            assertThat(response.roles()[0].getClusterPrivileges(), arrayContaining("monitor"));
+        }
+    }
+
     public void testRoleModificationUsingTribeNodeAreDisabled() throws Exception {
         setupTribeNode(Settings.EMPTY);
         SecurityClient securityClient = securityClient(getClientWrapper().apply(tribeClient));
@@ -315,5 +376,23 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         assertThat(e.getMessage(), containsString("roles may not be created or modified using a tribe node"));
         e = expectThrows(UnsupportedOperationException.class, () -> securityClient.prepareDeleteRole("role").get());
         assertThat(e.getMessage(), containsString("roles may not be deleted using a tribe node"));
+    }
+
+    private void assertTribeNodeHasAllIndices() throws Exception {
+        assertBusy(() -> {
+            Set<String> indices = new HashSet<>();
+            client().admin().cluster().prepareState().setMetaData(true).get()
+                    .getState().getMetaData().getIndices().keysIt().forEachRemaining(indices::add);
+            cluster2.client().admin().cluster().prepareState().setMetaData(true).get()
+                    .getState().getMetaData().getIndices().keysIt().forEachRemaining(indices::add);
+
+            ClusterState state = tribeClient.admin().cluster().prepareState().setRoutingTable(true).setMetaData(true).get().getState();
+            assertThat(state.getMetaData().getIndices().size(), equalTo(indices.size()));
+            for (String index : indices) {
+                assertTrue(state.getMetaData().hasIndex(index));
+                assertTrue(state.getRoutingTable().hasIndex(index));
+                assertTrue(state.getRoutingTable().index(index).allPrimaryShardsActive());
+            }
+        });
     }
 }

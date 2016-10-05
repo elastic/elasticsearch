@@ -73,8 +73,9 @@ public class RestAnalyzeAction extends BaseRestHandler {
         analyzeRequest.text(texts);
         analyzeRequest.analyzer(request.param("analyzer"));
         analyzeRequest.field(request.param("field"));
-        if (request.hasParam("tokenizer")) {
-            analyzeRequest.tokenizer(request.param("tokenizer"));
+        final String tokenizer = request.param("tokenizer");
+        if (tokenizer != null) {
+            analyzeRequest.tokenizer(tokenizer);
         }
         for (String filter : request.paramAsStringArray("filter", Strings.EMPTY_ARRAY)) {
             analyzeRequest.addTokenFilter(filter);

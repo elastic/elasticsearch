@@ -309,7 +309,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             final ModelNode[] modelNodes = sorter.modelNodes;
             final float[] weights = sorter.weights;
 
-            buildWeightOrderedIndices(sorter);
+            buildWeightOrderedIndices();
             Map<DiscoveryNode, Float> nodes = new HashMap<>(modelNodes.length);
             float currentNodeWeight = 0.0f;
             for (int i = 0; i < modelNodes.length; i++) {
@@ -342,7 +342,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             final AllocationDeciders deciders = allocation.deciders();
             final ModelNode[] modelNodes = sorter.modelNodes;
             final float[] weights = sorter.weights;
-            for (String index : buildWeightOrderedIndices(sorter)) {
+            for (String index : buildWeightOrderedIndices()) {
                 IndexMetaData indexMetaData = metaData.index(index);
 
                 // find nodes that have a shard of this index or where shards of this index are allowed to be allocated to,
@@ -447,7 +447,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          * average. To re-balance we need to move shards back eventually likely
          * to the nodes we relocated them from.
          */
-        private String[] buildWeightOrderedIndices(NodeSorter sorter) {
+        private String[] buildWeightOrderedIndices() {
             final String[] indices = allocation.routingTable().indicesRouting().keys().toArray(String.class);
             final float[] deltas = new float[indices.length];
             for (int i = 0; i < deltas.length; i++) {
@@ -510,7 +510,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     RoutingNode routingNode = sourceNode.getRoutingNode();
                     Decision decision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
                     if (decision.type() == Decision.Type.NO) {
-                        moveShard(sorter, shardRouting, sourceNode, routingNode);
+                        moveShard(shardRouting, sourceNode, routingNode);
                     }
                 }
             }
@@ -519,7 +519,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         /**
          * Move started shard to the minimal eligible node with respect to the weight function
          */
-        private void moveShard(NodeSorter sorter, ShardRouting shardRouting, ModelNode sourceNode, RoutingNode routingNode) {
+        private void moveShard(ShardRouting shardRouting, ModelNode sourceNode, RoutingNode routingNode) {
             logger.debug("[{}][{}] allocated on [{}], but can no longer be allocated on it, moving...", shardRouting.index(), shardRouting.id(), routingNode.node());
             sorter.reset(shardRouting.getIndexName());
             /*
@@ -631,8 +631,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     final Decision decision = allocationDecision.v1();
                     final ModelNode minNode = allocationDecision.v2();
 
-                    assert (decision == null) == (minNode == null);
-                    if (decision != null && decision.type() == Type.YES) {
+                    if (decision.type() == Type.YES) {
                         if (logger.isTraceEnabled()) {
                             logger.trace("Assigned shard [{}] to [{}]", shard, minNode.getNodeId());
                         }
@@ -653,7 +652,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                         if (logger.isTraceEnabled()) {
                             logger.trace("No eligible node found to assign shard [{}] decision [{}]", shard, decision.type());
                         }
-                        assert decision == null || decision.type() == Type.THROTTLE;
 
                         if (minNode != null) {
                             // throttle decision scenario
@@ -671,15 +669,13 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                                 throttledNodes.add(minNode);
                             }
                         } else {
-                            assert decision == null; // NO decision
+                            assert decision.type() == Type.NO;
                             if (logger.isTraceEnabled()) {
                                 logger.trace("No Node found to assign shard [{}]", shard);
                             }
                         }
 
-                        UnassignedInfo.AllocationStatus allocationStatus =
-                            decision == null ? UnassignedInfo.AllocationStatus.DECIDERS_NO :
-                                UnassignedInfo.AllocationStatus.fromDecision(decision);
+                        UnassignedInfo.AllocationStatus allocationStatus = UnassignedInfo.AllocationStatus.fromDecision(decision);
                         unassigned.ignoreShard(shard, allocationStatus, allocation.changes());
                         if (!shard.primary()) { // we could not allocate it and we are a replica - check if we can ignore the other replicas
                             while(i < primaryLength-1 && comparator.compare(primary[i], primary[i+1]) == 0) {
@@ -698,13 +694,16 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         }
 
         /**
-         * Make a decision for allocating an unassigned shard.
+         * Make a decision for allocating an unassigned shard.  This method returns a two values in a tuple: the
+         * first value is the {@link Decision} taken to allocate the unassigned shard, the second value is the
+         * {@link ModelNode} representing the node that the shard should be assigned to.  If the decision returned
+         * is of type {@link Type#NO}, then the assigned node will be null.
          */
         private Tuple<Decision, ModelNode> allocateUnassignedShard(final ShardRouting shard, final Set<ModelNode> throttledNodes) {
             assert !shard.assignedToNode() : "not an unassigned shard: " + shard;
             if (allocation.deciders().canAllocate(shard, allocation).type() == Type.NO) {
                 // NO decision for allocating the shard, irrespective of any particular node, so exit early
-                return Tuple.tuple(null, null);
+                return Tuple.tuple(Decision.NO, null);
             }
 
             /* find an node with minimal weight we can allocate on*/
@@ -764,6 +763,10 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                         }
                     }
                 }
+            }
+            if (decision == null) {
+                // decision was not set and a node was not assigned, so treat it as a NO decision
+                decision = Decision.NO;
             }
             return Tuple.tuple(decision, minNode);
         }

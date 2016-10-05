@@ -101,6 +101,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         params.put("flied", randomAsciiOfLength(8));
         params.put("tokenzier", randomAsciiOfLength(8));
         params.put("very_close_to_parametre", randomAsciiOfLength(8));
+        params.put("very_far_from_every_consumed_parameter", randomAsciiOfLength(8));
         RestRequest request = new FakeRestRequest.Builder().withParams(params).build();
         RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
         final IllegalArgumentException e =
@@ -110,8 +111,9 @@ public class BaseRestHandlerTests extends ESTestCase {
             hasToString(containsString(
                 "request [/] contains unrecognized parameters: " +
                     "[flied] -> did you mean [field]?, " +
-                    "[tokenzier] -> did you mean [tokenizer]?, " + "" +
-                    "[very_close_to_parametre] -> did you mean any of [very_close_to_parameter_1, very_close_to_parameter_2]?")));
+                    "[tokenzier] -> did you mean [tokenizer]?, " +
+                    "[very_close_to_parametre] -> did you mean any of [very_close_to_parameter_1, very_close_to_parameter_2]?, " +
+                    "[very_far_from_every_consumed_parameter]")));
         assertFalse(executed.get());
     }
 

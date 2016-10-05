@@ -88,6 +88,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
@@ -127,24 +128,37 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
     }
 
+    /**
+     * Validate the name for an index against some static rules and a cluster state.
+     */
     public static void validateIndexName(String index, ClusterState state) {
+        validateIndexOrAliasName(index, InvalidIndexNameException::new);
+        if (!index.toLowerCase(Locale.ROOT).equals(index)) {
+            throw new InvalidIndexNameException(index, "must be lowercase");
+        }
         if (state.routingTable().hasIndex(index)) {
             throw new IndexAlreadyExistsException(state.routingTable().index(index).getIndex());
         }
         if (state.metaData().hasIndex(index)) {
             throw new IndexAlreadyExistsException(state.metaData().index(index).getIndex());
         }
+        if (state.metaData().hasAlias(index)) {
+            throw new InvalidIndexNameException(index, "already exists as alias");
+        }
+    }
+
+    /**
+     * Validate the name for an index or alias against some static rules.
+     */
+    public static void validateIndexOrAliasName(String index, BiFunction<String, String, ? extends RuntimeException> exceptionCtor) {
         if (!Strings.validFileName(index)) {
-            throw new InvalidIndexNameException(index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+            throw exceptionCtor.apply(index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
         if (index.contains("#")) {
-            throw new InvalidIndexNameException(index, "must not contain '#'");
+            throw exceptionCtor.apply(index, "must not contain '#'");
         }
         if (index.charAt(0) == '_' || index.charAt(0) == '-' || index.charAt(0) == '+') {
-            throw new InvalidIndexNameException(index, "must not start with '_', '-', or '+'");
-        }
-        if (!index.toLowerCase(Locale.ROOT).equals(index)) {
-            throw new InvalidIndexNameException(index, "must be lowercase");
+            throw exceptionCtor.apply(index, "must not start with '_', '-', or '+'");
         }
         int byteCount = 0;
         try {
@@ -154,15 +168,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             throw new ElasticsearchException("Unable to determine length of index name", e);
         }
         if (byteCount > MAX_INDEX_NAME_BYTES) {
-            throw new InvalidIndexNameException(index,
-                    "index name is too long, (" + byteCount +
-                            " > " + MAX_INDEX_NAME_BYTES + ")");
-        }
-        if (state.metaData().hasAlias(index)) {
-            throw new InvalidIndexNameException(index, "already exists as alias");
+            throw exceptionCtor.apply(index, "index name is too long, (" + byteCount + " > " + MAX_INDEX_NAME_BYTES + ")");
         }
         if (index.equals(".") || index.equals("..")) {
-            throw new InvalidIndexNameException(index, "must not be '.' or '..'");
+            throw exceptionCtor.apply(index, "must not be '.' or '..'");
         }
     }
 

@@ -813,11 +813,11 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         QueryRewriteContext context = new QueryRewriteContext(null, mapperService, scriptService, null, client, null, null);
         QueryBuilder queryBuilder1 = new TermsQueryBuilder("field", "val1", "val2");
-        SecurityIndexSearcherWrapper.failIfQueryUsesClient(queryBuilder1, context);
+        SecurityIndexSearcherWrapper.failIfQueryUsesClient(scriptService, queryBuilder1, context);
 
         QueryBuilder queryBuilder2 = new TermsQueryBuilder("field", new TermsLookup("_index", "_type", "_id", "_path"));
         Exception e = expectThrows(IllegalStateException.class,
-                () -> SecurityIndexSearcherWrapper.failIfQueryUsesClient(queryBuilder2, context));
+                () -> SecurityIndexSearcherWrapper.failIfQueryUsesClient(scriptService, queryBuilder2, context));
         assertThat(e.getMessage(), equalTo("role queries are not allowed to execute additional requests"));
     }
 }

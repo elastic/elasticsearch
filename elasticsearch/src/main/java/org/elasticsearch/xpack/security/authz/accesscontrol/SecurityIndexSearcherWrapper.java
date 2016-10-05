@@ -159,7 +159,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                         Optional<QueryBuilder> queryBuilder = queryShardContext.newParseContext(parser).parseInnerQueryBuilder();
                         if (queryBuilder.isPresent()) {
                             verifyRoleQuery(queryBuilder.get());
-                            failIfQueryUsesClient(queryBuilder.get(), queryShardContext);
+                            failIfQueryUsesClient(scriptService, queryBuilder.get(), queryShardContext);
                             ParsedQuery parsedQuery = queryShardContext.toQuery(queryBuilder.get());
                             filter.add(parsedQuery.query(), SHOULD);
                         }
@@ -388,12 +388,15 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
     }
 
     /**
-     * Fall back validation that verifies that queries during rewrite don't use the client to make
-     * remote calls. In the case of DLS this can cause a dead lock if DLS is also applied on these remote calls.
-     * For example in the case of terms query with lookup, this can cause recursive execution of the
-     * DLS query until the get thread pool has been exhausted: https://github.com/elastic/x-plugins/issues/3145
+     * Fall back validation that verifies that queries during rewrite don't use
+     * the client to make remote calls. In the case of DLS this can cause a dead
+     * lock if DLS is also applied on these remote calls. For example in the
+     * case of terms query with lookup, this can cause recursive execution of
+     * the DLS query until the get thread pool has been exhausted:
+     * https://github.com/elastic/x-plugins/issues/3145
      */
-    static void failIfQueryUsesClient(QueryBuilder queryBuilder, QueryRewriteContext original) throws IOException {
+    static void failIfQueryUsesClient(ScriptService scriptService, QueryBuilder queryBuilder, QueryRewriteContext original)
+            throws IOException {
         Client client = new FilterClient(original.getClient()) {
             @Override
             protected <Request extends ActionRequest<Request>, Response extends ActionResponse,
@@ -402,8 +405,8 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                 throw new IllegalStateException("role queries are not allowed to execute additional requests");
             }
         };
-        QueryRewriteContext copy = new QueryRewriteContext(original.getIndexSettings(), original.getMapperService(),
-                original.getScriptService(), null, client, original.getIndexReader(), original.getClusterState());
+        QueryRewriteContext copy = new QueryRewriteContext(original.getIndexSettings(), original.getMapperService(), scriptService, null,
+                client, original.getIndexReader(), original.getClusterState());
         queryBuilder.rewrite(copy);
     }
 }

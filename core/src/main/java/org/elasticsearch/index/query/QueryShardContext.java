@@ -341,7 +341,8 @@ public class QueryShardContext extends QueryRewriteContext {
         return scriptService.search(lookup(), script, context, params);
     }
 
-    public Function<Map<String, Object>, SearchScript> getLazySearchScript(Script script, ScriptContext context, Map<String, String> params) {
+    public Function<Map<String, Object>, SearchScript> getLazySearchScript(Script script, ScriptContext context,
+            Map<String, String> params) {
         failIfExecutionMode();
         markAsNotCachable();
         CompiledScript compile = scriptService.compile(script, context, params);
@@ -354,7 +355,8 @@ public class QueryShardContext extends QueryRewriteContext {
         return scriptService.executable(script, context, params);
     }
 
-    public Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(Script script, ScriptContext context, Map<String, String> params) {
+    public Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(Script script, ScriptContext context,
+            Map<String, String> params) {
         failIfExecutionMode();
         markAsNotCachable();
         CompiledScript executable = scriptService.compile(script, context, params);

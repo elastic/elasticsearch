@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SearchScript;
@@ -38,7 +36,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.function.Function;
 
 public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedMetricAggregatorFactory> {
@@ -49,9 +46,10 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
     private final Map<String, Object> params;
     private final Function<Map<String, Object>, ExecutableScript> initScript;
 
-    public ScriptedMetricAggregatorFactory(String name, Type type, Function<Map<String, Object>, SearchScript> mapScript, Function<Map<String, Object>, ExecutableScript> initScript, Function<Map<String, Object>, ExecutableScript> combineScript,
-                                           Script reduceScript, Map<String, Object> params, AggregationContext context, AggregatorFactory<?> parent,
-                                           AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
+    public ScriptedMetricAggregatorFactory(String name, Type type, Function<Map<String, Object>, SearchScript> mapScript,
+            Function<Map<String, Object>, ExecutableScript> initScript, Function<Map<String, Object>, ExecutableScript> combineScript,
+            Script reduceScript, Map<String, Object> params, AggregationContext context, AggregatorFactory<?> parent,
+            AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
         super(name, type, context, parent, subFactories, metaData);
         this.mapScript = mapScript;
         this.initScript = initScript;
@@ -111,7 +109,7 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
             clone = (T) clonedMap;
         } else if (original instanceof List) {
             List<?> originalList = (List<?>) original;
-            List<Object> clonedList = new ArrayList<Object>();
+            List<Object> clonedList = new ArrayList<>();
             for (Object o : originalList) {
                 clonedList.add(deepCopyParams(o, context));
             }

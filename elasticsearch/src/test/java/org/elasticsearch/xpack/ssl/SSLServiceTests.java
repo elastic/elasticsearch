@@ -37,6 +37,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.Future;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -373,7 +374,7 @@ public class SSLServiceTests extends ESTestCase {
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
             // This will result in a SSLHandshakeException if the SSLContext does not trust the CA, but the default
             // truststore trusts all common public CAs so the handshake will succeed
-            client.execute(new HttpHost("elastic.co", 80, "https"), new HttpGet("/"), new AssertionCallback());
+            client.execute(new HttpHost("elastic.co", 443, "https"), new HttpGet("/"), new AssertionCallback()).get();
         }
     }
 
@@ -389,7 +390,7 @@ public class SSLServiceTests extends ESTestCase {
 
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA which will succeed because the JDK
             // certs are trusted by default
-            client.execute(new HttpHost("elastic.co", 80, "https"), new HttpGet("/"), new AssertionCallback());
+            client.execute(new HttpHost("elastic.co", 443, "https"), new HttpGet("/"), new AssertionCallback()).get();
         }
     }
 

@@ -562,7 +562,6 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    /** resolves a shardId to an IndexShard. protected for overriding in tests **/
     private IndexShard getIndexShard(ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         return indexService.getShard(shardId.id());

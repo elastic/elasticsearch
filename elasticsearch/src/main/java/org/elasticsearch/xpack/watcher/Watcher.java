@@ -25,7 +25,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.threadpool.ExecutorBuilder;
-import org.elasticsearch.threadpool.ScalingExecutorBuilder;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.watcher.actions.WatcherActionModule;
@@ -165,14 +165,12 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
 
     public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
         if (enabled) {
-            final ScalingExecutorBuilder builder =
-                    new ScalingExecutorBuilder(
+            final FixedExecutorBuilder builder =
+                    new FixedExecutorBuilder(
+                            settings,
                             InternalWatchExecutor.THREAD_POOL_NAME,
-                            0,
-                            // watcher threads can block on I/O for a long time, so we let this
-                            // pool be large so that execution of unblocked watches can proceed
                             5 * EsExecutors.boundedNumberOfProcessors(settings),
-                            TimeValue.timeValueMinutes(5),
+                            1000,
                             "xpack.watcher.thread_pool");
             return Collections.singletonList(builder);
         }

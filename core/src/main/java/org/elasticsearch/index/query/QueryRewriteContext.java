@@ -48,7 +48,7 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     protected final Client client;
     protected final IndexReader reader;
     protected final ClusterState clusterState;
-    protected boolean cachable;
+    protected boolean cachable = true;
     private final SetOnce<Boolean> executionMode = new SetOnce<>();
 
     public QueryRewriteContext(IndexSettings indexSettings, MapperService mapperService, ScriptService scriptService,
@@ -127,7 +127,9 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
         return cachable;
     }
 
-    public void setCachabe(boolean cachabe) { this.cachable = cachabe; }
+    public void setCachable(boolean cachabe) {
+        this.cachable = cachabe;
+    }
 
     public BytesReference getTemplateBytes(Script template) {
         failIfExecutionMode();
@@ -141,6 +143,7 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     }
 
     protected void failIfExecutionMode() {
+        markAsNotCachable();
         if (executionMode.get() == Boolean.TRUE) {
             throw new IllegalArgumentException("features that prevent cachability are disabled on this context");
         } else {

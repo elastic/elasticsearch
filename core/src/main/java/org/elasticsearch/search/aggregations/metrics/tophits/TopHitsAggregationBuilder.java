@@ -28,6 +28,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -39,6 +41,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -527,6 +530,18 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     @Override
     protected TopHitsAggregatorFactory doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subfactoriesBuilder)
             throws IOException {
+        List<ScriptFieldsContext.ScriptField> scriptFields = null;
+        if (this.scriptFields != null) {
+            scriptFields = new ArrayList<>();
+            for (ScriptField field : this.scriptFields) {
+                SearchScript searchScript = context.searchContext().scriptService().search(
+                        context.searchContext().lookup(), field.script(), ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                scriptFields.add(new ScriptFieldsContext.ScriptField(
+                        field.fieldName(), searchScript, field.ignoreFailure()));
+            }
+        } else {
+            scriptFields = Collections.emptyList();
+        }
         return new TopHitsAggregatorFactory(name, type, from, size, explain, version, trackScores, sorts, highlightBuilder,
             storedFieldsContext, fieldDataFields, scriptFields, fetchSourceContext, context,
             parent, subfactoriesBuilder, metaData);

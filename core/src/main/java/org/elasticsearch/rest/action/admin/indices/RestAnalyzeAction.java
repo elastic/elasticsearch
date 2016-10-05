@@ -92,8 +92,9 @@ public class RestAnalyzeAction extends BaseRestHandler {
         deprecationLog("analyzer", request);
         analyzeRequest.field(request.param("field"));
         deprecationLog("field", request);
-        if (request.hasParam("tokenizer")) {
-            analyzeRequest.tokenizer(request.param("tokenizer"));
+        final String tokenizer = request.param("tokenizer");
+        if (tokenizer != null) {
+            analyzeRequest.tokenizer(tokenizer);
             deprecationLogWithoutCheck("tokenizer");
         }
         for (String filter : request.paramAsStringArray("filter", Strings.EMPTY_ARRAY)) {

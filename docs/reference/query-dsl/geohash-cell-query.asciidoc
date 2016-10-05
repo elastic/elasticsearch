@@ -37,7 +37,7 @@ prefix. Instead of setting a geohash length directly it is also possible to
 define the precision as distance, in example `"precision": "50m"`. (See
 <<distance-units>>.)
 
-The `neighbor` option of the filter offers the possibility to filter cells
+The `neighbors` option of the filter offers the possibility to filter cells
 next to the given cell.
 
 [source,js]

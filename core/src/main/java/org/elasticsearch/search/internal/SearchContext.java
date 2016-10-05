@@ -118,8 +118,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
         }
     }
 
-    private boolean canCache = true;
-
     @Override
     protected final void closeInternal() {
         try {
@@ -162,20 +160,13 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract long getOriginNanoTime();
 
-    public final long nowInMillis() {
-        markAsNotCachable();
-        return nowInMillisImpl();
-    }
-
     public final boolean isCachable() {
-        return canCache;
+        return getQueryShardContext().isCachable();
     }
 
     public final void resetCanCache() {
-        this.canCache = true;
+        getQueryShardContext().setCachabe(true);
     }
-
-    protected abstract long nowInMillisImpl();
 
     public abstract ScrollContext scrollContext();
 
@@ -237,8 +228,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract MapperService mapperService();
 
     public abstract SimilarityService similarityService();
-
-    public abstract ScriptService scriptService();
 
     public abstract BigArrays bigArrays();
 
@@ -401,10 +390,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     /** Return a view of the additional query collectors that should be run for this context. */
     public abstract Map<Class<?>, Collector> queryCollectors();
-
-    public final void markAsNotCachable() {
-        this.canCache = false;
-    }
 
     /**
      * The life time of an object that is used during search execution.

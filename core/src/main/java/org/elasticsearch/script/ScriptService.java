@@ -488,7 +488,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
      */
     public SearchScript search(SearchLookup lookup, Script script, ScriptContext scriptContext, Map<String, String> params) {
         CompiledScript compiledScript = compile(script, scriptContext, params);
-        return getScriptEngineServiceForLang(compiledScript.lang()).search(compiledScript, lookup, script.getParams());
+        return search(lookup, compiledScript, script.getParams());
+    }
+
+    public SearchScript search(SearchLookup lookup, CompiledScript compiledScript,  Map<String, Object> params) {
+        return getScriptEngineServiceForLang(compiledScript.lang()).search(compiledScript, lookup, params);
     }
 
     private boolean isAnyScriptContextEnabled(String lang, ScriptType scriptType) {

@@ -26,6 +26,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.LongSupplier;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
@@ -54,7 +57,12 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -85,11 +93,12 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
     private boolean isFilter;
+    private final LongSupplier nowInMillis;
 
     public QueryShardContext(IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache, IndexFieldDataService indexFieldDataService,
                              MapperService mapperService, SimilarityService similarityService, ScriptService scriptService,
                              final IndicesQueriesRegistry indicesQueriesRegistry, Client client,
-                             IndexReader reader, ClusterState clusterState) {
+                             IndexReader reader, ClusterState clusterState, LongSupplier nowInMillis) {
         super(indexSettings, mapperService, scriptService, indicesQueriesRegistry, client, reader, clusterState);
         this.indexSettings = indexSettings;
         this.similarityService = similarityService;
@@ -99,12 +108,13 @@ public class QueryShardContext extends QueryRewriteContext {
         this.allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.nestedScope = new NestedScope();
+        this.nowInMillis = nowInMillis;
     }
 
     public QueryShardContext(QueryShardContext source) {
         this(source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService,
                 source.similarityService, source.scriptService, source.indicesQueriesRegistry, source.client,
-                source.reader, source.clusterState);
+                source.reader, source.clusterState, source.nowInMillis);
         this.types = source.getTypes();
     }
 
@@ -261,11 +271,8 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public long nowInMillis() {
-        SearchContext current = SearchContext.current();
-        if (current != null) {
-            return current.nowInMillis();
-        }
-        return System.currentTimeMillis();
+        failIfExecutionMode();
+        return nowInMillis.getAsLong();
     }
 
     public NestedScope nestedScope() {
@@ -324,16 +331,33 @@ public class QueryShardContext extends QueryRewriteContext {
         }
     }
 
-    @Override
-    public void markAsNotCachable() {
-        super.markAsNotCachable();
-        SearchContext current = SearchContext.current();
-        if (current != null) {
-           current.markAsNotCachable();
-        }
-    }
-
     public final Index index() {
         return indexSettings.getIndex();
+    }
+
+    public SearchScript getSearchScript(Script script, ScriptContext context, Map<String, String> params) {
+        failIfExecutionMode();
+        markAsNotCachable();
+        return scriptService.search(lookup(), script, context, params);
+    }
+
+    public Function<Map<String, Object>, SearchScript> getLazySearchScript(Script script, ScriptContext context, Map<String, String> params) {
+        failIfExecutionMode();
+        markAsNotCachable();
+        CompiledScript compile = scriptService.compile(script, context, params);
+        return (p) -> scriptService.search(lookup(), compile, p);
+    }
+
+    public ExecutableScript getExecutableScript(Script script, ScriptContext context, Map<String, String> params) {
+        failIfExecutionMode();
+        markAsNotCachable();
+        return scriptService.executable(script, context, params);
+    }
+
+    public Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(Script script, ScriptContext context, Map<String, String> params) {
+        failIfExecutionMode();
+        markAsNotCachable();
+        CompiledScript executable = scriptService.compile(script, context, params);
+        return (p) ->  scriptService.executable(executable, p);
     }
 }

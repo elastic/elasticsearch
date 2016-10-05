@@ -19,16 +19,23 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
+
+import java.util.Collections;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
@@ -42,6 +49,7 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     protected final IndexReader reader;
     protected final ClusterState clusterState;
     protected boolean cachable;
+    private final SetOnce<Boolean> executionMode = new SetOnce<>();
 
     public QueryRewriteContext(IndexSettings indexSettings, MapperService mapperService, ScriptService scriptService,
                                IndicesQueriesRegistry indicesQueriesRegistry, Client client, IndexReader reader,
@@ -68,13 +76,6 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
      */
     public final IndexSettings getIndexSettings() {
         return indexSettings;
-    }
-
-    /**
-     * Returns a script service to fetch scripts.
-     */
-    public final ScriptService getScriptService() {
-        return scriptService;
     }
 
     /**
@@ -118,11 +119,32 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
         return new QueryParseContext(defaultScriptLanguage, indicesQueriesRegistry, parser, indexSettings.getParseFieldMatcher());
     }
 
-    public void markAsNotCachable() {
+    protected final void markAsNotCachable() {
         this.cachable = false;
     }
 
     public boolean isCachable() {
         return cachable;
+    }
+
+    public void setCachabe(boolean cachabe) { this.cachable = cachabe; }
+
+    public BytesReference getTemplateBytes(Script template) {
+        failIfExecutionMode();
+        ExecutableScript executable = scriptService.executable(template,
+            ScriptContext.Standard.SEARCH, Collections.emptyMap());
+        return (BytesReference) executable.run();
+    }
+
+    public void setExecutionMode() {
+        this.executionMode.set(Boolean.TRUE);
+    }
+
+    protected void failIfExecutionMode() {
+        if (executionMode.get() == Boolean.TRUE) {
+            throw new IllegalArgumentException("features that prevent cachability are disabled on this context");
+        } else {
+            assert executionMode.get() == null : executionMode.get();
+        }
     }
 }

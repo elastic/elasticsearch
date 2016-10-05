@@ -231,6 +231,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     private void loadOrExecuteQueryPhase(final ShardSearchRequest request, final SearchContext context) throws Exception {
         final boolean canCache = indicesService.canCache(request, context);
+        context.getQueryShardContext().setExecutionMode();
         if (canCache) {
             indicesService.loadIntoContext(request, context, queryPhase);
         } else {
@@ -568,7 +569,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         return new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher,
                     indexService,
-                    indexShard, scriptService, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
+                    indexShard, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
                     timeout, fetchPhase);
     }
 

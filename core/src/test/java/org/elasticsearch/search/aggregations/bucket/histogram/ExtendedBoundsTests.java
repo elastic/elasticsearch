@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
@@ -93,7 +94,9 @@ public class ExtendedBoundsTests extends ESTestCase {
     public void testParseAndValidate() {
         long now = randomLong();
         SearchContext context = mock(SearchContext.class);
-        when(context.nowInMillis()).thenReturn(now);
+        QueryShardContext qsc = mock(QueryShardContext.class);
+        when(context.getQueryShardContext()).thenReturn(qsc);
+        when(qsc.nowInMillis()).thenReturn(now);
         FormatDateTimeFormatter formatter = Joda.forPattern("dateOptionalTime");
         DocValueFormat format = new DocValueFormat.DateTime(formatter, DateTimeZone.UTC);
 

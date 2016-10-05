@@ -32,7 +32,6 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -49,7 +48,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     private final LongAccessor subsetDfHolder;
     private final LongAccessor supersetDfHolder;
     private final Script script;
-    ExecutableScript searchScript = null;
+    ExecutableScript executableScript = null;
 
     public ScriptHeuristic(Script script) {
         subsetSizeHolder = new LongAccessor();
@@ -73,21 +72,20 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public void initialize(InternalAggregation.ReduceContext context) {
-        initialize(context.scriptService());
+        initialize(context.scriptService().executable(script, ScriptContext.Standard.AGGS, Collections.emptyMap()));
     }
 
     @Override
     public void initialize(SearchContext context) {
-        context.markAsNotCachable();
-        initialize(context.scriptService());
+        initialize(context.getQueryShardContext().getExecutableScript(script, ScriptContext.Standard.AGGS, Collections.emptyMap()));
     }
 
-    public void initialize(ScriptService scriptService) {
-        searchScript = scriptService.executable(script, ScriptContext.Standard.AGGS, Collections.emptyMap());
-        searchScript.setNextVar("_subset_freq", subsetDfHolder);
-        searchScript.setNextVar("_subset_size", subsetSizeHolder);
-        searchScript.setNextVar("_superset_freq", supersetDfHolder);
-        searchScript.setNextVar("_superset_size", supersetSizeHolder);
+    public void initialize(ExecutableScript executableScript) {
+        this.executableScript = executableScript;
+        this.executableScript.setNextVar("_subset_freq", subsetDfHolder);
+        this.executableScript.setNextVar("_subset_size", subsetSizeHolder);
+        this.executableScript.setNextVar("_superset_freq", supersetDfHolder);
+        this.executableScript.setNextVar("_superset_size", supersetSizeHolder);
     }
 
     /**
@@ -101,7 +99,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
      */
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
-        if (searchScript == null) {
+        if (executableScript == null) {
             //In tests, wehn calling assertSearchResponse(..) the response is streamed one additional time with an arbitrary version, see assertVersionSerializable(..).
             // Now, for version before 1.5.0 the score is computed after streaming the response but for scripts the script does not exists yet.
             // assertSearchResponse() might therefore fail although there is no problem.
@@ -113,7 +111,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         supersetSizeHolder.value = supersetSize;
         subsetDfHolder.value = subsetFreq;
         supersetDfHolder.value = supersetFreq;
-        return ((Number) searchScript.run()).doubleValue();
+        return ((Number) executableScript.run()).doubleValue();
     }
 
     @Override
@@ -172,26 +170,6 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         return new ScriptHeuristic(script);
     }
 
-    public static class ScriptHeuristicBuilder implements SignificanceHeuristicBuilder {
-
-        private Script script = null;
-
-        public ScriptHeuristicBuilder setScript(Script script) {
-            this.script = script;
-            return this;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
-            builder.startObject(NAME);
-            builder.field(ScriptField.SCRIPT.getPreferredName());
-            script.toXContent(builder, builderParams);
-            builder.endObject();
-            return builder;
-        }
-
-    }
-
     public final class LongAccessor extends Number {
         public long value;
         @Override
@@ -217,11 +195,6 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         public String toString() {
             return Long.toString(value);
         }
-    }
-
-    @Override
-    public boolean canCache() {
-        return false;
     }
 }
 

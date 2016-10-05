@@ -133,8 +133,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        context.markAsNotCachable();
-        return new ScriptQuery(script, context.getScriptService(), context.lookup());
+        return new ScriptQuery(script, context.getSearchScript(script, ScriptContext.Standard.SEARCH, Collections.emptyMap()));
     }
 
     static class ScriptQuery extends Query {
@@ -143,9 +142,9 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
         private final SearchScript searchScript;
 
-        public ScriptQuery(Script script, ScriptService scriptService, SearchLookup searchLookup) {
+        public ScriptQuery(Script script, SearchScript searchScript) {
             this.script = script;
-            this.searchScript = scriptService.search(searchLookup, script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+            this.searchScript = searchScript;
         }
 
         @Override

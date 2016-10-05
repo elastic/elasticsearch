@@ -1110,7 +1110,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         QueryShardContext createShardContext() {
             ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
             return new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
-                    scriptService, indicesQueriesRegistry, this.client, null, state);
+                    scriptService, indicesQueriesRegistry, this.client, null, state, System::currentTimeMillis);
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

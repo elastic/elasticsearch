@@ -143,7 +143,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
             long now;
             SearchContext searchContext = SearchContext.current();
             if (searchContext != null) {
-                now = searchContext.nowInMillis();
+                now = searchContext.getQueryShardContext().nowInMillis();
             } else {
                 now = System.currentTimeMillis();
             }

@@ -28,6 +28,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -39,6 +41,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -527,11 +530,17 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     @Override
     protected TopHitsAggregatorFactory doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subfactoriesBuilder)
             throws IOException {
-        if (scriptFields != null && scriptFields.isEmpty() == false) {
-            context.searchContext().markAsNotCachable();
+        List<ScriptFieldsContext.ScriptField> fields = new ArrayList<>();
+        if (scriptFields != null) {
+            for (ScriptField field : scriptFields) {
+                SearchScript searchScript = context.searchContext().getQueryShardContext().getSearchScript(field.script(),
+                    ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                fields.add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
+                    field.fieldName(), searchScript, field.ignoreFailure()));
+            }
         }
         return new TopHitsAggregatorFactory(name, type, from, size, explain, version, trackScores, sorts, highlightBuilder,
-            storedFieldsContext, fieldDataFields, scriptFields, fetchSourceContext, context,
+            storedFieldsContext, fieldDataFields, fields, fetchSourceContext, context,
             parent, subfactoriesBuilder, metaData);
     }
 

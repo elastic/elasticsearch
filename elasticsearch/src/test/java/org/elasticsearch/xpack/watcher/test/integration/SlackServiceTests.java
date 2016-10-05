@@ -68,7 +68,7 @@ public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
 
         SlackAccount account = service.getAccount("test_account");
         assertThat(account, notNullValue());
-        SentMessages messages = account.send(message);
+        SentMessages messages = account.send(message, null);
         assertThat(messages.count(), is(2));
         for (SentMessages.SentMessage sentMessage : messages) {
             assertThat(sentMessage.successful(), is(true));

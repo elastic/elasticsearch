@@ -12,26 +12,26 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.watcher.actions.Action;
+import org.elasticsearch.xpack.common.http.HttpProxy;
 import org.elasticsearch.xpack.notification.slack.SentMessages;
 import org.elasticsearch.xpack.notification.slack.message.SlackMessage;
+import org.elasticsearch.xpack.watcher.actions.Action;
 
 import java.io.IOException;
+import java.util.Objects;
 
-/**
- *
- */
 public class SlackAction implements Action {
 
     public static final String TYPE = "slack";
 
-    @Nullable final String account;
-
     final SlackMessage.Template message;
+    @Nullable final String account;
+    @Nullable final HttpProxy proxy;
 
-    public SlackAction(@Nullable String account, SlackMessage.Template message) {
+    public SlackAction(@Nullable String account, SlackMessage.Template message, HttpProxy proxy) {
         this.account = account;
         this.message = message;
+        this.proxy = proxy;
     }
 
     @Override
@@ -46,15 +46,14 @@ public class SlackAction implements Action {
 
         SlackAction that = (SlackAction) o;
 
-        if (account != null ? !account.equals(that.account) : that.account != null) return false;
-        return message.equals(that.message);
+        return Objects.equals(account, that.account) &&
+               Objects.equals(message, that.message) &&
+               Objects.equals(proxy, that.proxy);
     }
 
     @Override
     public int hashCode() {
-        int result = account != null ? account.hashCode() : 0;
-        result = 31 * result + message.hashCode();
-        return result;
+        return Objects.hash(account, message, proxy);
     }
 
     @Override
@@ -63,6 +62,9 @@ public class SlackAction implements Action {
         if (account != null) {
             builder.field(Field.ACCOUNT.getPreferredName(), account);
         }
+        if (proxy != null) {
+            proxy.toXContent(builder, params);
+        }
         builder.field(Field.MESSAGE.getPreferredName(), message);
         return builder.endObject();
     }
@@ -70,6 +72,7 @@ public class SlackAction implements Action {
     public static SlackAction parse(String watchId, String actionId, XContentParser parser) throws IOException {
         String account = null;
         SlackMessage.Template message = null;
+        HttpProxy proxy = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -83,6 +86,8 @@ public class SlackAction implements Action {
                     throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. expected [{}] to be of type string, but " +
                             "found [{}] instead", TYPE, watchId, actionId, Field.ACCOUNT.getPreferredName(), token);
                 }
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PROXY)) {
+                proxy = HttpProxy.parse(parser);
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.MESSAGE)) {
                 try {
                     message = SlackMessage.Template.parse(parser);
@@ -101,11 +106,11 @@ public class SlackAction implements Action {
                     actionId, Field.MESSAGE.getPreferredName());
         }
 
-        return new SlackAction(account, message);
+        return new SlackAction(account, message, proxy);
     }
 
     public static Builder builder(String account, SlackMessage.Template message) {
-        return new Builder(new SlackAction(account, message));
+        return new Builder(new SlackAction(account, message, null));
     }
 
     public interface Result {
@@ -184,5 +189,6 @@ public class SlackAction implements Action {
     public interface Field {
         ParseField ACCOUNT = new ParseField("account");
         ParseField MESSAGE = new ParseField("message");
+        ParseField PROXY = new ParseField("proxy");
     }
 }

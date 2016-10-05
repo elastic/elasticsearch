@@ -13,18 +13,19 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.common.http.HttpProxy;
+import org.elasticsearch.xpack.common.http.HttpRequest;
+import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.notification.slack.SentMessages;
 import org.elasticsearch.xpack.notification.slack.SlackAccount;
 import org.elasticsearch.xpack.notification.slack.SlackService;
 import org.elasticsearch.xpack.notification.slack.message.SlackMessage;
 import org.elasticsearch.xpack.notification.slack.message.SlackMessageDefaults;
 import org.elasticsearch.xpack.notification.slack.message.SlackMessageTests;
+import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.Wid;
-import org.elasticsearch.xpack.common.http.HttpRequest;
-import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -38,7 +39,6 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.slackAction;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContextBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -50,9 +50,6 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 public class SlackActionTests extends ESTestCase {
     private SlackService service;
 
@@ -69,7 +66,7 @@ public class SlackActionTests extends ESTestCase {
         SlackMessage.Template messageTemplate = mock(SlackMessage.Template.class);
         SlackMessage message = mock(SlackMessage.class);
 
-        SlackAction action = new SlackAction(accountName, messageTemplate);
+        SlackAction action = new SlackAction(accountName, messageTemplate, null);
         ExecutableSlackAction executable = new ExecutableSlackAction(action, logger, service, templateEngine);
 
         Map<String, Object> data = new HashMap<>();
@@ -130,7 +127,7 @@ public class SlackActionTests extends ESTestCase {
             }
         }
         SentMessages sentMessages = new SentMessages(accountName, messages);
-        when(account.send(message)).thenReturn(sentMessages);
+        when(account.send(message, eq(any()))).thenReturn(sentMessages);
 
         Action.Result.Status expectedStatus = !hasError ? Action.Result.Status.SUCCESS :
                 !hasSuccess ? Action.Result.Status.FAILURE :
@@ -172,7 +169,11 @@ public class SlackActionTests extends ESTestCase {
         String accountName = randomBoolean() ? randomAsciiOfLength(10) : null;
         SlackMessage.Template message = SlackMessageTests.createRandomTemplate();
 
-        SlackAction action = slackAction(accountName, message).build();
+        HttpProxy proxy = null;
+        if (randomBoolean()) {
+            proxy = new HttpProxy("localhost", 8080);
+        }
+        SlackAction action = new SlackAction(accountName, message, proxy);
 
         XContentBuilder builder = jsonBuilder();
         action.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -185,6 +186,7 @@ public class SlackActionTests extends ESTestCase {
 
         assertThat(parsedAction, notNullValue());
         assertThat(parsedAction, is(action));
+        assertThat(parsedAction.proxy, is(action.proxy));
     }
 
     public void testParserInvalid() throws Exception {

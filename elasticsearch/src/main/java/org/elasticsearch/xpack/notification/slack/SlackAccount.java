@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.common.http.HttpClient;
+import org.elasticsearch.xpack.common.http.HttpProxy;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.common.http.Scheme;
@@ -52,24 +53,25 @@ public class SlackAccount {
         return messageDefaults;
     }
 
-    public SentMessages send(final SlackMessage message) {
+    public SentMessages send(final SlackMessage message, HttpProxy proxy) {
 
         String[] to = message.getTo();
         if (to == null || to.length == 0) {
-            SentMessages.SentMessage sentMessage = send(null, message);
+            SentMessages.SentMessage sentMessage = send(null, message, proxy);
             return new SentMessages(name, Collections.singletonList(sentMessage));
         }
 
         List<SentMessages.SentMessage> sentMessages = new ArrayList<>();
         for (String channel : to) {
-            sentMessages.add(send(channel, message));
+            sentMessages.add(send(channel, message, proxy));
         }
         return new SentMessages(name, sentMessages);
     }
 
-    public SentMessages.SentMessage send(final String to, final SlackMessage message) {
+    public SentMessages.SentMessage send(final String to, final SlackMessage message, final HttpProxy proxy) {
         HttpRequest request = HttpRequest.builder(url.getHost(), url.getPort())
                 .path(url.getPath())
+                .proxy(proxy)
                 .scheme(Scheme.parse(url.getScheme()))
                 .jsonBody(new ToXContent() {
                     @Override

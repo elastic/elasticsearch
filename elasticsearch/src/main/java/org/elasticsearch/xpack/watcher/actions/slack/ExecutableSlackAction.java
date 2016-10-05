@@ -52,7 +52,7 @@ public class ExecutableSlackAction extends ExecutableAction<SlackAction> {
             return new SlackAction.Result.Simulated(message);
         }
 
-        SentMessages sentMessages = account.send(message);
+        SentMessages sentMessages = account.send(message, action.proxy);
         return new SlackAction.Result.Executed(sentMessages);
     }
 

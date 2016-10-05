@@ -54,7 +54,7 @@ similar to the one used in the <<docs-multi-get,Multi GET API>>.
 --------------------------------------------------
 
 Finally, users can mix some texts, a chosen set of documents but also provide
-documents not necessarily present in the index. To provide documents not
+documents not necessarily presented in the index. To provide documents not
 present in the index, the syntax is similar to <<docs-termvectors-artificial-doc,artificial documents>>.
 
 [source,js]

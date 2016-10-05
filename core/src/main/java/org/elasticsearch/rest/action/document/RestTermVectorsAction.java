@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
-import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -29,12 +28,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -63,17 +62,17 @@ public class RestTermVectorsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         TermVectorsRequest termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("type"), request.param("id"));
         if (RestActions.hasBodyContent(request)) {
             try (XContentParser parser = XContentFactory.xContent(RestActions.guessBodyContentType(request))
-                    .createParser(RestActions.getRestContent(request))){
+                .createParser(RestActions.getRestContent(request))) {
                 TermVectorsRequest.parseRequest(termVectorsRequest, parser);
             }
         }
         readURIParameters(termVectorsRequest, request);
 
-        client.termVectors(termVectorsRequest, new RestToXContentListener<TermVectorsResponse>(channel));
+        return channel -> client.termVectors(termVectorsRequest, new RestToXContentListener<>(channel));
     }
 
     public static void readURIParameters(TermVectorsRequest termVectorsRequest, RestRequest request) {

@@ -86,7 +86,7 @@ final class RemoteRequestBuilders {
                 for (int i = 1; i < searchRequest.source().sorts().size(); i++) {
                     sorts.append(',').append(sortToUri(searchRequest.source().sorts().get(i)));
                 }
-                params.put("sorts", sorts.toString());
+                params.put("sort", sorts.toString());
             }
         }
         if (searchRequest.source().storedFields() != null && false == searchRequest.source().storedFields().fieldNames().isEmpty()) {

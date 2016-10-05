@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
@@ -66,7 +65,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
 
         String[] texts = request.paramAsStringArrayOrEmptyIfAll("text");
 
@@ -74,8 +73,9 @@ public class RestAnalyzeAction extends BaseRestHandler {
         analyzeRequest.text(texts);
         analyzeRequest.analyzer(request.param("analyzer"));
         analyzeRequest.field(request.param("field"));
-        if (request.hasParam("tokenizer")) {
-            analyzeRequest.tokenizer(request.param("tokenizer"));
+        final String tokenizer = request.param("tokenizer");
+        if (tokenizer != null) {
+            analyzeRequest.tokenizer(tokenizer);
         }
         for (String filter : request.paramAsStringArray("filter", Strings.EMPTY_ARRAY)) {
             analyzeRequest.addTokenFilter(filter);
@@ -99,7 +99,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
             }
         }
 
-        client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<>(channel));
+        return channel -> client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<>(channel));
     }
 
     public static void buildFromContent(BytesReference content, AnalyzeRequest analyzeRequest, ParseFieldMatcher parseFieldMatcher) {

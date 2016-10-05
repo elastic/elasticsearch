@@ -245,6 +245,11 @@ public class DateHistogramAggregationBuilder
     @Override
     protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+        ExtendedBounds extendedBounds = null;
+        if (this.extendedBounds != null) {
+            // parse any string bounds to longs
+            extendedBounds = this.extendedBounds.parseAndValidate(name, context.searchContext(), config.format());
+        }
         return new DateHistogramAggregatorFactory(name, type, config, interval, dateHistogramInterval, offset, order, keyed, minDocCount,
                 extendedBounds, context, parent, subFactoriesBuilder, metaData);
     }

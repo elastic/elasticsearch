@@ -134,8 +134,7 @@ public final class DateHistogramAggregatorFactory
         // code so we won't need to do that
         ExtendedBounds roundedBounds = null;
         if (extendedBounds != null) {
-            // parse any string bounds to longs and round them
-            roundedBounds = extendedBounds.parseAndValidate(name, context.searchContext(), config.format()).round(rounding);
+            roundedBounds = extendedBounds.round(rounding);
         }
         return new DateHistogramAggregator(name, factories, rounding, offset, order, keyed, minDocCount, roundedBounds, valuesSource,
                 config.format(), context, parent, pipelineAggregators, metaData);

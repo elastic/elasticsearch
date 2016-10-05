@@ -31,3 +31,11 @@ namingConventions {
     //we don't have integration tests
     skipIntegTestInDisguise = true
 }
+
+publishing {
+    publications {
+        nebula(MavenPublication) {
+            pom.projectIdentity.artifactId = archivesBaseName
+        }
+    }
+}

@@ -88,8 +88,7 @@ public final class TransportAddress implements Writeable {
     }
 
     public boolean sameHost(TransportAddress other) {
-        return other instanceof TransportAddress &&
-                address.getAddress().equals(((TransportAddress) other).address.getAddress());
+        return address.getAddress().equals(other.address.getAddress());
     }
 
     public boolean isLoopbackOrLinkLocalAddress() {

@@ -108,11 +108,7 @@ public class RestNodeAttrsAction extends AbstractCatAction {
                 table.addCell(info == null ? null : info.getProcess().getId());
                 table.addCell(node.getHostName());
                 table.addCell(node.getHostAddress());
-                if (node.getAddress() instanceof TransportAddress) {
-                    table.addCell(((TransportAddress) node.getAddress()).address().getPort());
-                } else {
-                    table.addCell("-");
-                }
+                table.addCell(node.getAddress().address().getPort());
                 table.addCell(attrEntry.getKey());
                 table.addCell(attrEntry.getValue());
                 table.endRow();

@@ -195,11 +195,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 table.addCell(info == null ? null : info.getProcess().getId());
                 table.addCell(node.getHostName());
                 table.addCell(node.getHostAddress());
-                if (node.getAddress() instanceof TransportAddress) {
-                    table.addCell(((TransportAddress) node.getAddress()).address().getPort());
-                } else {
-                    table.addCell("-");
-                }
+                table.addCell(node.getAddress().address().getPort());
                 final ThreadPoolStats.Stats poolStats = entry.getValue();
                 final ThreadPool.Info poolInfo = poolThreadInfo.get(entry.getKey());
 

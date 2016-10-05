@@ -332,7 +332,7 @@ public class Netty3Transport extends TcpTransport<Channel> {
     }
 
     protected NodeChannels connectToChannelsLight(DiscoveryNode node) {
-        InetSocketAddress address = ((TransportAddress) node.getAddress()).address();
+        InetSocketAddress address = node.getAddress().address();
         ChannelFuture connect = clientBootstrap.connect(address);
         connect.awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
         if (!connect.isSuccess()) {
@@ -352,7 +352,7 @@ public class Netty3Transport extends TcpTransport<Channel> {
             int numConnections = connectionsPerNodeBulk + connectionsPerNodePing + connectionsPerNodeRecovery + connectionsPerNodeReg
                 + connectionsPerNodeState;
             ArrayList<ChannelFuture> connections = new ArrayList<>();
-            InetSocketAddress address = ((TransportAddress) node.getAddress()).address();
+            InetSocketAddress address = node.getAddress().address();
             for (int i = 0; i < numConnections; i++) {
                 connections.add(clientBootstrap.connect(address));
             }

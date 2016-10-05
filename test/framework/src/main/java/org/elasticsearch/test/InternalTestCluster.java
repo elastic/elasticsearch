@@ -1190,7 +1190,7 @@ public final class InternalTestCluster extends TestCluster {
     public InetSocketAddress[] httpAddresses() {
         List<InetSocketAddress> addresses = new ArrayList<>();
         for (HttpServerTransport httpServerTransport : getInstances(HttpServerTransport.class)) {
-            addresses.add(((TransportAddress) httpServerTransport.boundAddress().publishAddress()).address());
+            addresses.add(httpServerTransport.boundAddress().publishAddress().address());
         }
         return addresses.toArray(new InetSocketAddress[addresses.size()]);
     }

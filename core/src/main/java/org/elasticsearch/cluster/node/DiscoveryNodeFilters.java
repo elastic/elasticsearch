@@ -83,7 +83,7 @@ public class DiscoveryNodeFilters {
                 // We check both the host_ip or the publish_ip
                 String publishAddress = null;
                 if (node.getAddress() instanceof TransportAddress) {
-                    publishAddress = NetworkAddress.format(((TransportAddress) node.getAddress()).address().getAddress());
+                    publishAddress = NetworkAddress.format(node.getAddress().address().getAddress());
                 }
 
                 boolean match = matchByIP(values, node.getHostAddress(), publishAddress);
@@ -117,7 +117,7 @@ public class DiscoveryNodeFilters {
                 // We check explicitly only the publish_ip
                 String address = null;
                 if (node.getAddress() instanceof TransportAddress) {
-                    address = NetworkAddress.format(((TransportAddress) node.getAddress()).address().getAddress());
+                    address = NetworkAddress.format(node.getAddress().address().getAddress());
                 }
 
                 boolean match = matchByIP(values, address, null);

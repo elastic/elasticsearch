@@ -172,6 +172,13 @@ final class DefaultSearchContext extends SearchContext {
         queryShardContext.setTypes(request.types());
     }
 
+    DefaultSearchContext(DefaultSearchContext source) {
+        this(source.id(), source.request(), source.shardTarget(), source.engineSearcher, source.indexService, source.indexShard(),
+            source.bigArrays(), source.timeEstimateCounter(), source.parseFieldMatcher(), source.timeout(), source.fetchPhase());
+    }
+
+
+
     @Override
     public void doClose() {
         // clear and scope phase we  have

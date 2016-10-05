@@ -335,11 +335,17 @@ public class QueryShardContext extends QueryRewriteContext {
         return indexSettings.getIndex();
     }
 
+    /**
+     * Compiles (or retrieves from cache) and executes the provided script
+     */
     public SearchScript getSearchScript(Script script, ScriptContext context, Map<String, String> params) {
         failIfExecutionMode();
         return scriptService.search(lookup(), script, context, params);
     }
-
+    /**
+     * Returns a lazily created {@link SearchScript} that is compiled immediately but can be pulled later once all
+     * parameters are available.
+     */
     public Function<Map<String, Object>, SearchScript> getLazySearchScript(Script script, ScriptContext context,
             Map<String, String> params) {
         failIfExecutionMode();
@@ -347,11 +353,18 @@ public class QueryShardContext extends QueryRewriteContext {
         return (p) -> scriptService.search(lookup(), compile, p);
     }
 
+    /**
+     * Compiles (or retrieves from cache) and executes the provided script
+     */
     public ExecutableScript getExecutableScript(Script script, ScriptContext context, Map<String, String> params) {
         failIfExecutionMode();
         return scriptService.executable(script, context, params);
     }
 
+    /**
+     * Returns a lazily created {@link ExecutableScript} that is compiled immediately but can be pulled later once all
+     * parameters are available.
+     */
     public Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(Script script, ScriptContext context,
             Map<String, String> params) {
         failIfExecutionMode();

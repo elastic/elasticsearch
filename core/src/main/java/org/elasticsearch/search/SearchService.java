@@ -517,11 +517,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     final SearchContext createContext(ShardSearchRequest request, @Nullable Engine.Searcher searcher) throws IOException {
-
-        DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, searcher);
-        SearchContext.setCurrent(context);
+        final DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, searcher);
         try {
-            request.rewrite(new QueryShardContext(context.getQueryShardContext()));
+            // we clone the search context here just for rewriting otherwise we
+            // might end up with incorrect state since we are using now() or script services
+            // during rewrite and normalized / evaluate templates etc.
+            // NOTE this context doesn't need to be closed - the outer context will
+            // take care of this.
+            DefaultSearchContext rewriteContext = new DefaultSearchContext(context);
+            SearchContext.setCurrent(rewriteContext);
+            request.rewrite(rewriteContext.getQueryShardContext());
+            SearchContext.setCurrent(context);
+            assert context.getQueryShardContext().isCachable();
             if (request.scroll() != null) {
                 context.scrollContext(new ScrollContext());
                 context.scrollContext().scroll = request.scroll();

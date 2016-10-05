@@ -137,6 +137,10 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
         this.executionMode.set(Boolean.TRUE);
     }
 
+    /**
+     * This method fails if {@link #setExecutionMode()} is called before on this context.
+     * This is used to <i>seal</i>
+     */
     protected void failIfExecutionMode() {
         this.cachable = false;
         if (executionMode.get() == Boolean.TRUE) {

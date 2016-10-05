@@ -21,6 +21,8 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.rounding.DateTimeUnit;
+import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -35,7 +37,11 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * A builder for histograms on date fields.
@@ -43,6 +49,29 @@ import java.util.Objects;
 public class DateHistogramAggregationBuilder
         extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, DateHistogramAggregationBuilder> {
     public static final String NAME = InternalDateHistogram.TYPE.name();
+
+    public static final Map<String, DateTimeUnit> DATE_FIELD_UNITS;
+
+    static {
+        Map<String, DateTimeUnit> dateFieldUnits = new HashMap<>();
+        dateFieldUnits.put("year", DateTimeUnit.YEAR_OF_CENTURY);
+        dateFieldUnits.put("1y", DateTimeUnit.YEAR_OF_CENTURY);
+        dateFieldUnits.put("quarter", DateTimeUnit.QUARTER);
+        dateFieldUnits.put("1q", DateTimeUnit.QUARTER);
+        dateFieldUnits.put("month", DateTimeUnit.MONTH_OF_YEAR);
+        dateFieldUnits.put("1M", DateTimeUnit.MONTH_OF_YEAR);
+        dateFieldUnits.put("week", DateTimeUnit.WEEK_OF_WEEKYEAR);
+        dateFieldUnits.put("1w", DateTimeUnit.WEEK_OF_WEEKYEAR);
+        dateFieldUnits.put("day", DateTimeUnit.DAY_OF_MONTH);
+        dateFieldUnits.put("1d", DateTimeUnit.DAY_OF_MONTH);
+        dateFieldUnits.put("hour", DateTimeUnit.HOUR_OF_DAY);
+        dateFieldUnits.put("1h", DateTimeUnit.HOUR_OF_DAY);
+        dateFieldUnits.put("minute", DateTimeUnit.MINUTES_OF_HOUR);
+        dateFieldUnits.put("1m", DateTimeUnit.MINUTES_OF_HOUR);
+        dateFieldUnits.put("second", DateTimeUnit.SECOND_OF_MINUTE);
+        dateFieldUnits.put("1s", DateTimeUnit.SECOND_OF_MINUTE);
+        DATE_FIELD_UNITS = unmodifiableMap(dateFieldUnits);
+    }
 
     private long interval;
     private DateHistogramInterval dateHistogramInterval;
@@ -245,13 +274,36 @@ public class DateHistogramAggregationBuilder
     @Override
     protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-        ExtendedBounds extendedBounds = null;
+        Rounding rounding = createRounding();
+        ExtendedBounds roundedBounds = null;
         if (this.extendedBounds != null) {
-            // parse any string bounds to longs
-            extendedBounds = this.extendedBounds.parseAndValidate(name, context.searchContext(), config.format());
+            // parse any string bounds to longs and round
+            roundedBounds = this.extendedBounds.parseAndValidate(name, context.searchContext(), config.format()).round(rounding);
         }
         return new DateHistogramAggregatorFactory(name, type, config, interval, dateHistogramInterval, offset, order, keyed, minDocCount,
-                extendedBounds, context, parent, subFactoriesBuilder, metaData);
+                rounding, roundedBounds, context, parent, subFactoriesBuilder, metaData);
+    }
+
+    private Rounding createRounding() {
+        Rounding.Builder tzRoundingBuilder;
+        if (dateHistogramInterval != null) {
+            DateTimeUnit dateTimeUnit = DATE_FIELD_UNITS.get(dateHistogramInterval.toString());
+            if (dateTimeUnit != null) {
+                tzRoundingBuilder = Rounding.builder(dateTimeUnit);
+            } else {
+                // the interval is a time value?
+                tzRoundingBuilder = Rounding.builder(
+                        TimeValue.parseTimeValue(dateHistogramInterval.toString(), null, getClass().getSimpleName() + ".interval"));
+            }
+        } else {
+            // the interval is an integer time value in millis?
+            tzRoundingBuilder = Rounding.builder(TimeValue.timeValueMillis(interval));
+        }
+        if (timeZone() != null) {
+            tzRoundingBuilder.timeZone(timeZone());
+        }
+        Rounding rounding = tzRoundingBuilder.build();
+        return rounding;
     }
 
     @Override

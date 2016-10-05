@@ -171,7 +171,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/search/request/highlighting.asciidoc',
   'reference/search/request/inner-hits.asciidoc',
   'reference/search/request/rescore.asciidoc',
-  'reference/search/request/scroll.asciidoc',
   'reference/search/search-template.asciidoc',
   'reference/search/suggesters/completion-suggest.asciidoc',
 ]

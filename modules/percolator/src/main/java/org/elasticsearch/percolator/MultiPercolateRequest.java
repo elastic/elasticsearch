@@ -89,7 +89,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
     /**
      * Embeds a percolate request which request body is defined as raw bytes to this multi percolate request
      */
-    public MultiPercolateRequest add(BytesReference data, boolean allowExplicitIndex) throws Exception {
+    public MultiPercolateRequest add(BytesReference data, boolean allowExplicitIndex) throws IOException {
         XContent xContent = XContentFactory.xContent(data);
         int from = 0;
         int length = data.length();

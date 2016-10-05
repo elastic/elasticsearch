@@ -231,6 +231,7 @@ public class PluginBuildPlugin extends BuildPlugin {
                  * ahold of the actual task. Furthermore, this entire hack only exists so we can make publishing to
                  * maven local work, since we publish to maven central externally. */
                 zipReal(MavenPublication) {
+                    artifactId = project.pluginProperties.extension.name
                     pom.withXml { XmlProvider xml ->
                         Node root = xml.asNode()
                         root.appendNode('name', project.pluginProperties.extension.name)

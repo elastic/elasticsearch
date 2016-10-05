@@ -715,7 +715,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return detectNoop;
     }
 
-    public UpdateRequest fromXContent(BytesReference source) throws Exception {
+    public UpdateRequest fromXContent(BytesReference source) throws IOException {
         Script script = null;
         try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
             XContentParser.Token token = parser.nextToken();

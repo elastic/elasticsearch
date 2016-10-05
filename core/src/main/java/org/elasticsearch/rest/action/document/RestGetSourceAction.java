@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -50,7 +49,7 @@ public class RestGetSourceAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         getRequest.operationThreaded(true);
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
@@ -61,27 +60,25 @@ public class RestGetSourceAction extends BaseRestHandler {
 
         getRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 
-        if (getRequest.fetchSourceContext() != null && !getRequest.fetchSourceContext().fetchSource()) {
-            try {
+        return channel -> {
+            if (getRequest.fetchSourceContext() != null && !getRequest.fetchSourceContext().fetchSource()) {
                 ActionRequestValidationException validationError = new ActionRequestValidationException();
                 validationError.addValidationError("fetching source can not be disabled");
                 channel.sendResponse(new BytesRestResponse(channel, validationError));
-            } catch (IOException e) {
-                logger.error("Failed to send failure response", e);
+            } else {
+                client.get(getRequest, new RestResponseListener<GetResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(GetResponse response) throws Exception {
+                        XContentBuilder builder = channel.newBuilder(response.getSourceInternal(), false);
+                        if (response.isSourceEmpty()) { // check if doc source (or doc itself) is missing
+                            return new BytesRestResponse(NOT_FOUND, builder);
+                        } else {
+                            builder.rawValue(response.getSourceInternal());
+                            return new BytesRestResponse(OK, builder);
+                        }
+                    }
+                });
             }
-        }
-
-        client.get(getRequest, new RestResponseListener<GetResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(GetResponse response) throws Exception {
-                XContentBuilder builder = channel.newBuilder(response.getSourceInternal(), false);
-                if (response.isSourceEmpty()) { // check if doc source (or doc itself) is missing
-                    return new BytesRestResponse(NOT_FOUND, builder);
-                } else {
-                    builder.rawValue(response.getSourceInternal());
-                    return new BytesRestResponse(OK, builder);
-                }
-            }
-        });
+        };
     }
 }

@@ -501,5 +501,10 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         builder.setNestedPath("some_nested_path");
         sort = builder.build(context);
         assertEquals(SortField.class, sort.field.getClass()); // can't use LatLon optimized sorting with nested fields
+
+        builder = new GeoDistanceSortBuilder("random_field_name", new GeoPoint(3.5, 2.1));
+        builder.order(SortOrder.DESC);
+        sort = builder.build(context);
+        assertEquals(SortField.class, sort.field.getClass()); // can't use LatLon optimized sorting with DESC sorting
     }
 }

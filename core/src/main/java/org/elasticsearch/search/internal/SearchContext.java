@@ -159,10 +159,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract long getOriginNanoTime();
 
-    public final boolean isCachable() {
-        return getQueryShardContext().isCachable();
-    }
-
     public abstract ScrollContext scrollContext();
 
     public abstract SearchContext scrollContext(ScrollContext scroll);

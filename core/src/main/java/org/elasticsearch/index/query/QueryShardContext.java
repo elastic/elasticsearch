@@ -36,11 +36,13 @@ import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -77,6 +79,8 @@ public class QueryShardContext extends QueryRewriteContext {
     private final IndexFieldDataService indexFieldDataService;
     private final IndexSettings indexSettings;
     private String[] types = Strings.EMPTY_ARRAY;
+    private boolean cachable = true;
+    private final SetOnce<Boolean> frozen = new SetOnce<>();
 
     public void setTypes(String... types) {
         this.types = types;
@@ -271,7 +275,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public long nowInMillis() {
-        failIfExecutionMode();
+        failIfFrozen();
         return nowInMillis.getAsLong();
     }
 
@@ -339,7 +343,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * Compiles (or retrieves from cache) and executes the provided script
      */
     public SearchScript getSearchScript(Script script, ScriptContext context, Map<String, String> params) {
-        failIfExecutionMode();
+        failIfFrozen();
         return scriptService.search(lookup(), script, context, params);
     }
     /**
@@ -348,7 +352,7 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public Function<Map<String, Object>, SearchScript> getLazySearchScript(Script script, ScriptContext context,
             Map<String, String> params) {
-        failIfExecutionMode();
+        failIfFrozen();
         CompiledScript compile = scriptService.compile(script, context, params);
         return (p) -> scriptService.search(lookup(), compile, p);
     }
@@ -357,7 +361,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * Compiles (or retrieves from cache) and executes the provided script
      */
     public ExecutableScript getExecutableScript(Script script, ScriptContext context, Map<String, String> params) {
-        failIfExecutionMode();
+        failIfFrozen();
         return scriptService.executable(script, context, params);
     }
 
@@ -367,8 +371,42 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(Script script, ScriptContext context,
             Map<String, String> params) {
-        failIfExecutionMode();
+        failIfFrozen();
         CompiledScript executable = scriptService.compile(script, context, params);
         return (p) ->  scriptService.executable(executable, p);
+    }
+
+    /**
+     * if this method is called the query context will throw exception if methods are accessed
+     * that could yield different results across executions like {@link #getTemplateBytes(Script)}
+     */
+    public void freezeContext() {
+        this.frozen.set(Boolean.TRUE);
+    }
+
+    /**
+     * This method fails if {@link #freezeContext()} is called before on this context.
+     * This is used to <i>seal</i>
+     */
+    protected void failIfFrozen() {
+        this.cachable = false;
+        if (frozen.get() == Boolean.TRUE) {
+            throw new IllegalArgumentException("features that prevent cachability are disabled on this context");
+        } else {
+            assert frozen.get() == null : frozen.get();
+        }
+    }
+
+    @Override
+    public BytesReference getTemplateBytes(Script template) {
+        failIfFrozen();
+        return super.getTemplateBytes(template);
+    }
+
+    /**
+     * Returns <code>true</code> iff the result of the processed search request is cachable. Otherwise <code>false</code>
+     */
+    public boolean isCachable() {
+        return cachable;
     }
 }

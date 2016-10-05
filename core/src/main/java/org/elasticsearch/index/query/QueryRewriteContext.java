@@ -48,8 +48,6 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     protected final Client client;
     protected final IndexReader reader;
     protected final ClusterState clusterState;
-    protected boolean cachable = true;
-    private final SetOnce<Boolean> executionMode = new SetOnce<>();
 
     public QueryRewriteContext(IndexSettings indexSettings, MapperService mapperService, ScriptService scriptService,
                                IndicesQueriesRegistry indicesQueriesRegistry, Client client, IndexReader reader,
@@ -119,34 +117,11 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
         return new QueryParseContext(defaultScriptLanguage, indicesQueriesRegistry, parser, indexSettings.getParseFieldMatcher());
     }
 
-    /**
-     * Returns <code>true</code> iff the result of the processed search request is cachable. Otherwise <code>false</code>
-     */
-    public boolean isCachable() {
-        return cachable;
-    }
-
     public BytesReference getTemplateBytes(Script template) {
-        failIfExecutionMode();
         ExecutableScript executable = scriptService.executable(template,
             ScriptContext.Standard.SEARCH, Collections.emptyMap());
         return (BytesReference) executable.run();
     }
 
-    public void setExecutionMode() {
-        this.executionMode.set(Boolean.TRUE);
-    }
 
-    /**
-     * This method fails if {@link #setExecutionMode()} is called before on this context.
-     * This is used to <i>seal</i>
-     */
-    protected void failIfExecutionMode() {
-        this.cachable = false;
-        if (executionMode.get() == Boolean.TRUE) {
-            throw new IllegalArgumentException("features that prevent cachability are disabled on this context");
-        } else {
-            assert executionMode.get() == null : executionMode.get();
-        }
-    }
 }

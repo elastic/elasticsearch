@@ -28,7 +28,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 
 import java.net.SocketAddress;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -127,6 +126,16 @@ public abstract class RestRequest implements ToXContent.Params {
 
     public Map<String, String> params() {
         return params;
+    }
+
+    /**
+     * Returns a list of parameters that have been consumed. This method returns a copy, callers
+     * are free to modify the returned list.
+     *
+     * @return the list of currently consumed parameters.
+     */
+    List<String> consumedParams() {
+        return consumedParams.stream().collect(Collectors.toList());
     }
 
     /**

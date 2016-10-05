@@ -39,7 +39,28 @@ import static org.mockito.Mockito.mock;
 
 public class BaseRestHandlerTests extends ESTestCase {
 
-    public void testUnconsumedParameters() throws Exception {
+    public void testOneUnconsumedParameters() throws Exception {
+        final AtomicBoolean executed = new AtomicBoolean();
+        BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+            @Override
+            protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+                request.param("consumed");
+                return channel -> executed.set(true);
+            }
+        };
+
+        final HashMap<String, String> params = new HashMap<>();
+        params.put("consumed", randomAsciiOfLength(8));
+        params.put("unconsumed", randomAsciiOfLength(8));
+        RestRequest request = new FakeRestRequest.Builder().withParams(params).build();
+        RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+        final IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> handler.handleRequest(request, channel, mock(NodeClient.class)));
+        assertThat(e, hasToString(containsString("request [/] contains unrecognized parameter: [unconsumed]")));
+        assertFalse(executed.get());
+    }
+
+    public void testMultipleUnconsumedParameters() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
         BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
             @Override

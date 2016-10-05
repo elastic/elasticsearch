@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -70,7 +71,11 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
 
         // validate the non-response params
         if (!unconsumedParams.isEmpty()) {
-            String message = "request [" + request.path() + "] contains unrecognized parameters: ";
+            String message = String.format(
+                Locale.ROOT,
+                "request [%s] contains unrecognized parameter%s: ",
+                request.path(),
+                unconsumedParams.size() > 1 ? "s" : "");
             boolean first = true;
             for (final String unconsumedParam : unconsumedParams) {
                 final LevensteinDistance ld = new LevensteinDistance();

@@ -88,7 +88,7 @@ You must enclose date math index name expressions within angle brackets. For exa
 
 [source,js]
 ----------------------------------------------------------------------
-GET /<logstash-{now%2Fd}>/_search
+GET /<logstash-{now/d}>/_search
 {
   "query" : {
     "match": {
@@ -99,9 +99,22 @@ GET /<logstash-{now%2Fd}>/_search
 ----------------------------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT logstash-2016.09.20\n/]
-// TEST[s/\{now/{2016.09.20||/]
+// TEST[s/\{now\//{2016.09.20||%2f/]
 
-NOTE: The `/` used for date rounding must be url encoded as `%2F` in any url.
+[NOTE]
+.Percent encoding of date math characters
+======================================================
+The special characters used for date rounding must be url encoded as follows:
+
+`<`:: `%3C`
+`>`:: `%3E`
+`/`:: `%2F`
+`{`:: `%7B`
+`}`:: `%7D`
+`|`:: `%7C`
+`+`:: `%2B`
+`:`:: `%3A`
+======================================================
 
 The following example shows different forms of date math index names and the final index names
 they resolve to given the current time is 22rd March 2024 noon utc.

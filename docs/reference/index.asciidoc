@@ -3,7 +3,11 @@
 
 :version:        5.0.0-beta1
 :major-version:  5.x
-// release-state can be: released | prerelease | unreleased
+
+//////////
+release-state can be: released | prerelease | unreleased
+//////////
+
 :release-state:  prerelease
 :lucene_version: 6.2.0
 :branch:         master

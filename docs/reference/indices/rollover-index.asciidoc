@@ -88,16 +88,23 @@ POST /my_alias/_rollover/my_new_index_name
 
 It can be useful to use <<date-math-index-names,date math>> to name the
 rollover index according to the date that the index rolled over, e.g.
-`logstash-2016.02.03`.  The rollover API supports date math by storing the
-original `provided_name` in the index settings.  For instance:
+`logstash-2016.02.03`.  The rollover API supports date math, but requires the
+index name to end with a dash followed by a number, e.g.
+`logstash-2016.02.03-1` which is incremented every time the index is rolled
+over. For instance:
 
 [source,js]
 --------------------------------------------------
-PUT /<logs-{now/d}> <1>
+PUT /<logs-{now/d}-1> <1>
 {
   "aliases": {
     "logs_write": {}
   }
+}
+
+PUT logs_write/log/1
+{
+  "message": "a dummy log"
 }
 
 # Wait for a day to pass
@@ -105,35 +112,41 @@ PUT /<logs-{now/d}> <1>
 POST /logs_write/_rollover <2>
 {
   "conditions": {
-    "max_age":   "1d"
+    "max_docs":   "1"
   }
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:Requires 24h to pass]
-<1> Creates an index named (e.g.) `logs-2016.10.31`
-<2> Rolls over to a new index with today's date, e.g. `logs-2016.11.01`
+// TEST[s/\{now\//{2016.10.31||%2f/]
+<1> Creates an index named with today's date (e.g.) `logs-2016.10.31-1`
+<2> Rolls over to a new index with today's date, e.g. `logs-2016.10.31-000002` if run immediately, or `logs-2016.11.01-000002` if run after 24 hours
 
-[WARNING]
-=============================================
-
-Using a date format like `YYYY.MM.dd` for an index name will only work once a
-day.  The second attempt to use the rollover API will fail because the index
-already exists.  If you may need to rollover your indices more than once a
-day, then use a date format with more precision, for example:
+//////////////////////////
 
 [source,js]
 --------------------------------------------------
-PUT /<logs-{now{YYYY.MM.dd-hh.mm.ss}}> <1>
+GET _alias
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
 {
-  "aliases": {
-    "logs_write": {}
+  "logs-2016.10.31-000002": {
+    "aliases": {
+      "logs_write": {}
+    }
+  },
+  "logs-2016.10.31-1": {
+    "aliases": {}
   }
 }
 --------------------------------------------------
-// CONSOLE
-<1> Creates an index named (e.g.) `logs-2016.10.31-16:12:15`
-=============================================
+// TESTRESPONSE
+
+//////////////////////////
+
 
 [float]
 === Defining the new index

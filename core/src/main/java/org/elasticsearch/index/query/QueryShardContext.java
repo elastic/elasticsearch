@@ -114,6 +114,7 @@ public class QueryShardContext extends QueryRewriteContext {
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.nestedScope = new NestedScope();
         this.nowInMillis = nowInMillis;
+
     }
 
     public QueryShardContext(QueryShardContext source) {

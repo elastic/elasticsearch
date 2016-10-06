@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
@@ -126,7 +127,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
             private InternalTransportServiceInterceptor instance = new InternalTransportServiceInterceptor();
 
             @Override
-            public List<TransportInterceptor> getTransportInterceptors() {
+            public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry) {
                 return Collections.singletonList(new TransportInterceptor() {
                     @Override
                     public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action,

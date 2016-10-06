@@ -37,7 +37,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 
@@ -230,7 +229,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         };
         NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
                 @Override
-                public List<TransportInterceptor> getTransportInterceptors() {
+                public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry) {
                     return Collections.singletonList(interceptor);
                 }
             });
@@ -243,7 +242,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         NullPointerException nullPointerException = expectThrows(NullPointerException.class, () -> {
             newNetworkModule(settings, false, new NetworkPlugin() {
                 @Override
-                public List<TransportInterceptor> getTransportInterceptors() {
+                public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry) {
                     return Collections.singletonList(null);
                 }
             });

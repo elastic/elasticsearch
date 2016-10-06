@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -109,7 +110,8 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
 
     @Override
     protected void doAssertLuceneQuery(TemplateQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        assertEquals(rewrite(QueryBuilder.rewriteQuery(templateBase, context).toQuery(context)), rewrite(query));
+        QueryShardContext queryShardContext = context.getQueryShardContext();
+        assertEquals(rewrite(QueryBuilder.rewriteQuery(templateBase, queryShardContext).toQuery(queryShardContext)), rewrite(query));
     }
 
     public void testIllegalArgument() {

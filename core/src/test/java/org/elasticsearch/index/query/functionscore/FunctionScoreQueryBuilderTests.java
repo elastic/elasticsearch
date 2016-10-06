@@ -172,12 +172,14 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             break;
         case 3:
             RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilderWithFixedSeed();
-            if (randomBoolean()) {
-                randomScoreFunctionBuilder.seed(randomLong());
-            } else if (randomBoolean()) {
-                randomScoreFunctionBuilder.seed(randomInt());
-            } else {
-                randomScoreFunctionBuilder.seed(randomAsciiOfLengthBetween(1, 10));
+            if (randomBoolean()) { // sometimes provide no seed
+                if (randomBoolean()) {
+                    randomScoreFunctionBuilder.seed(randomLong());
+                } else if (randomBoolean()) {
+                    randomScoreFunctionBuilder.seed(randomInt());
+                } else {
+                    randomScoreFunctionBuilder.seed(randomAsciiOfLengthBetween(1, 10));
+                }
             }
             functionBuilder = randomScoreFunctionBuilder;
             break;
@@ -777,7 +779,9 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 throws IOException, ParsingException {
             RandomScoreFunctionBuilder builder = RandomScoreFunctionBuilder.fromXContent(parseContext);
             RandomScoreFunctionBuilderWithFixedSeed replacement = new RandomScoreFunctionBuilderWithFixedSeed();
-            replacement.seed(builder.getSeed());
+            if (builder.getSeed() != null) {
+                replacement.seed(builder.getSeed());
+            }
             return replacement;
         }
     }
@@ -788,5 +792,19 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             return singletonList(new ScoreFunctionSpec<>(RandomScoreFunctionBuilderWithFixedSeed.NAME,
                     RandomScoreFunctionBuilderWithFixedSeed::new, RandomScoreFunctionBuilderWithFixedSeed::fromXContent));
         }
+    }
+
+    @Override
+    protected boolean isCachable(FunctionScoreQueryBuilder queryBuilder) {
+        FilterFunctionBuilder[] filterFunctionBuilders = queryBuilder.filterFunctionBuilders();
+        for (FilterFunctionBuilder builder : filterFunctionBuilders) {
+            if (builder.getScoreFunction() instanceof ScriptScoreFunctionBuilder) {
+                return false;
+            } else if (builder.getScoreFunction() instanceof RandomScoreFunctionBuilder
+                && ((RandomScoreFunctionBuilder) builder.getScoreFunction()).getSeed() == null) {
+                return false;
+            }
+        }
+        return true;
     }
 }

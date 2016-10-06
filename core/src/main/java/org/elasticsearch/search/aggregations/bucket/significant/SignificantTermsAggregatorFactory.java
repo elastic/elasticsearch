@@ -91,14 +91,14 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 : searcher.count(filter);
         this.bucketCountThresholds = bucketCountThresholds;
         this.significanceHeuristic = significanceHeuristic;
-        setFieldInfo();
+        setFieldInfo(context.searchContext());
 
     }
 
-    private void setFieldInfo() {
+    private void setFieldInfo(SearchContext context) {
         if (!config.unmapped()) {
             this.indexedFieldName = config.fieldContext().field();
-            fieldType = SearchContext.current().smartNameFieldType(indexedFieldName);
+            fieldType = context.smartNameFieldType(indexedFieldName);
         }
     }
 

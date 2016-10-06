@@ -92,7 +92,7 @@ public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
         } catch (IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         } finally {
-            SearchContext.current().clearReleasables(Lifetime.COLLECTION);
+            context.clearReleasables(Lifetime.COLLECTION);
         }
     }
 }

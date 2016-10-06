@@ -24,6 +24,7 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -45,7 +46,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanNearQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanNearQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, instanceOf(SpanNearQuery.class));
         SpanNearQuery spanNearQuery = (SpanNearQuery) query;
         assertThat(spanNearQuery.getSlop(), equalTo(queryBuilder.slop()));
@@ -53,7 +54,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         assertThat(spanNearQuery.getClauses().length, equalTo(queryBuilder.clauses().size()));
         Iterator<SpanQueryBuilder> spanQueryBuilderIterator = queryBuilder.clauses().iterator();
         for (SpanQuery spanQuery : spanNearQuery.getClauses()) {
-            assertThat(spanQuery, equalTo(spanQueryBuilderIterator.next().toQuery(context)));
+            assertThat(spanQuery, equalTo(spanQueryBuilderIterator.next().toQuery(context.getQueryShardContext())));
         }
     }
 

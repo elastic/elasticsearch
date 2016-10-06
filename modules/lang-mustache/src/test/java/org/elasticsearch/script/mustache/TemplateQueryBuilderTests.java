@@ -37,6 +37,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.junit.Before;
 
@@ -108,8 +109,9 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
     }
 
     @Override
-    protected void doAssertLuceneQuery(TemplateQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertEquals(rewrite(QueryBuilder.rewriteQuery(templateBase, context).toQuery(context)), rewrite(query));
+    protected void doAssertLuceneQuery(TemplateQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+        QueryShardContext queryShardContext = context.getQueryShardContext();
+        assertEquals(rewrite(QueryBuilder.rewriteQuery(templateBase, queryShardContext).toQuery(queryShardContext)), rewrite(query));
     }
 
     public void testIllegalArgument() {

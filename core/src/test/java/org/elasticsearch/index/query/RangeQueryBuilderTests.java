@@ -31,6 +31,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -116,7 +117,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     @Override
-    protected void doAssertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(RangeQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         if (getCurrentTypes().length == 0 || (queryBuilder.fieldName().equals(DATE_FIELD_NAME) == false && queryBuilder.fieldName().equals(INT_FIELD_NAME) == false)) {
             assertThat(query, instanceOf(TermRangeQuery.class));
             TermRangeQuery termRangeQuery = (TermRangeQuery) query;
@@ -328,7 +329,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "        }\n" +
                 "    }\n" +
                 "}";
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext()).rewrite(null);
+        QueryShardContext context = createShardContext();
+        Query parsedQuery = parseQuery(query).toQuery(context).rewrite(null);
         if (parsedQuery instanceof PointRangeQuery) {
             // TODO what can we assert
         } else {
@@ -336,13 +338,13 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
             // Min value was 2012-01-01 (UTC) so we need to remove one hour
             DateTime min = DateTime.parse("2012-01-01T00:00:00.000+01:00");
-            // Max value is when we started the test. So it should be some ms from now
-            DateTime max = new DateTime(startDate, DateTimeZone.UTC);
+            // Max value is the nowInMillis set by the uery shard context
+            long max = context.nowInMillis();
 
             assertThat(((LegacyNumericRangeQuery) parsedQuery).getMin().longValue(), is(min.getMillis()));
 
             // We should not have a big difference here (should be some ms)
-            assertThat(((LegacyNumericRangeQuery) parsedQuery).getMax().longValue() - max.getMillis(), lessThanOrEqualTo(60000L));
+            assertThat(((LegacyNumericRangeQuery) parsedQuery).getMax().longValue() - max, lessThanOrEqualTo(60000L));
         }
 
         query = "{\n" +

@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -131,7 +132,7 @@ public class LegacyByteFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public Byte valueForSearch(Object value) {
+        public Byte valueForDisplay(Object value) {
             if (value == null) {
                 return null;
             }
@@ -146,7 +147,7 @@ public class LegacyByteFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             return LegacyNumericRangeQuery.newIntRange(name(), numericPrecisionStep(),
                 lowerTerm == null ? null : (int)parseValue(lowerTerm),
                 upperTerm == null ? null : (int)parseValue(upperTerm),

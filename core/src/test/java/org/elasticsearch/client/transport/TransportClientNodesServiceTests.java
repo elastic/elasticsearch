@@ -97,7 +97,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                         }
                     };
                 }
-            });
+            }, null);
             transportService.start();
             transportService.acceptIncomingRequests();
             transportClientNodesService =

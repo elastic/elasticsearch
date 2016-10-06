@@ -74,7 +74,8 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
                                     new NoneCircuitBreakerService(),
                                     new NamedWriteableRegistry(Collections.emptyList()),
                                     new NetworkService(Settings.EMPTY, Collections.emptyList()));
-        transportService = new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+        transportService = new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                null);
     }
 
     public void testBuildDynamicNodes() throws Exception {

@@ -72,6 +72,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     // we use always a non-alpha or beta version here otherwise minimumCompatibilityVersion will be different for the two used versions
     private static final Version CURRENT_VERSION = Version.fromString(String.valueOf(Version.CURRENT.major) + ".0.0");
     protected static final Version version0 = CURRENT_VERSION.minimumCompatibilityVersion();
+
+    private ClusterSettings clusterSettings;
+
     protected volatile DiscoveryNode nodeA;
     protected volatile MockTransportService serviceA;
 
@@ -79,17 +82,18 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected volatile DiscoveryNode nodeB;
     protected volatile MockTransportService serviceB;
 
-    protected abstract MockTransportService build(Settings settings, Version version);
+    protected abstract MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings);
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
-        serviceA = buildService("TS_A", version0);
+        clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        serviceA = buildService("TS_A", version0, clusterSettings); // this one supports dynamic tracer updates
         nodeA = new DiscoveryNode("TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
         // serviceA.setLocalNode(nodeA);
-        serviceB = buildService("TS_B", version1);
+        serviceB = buildService("TS_B", version1, null); // this one doesn't support dynamic tracer updates
         nodeB = new DiscoveryNode("TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), version1);
         //serviceB.setLocalNode(nodeB);
         // wait till all nodes are properly connected and the event has been sent, so tests in this class
@@ -128,14 +132,15 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceB.removeConnectionListener(waitForConnection);
     }
 
-    private MockTransportService buildService(final String name, final Version version) {
+    private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings) {
         MockTransportService service = build(
             Settings.builder()
                 .put(Node.NODE_NAME_SETTING.getKey(), name)
                 .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
                 .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                 .build(),
-            version);
+            version,
+            clusterSettings);
         service.acceptIncomingRequests();
         return service;
     }
@@ -582,7 +587,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             if (i % 3 == 0) {
                 // simulate restart of nodeB
                 serviceB.close();
-                MockTransportService newService = buildService("TS_B_" + i, version1);
+                MockTransportService newService = buildService("TS_B_" + i, version1, null);
                 newService.registerRequestHandler("test", TestRequest::new, ThreadPool.Names.SAME, ignoringRequestHandler);
                 serviceB = newService;
                 nodeB = new DiscoveryNode("TS_B_" + i, "TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), version1);
@@ -864,9 +869,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             includeSettings = "test";
             excludeSettings = "DOESN'T_MATCH";
         }
-        ClusterSettings service = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        serviceA.setDynamicSettings(service);
-        service.applySettings(Settings.builder()
+        clusterSettings.applySettings(Settings.builder()
             .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), includeSettings)
             .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), excludeSettings)
             .build());
@@ -1423,7 +1426,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
                 .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                 .build(),
-            version0);
+            version0,
+            null);
         AtomicBoolean requestProcessed = new AtomicBoolean();
         service.registerRequestHandler("action", TestRequest::new, ThreadPool.Names.SAME,
             (request, channel) -> {
@@ -1540,7 +1544,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
                 .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                 .build(),
-            version0);
+            version0,
+            null);
         DiscoveryNode nodeC =
             new DiscoveryNode("TS_C", "TS_C", serviceC.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
         serviceC.acceptIncomingRequests();

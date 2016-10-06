@@ -145,7 +145,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
                             .build(),
                         new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE, circuitBreakerService,
                             namedWriteableRegistry, new NetworkService(settings, Collections.emptyList()), version),
-                        threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+                        threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         transportService.start();
         transportService.acceptIncomingRequests();
         return transportService;

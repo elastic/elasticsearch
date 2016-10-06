@@ -75,7 +75,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
 
     @Override
     protected Client buildClient(Settings headersSettings, GenericAction[] testedActions) {
-        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
+        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null);
         transportService.start();
         transportService.acceptIncomingRequests();
         TransportClient client = new MockTransportClient(Settings.builder()

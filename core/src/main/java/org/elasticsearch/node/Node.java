@@ -32,6 +32,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterModule;
@@ -41,6 +42,7 @@ import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -91,6 +93,9 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.ingest.IngestService;
@@ -374,7 +379,7 @@ public class Node implements Closeable {
             final MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(customMetaDataUpgraders);
             final Transport transport = networkModule.getTransportSupplier().get();
             final TransportService transportService = newTransportService(settings, transport, threadPool,
-                networkModule.getTransportInterceptor());
+                networkModule.getTransportInterceptor(), settingsModule.getClusterSettings());
             final Consumer<Binder> httpBind;
             if (networkModule.isHttpEnabled()) {
                 HttpServerTransport httpServerTransport = networkModule.getHttpServerTransportSupplier().get();
@@ -416,6 +421,17 @@ public class Node implements Closeable {
                     b.bind(TransportService.class).toInstance(transportService);
                     b.bind(NetworkService.class).toInstance(networkService);
                     b.bind(AllocationCommandRegistry.class).toInstance(NetworkModule.getAllocationCommandRegistry());
+                    b.bind(UpdateHelper.class).toInstance(new UpdateHelper(settings, scriptModule.getScriptService()));
+                    b.bind(MetaDataIndexUpgradeService.class).toInstance(new MetaDataIndexUpgradeService(settings,
+                        indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings()));
+                    {
+                        RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
+                        processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
+                        b.bind(PeerRecoverySourceService.class).toInstance(new PeerRecoverySourceService(settings, transportService,
+                                indicesService, recoverySettings, clusterService));
+                        b.bind(PeerRecoveryTargetService.class).toInstance(new PeerRecoveryTargetService(settings, threadPool,
+                                transportService, recoverySettings, clusterService));
+                    }
                     httpBind.accept(b);
                     pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));
                 }
@@ -458,8 +474,12 @@ public class Node implements Closeable {
     }
 
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,
-                                                   TransportInterceptor interceptor) {
-        return new TransportService(settings, transport, threadPool, interceptor);
+                                                   TransportInterceptor interceptor, ClusterSettings clusterSettings) {
+        return new TransportService(settings, transport, threadPool, interceptor, clusterSettings);
+    }
+
+    protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
+        // Noop in production, overridden by tests
     }
 
     /**

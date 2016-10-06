@@ -88,7 +88,7 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(localNode);
         when(clusterService.state()).thenReturn(clusterState.build());
-        transportService = new TransportService(Settings.EMPTY, null, null, interceptor);
+        transportService = new TransportService(Settings.EMPTY, null, null, interceptor, null);
         return new IngestProxyActionFilter(clusterService, transportService);
     }
 

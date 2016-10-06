@@ -154,7 +154,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         try {
             Set<DiscoveryNode> expectedFDNodes = null;
 
-            final MockTransportService masterTransport = MockTransportService.createNewService(settings, Version.CURRENT, threadPool);
+            final MockTransportService masterTransport = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null);
             masterTransport.start();
             DiscoveryNode masterNode = new DiscoveryNode("master",  masterTransport.boundAddress().publishAddress(), Version.CURRENT);
             toClose.add(masterTransport);
@@ -170,7 +170,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             toClose.add(masterZen);
             masterTransport.acceptIncomingRequests();
 
-            final MockTransportService otherTransport = MockTransportService.createNewService(settings, Version.CURRENT, threadPool);
+            final MockTransportService otherTransport = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null);
             otherTransport.start();
             toClose.add(otherTransport);
             DiscoveryNode otherNode = new DiscoveryNode("other", otherTransport.boundAddress().publishAddress(), Version.CURRENT);

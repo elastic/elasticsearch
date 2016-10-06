@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.LegacyLongFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.LegacyLongFieldMapper.LongFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.junit.Before;
@@ -46,6 +44,6 @@ public class LegacyLongFieldTypeTests extends FieldTypeTestCase {
 
     public void testValueForSearch() {
         MappedFieldType ft = createDefaultFieldType();
-        assertEquals(Long.valueOf(3), ft.valueForSearch(Long.valueOf(3)));
+        assertEquals(Long.valueOf(3), ft.valueForDisplay(Long.valueOf(3)));
     }
 }

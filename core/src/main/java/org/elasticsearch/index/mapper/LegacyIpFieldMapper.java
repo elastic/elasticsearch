@@ -171,7 +171,7 @@ public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
          * IPs should return as a string.
          */
         @Override
-        public Object valueForSearch(Object value) {
+        public Object valueForDisplay(Object value) {
             Long val = (Long) value;
             if (val == null) {
                 return null;

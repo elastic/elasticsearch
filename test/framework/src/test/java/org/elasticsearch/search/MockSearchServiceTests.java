@@ -34,7 +34,7 @@ import org.elasticsearch.test.TestSearchContext;
 public class MockSearchServiceTests extends ESTestCase {
     public void testAssertNoInFlightContext() {
         final long nowInMillis = randomPositiveLong();
-        SearchContext s = new TestSearchContext(new QueryShardContext(new IndexSettings(IndexMetaData.PROTO, Settings.EMPTY), null, null,
+        SearchContext s = new TestSearchContext(new QueryShardContext(0, new IndexSettings(IndexMetaData.PROTO, Settings.EMPTY), null, null,
                 null, null, null, null, null, null, null, () -> nowInMillis)) {
             @Override
             public SearchShardTarget shardTarget() {

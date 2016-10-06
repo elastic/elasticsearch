@@ -25,8 +25,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.index.mapper.IpFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 
 public class IpFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -49,11 +47,11 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = createDefaultFieldType();
         String ip = "2001:db8::2:1";
         BytesRef asBytes = new BytesRef(InetAddressPoint.encode(InetAddresses.forString(ip)));
-        assertEquals(ip, ft.valueForSearch(asBytes));
+        assertEquals(ip, ft.valueForDisplay(asBytes));
 
         ip = "192.168.1.7";
         asBytes = new BytesRef(InetAddressPoint.encode(InetAddresses.forString(ip)));
-        assertEquals(ip, ft.valueForSearch(asBytes));
+        assertEquals(ip, ft.valueForDisplay(asBytes));
     }
 
     public void testTermQuery() {

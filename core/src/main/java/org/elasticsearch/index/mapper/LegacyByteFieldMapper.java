@@ -132,7 +132,7 @@ public class LegacyByteFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public Byte valueForSearch(Object value) {
+        public Byte valueForDisplay(Object value) {
             if (value == null) {
                 return null;
             }

@@ -165,7 +165,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Boolean valueForSearch(Object value) {
+        public Boolean valueForDisplay(Object value) {
             if (value == null) {
                 return null;
             }

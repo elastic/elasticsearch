@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.LegacyDoubleFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.LegacyDoubleFieldMapper.DoubleFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.junit.Before;
@@ -46,6 +44,6 @@ public class LegacyDoubleFieldTypeTests extends FieldTypeTestCase {
 
     public void testValueForSearch() {
         MappedFieldType ft = createDefaultFieldType();
-        assertEquals(Double.valueOf(1.2), ft.valueForSearch(1.2));
+        assertEquals(Double.valueOf(1.2), ft.valueForDisplay(1.2));
     }
 }

@@ -76,6 +76,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private final BitsetFilterCache bitsetFilterCache;
     private final IndexFieldDataService indexFieldDataService;
     private final IndexSettings indexSettings;
+    private final int shardId;
     private String[] types = Strings.EMPTY_ARRAY;
 
     public void setTypes(String... types) {
@@ -95,11 +96,12 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean isFilter;
     private final LongSupplier nowInMillis;
 
-    public QueryShardContext(IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache, IndexFieldDataService indexFieldDataService,
+    public QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache, IndexFieldDataService indexFieldDataService,
                              MapperService mapperService, SimilarityService similarityService, ScriptService scriptService,
                              final IndicesQueriesRegistry indicesQueriesRegistry, Client client,
                              IndexReader reader, ClusterState clusterState, LongSupplier nowInMillis) {
         super(indexSettings, mapperService, scriptService, indicesQueriesRegistry, client, reader, clusterState);
+        this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.similarityService = similarityService;
         this.mapperService = mapperService;
@@ -112,7 +114,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public QueryShardContext(QueryShardContext source) {
-        this(source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService,
+        this(source.shardId, source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService,
                 source.similarityService, source.scriptService, source.indicesQueriesRegistry, source.client,
                 source.reader, source.clusterState, source.nowInMillis);
         this.types = source.getTypes();
@@ -260,12 +262,8 @@ public class QueryShardContext extends QueryRewriteContext {
     private SearchLookup lookup = null;
 
     public SearchLookup lookup() {
-        SearchContext current = SearchContext.current();
-        if (current != null) {
-            return current.lookup();
-        }
         if (lookup == null) {
-            lookup = new SearchLookup(getMapperService(), indexFieldDataService, null);
+            lookup = new SearchLookup(getMapperService(), indexFieldDataService, types);
         }
         return lookup;
     }
@@ -357,5 +355,12 @@ public class QueryShardContext extends QueryRewriteContext {
         failIfExecutionMode();
         CompiledScript executable = scriptService.compile(script, context, params);
         return (p) ->  scriptService.executable(executable, p);
+    }
+
+    /**
+     * Returns the shard ID this context was created for.
+     */
+    public int getShardId() {
+        return shardId;
     }
 }

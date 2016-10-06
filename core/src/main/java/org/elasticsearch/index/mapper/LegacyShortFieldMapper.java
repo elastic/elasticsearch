@@ -136,7 +136,7 @@ public class LegacyShortFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public Short valueForSearch(Object value) {
+        public Short valueForDisplay(Object value) {
             if (value == null) {
                 return null;
             }

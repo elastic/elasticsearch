@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.LegacyIntegerFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.LegacyIntegerFieldMapper.IntegerFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.junit.Before;
@@ -46,6 +44,6 @@ public class LegacyIntegerFieldTypeTests extends FieldTypeTestCase {
 
     public void testValueForSearch() {
         MappedFieldType ft = createDefaultFieldType();
-        assertEquals(Integer.valueOf(3), ft.valueForSearch(Integer.valueOf(3)));
+        assertEquals(Integer.valueOf(3), ft.valueForDisplay(Integer.valueOf(3)));
     }
 }

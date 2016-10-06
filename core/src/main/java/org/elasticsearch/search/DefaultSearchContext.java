@@ -136,7 +136,6 @@ final class DefaultSearchContext extends SearchContext {
     private SearchContextHighlight highlight;
     private SuggestionSearchContext suggest;
     private List<RescoreSearchContext> rescore;
-    private SearchLookup searchLookup;
     private volatile long keepAlive;
     private final long originNanoTime = System.nanoTime();
     private volatile long lastAccessTime = -1;
@@ -168,7 +167,7 @@ final class DefaultSearchContext extends SearchContext {
         this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
         this.timeEstimateCounter = timeEstimateCounter;
         this.timeout = timeout;
-        queryShardContext = indexService.newQueryShardContext(searcher.getIndexReader(), request::nowInMillis);
+        queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher.getIndexReader(), request::nowInMillis);
         queryShardContext.setTypes(request.types());
     }
 
@@ -733,15 +732,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public void keepAlive(long keepAlive) {
         this.keepAlive = keepAlive;
-    }
-
-    @Override
-    public SearchLookup lookup() {
-        // TODO: The types should take into account the parsing context in QueryParserContext...
-        if (searchLookup == null) {
-            searchLookup = new SearchLookup(mapperService(), fieldData(), request.types());
-        }
-        return searchLookup;
     }
 
     @Override

@@ -303,7 +303,7 @@ public abstract class MappedFieldType extends FieldType {
     /** Given a value that comes from the stored fields API, convert it to the
      *  expected type. For instance a date field would store dates as longs and
      *  format it back to a string in this method. */
-    public Object valueForSearch(Object value) {
+    public Object valueForDisplay(Object value) {
         return value;
     }
 

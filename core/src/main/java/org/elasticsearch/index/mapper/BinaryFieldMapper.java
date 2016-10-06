@@ -104,7 +104,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
 
         @Override
-        public BytesReference valueForSearch(Object value) {
+        public BytesReference valueForDisplay(Object value) {
             if (value == null) {
                 return null;
             }

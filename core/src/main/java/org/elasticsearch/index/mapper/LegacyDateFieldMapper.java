@@ -342,7 +342,7 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public Object valueForSearch(Object value) {
+        public Object valueForDisplay(Object value) {
             Long val = (Long) value;
             if (val == null) {
                 return null;

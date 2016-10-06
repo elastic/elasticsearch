@@ -136,7 +136,7 @@ public class LegacyDoubleFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public java.lang.Double valueForSearch(Object value) {
+        public java.lang.Double valueForDisplay(Object value) {
             if (value == null) {
                 return null;
             }

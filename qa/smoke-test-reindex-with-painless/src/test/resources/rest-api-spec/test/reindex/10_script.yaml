@@ -8,6 +8,9 @@
         body:   { "user": "kimchy" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: new_twitter
 
   - do:
       reindex:
@@ -48,6 +51,9 @@
         body:   { "user": "blort" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: new_twitter
 
   - do:
       reindex:
@@ -149,6 +155,9 @@
         body:   { "user": "foo" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: new_twitter
 
   - do:
       reindex:
@@ -251,6 +260,9 @@
         body:   { "user": "foo" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: new_twitter
 
   - do:
       reindex:
@@ -305,6 +317,9 @@
         body:   { "user": "foo" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: new_twitter
 
   - do:
       reindex:
@@ -318,11 +333,6 @@
             inline: ctx.op = "noop"
   - match: {updated: 0}
   - match: {noops: 2}
-
-  - do:
-      indices.exists:
-        index: new_twitter
-  - is_false: ''
 
 ---
 "Set version to null to force an update":
@@ -425,6 +435,9 @@
         body:         { "user": "another" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: new_twitter
 
   - do:
       reindex:

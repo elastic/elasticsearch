@@ -149,6 +149,7 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testReindexCancel() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("dest").get());
         testCancel(ReindexAction.NAME, reindex().source(INDEX).destination("dest", TYPE), (response, total, modified) -> {
             assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")));
 

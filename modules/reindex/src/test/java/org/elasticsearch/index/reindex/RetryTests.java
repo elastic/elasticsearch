@@ -47,6 +47,7 @@ import java.util.concurrent.CyclicBarrier;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.reindex.ReindexTestCase.matcher;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -118,6 +119,7 @@ public class RetryTests extends ESSingleNodeTestCase {
     }
 
     public void testReindex() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("dest").get());
         testCase(ReindexAction.NAME, ReindexAction.INSTANCE.newRequestBuilder(client()).source("source").destination("dest"),
                 matcher().created(DOC_COUNT));
     }

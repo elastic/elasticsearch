@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 public class ReindexBasicTests extends ReindexTestCase {
@@ -36,12 +37,13 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch("source").setSize(0).get(), 4);
 
         // Copy all the docs
+        assertAcked(client().admin().indices().prepareCreate("dest").get());
         ReindexRequestBuilder copy = reindex().source("source").destination("dest", "all").refresh(true);
         assertThat(copy.get(), matcher().created(4));
         assertHitCount(client().prepareSearch("dest").setTypes("all").setSize(0).get(), 4);
 
         // Now none of them
-        copy = reindex().source("source").destination("all", "none").filter(termQuery("foo", "no_match")).refresh(true);
+        copy = reindex().source("source").destination("dest", "none").filter(termQuery("foo", "no_match")).refresh(true);
         assertThat(copy.get(), matcher().created(0));
         assertHitCount(client().prepareSearch("dest").setTypes("none").setSize(0).get(), 0);
 
@@ -67,6 +69,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch("source").setSize(0).get(), max);
 
         // Copy all the docs
+        assertAcked(client().admin().indices().prepareCreate("dest").get());
         ReindexRequestBuilder copy = reindex().source("source").destination("dest", "all").refresh(true);
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);

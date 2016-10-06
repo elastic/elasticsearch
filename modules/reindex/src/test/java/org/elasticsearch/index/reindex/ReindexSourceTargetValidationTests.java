@@ -20,10 +20,8 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -31,12 +29,11 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.test.ESTestCase;
-
-import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
@@ -57,8 +54,6 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
                 .put(index("source", "source_multi"), true)
                 .put(index("source2", "source_multi"), true)).build();
     private static final IndexNameExpressionResolver INDEX_NAME_EXPRESSION_RESOLVER = new IndexNameExpressionResolver(Settings.EMPTY);
-    private static final AutoCreateIndex AUTO_CREATE_INDEX = new AutoCreateIndex(Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), INDEX_NAME_EXPRESSION_RESOLVER);
 
     public void testObviousCases() {
         fails("target", "target");
@@ -81,7 +76,12 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
         succeeds("target", "source", "source2", "source_multi");
     }
 
-    public void testTargetIsAlias() {
+    public void testTargetDoesNotExist() {
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> succeeds("target_does_not_exist", "source"));
+        assertEquals(new Index("target_does_not_exist", ClusterState.UNKNOWN_UUID), e.getIndex());
+    }
+
+    public void testTargetIsAliasToTwoIndices() {
         Exception e = expectThrows(IllegalArgumentException.class, () -> succeeds("target_multi", "foo"));
         assertThat(e.getMessage(), containsString("Alias [target_multi] has more than one indices associated with it [["));
         // The index names can come in either order
@@ -90,15 +90,16 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
     }
 
     public void testRemoteInfoSkipsValidation() {
-        // The index doesn't have to exist
+        // The index doesn't have to exist locally
         succeeds(new RemoteInfo(randomAsciiOfLength(5), "test", 9200, new BytesArray("test"), null, null, emptyMap()), "does_not_exist",
                 "target");
-        // And it doesn't matter if they are the same index. They are considered to be different because the remote one is, well, remote.
+        /* And it doesn't matter if the source and destination are the same index. They are considered to be different because the remote
+         * one is, well, remote. */
         succeeds(new RemoteInfo(randomAsciiOfLength(5), "test", 9200, new BytesArray("test"), null, null, emptyMap()), "target", "target");
     }
 
     private void fails(String target, String... sources) {
-        Exception e = expectThrows(ActionRequestValidationException.class, () -> succeeds(target, sources));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> succeeds(target, sources));
         assertThat(e.getMessage(), containsString("reindex cannot write into an index its reading from [target]"));
     }
 
@@ -108,7 +109,7 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
 
     private void succeeds(RemoteInfo remoteInfo, String target, String... sources) {
         TransportReindexAction.validateAgainstAliases(new SearchRequest(sources), new IndexRequest(target), remoteInfo,
-                INDEX_NAME_EXPRESSION_RESOLVER, AUTO_CREATE_INDEX, STATE);
+                INDEX_NAME_EXPRESSION_RESOLVER, STATE);
     }
 
     private static IndexMetaData index(String name, String... aliases) {

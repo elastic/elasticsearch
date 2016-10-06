@@ -8,6 +8,9 @@
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: dest
 
   - do:
       catch: request

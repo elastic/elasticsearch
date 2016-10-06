@@ -8,6 +8,9 @@
         body:         { "company": "cat" }
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: dest
 
   - do:
       reindex:
@@ -38,6 +41,9 @@
         routing:      null
   - do:
       indices.refresh: {}
+  - do:
+      indices.create:
+        index: dest
 
   - do:
       reindex:

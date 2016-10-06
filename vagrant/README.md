@@ -6,7 +6,6 @@ although that is easily accomplished outside vagrant).
 Provisioning the box will take a fair amount of time, since it needs to download
 and compile a number of dependencies.
 
-A pre-provisioned box can be downloaded from: TODO
 
 ### Details
 - Ubuntu Trusty64 (14.04.5 LTS)
@@ -18,39 +17,59 @@ A pre-provisioned box can be downloaded from: TODO
 - Maps prelert build directory to `/home/vagrant/prelert/build`
 - Changes into `/home/vagrant/prelert/src` on login
 
-### Usage
+### Pre-baked box
+Don't feel like compiling the entire box?  No fear, there's a pre-baked box available
+on S3.  It is ~1.1gb to download:
 
 ```bash
-$ cd prelert-legacy
-$ cd vagrant
+# must change into the vagrant directory first so that
+# synced folders continue working
+$ cd prelert-legacy/vagrant
+$ s3cmd get s3://prelert-elastic-dump/prelert_env.box
+  # ...
+  # Downloading...
+  # ...
+
+$ vagrant box add prelert prelert_env.box
+$ vagrant init prelert
+$ vagrant up
+$ vagrant ssh
+
+  Welcome to Ubuntu 14.04.5 LTS (GNU/Linux 3.13.0-96-generic x86_64)
+  ...
+  ...
+  Last login: Tue Oct  4 16:06:32 2016 from 10.0.2.2
+
+vagrant@vagrant-ubuntu-trusty-64:~/prelert/src$
+```  
+
+Once you've logged into the box, you'll be in the prelert source directory. You
+can build immediately via:
+
+```bash
+vagrant@vagrant-ubuntu-trusty-64:~/prelert/src$ gradle cppmake
+```
+The pre-baked box has already compiled prelert once, so subsequent compilations
+should happen considerably faster.
+
+### Compiling from Scratch
+
+If you feel like compiling everything from scratch instead of downloading the pre-baked
+box, simply `vagrant up` and let the provisioners run:
+
+```bash
+$ cd prelert-legacy/vagrant
 $ vagrant up
   # ...
   # wait while vagrant provisions
   # ...
 $ vagrant ssh
 
-Welcome to Ubuntu 14.04.5 LTS (GNU/Linux 3.13.0-96-generic x86_64)
+  Welcome to Ubuntu 14.04.5 LTS (GNU/Linux 3.13.0-96-generic x86_64)
+  ...
+  ...
+  Last login: Tue Oct  4 16:06:32 2016 from 10.0.2.2
 
- * Documentation:  https://help.ubuntu.com/
-
-  System information as of Tue Oct  4 16:06:31 UTC 2016
-
-  System load:  0.0                Processes:           196
-  Usage of /:   12.0% of 39.34GB   Users logged in:     0
-  Memory usage: 2%                 IP address for eth0: 10.0.2.15
-  Swap usage:   0%
-
-  Graph this data and manage this system at:
-    https://landscape.canonical.com/
-
-  Get cloud support with Ubuntu Advantage Cloud Guest:
-    http://www.ubuntu.com/business/services/cloud
-
-New release '16.04.1 LTS' available.
-Run 'do-release-upgrade' to upgrade to it.
-
-
-Last login: Tue Oct  4 16:06:32 2016 from 10.0.2.2
 vagrant@vagrant-ubuntu-trusty-64:~/prelert/src$
 ```
 

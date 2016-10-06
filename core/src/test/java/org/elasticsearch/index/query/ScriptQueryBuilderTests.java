@@ -51,7 +51,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
 
     public void testFromJsonVerbose() throws IOException {
         String json =
-                "{\n" +
+            "{\n" +
                 "  \"script\" : {\n" +
                 "    \"script\" : {\n" +
                 "      \"inline\" : \"5\",\n" +
@@ -71,13 +71,13 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" +
-                        "  \"script\" : {\n" +
-                        "    \"script\" : \"5\"," +
-                        "    \"boost\" : 1.0,\n" +
-                        "    \"_name\" : \"PcKdEyPOmR\"\n" +
-                        "  }\n" +
-                        "}";
+            "{\n" +
+                "  \"script\" : {\n" +
+                "    \"script\" : \"5\"," +
+                "    \"boost\" : 1.0,\n" +
+                "    \"_name\" : \"PcKdEyPOmR\"\n" +
+                "  }\n" +
+                "}";
 
         ScriptQueryBuilder parsed = (ScriptQueryBuilder) parseQuery(json);
         assertEquals(json, "5", parsed.script().getScript());
@@ -88,5 +88,10 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
         //script_score.script.params can contain arbitrary parameters. no error is expected when
         //adding additional objects within the params object.
         return Collections.singleton(Script.ScriptField.PARAMS.getPreferredName());
+    }
+
+    @Override
+    protected boolean isCachable(ScriptQueryBuilder queryBuilder) {
+        return false;
     }
 }

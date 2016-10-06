@@ -580,11 +580,23 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     public void testToQuery() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QueryShardContext context = createShardContext();
+            assert context.isCachable();
             context.setAllowUnmappedFields(true);
             QB firstQuery = createTestQueryBuilder();
             QB controlQuery = copyQuery(firstQuery);
             setSearchContext(randomTypes, context); // only set search context for toQuery to be more realistic
-            Query firstLuceneQuery = rewriteQuery(firstQuery, context).toQuery(context);
+            /* we use a private rewrite context here since we want the most realistic way of asserting that we are cachabel or not.
+             * We do it this way in SearchService where
+             * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
+            QueryBuilder rewritten = rewriteQuery(firstQuery, new QueryShardContext(context));
+            Query firstLuceneQuery = rewritten.toQuery(context);
+            if (isCachable(firstQuery)) {
+                assertTrue("query was marked as not cacheable in the context but this test indicates it should be cacheable: "
+                        + firstQuery.toString(), context.isCachable());
+            } else {
+                assertFalse("query was marked as cacheable in the context but this test indicates it should not be cacheable: "
+                        + firstQuery.toString(), context.isCachable());
+            }
             assertNotNull("toQuery should not return null", firstLuceneQuery);
             assertLuceneQuery(firstQuery, firstLuceneQuery, context);
             //remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
@@ -634,6 +646,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         // extra safety to fail fast - serialize the rewritten version to ensure it's serializable.
         assertSerialization(rewritten);
         return rewritten;
+    }
+
+    protected boolean isCachable(QB queryBuilder) {
+        return true;
     }
 
     /**
@@ -1020,6 +1036,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         private final BitsetFilterCache bitsetFilterCache;
         private final ScriptService scriptService;
         private final Client client;
+        private final long nowInMillis = randomPositiveLong();
 
         ServiceHolder(Settings nodeSettings, Settings indexSettings,
                       Collection<Class<? extends Plugin>> plugins, AbstractQueryTestCase<?> testCase) throws IOException {
@@ -1098,7 +1115,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         QueryShardContext createShardContext() {
             ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
             return new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
-                    scriptService, indicesQueriesRegistry, this.client, null, state);
+                    scriptService, indicesQueriesRegistry, this.client, null, state, () -> nowInMillis);
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

@@ -154,11 +154,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    protected long nowInMillisImpl() {
-        return in.nowInMillisImpl();
-    }
-
-    @Override
     public ScrollContext scrollContext() {
         return in.scrollContext();
     }
@@ -261,11 +256,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public SimilarityService similarityService() {
         return in.similarityService();
-    }
-
-    @Override
-    public ScriptService scriptService() {
-        return in.scriptService();
     }
 
     @Override

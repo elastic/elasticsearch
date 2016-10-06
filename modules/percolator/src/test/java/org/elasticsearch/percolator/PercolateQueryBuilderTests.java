@@ -248,4 +248,9 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
             throw new RuntimeException(e);
         }
     }
+
+    @Override
+    protected boolean isCachable(PercolateQueryBuilder queryBuilder) {
+        return false;
+    }
 }

@@ -550,20 +550,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         waitForActiveShards = ActiveShardCount.readFrom(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            byte type = in.readByte();
-            if (type == 0) {
-                IndexRequest request = new IndexRequest();
-                request.readFrom(in);
-                requests.add(request);
-            } else if (type == 1) {
-                DeleteRequest request = new DeleteRequest();
-                request.readFrom(in);
-                requests.add(request);
-            } else if (type == 2) {
-                UpdateRequest request = new UpdateRequest();
-                request.readFrom(in);
-                requests.add(request);
-            }
+            requests.add(DocumentRequest.readDocumentRequest(in));
         }
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = new TimeValue(in);
@@ -575,16 +562,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         waitForActiveShards.writeTo(out);
         out.writeVInt(requests.size());
         for (DocumentRequest<?> request : requests) {
-            if (request instanceof IndexRequest) {
-                out.writeByte((byte) 0);
-                ((IndexRequest) request).writeTo(out);
-            } else if (request instanceof DeleteRequest) {
-                out.writeByte((byte) 1);
-                ((DeleteRequest) request).writeTo(out);
-            } else if (request instanceof UpdateRequest) {
-                out.writeByte((byte) 2);
-                ((UpdateRequest) request).writeTo(out);
-            }
+            DocumentRequest.writeDocumentRequest(out, request);
         }
         refreshPolicy.writeTo(out);
         timeout.writeTo(out);

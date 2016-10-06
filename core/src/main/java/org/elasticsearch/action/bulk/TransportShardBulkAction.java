@@ -137,8 +137,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         try {
             WriteResult<? extends DocWriteResponse> writeResult = innerExecuteBulkItemRequest(metaData, indexShard,
                 request, requestIndex);
-            if (writeResult.getResponse().getResult() != DocWriteResponse.Result.NOOP) {
+            if (writeResult.getLocation() != null) {
                 location = locationToSync(location, writeResult.getLocation());
+            } else {
+                assert writeResult.getResponse().getResult() == DocWriteResponse.Result.NOOP
+                        : "only noop operation can have null next operation";
             }
             // update the bulk item request because update request execution can mutate the bulk item request
             BulkItemRequest item = request.items()[requestIndex];
@@ -157,7 +160,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             }
             BulkItemRequest item = request.items()[requestIndex];
             DocumentRequest<?> documentRequest = item.request();
-            if (ExceptionsHelper.status(e) == RestStatus.CONFLICT) {
+            if (isConflictException(e)) {
                 logger.trace((Supplier<?>) () -> new ParameterizedMessage("{} failed to execute bulk item ({}) {}",
                         request.shardId(), documentRequest.opType().getLowercase(), request), e);
             } else {

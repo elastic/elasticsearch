@@ -328,7 +328,11 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
-        out.writeByte(opType.getId());
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+            out.writeByte(opType.getId());
+        } else {
+            out.writeString(opType.getLowercase());
+        }
 
         if (response == null) {
             out.writeByte((byte) 2);

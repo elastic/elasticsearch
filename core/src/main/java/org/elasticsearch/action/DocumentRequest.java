@@ -18,9 +18,15 @@
  */
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.VersionType;
 
+import java.io.IOException;
 import java.util.Locale;
 
 /**
@@ -125,7 +131,7 @@ public interface DocumentRequest<T> extends IndicesRequest {
 
         OpType(int op) {
             this.op = (byte) op;
-            this.lowercase = this.toString().toLowerCase(Locale.ENGLISH);
+            this.lowercase = this.toString().toLowerCase(Locale.ROOT);
         }
 
         public byte getId() {
@@ -147,13 +153,51 @@ public interface DocumentRequest<T> extends IndicesRequest {
         }
 
         public static OpType fromString(String sOpType) {
-            String lowerCase = sOpType.toLowerCase(Locale.ENGLISH);
+            String lowerCase = sOpType.toLowerCase(Locale.ROOT);
             for (OpType opType : OpType.values()) {
                 if (opType.getLowercase().equals(lowerCase)) {
                     return opType;
                 }
             }
             throw new IllegalArgumentException("Unknown opType: [" + sOpType + "]");
+        }
+    }
+
+    /** read a document write (index/delete/update) request */
+    static DocumentRequest readDocumentRequest(StreamInput in) throws IOException {
+        byte type = in.readByte();
+        final DocumentRequest documentRequest;
+        if (type == 0) {
+            IndexRequest indexRequest = new IndexRequest();
+            indexRequest.readFrom(in);
+            documentRequest = indexRequest;
+        } else if (type == 1) {
+            DeleteRequest deleteRequest = new DeleteRequest();
+            deleteRequest.readFrom(in);
+            documentRequest = deleteRequest;
+        } else if (type == 2) {
+            UpdateRequest updateRequest = new UpdateRequest();
+            updateRequest.readFrom(in);
+            documentRequest = updateRequest;
+        } else {
+            throw new IllegalStateException("invalid request type [" + type+ " ]");
+        }
+        return documentRequest;
+    }
+
+    /** write a document write (index/delete/update) request*/
+    static void writeDocumentRequest(StreamOutput out, DocumentRequest request)  throws IOException {
+        if (request instanceof IndexRequest) {
+            out.writeByte((byte) 0);
+            ((IndexRequest) request).writeTo(out);
+        } else if (request instanceof DeleteRequest) {
+            out.writeByte((byte) 1);
+            ((DeleteRequest) request).writeTo(out);
+        } else if (request instanceof UpdateRequest) {
+            out.writeByte((byte) 2);
+            ((UpdateRequest) request).writeTo(out);
+        } else {
+            throw new IllegalStateException("invalid request [" + request.getClass().getSimpleName() + " ]");
         }
     }
 }

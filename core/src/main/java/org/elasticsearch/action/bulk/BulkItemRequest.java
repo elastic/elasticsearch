@@ -89,20 +89,7 @@ public class BulkItemRequest implements Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         id = in.readVInt();
-        byte type = in.readByte();
-        if (type == 0) {
-            IndexRequest indexRequest = new IndexRequest();
-            indexRequest.readFrom(in);
-            request = indexRequest;
-        } else if (type == 1) {
-            DeleteRequest deleteRequest = new DeleteRequest();
-            deleteRequest.readFrom(in);
-            request = deleteRequest;
-        } else if (type == 2) {
-            UpdateRequest updateRequest = new UpdateRequest();
-            updateRequest.readFrom(in);
-            request = updateRequest;
-        }
+        request = DocumentRequest.readDocumentRequest(in);
         if (in.readBoolean()) {
             primaryResponse = BulkItemResponse.readBulkItem(in);
         }
@@ -112,16 +99,7 @@ public class BulkItemRequest implements Streamable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
-        if (request instanceof IndexRequest) {
-            out.writeByte((byte) 0);
-            ((IndexRequest) request).writeTo(out);
-        } else if (request instanceof DeleteRequest) {
-            out.writeByte((byte) 1);
-            ((DeleteRequest) request).writeTo(out);
-        } else if (request instanceof UpdateRequest) {
-            out.writeByte((byte) 2);
-            ((UpdateRequest) request).writeTo(out);
-        }
+        DocumentRequest.writeDocumentRequest(out, request);
         out.writeOptionalStreamable(primaryResponse);
         out.writeBoolean(ignoreOnReplica);
     }

@@ -340,7 +340,8 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     /**
-     * Compiles (or retrieves from cache) and executes the provided script
+     * Compiles (or retrieves from cache) and binds the parameters to the
+     * provided script
      */
     public SearchScript getSearchScript(Script script, ScriptContext context, Map<String, String> params) {
         failIfFrozen();
@@ -358,7 +359,8 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     /**
-     * Compiles (or retrieves from cache) and executes the provided script
+     * Compiles (or retrieves from cache) and binds the parameters to the
+     * provided script
      */
     public ExecutableScript getExecutableScript(Script script, ScriptContext context, Map<String, String> params) {
         failIfFrozen();

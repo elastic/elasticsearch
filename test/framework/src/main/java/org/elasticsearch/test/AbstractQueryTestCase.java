@@ -591,9 +591,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             QueryBuilder rewritten = rewriteQuery(firstQuery, new QueryShardContext(context));
             Query firstLuceneQuery = rewritten.toQuery(context);
             if (isCachable(firstQuery)) {
-                assert context.isCachable() : firstQuery.toString();
+                assertTrue("query was marked as not cacheable in the context but this test indicates it should be cacheable: "
+                        + firstQuery.toString(), context.isCachable());
             } else {
-                assert context.isCachable() == false : firstQuery.toString();
+                assertFalse("query was marked as cacheable in the context but this test indicates it should not be cacheable: "
+                        + firstQuery.toString(), context.isCachable());
             }
             assertNotNull("toQuery should not return null", firstLuceneQuery);
             assertLuceneQuery(firstQuery, firstLuceneQuery, context);

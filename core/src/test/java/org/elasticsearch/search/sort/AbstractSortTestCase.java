@@ -24,7 +24,6 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -235,8 +234,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             public void onCache(ShardId shardId, Accountable accountable) {
             }
         });
+        long nowInMillis = randomPositiveLong();
         return new QueryShardContext(idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
-                indicesQueriesRegistry, null, null, null) {
+                indicesQueriesRegistry, null, null, null, () -> nowInMillis) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);

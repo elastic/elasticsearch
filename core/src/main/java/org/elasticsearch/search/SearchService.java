@@ -231,6 +231,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     private void loadOrExecuteQueryPhase(final ShardSearchRequest request, final SearchContext context) throws Exception {
         final boolean canCache = indicesService.canCache(request, context);
+        context.getQueryShardContext().freezeContext();
         if (canCache) {
             indicesService.loadIntoContext(request, context, queryPhase);
         } else {
@@ -516,17 +517,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     final SearchContext createContext(ShardSearchRequest request, @Nullable Engine.Searcher searcher) throws IOException {
-
-        DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, searcher);
-        SearchContext.setCurrent(context);
+        final DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, searcher);
         try {
-            request.rewrite(context.getQueryShardContext());
-            // reset that we have used nowInMillis from the context since it may
-            // have been rewritten so its no longer in the query and the request can
-            // be cached. If it is still present in the request (e.g. in a range
-            // aggregation) it will still be caught when the aggregation is
-            // evaluated.
-            context.resetNowInMillisUsed();
+            // we clone the search context here just for rewriting otherwise we
+            // might end up with incorrect state since we are using now() or script services
+            // during rewrite and normalized / evaluate templates etc.
+            // NOTE this context doesn't need to be closed - the outer context will
+            // take care of this.
+            DefaultSearchContext rewriteContext = new DefaultSearchContext(context);
+            SearchContext.setCurrent(rewriteContext);
+            request.rewrite(rewriteContext.getQueryShardContext());
+            SearchContext.setCurrent(context);
+            assert context.getQueryShardContext().isCachable();
             if (request.scroll() != null) {
                 context.scrollContext(new ScrollContext());
                 context.scrollContext().scroll = request.scroll();
@@ -568,7 +570,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         return new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher,
                     indexService,
-                    indexShard, scriptService, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
+                    indexShard, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
                     timeout, fetchPhase);
     }
 
@@ -735,7 +737,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (source.scriptFields() != null) {
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
-                SearchScript searchScript = context.scriptService().search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH,
+                SearchScript searchScript = scriptService.search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH,
                         Collections.emptyMap());
                 context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));
             }

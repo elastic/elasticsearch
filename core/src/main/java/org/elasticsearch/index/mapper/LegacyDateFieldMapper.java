@@ -480,7 +480,7 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
             public Long call() {
                 final SearchContext context = SearchContext.current();
                 return context != null
-                    ? context.nowInMillis()
+                    ? context.getQueryShardContext().nowInMillis()
                     : System.currentTimeMillis();
             }
         };

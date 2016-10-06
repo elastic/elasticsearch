@@ -56,8 +56,8 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
     public TopHitsAggregatorFactory(String name, Type type, int from, int size, boolean explain, boolean version, boolean trackScores,
             List<SortBuilder<?>> sorts, HighlightBuilder highlightBuilder, StoredFieldsContext storedFieldsContext,
             List<String> docValueFields, List<ScriptFieldsContext.ScriptField> scriptFields, FetchSourceContext fetchSourceContext,
-            AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories,
-            Map<String, Object> metaData) throws IOException {
+            AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories, Map<String, Object> metaData)
+            throws IOException {
         super(name, type, context, parent, subFactories, metaData);
         this.from = from;
         this.size = size;
@@ -96,7 +96,7 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
         }
         for (ScriptFieldsContext.ScriptField field : scriptFields) {
             subSearchContext.scriptFields().add(field);
-        }
+            }
         if (fetchSourceContext != null) {
             subSearchContext.fetchSourceContext(fetchSourceContext);
         }

@@ -94,11 +94,17 @@ public class BaseRestHandlerTests extends ESTestCase {
                 request.param("very_close_to_parameter_2");
                 return channel -> executed.set(true);
             }
+
+            @Override
+            protected Set<String> responseParams() {
+                return Collections.singleton("response_param");
+            }
         };
 
         final HashMap<String, String> params = new HashMap<>();
         params.put("consumed", randomAsciiOfLength(8));
         params.put("flied", randomAsciiOfLength(8));
+        params.put("respones_param", randomAsciiOfLength(8));
         params.put("tokenzier", randomAsciiOfLength(8));
         params.put("very_close_to_parametre", randomAsciiOfLength(8));
         params.put("very_far_from_every_consumed_parameter", randomAsciiOfLength(8));
@@ -111,6 +117,7 @@ public class BaseRestHandlerTests extends ESTestCase {
             hasToString(containsString(
                 "request [/] contains unrecognized parameters: " +
                     "[flied] -> did you mean [field]?, " +
+                    "[respones_param] -> did you mean [response_param]?, " +
                     "[tokenzier] -> did you mean [tokenizer]?, " +
                     "[very_close_to_parametre] -> did you mean any of [very_close_to_parameter_1, very_close_to_parameter_2]?, " +
                     "[very_far_from_every_consumed_parameter]")));

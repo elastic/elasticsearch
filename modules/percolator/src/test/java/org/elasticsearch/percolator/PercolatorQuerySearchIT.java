@@ -21,6 +21,7 @@ package org.elasticsearch.percolator;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,12 +32,20 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -49,7 +58,13 @@ import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanNotQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.percolator.PercolateSourceBuilder.docBuilder;
+import static org.elasticsearch.percolator.PercolatorTestUtil.assertMatchCount;
+import static org.elasticsearch.percolator.PercolatorTestUtil.convertFromTextArray;
+import static org.elasticsearch.percolator.PercolatorTestUtil.preparePercolate;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -58,7 +73,33 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(PercolatorPlugin.class);
+        return Arrays.asList(PercolatorPlugin.class, CustomScriptPlugin.class);
+    }
+
+    public static class CustomScriptPlugin extends MockScriptPlugin {
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+            scripts.put("1==1", vars -> Boolean.TRUE);
+            return scripts;
+        }
+    }
+
+    public void testPercolateScriptQuery() throws IOException {
+        client().admin().indices().prepareCreate("index").addMapping("type", "query", "type=percolator").get();
+        ensureGreen();
+        client().prepareIndex("index", "type", "1")
+            .setSource(jsonBuilder().startObject().field("query", QueryBuilders.scriptQuery(
+                new Script("1==1", ScriptService.ScriptType.INLINE, CustomScriptPlugin.NAME, null))).endObject())
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .execute().actionGet();
+        PercolateResponse response = preparePercolate(client())
+            .setIndices("index").setDocumentType("type")
+            .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "b").endObject()))
+            .execute().actionGet();
+        assertMatchCount(response, 1L);
+        assertThat(response.getMatches(), arrayWithSize(1));
+        assertThat(convertFromTextArray(response.getMatches(), "index"), arrayContainingInAnyOrder("1"));
     }
 
     public void testPercolatorQuery() throws Exception {

@@ -34,6 +34,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.transport.AssertingTransportInterceptor;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -1813,6 +1814,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
             if (randomBoolean()) {
                 mocks.add(MockSearchService.TestPlugin.class);
+            }
+            if (randomBoolean()) {
+                mocks.add(AssertingTransportInterceptor.TestPlugin.class);
             }
         }
 

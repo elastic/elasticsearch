@@ -28,6 +28,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.ESTestCase;
 
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -55,13 +56,11 @@ public class BootstrapCheckTests extends ESTestCase {
         // nothing should happen since we are in non-production mode
         final List<TransportAddress> transportAddresses = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 8); i++) {
-            TransportAddress localTransportAddress = mock(TransportAddress.class);
-            when(localTransportAddress.isLoopbackOrLinkLocalAddress()).thenReturn(true);
+            TransportAddress localTransportAddress = new TransportAddress(InetAddress.getLoopbackAddress(), i);
             transportAddresses.add(localTransportAddress);
         }
 
-        TransportAddress publishAddress = mock(TransportAddress.class);
-        when(publishAddress.isLoopbackOrLinkLocalAddress()).thenReturn(true);
+        TransportAddress publishAddress = new TransportAddress(InetAddress.getLoopbackAddress(), 0);
         BoundTransportAddress boundTransportAddress = mock(BoundTransportAddress.class);
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
@@ -83,18 +82,17 @@ public class BootstrapCheckTests extends ESTestCase {
 
     public void testEnforceLimitsWhenBoundToNonLocalAddress() {
         final List<TransportAddress> transportAddresses = new ArrayList<>();
-        final TransportAddress nonLocalTransportAddress = mock(TransportAddress.class);
-        when(nonLocalTransportAddress.isLoopbackOrLinkLocalAddress()).thenReturn(false);
+        final TransportAddress nonLocalTransportAddress = buildNewFakeTransportAddress();
         transportAddresses.add(nonLocalTransportAddress);
 
         for (int i = 0; i < randomIntBetween(0, 7); i++) {
-            final TransportAddress randomTransportAddress = mock(TransportAddress.class);
-            when(randomTransportAddress.isLoopbackOrLinkLocalAddress()).thenReturn(randomBoolean());
+            final TransportAddress randomTransportAddress = randomBoolean() ? buildNewFakeTransportAddress() :
+                new TransportAddress(InetAddress.getLoopbackAddress(), i);
             transportAddresses.add(randomTransportAddress);
         }
 
-        final TransportAddress publishAddress = mock(TransportAddress.class);
-        when(publishAddress.isLoopbackOrLinkLocalAddress()).thenReturn(randomBoolean());
+        final TransportAddress publishAddress = randomBoolean() ? buildNewFakeTransportAddress() :
+            new TransportAddress(InetAddress.getLoopbackAddress(), 0);
 
         final BoundTransportAddress boundTransportAddress = mock(BoundTransportAddress.class);
         Collections.shuffle(transportAddresses, random());
@@ -108,14 +106,11 @@ public class BootstrapCheckTests extends ESTestCase {
         final List<TransportAddress> transportAddresses = new ArrayList<>();
 
         for (int i = 0; i < randomIntBetween(1, 8); i++) {
-            final TransportAddress randomTransportAddress = mock(TransportAddress.class);
-            when(randomTransportAddress.isLoopbackOrLinkLocalAddress()).thenReturn(false);
+            final TransportAddress randomTransportAddress = buildNewFakeTransportAddress();
             transportAddresses.add(randomTransportAddress);
         }
 
-        final TransportAddress publishAddress = mock(TransportAddress.class);
-        when(publishAddress.isLoopbackOrLinkLocalAddress()).thenReturn(true);
-
+        final TransportAddress publishAddress = new TransportAddress(InetAddress.getLoopbackAddress(), 0);
         final BoundTransportAddress boundTransportAddress = mock(BoundTransportAddress.class);
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);

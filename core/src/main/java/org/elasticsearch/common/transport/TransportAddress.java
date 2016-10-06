@@ -32,7 +32,7 @@ import java.net.UnknownHostException;
 /**
  * A transport address used for IP socket address (wraps {@link java.net.InetSocketAddress}).
  */
-public class TransportAddress implements Writeable { // TODO make this final - some tests mock it so we have to first fix the tests
+public final class TransportAddress implements Writeable {
 
     /**
      * A <a href="https://en.wikipedia.org/wiki/0.0.0.0">non-routeable v4 meta transport address</a> that can be used for

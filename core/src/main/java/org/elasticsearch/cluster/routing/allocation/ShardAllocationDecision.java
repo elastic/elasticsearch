@@ -148,7 +148,7 @@ public class ShardAllocationDecision {
     }
 
     /**
-     * Returns the final decision made by the allocator on whether to assign the unassigned shard.
+     * Returns the final decision made by the allocator on whether to assign the shard.
      * This value can only be {@code null} if {@link #isDecisionTaken()} returns {@code false}.
      */
     @Nullable
@@ -157,7 +157,7 @@ public class ShardAllocationDecision {
     }
 
     /**
-     * Returns the final decision made by the allocator on whether to assign the unassigned shard.
+     * Returns the final decision made by the allocator on whether to assign the shard.
      * Only call this method if {@link #isDecisionTaken()} returns {@code true}, otherwise it will
      * throw an {@code IllegalArgumentException}.
      */

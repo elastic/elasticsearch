@@ -97,7 +97,7 @@ public class AggregationContext {
             } else {
                 if (config.fieldContext() != null && config.fieldContext().fieldType() != null) {
                     missing = config.fieldContext().fieldType().docValueFormat(null, DateTimeZone.UTC)
-                            .parseDouble(config.missing().toString(), false, context::nowInMillis);
+                            .parseDouble(config.missing().toString(), false, context.getQueryShardContext()::nowInMillis);
                 } else {
                     missing = Double.parseDouble(config.missing().toString());
                 }

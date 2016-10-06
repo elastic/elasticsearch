@@ -49,12 +49,19 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
      */
     public RandomScoreFunctionBuilder(StreamInput in) throws IOException {
         super(in);
-        seed = in.readInt();
+        if (in.readBoolean()) {
+            seed = in.readInt();
+        }
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeInt(seed);
+        if (seed != null) {
+            out.writeBoolean(true);
+            out.writeInt(seed);
+        } else {
+            out.writeBoolean(false);
+        }
     }
 
     @Override

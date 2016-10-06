@@ -23,7 +23,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.DocumentRequest;
+import org.elasticsearch.action.DocumentWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -167,7 +167,7 @@ public abstract class TransportReplicationAction<
 
     /** helper to verify and resolve request routing */
     public static void resolveAndValidateRouting(final MetaData metaData, final String concreteIndex,
-                                                 DocumentRequest request) {
+                                                 DocumentWriteRequest request) {
         request.routing(metaData.resolveIndexRouting(request.parent(), request.routing(), request.index()));
         // check if routing is required, if so, throw error if routing wasn't specified
         if (request.routing() == null && metaData.routingRequired(concreteIndex, request.type())) {

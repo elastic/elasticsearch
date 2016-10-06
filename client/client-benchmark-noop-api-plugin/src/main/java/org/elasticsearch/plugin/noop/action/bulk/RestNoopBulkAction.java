@@ -19,7 +19,7 @@
 package org.elasticsearch.plugin.noop.action.bulk;
 
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.DocumentRequest;
+import org.elasticsearch.action.DocumentWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
@@ -85,7 +85,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
     }
 
     private static class BulkRestBuilderListener extends RestBuilderListener<BulkRequest> {
-        private final BulkItemResponse ITEM_RESPONSE = new BulkItemResponse(1, DocumentRequest.OpType.UPDATE,
+        private final BulkItemResponse ITEM_RESPONSE = new BulkItemResponse(1, DocumentWriteRequest.OpType.UPDATE,
             new UpdateResponse(new ShardId("mock", "", 1), "mock_type", "1", 1L, DocWriteResponse.Result.CREATED));
 
         private final RestRequest request;

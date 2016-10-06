@@ -19,10 +19,7 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.action.DocumentRequest;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
+import org.elasticsearch.action.DocumentWriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.VersionType;
@@ -30,13 +27,13 @@ import org.elasticsearch.index.VersionType;
 import java.io.IOException;
 
 /** Replica request for update operation holds translated (index/delete) requests */
-public class UpdateReplicaRequest extends DocumentRequest<UpdateReplicaRequest> {
-    private DocumentRequest<?> request;
+public class UpdateReplicaRequest extends DocumentWriteRequest<UpdateReplicaRequest> {
+    private DocumentWriteRequest<?> request;
 
     public UpdateReplicaRequest() {
     }
 
-    public UpdateReplicaRequest(DocumentRequest<?> request) {
+    public UpdateReplicaRequest(DocumentWriteRequest<?> request) {
         assert !(request instanceof UpdateReplicaRequest) : "underlying request must not be a update replica request";
         this.request = request;
         this.index = request.index();
@@ -45,20 +42,20 @@ public class UpdateReplicaRequest extends DocumentRequest<UpdateReplicaRequest> 
         setParentTask(request.getParentTask());
     }
 
-    public DocumentRequest<?> getRequest() {
+    public DocumentWriteRequest<?> getRequest() {
         return request;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        request = DocumentRequest.readDocumentRequest(in);
+        request = DocumentWriteRequest.readDocumentRequest(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        DocumentRequest.writeDocumentRequest(out, request);
+        DocumentWriteRequest.writeDocumentRequest(out, request);
     }
 
     @Override

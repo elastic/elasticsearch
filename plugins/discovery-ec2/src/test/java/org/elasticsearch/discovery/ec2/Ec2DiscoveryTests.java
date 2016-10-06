@@ -24,10 +24,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -45,6 +45,8 @@ import org.junit.BeforeClass;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -57,6 +59,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     protected static ThreadPool threadPool;
     protected MockTransportService transportService;
+    private Map<String, TransportAddress> poorMansDNS = new ConcurrentHashMap<>();
 
     @BeforeClass
     public static void createThreadPool() {
@@ -80,7 +83,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
             @Override
             public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
                 // we just need to ensure we don't resolve DNS here
-                return new TransportAddress[] {new LocalTransportAddress(address)};
+                return new TransportAddress[] {poorMansDNS.getOrDefault(address, buildNewFakeTransportAddress())};
             }
         };
         transportService = new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR);
@@ -108,6 +111,9 @@ public class Ec2DiscoveryTests extends ESTestCase {
 
     public void testPrivateIp() throws InterruptedException {
         int nodes = randomInt(10);
+        for (int i = 0; i < nodes; i++) {
+            poorMansDNS.put(AmazonEC2Mock.PREFIX_PRIVATE_IP + (i+1), buildNewFakeTransportAddress());
+        }
         Settings nodeSettings = Settings.builder()
                 .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "private_ip")
                 .build();
@@ -117,13 +123,16 @@ public class Ec2DiscoveryTests extends ESTestCase {
         int node = 1;
         for (DiscoveryNode discoveryNode : discoveryNodes) {
             TransportAddress address = discoveryNode.getAddress();
-            TransportAddress expected = new LocalTransportAddress(AmazonEC2Mock.PREFIX_PRIVATE_IP + node++);
-            assertThat(address.sameHost(expected), is(true));
+            TransportAddress expected = poorMansDNS.get(AmazonEC2Mock.PREFIX_PRIVATE_IP + node++);
+            assertEquals(address, expected);
         }
     }
 
     public void testPublicIp() throws InterruptedException {
         int nodes = randomInt(10);
+        for (int i = 0; i < nodes; i++) {
+            poorMansDNS.put(AmazonEC2Mock.PREFIX_PUBLIC_IP + (i+1), buildNewFakeTransportAddress());
+        }
         Settings nodeSettings = Settings.builder()
                 .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "public_ip")
                 .build();
@@ -133,13 +142,18 @@ public class Ec2DiscoveryTests extends ESTestCase {
         int node = 1;
         for (DiscoveryNode discoveryNode : discoveryNodes) {
             TransportAddress address = discoveryNode.getAddress();
-            TransportAddress expected = new LocalTransportAddress(AmazonEC2Mock.PREFIX_PUBLIC_IP + node++);
-            assertThat(address.sameHost(expected), is(true));
+            TransportAddress expected = poorMansDNS.get(AmazonEC2Mock.PREFIX_PUBLIC_IP + node++);
+            assertEquals(address, expected);
         }
     }
 
     public void testPrivateDns() throws InterruptedException {
         int nodes = randomInt(10);
+        for (int i = 0; i < nodes; i++) {
+            String instanceId = "node" + (i+1);
+            poorMansDNS.put(AmazonEC2Mock.PREFIX_PRIVATE_DNS + instanceId +
+                AmazonEC2Mock.SUFFIX_PRIVATE_DNS, buildNewFakeTransportAddress());
+        }
         Settings nodeSettings = Settings.builder()
                 .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "private_dns")
                 .build();
@@ -150,14 +164,19 @@ public class Ec2DiscoveryTests extends ESTestCase {
         for (DiscoveryNode discoveryNode : discoveryNodes) {
             String instanceId = "node" + node++;
             TransportAddress address = discoveryNode.getAddress();
-            TransportAddress expected = new LocalTransportAddress(
+            TransportAddress expected = poorMansDNS.get(
                     AmazonEC2Mock.PREFIX_PRIVATE_DNS + instanceId + AmazonEC2Mock.SUFFIX_PRIVATE_DNS);
-            assertThat(address.sameHost(expected), is(true));
+            assertEquals(address, expected);
         }
     }
 
     public void testPublicDns() throws InterruptedException {
         int nodes = randomInt(10);
+        for (int i = 0; i < nodes; i++) {
+            String instanceId = "node" + (i+1);
+            poorMansDNS.put(AmazonEC2Mock.PREFIX_PUBLIC_DNS + instanceId
+                + AmazonEC2Mock.SUFFIX_PUBLIC_DNS, buildNewFakeTransportAddress());
+        }
         Settings nodeSettings = Settings.builder()
                 .put(DISCOVERY_EC2.HOST_TYPE_SETTING.getKey(), "public_dns")
                 .build();
@@ -168,9 +187,9 @@ public class Ec2DiscoveryTests extends ESTestCase {
         for (DiscoveryNode discoveryNode : discoveryNodes) {
             String instanceId = "node" + node++;
             TransportAddress address = discoveryNode.getAddress();
-            TransportAddress expected = new LocalTransportAddress(
+            TransportAddress expected = poorMansDNS.get(
                     AmazonEC2Mock.PREFIX_PUBLIC_DNS + instanceId + AmazonEC2Mock.SUFFIX_PUBLIC_DNS);
-            assertThat(address.sameHost(expected), is(true));
+            assertEquals(address, expected);
         }
     }
 

@@ -44,7 +44,6 @@ public class ShardAllocationDecisionTests extends ESTestCase {
         assertNull(shardAllocationDecision.getFinalExplanation());
         assertNull(shardAllocationDecision.getNodeDecisions());
         expectThrows(IllegalArgumentException.class, () -> shardAllocationDecision.getFinalDecisionSafe());
-        expectThrows(IllegalArgumentException.class, () -> shardAllocationDecision.getFinalExplanationSafe());
     }
 
     public void testNoDecision() {

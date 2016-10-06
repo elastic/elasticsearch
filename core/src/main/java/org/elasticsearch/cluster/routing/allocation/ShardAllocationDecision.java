@@ -186,19 +186,6 @@ public class ShardAllocationDecision {
     }
 
     /**
-     * Returns the free-text explanation for the reason behind the decision taken in {@link #getFinalDecision()}.
-     * Only call this method if {@link #isDecisionTaken()} returns {@code true}, otherwise it will
-     * throw an {@code IllegalArgumentException}.
-     */
-    @Nullable
-    public String getFinalExplanationSafe() {
-        if (isDecisionTaken() == false) {
-            throw new IllegalArgumentException("decision must have been taken in order to return the final explanation");
-        }
-        return finalExplanation;
-    }
-
-    /**
      * Get the node id that the allocator will assign the shard to, unless {@link #getFinalDecision()} returns
      * a value other than {@link Decision.Type#YES}, in which case this returns {@code null}.
      */

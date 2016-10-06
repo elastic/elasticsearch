@@ -43,6 +43,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.LegacyLongFieldMapper.CustomLongNumericField;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
@@ -375,7 +376,7 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
         }
 
         private Query innerRangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
+                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
             return LegacyNumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
                     lowerTerm == null ? null
                             : parseToMilliseconds(lowerTerm, !includeLower, timeZone,
@@ -390,7 +391,7 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
         public Relation isFieldWithinQuery(IndexReader reader,
                 Object from, Object to,
                 boolean includeLower, boolean includeUpper,
-                DateTimeZone timeZone, DateMathParser dateParser, QueryShardContext context) throws IOException {
+                DateTimeZone timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }
@@ -436,7 +437,7 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
         }
 
         public long parseToMilliseconds(Object value, boolean inclusive, @Nullable DateTimeZone zone,
-                @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
+                @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
             if (value instanceof Long) {
                 return ((Long) value).longValue();
             }
@@ -484,7 +485,7 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
         return (DateFieldType) super.fieldType();
     }
 
-    private static Callable<Long> now(QueryShardContext context) {
+    private static Callable<Long> now(QueryRewriteContext context) {
         return new Callable<Long>() {
             @Override
             public Long call() {

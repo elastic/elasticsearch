@@ -406,7 +406,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         } else {
             DateMathParser dateMathParser = format == null ? null : new DateMathParser(format);
             return fieldType.isFieldWithinQuery(queryRewriteContext.getIndexReader(), from, to, includeLower,
-                    includeUpper, timeZone, dateMathParser, (QueryShardContext) queryRewriteContext); // NOCOMMIT
+                    includeUpper, timeZone, dateMathParser, queryRewriteContext);
         }
     }
 

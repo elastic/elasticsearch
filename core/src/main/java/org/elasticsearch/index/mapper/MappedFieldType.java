@@ -38,6 +38,7 @@ import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -399,10 +400,10 @@ public abstract class MappedFieldType extends FieldType {
      *  {@link Relation#INTERSECTS}, which is always fine to return when there is
      *  no way to check whether values are actually within bounds. */
     public Relation isFieldWithinQuery(
-            IndexReader reader,
-            Object from, Object to,
-            boolean includeLower, boolean includeUpper,
-            DateTimeZone timeZone, DateMathParser dateMathParser, QueryShardContext context) throws IOException {
+        IndexReader reader,
+        Object from, Object to,
+        boolean includeLower, boolean includeUpper,
+        DateTimeZone timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
         return Relation.INTERSECTS;
     }
 

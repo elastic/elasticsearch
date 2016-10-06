@@ -43,6 +43,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.LegacyNumberFieldMapper.Defaults;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
@@ -348,7 +349,7 @@ public class DateFieldMapper extends FieldMapper {
         }
 
         public long parseToMilliseconds(Object value, boolean roundUp,
-                @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
+                @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
             DateMathParser dateParser = dateMathParser();
             if (forcedDateParser != null) {
                 dateParser = forcedDateParser;
@@ -363,7 +364,7 @@ public class DateFieldMapper extends FieldMapper {
             return dateParser.parse(strValue, now(context), roundUp, zone);
         }
 
-        private static Callable<Long> now(QueryShardContext context) {
+        private static Callable<Long> now(QueryRewriteContext context) {
             return () -> {
                 return context != null
                         ? context.nowInMillis()
@@ -390,7 +391,7 @@ public class DateFieldMapper extends FieldMapper {
         public Relation isFieldWithinQuery(IndexReader reader,
                 Object from, Object to,
                 boolean includeLower, boolean includeUpper,
-                DateTimeZone timeZone, DateMathParser dateParser, QueryShardContext context) throws IOException {
+                DateTimeZone timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }

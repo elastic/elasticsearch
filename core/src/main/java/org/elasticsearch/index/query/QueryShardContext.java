@@ -97,13 +97,12 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
     private boolean isFilter;
-    private final LongSupplier nowInMillis;
 
     public QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache,
                              IndexFieldDataService indexFieldDataService, MapperService mapperService, SimilarityService similarityService,
                              ScriptService scriptService, final IndicesQueriesRegistry indicesQueriesRegistry, Client client,
                              IndexReader reader, ClusterState clusterState, LongSupplier nowInMillis) {
-        super(indexSettings, mapperService, scriptService, indicesQueriesRegistry, client, reader, clusterState);
+        super(indexSettings, mapperService, scriptService, indicesQueriesRegistry, client, reader, clusterState, nowInMillis);
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.similarityService = similarityService;
@@ -113,7 +112,6 @@ public class QueryShardContext extends QueryRewriteContext {
         this.allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.nestedScope = new NestedScope();
-        this.nowInMillis = nowInMillis;
 
     }
 
@@ -272,11 +270,6 @@ public class QueryShardContext extends QueryRewriteContext {
         return lookup;
     }
 
-    public long nowInMillis() {
-        failIfFrozen();
-        return nowInMillis.getAsLong();
-    }
-
     public NestedScope nestedScope() {
         return nestedScope;
     }
@@ -416,4 +409,10 @@ public class QueryShardContext extends QueryRewriteContext {
     public int getShardId() {
         return shardId;
     }
+
+    public long nowInMillis() {
+        failIfFrozen();
+        return super.nowInMillis();
+    }
+
 }

@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.LegacyDateFieldMapper;
 import org.elasticsearch.index.mapper.LegacyNumberFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.MultiValueMode;
 

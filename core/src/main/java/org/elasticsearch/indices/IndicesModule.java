@@ -22,7 +22,6 @@ package org.elasticsearch.indices;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
-import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -182,7 +181,6 @@ public class IndicesModule extends AbstractModule {
         bind(SyncedFlushService.class).asEagerSingleton();
         bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();
         bind(IndicesTTLService.class).asEagerSingleton();
-        bind(UpdateHelper.class).asEagerSingleton();
         bind(MetaDataIndexUpgradeService.class).asEagerSingleton();
         bind(NodeServicesProvider.class).asEagerSingleton();
     }

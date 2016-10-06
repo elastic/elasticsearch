@@ -366,8 +366,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         @Override
         protected PrimaryResult performOnPrimary(IndexShard primary, IndexRequest request) throws Exception {
-            TransportWriteAction.WriteResult<IndexResponse> result = TransportIndexAction.executeIndexRequestOnPrimary(request, primary,
-                null);
+            TransportWriteAction.WriteResult<IndexRequest, IndexResponse> result =
+                    TransportIndexAction.executeIndexRequestOnPrimary(request, primary, null);
             request.primaryTerm(primary.getPrimaryTerm());
             TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.getLocation(), logger);
             return new PrimaryResult(request, result.getResponse());

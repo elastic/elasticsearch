@@ -222,8 +222,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testUpdate() {
-        //update action goes to the primary, index op gets executed locally, then replicated
-        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", IndexAction.NAME + "[r]"};
+        String[] updateShardActions = new String[]{UpdateAction.NAME + "[p]", UpdateAction.NAME + "[r]"};
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
@@ -237,8 +236,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testUpdateUpsert() {
-        //update action goes to the primary, index op gets executed locally, then replicated
-        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", IndexAction.NAME + "[r]"};
+        String[] updateShardActions = new String[]{UpdateAction.NAME + "[p]", UpdateAction.NAME + "[r]"};
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();
@@ -251,8 +249,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testUpdateDelete() {
-        //update action goes to the primary, delete op gets executed locally, then replicated
-        String[] updateShardActions = new String[]{UpdateAction.NAME + "[s]", DeleteAction.NAME + "[r]"};
+        String[] updateShardActions = new String[]{UpdateAction.NAME + "[p]", UpdateAction.NAME + "[r]"};
         interceptTransportActions(updateShardActions);
 
         String indexOrAlias = randomIndexOrAlias();

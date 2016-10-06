@@ -20,10 +20,11 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.update.UpdateReplicaRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
@@ -33,84 +34,72 @@ import java.util.Locale;
  * Generic interface to group ActionRequest, which perform writes to a single document
  * Action requests implementing this can be part of {@link org.elasticsearch.action.bulk.BulkRequest}
  */
-public interface DocumentRequest<T> extends IndicesRequest {
-
-    /**
-     * Get the index that this request operates on
-     * @return the index
-     */
-    String index();
+public abstract class DocumentRequest<T extends ReplicatedWriteRequest<T>> extends ReplicatedWriteRequest<T> {
 
     /**
      * Get the type that this request operates on
      * @return the type
      */
-    String type();
+    public abstract String type();
 
     /**
      * Get the id of the document for this request
      * @return the id
      */
-    String id();
-
-    /**
-     * Get the options for this request
-     * @return the indices options
-     */
-    IndicesOptions indicesOptions();
+    public abstract String id();
 
     /**
      * Set the routing for this request
      * @return the Request
      */
-    T routing(String routing);
+    public abstract T routing(String routing);
 
     /**
      * Get the routing for this request
      * @return the Routing
      */
-    String routing();
+    public abstract String routing();
 
 
     /**
      * Get the parent for this request
      * @return the Parent
      */
-    String parent();
+    public abstract String parent();
 
     /**
      * Get the document version for this request
      * @return the document version
      */
-    long version();
+    public abstract long version();
 
     /**
      * Sets the version, which will perform the operation only if a matching
      * version exists and no changes happened on the doc since then.
      */
-    T version(long version);
+    public abstract T version(long version);
 
     /**
      * Get the document version type for this request
      * @return the document version type
      */
-    VersionType versionType();
+    public abstract VersionType versionType();
 
     /**
      * Sets the versioning type. Defaults to {@link VersionType#INTERNAL}.
      */
-    T versionType(VersionType versionType);
+    public abstract T versionType(VersionType versionType);
 
     /**
      * Get the requested document operation type of the request
      * @return the operation type {@link OpType}
      */
-    OpType opType();
+    public abstract OpType opType();
 
     /**
      * Requested operation type to perform on the document
      */
-    enum OpType {
+    public enum OpType {
         /**
          * Index the source. If there an existing document with the id, it will
          * be replaced.
@@ -164,40 +153,42 @@ public interface DocumentRequest<T> extends IndicesRequest {
     }
 
     /** read a document write (index/delete/update) request */
-    static DocumentRequest readDocumentRequest(StreamInput in) throws IOException {
+    public static DocumentRequest readDocumentRequest(StreamInput in) throws IOException {
         byte type = in.readByte();
-        final DocumentRequest documentRequest;
         if (type == 0) {
             IndexRequest indexRequest = new IndexRequest();
             indexRequest.readFrom(in);
-            documentRequest = indexRequest;
+            return indexRequest;
         } else if (type == 1) {
             DeleteRequest deleteRequest = new DeleteRequest();
             deleteRequest.readFrom(in);
-            documentRequest = deleteRequest;
+            return deleteRequest;
         } else if (type == 2) {
             UpdateRequest updateRequest = new UpdateRequest();
             updateRequest.readFrom(in);
-            documentRequest = updateRequest;
+            return updateRequest;
+        } else if (type == 3) {
+            UpdateReplicaRequest updateReplicaRequest = new UpdateReplicaRequest();
+            updateReplicaRequest.readFrom(in);
+            return updateReplicaRequest;
         } else {
             throw new IllegalStateException("invalid request type [" + type+ " ]");
         }
-        return documentRequest;
     }
 
     /** write a document write (index/delete/update) request*/
-    static void writeDocumentRequest(StreamOutput out, DocumentRequest request)  throws IOException {
+    public static void writeDocumentRequest(StreamOutput out, DocumentRequest request)  throws IOException {
         if (request instanceof IndexRequest) {
             out.writeByte((byte) 0);
-            ((IndexRequest) request).writeTo(out);
         } else if (request instanceof DeleteRequest) {
             out.writeByte((byte) 1);
-            ((DeleteRequest) request).writeTo(out);
         } else if (request instanceof UpdateRequest) {
             out.writeByte((byte) 2);
-            ((UpdateRequest) request).writeTo(out);
+        } else if (request instanceof UpdateReplicaRequest) {
+            out.writeByte((byte) 3);
         } else {
             throw new IllegalStateException("invalid request [" + request.getClass().getSimpleName() + " ]");
         }
+        request.writeTo(out);
     }
 }

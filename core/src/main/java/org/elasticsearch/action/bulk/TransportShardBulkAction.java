@@ -23,8 +23,12 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.DocumentRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.delete.TransportDeleteAction;
@@ -32,11 +36,16 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
+import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateHelper;
+import org.elasticsearch.action.update.UpdateReplicaRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -57,8 +66,11 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.Translog.Location;
+import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -69,24 +81,29 @@ import static org.elasticsearch.action.support.replication.ReplicationOperation.
 import static org.elasticsearch.action.support.replication.ReplicationOperation.isConflictException;
 
 /** Performs shard-level bulk (index, delete or update) operations */
-public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardResponse> {
+public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
 
-    private final UpdateHelper updateHelper;
     private final boolean allowIdGeneration;
     private final MappingUpdatedAction mappingUpdatedAction;
+    private final UpdateHelper updateHelper;
+    private final AutoCreateIndex autoCreateIndex;
+    private final TransportCreateIndexAction createIndexAction;
 
     @Inject
     public TransportShardBulkAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                    MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper, ActionFilters actionFilters,
-                                    IndexNameExpressionResolver indexNameExpressionResolver) {
+                                    MappingUpdatedAction mappingUpdatedAction, ActionFilters actionFilters,
+                                    IndexNameExpressionResolver indexNameExpressionResolver, ScriptService scriptService,
+                                    AutoCreateIndex autoCreateIndex, TransportCreateIndexAction createIndexAction) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-                indexNameExpressionResolver, BulkShardRequest::new, ThreadPool.Names.BULK);
-        this.updateHelper = updateHelper;
+                indexNameExpressionResolver, BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.BULK);
         this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
         this.mappingUpdatedAction = mappingUpdatedAction;
+        this.updateHelper = new UpdateHelper(scriptService, logger);
+        this.autoCreateIndex = autoCreateIndex;
+        this.createIndexAction = createIndexAction;
     }
 
     @Override
@@ -105,7 +122,39 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected WriteResult<BulkShardResponse> onPrimaryShard(BulkShardRequest request, IndexShard indexShard) throws Exception {
+    protected void doExecute(Task task, BulkShardRequest request, ActionListener<BulkShardResponse> listener) {
+        ClusterState state = clusterService.state();
+        if (autoCreateIndex.shouldAutoCreate(request.index(), state)) {
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest();
+            createIndexRequest.index(request.index());
+            createIndexRequest.cause("auto(bulk api)");
+            createIndexRequest.masterNodeTimeout(request.timeout());
+            createIndexAction.execute(task, createIndexRequest, new ActionListener<CreateIndexResponse>() {
+                @Override
+                public void onResponse(CreateIndexResponse result) {
+                    innerExecute(task, request, listener);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
+                        // we have the index, do it
+                        innerExecute(task, request, listener);
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }
+            });
+        } else {
+            innerExecute(task, request, listener);
+        }
+    }
+
+    private void innerExecute(Task task, final BulkShardRequest request, final ActionListener<BulkShardResponse> listener) {
+        super.doExecute(task, request, listener);
+    }
+    @Override
+    protected WriteResult<BulkShardRequest, BulkShardResponse> onPrimaryShard(BulkShardRequest request, IndexShard indexShard) throws Exception {
         ShardId shardId = request.shardId();
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexMetaData metaData = indexService.getIndexSettings().getIndexMetaData();
@@ -123,7 +172,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             responses[i] = items[i].getPrimaryResponse();
         }
         BulkShardResponse response = new BulkShardResponse(request.shardId(), responses);
-        return new WriteResult<>(response, location);
+        return new WriteResult<>(request, response, location);
     }
 
     /** Executes bulk item requests and handles request execution exceptions */
@@ -131,22 +180,39 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                                      BulkShardRequest request,
                                                      long[] preVersions, VersionType[] preVersionTypes,
                                                      Translog.Location location, int requestIndex) {
-        preVersions[requestIndex] = request.items()[requestIndex].request().version();
-        preVersionTypes[requestIndex] = request.items()[requestIndex].request().versionType();
-        DocumentRequest.OpType opType = request.items()[requestIndex].request().opType();
+        DocumentRequest<?> itemRequest = request.items()[requestIndex].request();
+        preVersions[requestIndex] = itemRequest.version();
+        preVersionTypes[requestIndex] = itemRequest.versionType();
+        DocumentRequest.OpType opType = itemRequest.opType();
         try {
-            WriteResult<? extends DocWriteResponse> writeResult = innerExecuteBulkItemRequest(metaData, indexShard,
-                request, requestIndex);
+            final WriteResult<? extends ReplicatedWriteRequest, ? extends DocWriteResponse> writeResult;
+            switch (itemRequest.opType()) {
+                case CREATE:
+                case INDEX:
+                    writeResult = TransportIndexAction.executeIndexRequestOnPrimary(((IndexRequest) itemRequest), indexShard,
+                            mappingUpdatedAction);
+                    break;
+                case UPDATE:
+                    writeResult = TransportUpdateAction.executeUpdateRequestOnPrimary(((UpdateRequest) itemRequest), indexShard,
+                            metaData, updateHelper, mappingUpdatedAction, allowIdGeneration);
+                    break;
+                case DELETE:
+                    writeResult = TransportDeleteAction.executeDeleteRequestOnPrimary(((DeleteRequest) itemRequest), indexShard);
+                    break;
+                default:
+                    throw new IllegalStateException("unexpected opType [" + itemRequest.opType() + "] found");
+            }
             if (writeResult.getLocation() != null) {
                 location = locationToSync(location, writeResult.getLocation());
             } else {
                 assert writeResult.getResponse().getResult() == DocWriteResponse.Result.NOOP
                         : "only noop operation can have null next operation";
             }
-            // update the bulk item request because update request execution can mutate the bulk item request
-            BulkItemRequest item = request.items()[requestIndex];
+            // update the bulk item request with replica request (update request are changed to index or delete requests for replication)
+            request.items()[requestIndex] = new BulkItemRequest(request.items()[requestIndex].id(),
+                    (DocumentRequest<?>) writeResult.getReplicaRequest());
             // add the response
-            setResponse(item, new BulkItemResponse(item.id(), opType, writeResult.getResponse()));
+            setResponse(request.items()[requestIndex], new BulkItemResponse(request.items()[requestIndex].id(), opType, writeResult.getResponse()));
         } catch (Exception e) {
             // rethrow the failure if we are going to retry on primary and let parent failure to handle it
             if (retryPrimaryException(e)) {
@@ -182,33 +248,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return location;
     }
 
-    private WriteResult<? extends DocWriteResponse> innerExecuteBulkItemRequest(IndexMetaData metaData, IndexShard indexShard,
-                                                            BulkShardRequest request, int requestIndex) throws Exception {
-        DocumentRequest<?> itemRequest = request.items()[requestIndex].request();
-        switch (itemRequest.opType()) {
-            case CREATE:
-            case INDEX:
-                return TransportIndexAction.executeIndexRequestOnPrimary(((IndexRequest) itemRequest), indexShard, mappingUpdatedAction);
-            case UPDATE:
-                int maxAttempts = ((UpdateRequest) itemRequest).retryOnConflict();
-                for (int attemptCount = 0; attemptCount <= maxAttempts; attemptCount++) {
-                    try {
-                        return shardUpdateOperation(metaData, indexShard, request, requestIndex, ((UpdateRequest) itemRequest));
-                    } catch (Exception e) {
-                        final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                        if (attemptCount == maxAttempts  // bubble up exception when we run out of attempts
-                                || (cause instanceof VersionConflictEngineException) == false) { // or when exception is not a version conflict
-                            throw e;
-                        }
-                    }
-                }
-                throw new IllegalStateException("version conflict exception should bubble up on last attempt");
-            case DELETE:
-                return TransportDeleteAction.executeDeleteRequestOnPrimary(((DeleteRequest) itemRequest), indexShard);
-            default: throw new IllegalStateException("unexpected opType [" + itemRequest.opType() + "] found");
-        }
-    }
-
     private void setResponse(BulkItemRequest request, BulkItemResponse response) {
         request.setPrimaryResponse(response);
         if (response.isFailed()) {
@@ -216,51 +255,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } else {
             // Set the ShardInfo to 0 so we can safely send it to the replicas. We won't use it in the real response though.
             response.getResponse().setShardInfo(new ShardInfo());
-        }
-    }
-
-    /**
-     * Executes update request, doing a get and translating update to a index or delete operation
-     * NOTE: all operations except NOOP, reassigns the bulk item request
-     */
-    private WriteResult<? extends DocWriteResponse> shardUpdateOperation(IndexMetaData metaData, IndexShard indexShard,
-                                                                         BulkShardRequest request,
-                                                                         int requestIndex, UpdateRequest updateRequest)
-        throws Exception {
-        // Todo: capture read version conflicts, missing documents and malformed script errors in the write result due to get request
-        UpdateHelper.Result translate = updateHelper.prepare(updateRequest, indexShard);
-        switch (translate.getResponseResult()) {
-            case CREATED:
-            case UPDATED:
-                IndexRequest indexRequest = translate.action();
-                MappingMetaData mappingMd = metaData.mappingOrDefault(indexRequest.type());
-                indexRequest.process(mappingMd, allowIdGeneration, request.index());
-                WriteResult<IndexResponse> writeResult = TransportIndexAction.executeIndexRequestOnPrimary(indexRequest, indexShard, mappingUpdatedAction);
-                BytesReference indexSourceAsBytes = indexRequest.source();
-                IndexResponse indexResponse = writeResult.getResponse();
-                UpdateResponse writeUpdateResponse = new UpdateResponse(indexResponse.getShardInfo(), indexResponse.getShardId(), indexResponse.getType(), indexResponse.getId(), indexResponse.getVersion(), indexResponse.getResult());
-                if (updateRequest.fields() != null && updateRequest.fields().length > 0) {
-                    Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(indexSourceAsBytes, true);
-                    writeUpdateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, request.index(), indexResponse.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
-                }
-                // Replace the update request to the translated index request to execute on the replica.
-                request.items()[requestIndex] = new BulkItemRequest(request.items()[requestIndex].id(), indexRequest);
-                return new WriteResult<>(writeUpdateResponse, writeResult.getLocation());
-            case DELETED:
-                DeleteRequest deleteRequest = translate.action();
-                WriteResult<DeleteResponse> deleteResult = TransportDeleteAction.executeDeleteRequestOnPrimary(deleteRequest, indexShard);
-                DeleteResponse response = deleteResult.getResponse();
-                UpdateResponse deleteUpdateResponse = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), response.getResult());
-                deleteUpdateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, request.index(), response.getVersion(), translate.updatedSourceAsMap(), translate.updateSourceContentType(), null));
-                // Replace the update request to the translated delete request to execute on the replica.
-                request.items()[requestIndex] = new BulkItemRequest(request.items()[requestIndex].id(), deleteRequest);
-                return new WriteResult<>(deleteUpdateResponse, deleteResult.getLocation());
-            case NOOP:
-                BulkItemRequest item = request.items()[requestIndex];
-                indexShard.noopUpdate(updateRequest.type());
-                item.setIgnoreOnReplica(); // no need to go to the replica
-                return new WriteResult<>(translate.action(), null);
-            default: throw new IllegalStateException("Illegal update operation " + translate.getResponseResult());
         }
     }
 
@@ -272,7 +266,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             if (item == null || item.isIgnoreOnReplica()) {
                 continue;
             }
-            DocumentRequest<?> documentRequest = item.request();
+            DocumentRequest documentRequest = (item.request() instanceof UpdateReplicaRequest)
+                    ? ((UpdateReplicaRequest) item.request()).getRequest() : item.request();
             final Engine.Operation operation;
             try {
                 switch (documentRequest.opType()) {

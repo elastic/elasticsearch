@@ -5,28 +5,29 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.test.SecurityIntegTestCase;
 import org.junit.Before;
 
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.test.SecurityTestsUtils.assertAuthorizationException;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.is;
 
 public class IndexAliasesTests extends SecurityIntegTestCase {
 
@@ -100,19 +101,13 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
                 new SecuredString("test123".toCharArray())));
         assertAcked(client().filterWithHeader(headers).admin().indices().prepareCreate("test_1").get());
 
-        try {
-            client().filterWithHeader(headers).admin().indices().prepareAliases().addAlias("test_1", "test_alias").get();
-            fail("add alias should have failed due to missing manage_aliases privileges");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_only]"));
-        }
+        assertThrowsAuthorizationException(
+                client().filterWithHeader(headers).admin().indices().prepareAliases().addAlias("test_1", "test_alias")::get,
+                IndicesAliasesAction.NAME, "create_only");
 
-        try {
-            client().filterWithHeader(headers).admin().indices().prepareAliases().addAlias("test_*", "test_alias").get();
-            fail("add alias should have failed due to missing manage_aliases privileges");
-        } catch(IndexNotFoundException e) {
-             assertThat(e.toString(), containsString("[test_*]"));
-        }
+        IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class,
+                client().filterWithHeader(headers).admin().indices().prepareAliases().addAlias("test_*", "test_alias")::get);
+        assertThat(indexNotFoundException.toString(), containsString("[test_*]"));
     }
 
     public void testCreateIndexAndAliasesCreateOnlyPermission() {
@@ -120,80 +115,56 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // the same create index request
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only",
                 new SecuredString("test123".toCharArray())));
-        try {
-            client().filterWithHeader(headers).admin().indices().prepareCreate("test_1").addAlias(new Alias("test_2")).get();
-            fail("create index should have failed due to missing manage_aliases privileges");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_only]"));
-        }
+
+        assertThrowsAuthorizationException(
+                client().filterWithHeader(headers).admin().indices().prepareCreate("test_1").addAlias(new Alias("test_2"))::get,
+                IndicesAliasesAction.NAME, "create_only");
     }
 
     public void testDeleteAliasesCreateOnlyPermission() {
         //user has create permission only: allows to create indices, manage_aliases is required to add/remove aliases
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only",
                 new SecuredString("test123".toCharArray())));
-        try {
-            client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "alias_1").get();
-            fail("remove alias should have failed due to missing manage_aliases privileges");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases] is unauthorized for user [create_only]"));
-        }
 
-        try {
-            client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "alias_*").get();
-            fail("remove alias should have failed due to missing manage_aliases privileges");
-        } catch(IndexNotFoundException e) {
-            assertThat(e.toString(), containsString("[alias_*"));
-        }
+        assertThrowsAuthorizationException(
+                client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "alias_1")::get,
+                IndicesAliasesAction.NAME, "create_only");
 
-        try {
-            client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "_all").get();
-            fail("remove alias should have failed due to missing manage_aliases privileges");
-        } catch(IndexNotFoundException e) {
-            assertThat(e.toString(), containsString("[_all]"));
-        }
+        IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class,
+                client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "alias_*")::get);
+        assertThat(indexNotFoundException.toString(), containsString("[alias_*"));
+
+        indexNotFoundException = expectThrows(IndexNotFoundException.class,
+                client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "_all")::get);
+        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
     }
 
     public void testGetAliasesCreateOnlyPermissionStrict() {
         //user has create permission only: allows to create indices, manage_aliases is required to retrieve aliases though
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only",
                 new SecuredString("test123".toCharArray())));
-        try {
-            client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_1").setIndices("test_1")
-                    .setIndicesOptions(IndicesOptions.strictExpand()).get();
-            fail("get alias should have failed due to missing manage_aliases privileges");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases/get] is unauthorized for user [create_only]"));
-        }
 
-        try {
-            client().filterWithHeader(headers).admin().indices().prepareGetAliases("_all").setIndices("test_1")
-                    .setIndicesOptions(IndicesOptions.strictExpand()).get();
-            fail("get alias should have failed due to missing manage_aliases privileges");
-        } catch(IndexNotFoundException e) {
-            assertThat(e.toString(), containsString("[_all]"));
-        }
+        assertThrowsAuthorizationException(client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_1")
+                .setIndices("test_1").setIndicesOptions(IndicesOptions.strictExpand())::get, GetAliasesAction.NAME, "create_only");
 
-        try {
-            client().filterWithHeader(headers).admin().indices().prepareGetAliases().setIndices("test_1")
-                    .setIndicesOptions(IndicesOptions.strictExpand()).get();
-            fail("get alias should have failed due to missing manage_aliases privileges");
-        } catch(IndexNotFoundException e) {
-            assertThat(e.toString(), containsString("[_all]"));
-        }
+        IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class, client().filterWithHeader(headers)
+                .admin().indices().prepareGetAliases("_all")
+                .setIndices("test_1").setIndicesOptions(IndicesOptions.strictExpand())::get);
+        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
+
+        indexNotFoundException = expectThrows(IndexNotFoundException.class, client().filterWithHeader(headers).admin().indices()
+                .prepareGetAliases().setIndices("test_1").setIndicesOptions(IndicesOptions.strictExpand())::get);
+        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
 
         GetAliasesResponse getAliasesResponse = client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_alias")
                 .setIndices("test_*").setIndicesOptions(IndicesOptions.strictExpand()).get();
         assertEquals(0, getAliasesResponse.getAliases().size());
 
-        try {
-            //this throws exception no matter what the indices options are because the aliases part cannot be resolved to any alias
-            //and there is no way to "allow_no_aliases" like we can do with indices.
-            client().filterWithHeader(headers).admin().indices().prepareGetAliases().get();
-            fail("get alias should have failed due to missing manage_aliases privileges");
-        } catch(IndexNotFoundException e) {
-            assertThat(e.toString(), containsString("[_all]"));
-        }
+        //this throws exception no matter what the indices options are because the aliases part cannot be resolved to any alias
+        //and there is no way to "allow_no_aliases" like we can do with indices.
+        indexNotFoundException = expectThrows(IndexNotFoundException.class,
+                client().filterWithHeader(headers).admin().indices().prepareGetAliases()::get);
+        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
     }
 
     public void testGetAliasesCreateOnlyPermissionIgnoreUnavailable() {
@@ -205,35 +176,24 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
                 .setIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
         assertEquals(0, getAliasesResponse.getAliases().size());
 
-        try {
-            client().filterWithHeader(headers).admin().indices().prepareGetAliases("_all").setIndices("test_1")
-                    .setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
-            fail("get alias should have failed due empty set of indices after indices resolution");
-        } catch(IndexNotFoundException e) {
-            assertEquals("no such index", e.getMessage());
-        }
+        IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class, client().filterWithHeader(headers)
+                .admin().indices().prepareGetAliases("_all")
+                .setIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen())::get);
+        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
 
-        try {
-            client().filterWithHeader(headers).admin().indices().prepareGetAliases().setIndices("test_1")
-                    .setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
-            fail("get alias should have failed due empty set of indices after indices resolution");
-        } catch(IndexNotFoundException e) {
-            assertEquals("no such index", e.getMessage());
-        }
+        indexNotFoundException = expectThrows(IndexNotFoundException.class, client().filterWithHeader(headers).admin().indices()
+                .prepareGetAliases().setIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen())::get);
+        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
 
         getAliasesResponse = client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_alias")
                 .setIndices("test_*").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
         assertEquals(0, getAliasesResponse.getAliases().size());
 
-        try {
-            //this throws exception no matter what the indices options are because the aliases part cannot be resolved to any alias
-            //and there is no way to "allow_no_aliases" like we can do with indices.
-            client().filterWithHeader(headers).admin().indices().prepareGetAliases()
-                    .setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
-            fail("get alias should have failed due to missing manage_aliases privileges");
-        } catch(IndexNotFoundException e) {
-            assertThat(e.toString(), containsString("[_all]"));
-        }
+        //this throws exception no matter what the indices options are because the aliases part cannot be resolved to any alias
+        //and there is no way to "allow_no_aliases" like we can do with indices.
+        indexNotFoundException = expectThrows(IndexNotFoundException.class, client().filterWithHeader(headers).admin().indices()
+                .prepareGetAliases().setIndicesOptions(IndicesOptions.lenientExpandOpen())::get);
+        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
     }
 
     public void testCreateIndexThenAliasesCreateAndAliasesPermission() {
@@ -250,15 +210,10 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         //ok: user has manage_aliases on test_*
         assertAcked(client().filterWithHeader(headers).admin().indices().prepareAliases().addAlias("test_*", "test_alias_2").get());
 
-        try {
-            //fails: user doesn't have manage_aliases on alias_1
-            client().filterWithHeader(headers).admin().indices().prepareAliases().addAlias("test_1", "alias_1")
-                    .addAlias("test_1", "test_alias").get();
-            fail("add alias should have failed due to missing manage_aliases privileges on alias_1");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e,
-                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
-        }
+        //fails: user doesn't have manage_aliases on alias_1
+        assertThrowsAuthorizationException(client().filterWithHeader(headers).admin().indices().prepareAliases()
+                .addAlias("test_1", "alias_1").addAlias("test_1", "test_alias")::get,
+                IndicesAliasesAction.NAME, "create_test_aliases_test");
     }
 
     public void testCreateIndexAndAliasesCreateAndAliasesPermission() {
@@ -269,15 +224,10 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
                 new SecuredString("test123".toCharArray())));
         assertAcked(client().filterWithHeader(headers).admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias")).get());
 
-        try {
-            //fails: user doesn't have manage_aliases on alias_1
-            client().filterWithHeader(headers).admin().indices().prepareCreate("test_2").addAlias(new Alias("test_alias"))
-                    .addAlias(new Alias("alias_2")).get();
-            fail("create index should have failed due to missing manage_aliases privileges on alias_2");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e,
-                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
-        }
+        //fails: user doesn't have manage_aliases on alias_1
+        assertThrowsAuthorizationException(client().filterWithHeader(headers).admin().indices().prepareCreate("test_2")
+                .addAlias(new Alias("test_alias")).addAlias(new Alias("alias_2"))::get,
+                IndicesAliasesAction.NAME, "create_test_aliases_test");
     }
 
     public void testDeleteAliasesCreateAndAliasesPermission() {
@@ -297,40 +247,23 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         //ok: user has manage_aliases on test_*
         assertAcked(client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "test_alias_*").get());
 
-        try {
-            //fails: all aliases have been deleted, no existing aliases match test_alias_*
-            client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "test_alias_*").get();
-            fail("remove alias should have failed due to no existing matching aliases to expand test_alias_* to");
-        } catch(IndexNotFoundException e) {
-            assertThat(e.toString(), containsString("[test_alias_*]"));
-        }
+        //fails: all aliases have been deleted, no existing aliases match test_alias_*
+        IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class,
+                client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "test_alias_*")::get);
+        assertThat(indexNotFoundException.toString(), containsString("[test_alias_*]"));
 
-        try {
-            //fails: all aliases have been deleted, no existing aliases match _all
-            client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "_all").get();
-            fail("remove alias should have failed due to no existing matching aliases to expand _all to");
-        } catch(IndexNotFoundException e) {
-            assertThat(e.toString(), containsString("[_all]"));
-        }
+        //fails: all aliases have been deleted, no existing aliases match _all
+        indexNotFoundException = expectThrows(IndexNotFoundException.class,
+                client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "_all")::get);
+        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
 
-        try {
-            //fails: user doesn't have manage_aliases on alias_1
-            client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "alias_1").get();
-            fail("remove alias should have failed due to missing manage_aliases privileges on alias_1");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e,
-                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
-        }
+        //fails: user doesn't have manage_aliases on alias_1
+        assertThrowsAuthorizationException(client().filterWithHeader(headers).admin().indices().prepareAliases()
+                .removeAlias("test_1", "alias_1")::get, IndicesAliasesAction.NAME, "create_test_aliases_test");
 
-        try {
-            //fails: user doesn't have manage_aliases on alias_1
-            client().filterWithHeader(headers).admin().indices().prepareAliases()
-                    .removeAlias("test_1", new String[]{"_all", "alias_1"}).get();
-            fail("remove alias should have failed due to missing manage_aliases privileges on alias_1");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e,
-                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test]"));
-        }
+        //fails: user doesn't have manage_aliases on alias_1
+        assertThrowsAuthorizationException(client().filterWithHeader(headers).admin().indices().prepareAliases()
+                .removeAlias("test_1", new String[]{"_all", "alias_1"})::get, IndicesAliasesAction.NAME, "create_test_aliases_test");
     }
 
     public void testGetAliasesCreateAndAliasesPermission() {
@@ -376,24 +309,14 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertAliases(client.admin().indices().prepareGetAliases(),
                 "test_1", "test_alias");
 
-        try {
-            //fails: user has manage_aliases on test_*, although _all aliases and empty indices can be resolved, the explicit non
-            // authorized alias (alias_1) causes the request to fail
-            client.admin().indices().prepareGetAliases().setAliases("_all", "alias_1").get();
-            fail("get alias should have failed due to missing manage_aliases privileges on alias_1");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e,
-                    containsString("action [indices:admin/aliases/get] is unauthorized for user [create_test_aliases_test]"));
-        }
+        //fails: user has manage_aliases on test_*, although _all aliases and empty indices can be resolved, the explicit non
+        // authorized alias (alias_1) causes the request to fail
+        assertThrowsAuthorizationException(client.admin().indices().prepareGetAliases().setAliases("_all", "alias_1")::get,
+                GetAliasesAction.NAME, "create_test_aliases_test");
 
-        try {
-            //fails: user doesn't have manage_aliases on alias_1
-            client.admin().indices().prepareGetAliases().setAliases("alias_1").get();
-            fail("get alias should have failed due to missing manage_aliases privileges on alias_1");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e,
-                    containsString("action [indices:admin/aliases/get] is unauthorized for user [create_test_aliases_test]"));
-        }
+        //fails: user doesn't have manage_aliases on alias_1
+        assertThrowsAuthorizationException(client.admin().indices().prepareGetAliases().setAliases("alias_1")::get,
+                GetAliasesAction.NAME, "create_test_aliases_test");
     }
 
     public void testCreateIndexThenAliasesCreateAndAliasesPermission2() {
@@ -405,31 +328,18 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // on both aliases and indices
         assertAcked(client.admin().indices().prepareCreate("test_1"));
 
-        try {
-            //fails: user doesn't have manage_aliases aliases on test_1
-            client.admin().indices().prepareAliases().addAlias("test_1", "test_alias").get();
-            fail("add alias should have failed due to missing manage_aliases privileges on test_alias and test_1");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e,
-                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
-        }
+        //fails: user doesn't have manage_aliases aliases on test_1
+        assertThrowsAuthorizationException(client.admin().indices().prepareAliases().addAlias("test_1", "test_alias")::get,
+                IndicesAliasesAction.NAME, "create_test_aliases_alias");
 
-        try {
-            //fails: user doesn't have manage_aliases aliases on test_1
-            client.admin().indices().prepareAliases().addAlias("test_1", "alias_1").get();
-            fail("add alias should have failed due to missing manage_aliases privileges on test_1");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e,
-                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
-        }
+        //fails: user doesn't have manage_aliases aliases on test_1
+        assertThrowsAuthorizationException(client.admin().indices().prepareAliases().addAlias("test_1", "alias_1")::get,
+                IndicesAliasesAction.NAME, "create_test_aliases_alias");
 
-        try {
-            //fails: user doesn't have manage_aliases aliases on test_*, no matching indices to replace wildcards
-            client.admin().indices().prepareAliases().addAlias("test_*", "alias_1").get();
-            fail("add alias should have failed due to missing manage_aliases privileges on test_1");
-        } catch(IndexNotFoundException e) {
-            assertThat(e.toString(), containsString("[test_*]"));
-        }
+        //fails: user doesn't have manage_aliases aliases on test_*, no matching indices to replace wildcards
+        IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class,
+                client.admin().indices().prepareAliases().addAlias("test_*", "alias_1")::get);
+        assertThat(indexNotFoundException.toString(), containsString("[test_*]"));
     }
 
     public void testCreateIndexAndAliasesCreateAndAliasesPermission2() {
@@ -440,23 +350,10 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
         //user has create permission on test_* and manage_aliases permission on alias_*. manage_aliases is required to add/remove aliases
         // on both aliases and indices
-        try {
-            //fails: user doesn't have manage_aliases on test_1, create index is rejected as a whole
-            client.admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias")).get();
-            fail("create index should have failed due to missing manage_aliases privileges on test_1 and test_alias");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e,
-                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
-        }
 
-        try {
-            //fails: user doesn't have manage_aliases on test_*, create index is rejected as a whole
-            client.admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias")).addAlias(new Alias("alias_1")).get();
-            fail("create index should have failed due to missing manage_aliases privileges on test_1 and test_alias");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e,
-                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
-        }
+        //fails: user doesn't have manage_aliases on test_1, create index is rejected as a whole
+        assertThrowsAuthorizationException(client.admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias"))::get,
+                IndicesAliasesAction.NAME, "create_test_aliases_alias");
     }
 
     public void testDeleteAliasesCreateAndAliasesPermission2() {
@@ -466,32 +363,15 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
         //user has create permission on test_* and manage_aliases permission on alias_*. manage_aliases is required to add/remove aliases
         // on both aliases and indices
-        try {
-            //fails: user doesn't have manage_aliases on test_1
-            client.admin().indices().prepareAliases().removeAlias("test_1", "test_alias").get();
-            fail("remove alias should have failed due to missing manage_aliases privileges on test_alias and test_1");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e,
-                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
-        }
 
-        try {
-            //fails: user doesn't have manage_aliases on test_1
-            client.admin().indices().prepareAliases().removeAlias("test_1", "alias_1").get();
-            fail("remove alias should have failed due to missing manage_aliases privileges on test_1");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e,
-                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_alias]"));
-        }
+        //fails: user doesn't have manage_aliases on test_1
+        assertThrowsAuthorizationException(client.admin().indices().prepareAliases().removeAlias("test_1", "test_alias")::get,
+                IndicesAliasesAction.NAME, "create_test_aliases_alias");
 
-        try {
-            //fails: user doesn't have manage_aliases on test_*, wildcards can't get replaced
-            client.admin().indices().prepareAliases().removeAlias("test_*", "alias_1").get();
-            fail("remove alias should have failed due to missing manage_aliases privileges on test_*");
-        } catch(IndexNotFoundException e) {
-            assertThat(e.toString(), containsString("[test_*]"));
+        //fails: user doesn't have manage_aliases on test_*, wildcards can't get replaced
+        IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class,
+                client.admin().indices().prepareAliases().removeAlias("test_*", "alias_1")::get);
         }
-    }
 
     public void testGetAliasesCreateAndAliasesPermission2() {
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
@@ -502,14 +382,9 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // on both aliases and indices
         assertAcked(client.admin().indices().prepareCreate("test_1"));
 
-        try {
-            //fails: user doesn't have manage_aliases aliases on test_1, nor test_alias
-            client.admin().indices().prepareGetAliases().setAliases("test_alias").setIndices("test_1").get();
-            fail("get alias should have failed due to missing manage_aliases privileges on test_alias and test_1");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e,
-                    containsString("action [indices:admin/aliases/get] is unauthorized for user [create_test_aliases_alias]"));
-        }
+        //fails: user doesn't have manage_aliases aliases on test_1, nor test_alias
+        assertThrowsAuthorizationException(client.admin().indices().prepareGetAliases().setAliases("test_alias").setIndices("test_1")::get,
+                GetAliasesAction.NAME, "create_test_aliases_alias");
 
         //user doesn't have manage_aliases aliases on test_*, no matching indices to replace wildcards
         GetAliasesResponse getAliasesResponse = client.admin().indices().prepareGetAliases()
@@ -520,37 +395,24 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         getAliasesResponse = client.admin().indices().prepareGetAliases().setAliases("test_alias").get();
         assertEquals(0, getAliasesResponse.getAliases().size());
 
-        try {
-            //fails: no existing aliases to replace wildcards
-            client.admin().indices().prepareGetAliases().setIndices("test_1").setAliases("test_*").get();
-            fail("get alias should have failed due to missing manage_aliases privileges on test_1");
-        } catch(IndexNotFoundException e) {
-            assertThat(e.toString(), containsString("[test_*]"));
-        }
+        //fails: no existing aliases to replace wildcards
+        IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class,
+                client.admin().indices().prepareGetAliases().setIndices("test_1").setAliases("test_*")::get);
+        assertThat(indexNotFoundException.toString(), containsString("[test_*]"));
 
-        try {
-            //fails: no existing aliases to replace _all
-            client.admin().indices().prepareGetAliases().setIndices("test_1").setAliases("_all").get();
-            fail("get alias should have failed due to missing manage_aliases privileges on test_1");
-        } catch(IndexNotFoundException e) {
-            assertThat(e.toString(), containsString("[_all]"));
-        }
+        //fails: no existing aliases to replace _all
+        indexNotFoundException = expectThrows(IndexNotFoundException.class,
+                client.admin().indices().prepareGetAliases().setIndices("test_1").setAliases("_all")::get);
+        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
 
-        try {
-            //fails: no existing aliases to replace empty aliases
-            client.admin().indices().prepareGetAliases().setIndices("test_1").get();
-            fail("get alias should have failed due to missing manage_aliases privileges on test_1");
-        } catch(IndexNotFoundException e) {
-            assertThat(e.toString(), containsString("[_all]"));
-        }
+        //fails: no existing aliases to replace empty aliases
+        indexNotFoundException = expectThrows(IndexNotFoundException.class,
+                client.admin().indices().prepareGetAliases().setIndices("test_1")::get);
+        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
 
-        try {
-            //fails: no existing aliases to replace empty aliases
-            client.admin().indices().prepareGetAliases().get();
-            fail("get alias should have failed due to missing manage_aliases privileges on test_1");
-        } catch(IndexNotFoundException e) {
-            assertThat(e.toString(), containsString("[_all]"));
-        }
+        //fails: no existing aliases to replace empty aliases
+        indexNotFoundException = expectThrows(IndexNotFoundException.class, client.admin().indices().prepareGetAliases()::get);
+        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
     }
 
     public void testCreateIndexThenAliasesCreateAndAliasesPermission3() {
@@ -588,26 +450,18 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertAcked(client.admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias")).addAlias(new Alias("alias_1"))
                 .addAlias(new Alias("alias_2")).addAlias(new Alias("alias_3")));
 
-        try {
-            //fails: user doesn't have manage_aliases privilege on non_authorized
-            client.admin().indices().prepareAliases().removeAlias("test_1", "non_authorized").removeAlias("test_1", "test_alias").get();
-            fail("remove alias should have failed due to missing manage_aliases privileges on non_authorized");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e,
-                    containsString("action [indices:admin/aliases] is unauthorized for user [create_test_aliases_test_alias]"));
-        }
+        //fails: user doesn't have manage_aliases privilege on non_authorized
+        assertThrowsAuthorizationException(client.admin().indices().prepareAliases().removeAlias("test_1", "non_authorized")
+                .removeAlias("test_1", "test_alias")::get, IndicesAliasesAction.NAME, "create_test_aliases_test_alias");
 
         assertAcked(client.admin().indices().prepareAliases().removeAlias("test_1", "alias_1"));
 
         assertAcked(client.admin().indices().prepareAliases().removeAlias("test_*", "_all"));
 
-        try {
-            //fails: all aliases have been deleted, _all can't be resolved to any existing authorized aliases
-            client.admin().indices().prepareAliases().removeAlias("test_1", "_all").get();
-            fail("remove alias should have failed due to no existing aliases matching _all");
-        } catch(IndexNotFoundException e) {
-            assertThat(e.toString(), containsString("[_all]"));
-        }
+        //fails: all aliases have been deleted, _all can't be resolved to any existing authorized aliases
+        IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class,
+                client.admin().indices().prepareAliases().removeAlias("test_1", "_all")::get);
+        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
     }
 
     public void testGetAliasesCreateAndAliasesPermission3() {
@@ -646,14 +500,9 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
     }
 
     public void testCreateIndexAliasesOnlyPermission() {
-        try {
-            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER,
-                    basicAuthHeaderValue("aliases_only", new SecuredString("test123".toCharArray()))))
-                    .admin().indices().prepareCreate("test_1").get();
-            fail("Expected ElasticsearchSecurityException");
-        } catch (ElasticsearchSecurityException e) {
-            assertThat(e.getMessage(), is("action [indices:admin/create] is unauthorized for user [aliases_only]"));
-        }
+        assertThrowsAuthorizationException(client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER,
+                basicAuthHeaderValue("aliases_only", new SecuredString("test123".toCharArray()))))
+                .admin().indices().prepareCreate("test_1")::get, CreateIndexAction.NAME, "aliases_only");
     }
 
     public void testGetAliasesAliasesOnlyPermissionStrict() {
@@ -662,33 +511,18 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         final Client client = client().filterWithHeader(headers);
         //user has manage_aliases only permissions on both alias_* and test_*
 
-        //ok: manage_aliases on both test_* and alias_*
-        try {
-            //security plugin lets it through, but es core intercepts it due to strict indices options and throws index not found
-            client.admin().indices().prepareGetAliases("alias_1")
-                    .addIndices("test_1").setIndicesOptions(IndicesOptions.strictExpandOpen()).get();
-            fail("Expected IndexNotFoundException");
-        } catch(IndexNotFoundException e) {
-            assertEquals("no such index", e.getMessage());
-        }
+        //security plugin lets it through, but es core intercepts it due to strict indices options and throws index not found
+        IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class, client.admin().indices()
+                .prepareGetAliases("alias_1").addIndices("test_1").setIndicesOptions(IndicesOptions.strictExpandOpen())::get);
+        assertEquals("no such index", indexNotFoundException.getMessage());
 
-        try {
-            //fails: no manage_aliases privilege on non_authorized alias
-            client.admin().indices().prepareGetAliases("non_authorized").addIndices("test_1")
-                    .setIndicesOptions(IndicesOptions.strictExpandOpen()).get();
-            fail("Expected ElasticsearchSecurityException");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases/get] is unauthorized for user [aliases_only]"));
-        }
+        //fails: no manage_aliases privilege on non_authorized alias
+        assertThrowsAuthorizationException(client.admin().indices().prepareGetAliases("non_authorized").addIndices("test_1")
+                .setIndicesOptions(IndicesOptions.strictExpandOpen())::get, GetAliasesAction.NAME, "aliases_only");
 
-        try {
-            //fails: no manage_aliases privilege on non_authorized index
-            client.admin().indices().prepareGetAliases("alias_1").addIndices("non_authorized")
-                    .setIndicesOptions(IndicesOptions.strictExpandOpen()).get();
-            fail("Expected ElasticsearchSecurityException");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/aliases/get] is unauthorized for user [aliases_only]"));
-        }
+        //fails: no manage_aliases privilege on non_authorized index
+        assertThrowsAuthorizationException(client.admin().indices().prepareGetAliases("alias_1").addIndices("non_authorized")
+                .setIndicesOptions(IndicesOptions.strictExpandOpen())::get, GetAliasesAction.NAME, "aliases_only");
     }
 
     public void testGetAliasesAliasesOnlyPermissionIgnoreUnavailable() {

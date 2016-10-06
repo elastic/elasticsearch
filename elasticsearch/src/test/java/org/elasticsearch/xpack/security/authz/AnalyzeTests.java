@@ -5,17 +5,16 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
+import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.test.SecurityIntegTestCase;
 
 import java.util.Collections;
 
+import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.test.SecurityTestsUtils.assertAuthorizationException;
-import static org.hamcrest.CoreMatchers.containsString;
 
 public class AnalyzeTests extends SecurityIntegTestCase {
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("test123".toCharArray())));
@@ -59,34 +58,28 @@ public class AnalyzeTests extends SecurityIntegTestCase {
         client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_indices", passwd)))
                 .admin().indices().prepareAnalyze("this is my text").setIndex("test_1").setAnalyzer("standard").get();
 
-        try {
-            //fails: user doesn't have permissions for analyze on index non_authorized
-            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_indices", passwd)))
-                    .admin().indices().prepareAnalyze("this is my text").setIndex("non_authorized").setAnalyzer("standard").get();
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/analyze] is unauthorized for user [analyze_indices]"));
-        }
+        //fails: user doesn't have permissions for analyze on index non_authorized
+        assertThrowsAuthorizationException(client().filterWithHeader(
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_indices", passwd)))
+                .admin().indices().prepareAnalyze("this is my text").setIndex("non_authorized").setAnalyzer("standard")::get,
+                AnalyzeAction.NAME, "analyze_indices");
 
-        try {
-            //fails: user doesn't have permissions for cluster level analyze
-            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_indices", passwd)))
-                    .admin().indices().prepareAnalyze("this is my text").setAnalyzer("standard").get();
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [cluster:admin/analyze] is unauthorized for user [analyze_indices]"));
-        }
+        //fails: user doesn't have permissions for cluster level analyze
+        assertThrowsAuthorizationException(client().filterWithHeader(
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_indices", passwd)))
+                .admin().indices().prepareAnalyze("this is my text").setAnalyzer("standard")::get,
+                "cluster:admin/analyze", "analyze_indices");
     }
 
     public void testAnalyzeWithoutIndices() {
         //this test tries to execute different analyze api variants from a user that has analyze privileges only at cluster level
 
         SecuredString passwd = new SecuredString("test123".toCharArray());
-        try {
-            //fails: user doesn't have permissions for analyze on index test_1
-            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_cluster", passwd)))
-                    .admin().indices().prepareAnalyze("this is my text").setIndex("test_1").setAnalyzer("standard").get();
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:admin/analyze] is unauthorized for user [analyze_cluster]"));
-        }
+        //fails: user doesn't have permissions for analyze on index test_1
+        assertThrowsAuthorizationException(client().filterWithHeader(
+                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_cluster", passwd)))
+                .admin().indices().prepareAnalyze("this is my text").setIndex("test_1").setAnalyzer("standard")::get,
+                AnalyzeAction.NAME, "analyze_cluster");
 
         client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("analyze_cluster", passwd)))
                 .admin().indices().prepareAnalyze("this is my text").setAnalyzer("standard").get();

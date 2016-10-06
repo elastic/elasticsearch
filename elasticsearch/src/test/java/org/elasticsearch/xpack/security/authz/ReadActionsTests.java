@@ -6,11 +6,16 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
+import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
@@ -20,9 +25,9 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.test.SecurityTestsUtils.assertAuthorizationException;
+import static org.elasticsearch.test.SecurityTestsUtils.assertAuthorizationExceptionDefaultUsers;
+import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionDefaultUsers;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.core.IsCollectionContaining.hasItems;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
@@ -118,12 +123,12 @@ public class ReadActionsTests extends SecurityIntegTestCase {
 
     public void testExplicitNonAuthorizedIndex() {
         createIndicesWithRandomAliases("test1", "test2", "index1");
-        assertThrowsAuthorizationException(client().prepareSearch("test*", "index1"));
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareSearch("test*", "index1")::get, SearchAction.NAME);
     }
 
     public void testIndexNotFound() {
         createIndicesWithRandomAliases("test1", "test2", "index1");
-        assertThrowsAuthorizationException(client().prepareSearch("missing"));
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareSearch("missing")::get, SearchAction.NAME);
     }
 
     public void testIndexNotFoundIgnoreUnavailable() {
@@ -212,7 +217,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             assertTrue(multiSearchResponse.getResponses()[1].isFailure());
             Exception exception = multiSearchResponse.getResponses()[1].getFailure();
             assertThat(exception, instanceOf(ElasticsearchSecurityException.class));
-            assertAuthorizationException((ElasticsearchSecurityException)exception, containsString("is unauthorized for user ["));
+            assertAuthorizationExceptionDefaultUsers(exception, SearchAction.NAME);
         }
         {
             MultiSearchResponse multiSearchResponse = client().prepareMultiSearch()
@@ -243,7 +248,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             assertTrue(multiSearchResponse.getResponses()[1].isFailure());
             Exception exception = multiSearchResponse.getResponses()[1].getFailure();
             assertThat(exception, instanceOf(ElasticsearchSecurityException.class));
-            assertAuthorizationException((ElasticsearchSecurityException)exception, containsString("is unauthorized for user ["));
+            assertAuthorizationExceptionDefaultUsers(exception, SearchAction.NAME);
         }
         {
             MultiSearchResponse multiSearchResponse = client().prepareMultiSearch()
@@ -333,13 +338,9 @@ public class ReadActionsTests extends SecurityIntegTestCase {
 
         client().prepareGet("test1", "type", "id").get();
 
-        ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
-                () -> client().prepareGet("index1", "type", "id").get());
-        assertAuthorizationException(securityException);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareGet("index1", "type", "id")::get, GetAction.NAME);
 
-        securityException = expectThrows(ElasticsearchSecurityException.class,
-                () -> client().prepareGet("missing", "type", "id").get());
-        assertAuthorizationException(securityException);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareGet("missing", "type", "id")::get, GetAction.NAME);
 
         expectThrows(IndexNotFoundException.class, () -> client().prepareGet("test5", "type", "id").get());
     }
@@ -357,7 +358,8 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         assertEquals("test1", multiGetResponse.getResponses()[0].getResponse().getIndex());
         assertTrue(multiGetResponse.getResponses()[1].isFailed());
         assertEquals("index1", multiGetResponse.getResponses()[1].getFailure().getIndex());
-        assertAuthorizationException((ElasticsearchSecurityException) multiGetResponse.getResponses()[1].getFailure().getFailure());
+        assertAuthorizationExceptionDefaultUsers(multiGetResponse.getResponses()[1].getFailure().getFailure(),
+                MultiGetAction.NAME + "[shard]");
         assertFalse(multiGetResponse.getResponses()[2].isFailed());
         assertEquals("test3", multiGetResponse.getResponses()[2].getResponse().getIndex());
         assertTrue(multiGetResponse.getResponses()[3].isFailed());
@@ -374,13 +376,9 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         createIndicesWithRandomAliases("test1", "index1");
         client().prepareTermVectors("test1", "type", "id").get();
 
-        ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
-                () -> client().prepareTermVectors("index1", "type", "id").get());
-        assertAuthorizationException(securityException);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareTermVectors("index1", "type", "id")::get, TermVectorsAction.NAME);
 
-        securityException = expectThrows(ElasticsearchSecurityException.class,
-                () -> client().prepareTermVectors("missing", "type", "id").get());
-        assertAuthorizationException(securityException);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareTermVectors("missing", "type", "id")::get, TermVectorsAction.NAME);
 
         expectThrows(IndexNotFoundException.class, () -> client().prepareTermVectors("test5", "type", "id").get());
     }
@@ -398,12 +396,13 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         assertEquals("test1", response.getResponses()[0].getResponse().getIndex());
         assertTrue(response.getResponses()[1].isFailed());
         assertEquals("index1", response.getResponses()[1].getFailure().getIndex());
-        assertAuthorizationException((ElasticsearchSecurityException) response.getResponses()[1].getFailure().getCause());
+        assertAuthorizationExceptionDefaultUsers(response.getResponses()[1].getFailure().getCause(),
+                MultiTermVectorsAction.NAME + "[shard]");
         assertFalse(response.getResponses()[2].isFailed());
         assertEquals("test3", response.getResponses()[2].getResponse().getIndex());
         assertTrue(response.getResponses()[3].isFailed());
         assertEquals("missing", response.getResponses()[3].getFailure().getIndex());
-        //different behaviour compared to get api: we leak information about a non existing index that the current user is not
+        //different behaviour compared to term_vector api: we leak information about a non existing index that the current user is not
         //authorized for. Should rather be an authorization exception but we only authorize at the shard level in mget. If we
         //authorized globally, we would fail the whole mget request which is not desirable.
         assertThat(response.getResponses()[3].getFailure().getCause(), instanceOf(IndexNotFoundException.class));

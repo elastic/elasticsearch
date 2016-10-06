@@ -5,24 +5,25 @@
  */
 package org.elasticsearch.integration;
 
-import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.test.SecurityIntegTestCase;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.test.SecurityTestsUtils.assertAuthorizationException;
+import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -103,29 +104,14 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
 
         // now lets try with "user"
 
-        try {
-            Map<String, String> auth = Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user",
-                    transportClientPassword()));
-            client.filterWithHeader(auth)
-                    .admin().indices().preparePutTemplate("template1")
-                    .setTemplate("test_*")
-                    .get();
-            fail("expected an authorization exception as template APIs should require cluster ALL permission");
-        } catch (ElasticsearchSecurityException e) {
-            // expected
-            assertAuthorizationException(e);
-        }
+        Map<String, String> auth = Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user",
+                transportClientPassword()));
+        assertThrowsAuthorizationException(client.filterWithHeader(auth).admin().indices().preparePutTemplate("template1")
+                .setTemplate("test_*")::get, PutIndexTemplateAction.NAME, "user");
 
-        try {
-            Map<String, String> headers = Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user",
-                    SecuredStringTests.build("test123")));
-            client.filterWithHeader(headers)
-                    .admin().indices().prepareGetTemplates("template1")
-                    .get();
-            fail("expected an authorization exception as template APIs should require cluster ALL permission");
-        } catch (ElasticsearchSecurityException e) {
-            // expected
-            assertAuthorizationException(e);
-        }
+        Map<String, String> headers = Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user",
+                SecuredStringTests.build("test123")));
+        assertThrowsAuthorizationException(client.filterWithHeader(headers).admin().indices().prepareGetTemplates("template1")::get,
+                GetIndexTemplatesAction.NAME, "user");
     }
 }

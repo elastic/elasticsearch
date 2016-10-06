@@ -68,7 +68,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -97,7 +96,8 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
-import static org.elasticsearch.test.SecurityTestsUtils.assertAuthorizationException;
+import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
+import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAs;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -144,67 +144,49 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testIndicesActionsAreNotAuthorized() {
         TransportRequest request = mock(TransportRequest.class);
-        try {
-            authorizationService.authorize(createAuthentication(SystemUser.INSTANCE), "indices:", request);
-            fail("action beginning with indices should have failed");
-        } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e,
-                    containsString("action [indices:] is unauthorized for user [" + SystemUser.INSTANCE.principal() + "]"));
-            verify(auditTrail).accessDenied(SystemUser.INSTANCE, "indices:", request);
-            verifyNoMoreInteractions(auditTrail);
-        }
+        assertThrowsAuthorizationException(
+                () -> authorizationService.authorize(createAuthentication(SystemUser.INSTANCE), "indices:", request),
+                "indices:", SystemUser.INSTANCE.principal());
+        verify(auditTrail).accessDenied(SystemUser.INSTANCE, "indices:", request);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testClusterAdminActionsAreNotAuthorized() {
         TransportRequest request = mock(TransportRequest.class);
-        try {
-            authorizationService.authorize(createAuthentication(SystemUser.INSTANCE), "cluster:admin/whatever", request);
-            fail("action beginning with cluster:admin/whatever should have failed");
-        } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e,
-                    containsString("action [cluster:admin/whatever] is unauthorized for user [" + SystemUser.INSTANCE.principal() + "]"));
-            verify(auditTrail).accessDenied(SystemUser.INSTANCE, "cluster:admin/whatever", request);
-            verifyNoMoreInteractions(auditTrail);
-        }
+        assertThrowsAuthorizationException(
+                () -> authorizationService.authorize(createAuthentication(SystemUser.INSTANCE), "cluster:admin/whatever", request),
+                "cluster:admin/whatever", SystemUser.INSTANCE.principal());
+        verify(auditTrail).accessDenied(SystemUser.INSTANCE, "cluster:admin/whatever", request);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testClusterAdminSnapshotStatusActionIsNotAuthorized() {
         TransportRequest request = mock(TransportRequest.class);
-        try {
-            authorizationService.authorize(createAuthentication(SystemUser.INSTANCE), "cluster:admin/snapshot/status", request);
-            fail("action beginning with cluster:admin/snapshot/status should have failed");
-        } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [cluster:admin/snapshot/status] is unauthorized for user [" +
-                    SystemUser.INSTANCE.principal() + "]"));
-            verify(auditTrail).accessDenied(SystemUser.INSTANCE, "cluster:admin/snapshot/status", request);
-            verifyNoMoreInteractions(auditTrail);
-        }
+        assertThrowsAuthorizationException(
+                () -> authorizationService.authorize(createAuthentication(SystemUser.INSTANCE), "cluster:admin/snapshot/status", request),
+                "cluster:admin/snapshot/status", SystemUser.INSTANCE.principal());
+        verify(auditTrail).accessDenied(SystemUser.INSTANCE, "cluster:admin/snapshot/status", request);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testNoRolesCausesDenial() {
         TransportRequest request = new SearchRequest();
         User user = new User("test user");
-        try {
-            authorizationService.authorize(createAuthentication(user), "indices:a", request);
-            fail("user without roles should be denied");
-        } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user]"));
-            verify(auditTrail).accessDenied(user, "indices:a", request);
-            verifyNoMoreInteractions(auditTrail);
-        }
+        assertThrowsAuthorizationException(
+                () -> authorizationService.authorize(createAuthentication(user), "indices:a", request),
+                "indices:a", "test user");
+        verify(auditTrail).accessDenied(user, "indices:a", request);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testUnknownRoleCausesDenial() {
         TransportRequest request = new SearchRequest();
         User user = new User("test user", "non-existent-role");
-        try {
-            authorizationService.authorize(createAuthentication(user), "indices:a", request);
-            fail("user with unknown role only should have been denied");
-        } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user]"));
-            verify(auditTrail).accessDenied(user, "indices:a", request);
-            verifyNoMoreInteractions(auditTrail);
-        }
+        assertThrowsAuthorizationException(
+                () -> authorizationService.authorize(createAuthentication(user), "indices:a", request),
+                "indices:a", "test user");
+        verify(auditTrail).accessDenied(user, "indices:a", request);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testThatNonIndicesAndNonClusterActionIsDenied() {
@@ -212,14 +194,11 @@ public class AuthorizationServiceTests extends ESTestCase {
         User user = new User("test user", "a_all");
         when(rolesStore.role("a_all")).thenReturn(Role.builder("a_role").add(IndexPrivilege.ALL, "a").build());
 
-        try {
-            authorizationService.authorize(createAuthentication(user), "whatever", request);
-            fail("non indices and non cluster requests should be denied");
-        } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [whatever] is unauthorized for user [test user]"));
-            verify(auditTrail).accessDenied(user, "whatever", request);
-            verifyNoMoreInteractions(auditTrail);
-        }
+        assertThrowsAuthorizationException(
+                () -> authorizationService.authorize(createAuthentication(user), "whatever", request),
+                "whatever", "test user");
+        verify(auditTrail).accessDenied(user, "whatever", request);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testThatRoleWithNoIndicesIsDenied() {
@@ -227,14 +206,11 @@ public class AuthorizationServiceTests extends ESTestCase {
         User user = new User("test user", "no_indices");
         when(rolesStore.role("no_indices")).thenReturn(Role.builder("no_indices").cluster(ClusterPrivilege.action("")).build());
 
-        try {
-            authorizationService.authorize(createAuthentication(user), "indices:a", request);
-            fail("user only has cluster roles so indices requests should fail");
-        } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user]"));
-            verify(auditTrail).accessDenied(user, "indices:a", request);
-            verifyNoMoreInteractions(auditTrail);
-        }
+        assertThrowsAuthorizationException(
+                () -> authorizationService.authorize(createAuthentication(user), "indices:a", request),
+                "indices:a", "test user");
+        verify(auditTrail).accessDenied(user, "indices:a", request);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testSearchAgainstEmptyCluster() {
@@ -248,14 +224,12 @@ public class AuthorizationServiceTests extends ESTestCase {
             //ignore_unavailable set to false, user is not authorized for this index nor does it exist
             SearchRequest searchRequest = new SearchRequest("does_not_exist")
                     .indicesOptions(IndicesOptions.fromOptions(false, true, true, false));
-            try {
-                authorizationService.authorize(createAuthentication(user), SearchAction.NAME, searchRequest);
-                fail("indices request for b should be denied since there is no such index");
-            } catch (ElasticsearchSecurityException e) {
-                assertAuthorizationException(e, containsString("action [" + SearchAction.NAME + "] is unauthorized for user [test user]"));
-                verify(auditTrail).accessDenied(user, SearchAction.NAME, searchRequest);
-                verifyNoMoreInteractions(auditTrail);
-            }
+
+            assertThrowsAuthorizationException(
+                    () -> authorizationService.authorize(createAuthentication(user), SearchAction.NAME, searchRequest),
+                    SearchAction.NAME, "test user");
+            verify(auditTrail).accessDenied(user, SearchAction.NAME, searchRequest);
+            verifyNoMoreInteractions(auditTrail);
         }
 
         {
@@ -312,16 +286,13 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
 
-        try {
-            authorizationService.authorize(createAuthentication(user), "indices:a", request);
-            fail("indices request for b should be denied since there is no such index");
-        } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user]"));
-            verify(auditTrail).accessDenied(user, "indices:a", request);
-            verifyNoMoreInteractions(auditTrail);
-            verify(clusterService, times(2)).state();
-            verify(state, times(3)).metaData();
-        }
+        assertThrowsAuthorizationException(
+                () -> authorizationService.authorize(createAuthentication(user), "indices:a", request),
+                "indices:a", "test user");
+        verify(auditTrail).accessDenied(user, "indices:a", request);
+        verifyNoMoreInteractions(auditTrail);
+        verify(clusterService, times(2)).state();
+        verify(state, times(3)).metaData();
     }
 
     public void testCreateIndexWithAliasWithoutPermissions() {
@@ -333,17 +304,13 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
 
-        try {
-            authorizationService.authorize(createAuthentication(user), CreateIndexAction.NAME, request);
-            fail("indices creation request with alias should be denied since user does not have permission to alias");
-        } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e,
-                    containsString("action [" + IndicesAliasesAction.NAME + "] is unauthorized for user [test user]"));
-            verify(auditTrail).accessDenied(user, IndicesAliasesAction.NAME, request);
-            verifyNoMoreInteractions(auditTrail);
-            verify(clusterService).state();
-            verify(state, times(2)).metaData();
-        }
+        assertThrowsAuthorizationException(
+                () -> authorizationService.authorize(createAuthentication(user), CreateIndexAction.NAME, request),
+                IndicesAliasesAction.NAME, "test user");
+        verify(auditTrail).accessDenied(user, IndicesAliasesAction.NAME, request);
+        verifyNoMoreInteractions(auditTrail);
+        verify(clusterService).state();
+        verify(state, times(2)).metaData();
     }
 
     public void testCreateIndexWithAlias() {
@@ -409,17 +376,13 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
 
-        try {
-            authorizationService.authorize(createAuthentication(anonymousUser), "indices:a", request);
-            fail("indices request for b should be denied since there is no such index");
-        } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e,
-                    containsString("action [indices:a] is unauthorized for user [" + anonymousUser.principal() + "]"));
-            verify(auditTrail).accessDenied(anonymousUser, "indices:a", request);
-            verifyNoMoreInteractions(auditTrail);
-            verify(clusterService, times(2)).state();
-            verify(state, times(3)).metaData();
-        }
+        assertThrowsAuthorizationException(
+                () -> authorizationService.authorize(createAuthentication(anonymousUser), "indices:a", request),
+                "indices:a", anonymousUser.principal());
+        verify(auditTrail).accessDenied(anonymousUser, "indices:a", request);
+        verifyNoMoreInteractions(auditTrail);
+        verify(clusterService, times(2)).state();
+        verify(state, times(3)).metaData();
     }
 
     public void testDenialForAnonymousUserAuthorizationExceptionDisabled() {
@@ -453,14 +416,11 @@ public class AuthorizationServiceTests extends ESTestCase {
         TransportRequest request = mock(TransportRequest.class);
         User user = new User("test user", null, new User("run as me", new String[] { "admin" }));
         assertThat(user.runAs(), is(notNullValue()));
-        try {
-            authorizationService.authorize(createAuthentication(user), "indices:a", request);
-            fail("user without roles should be denied for run as");
-        } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user] run as [run as me]"));
-            verify(auditTrail).runAsDenied(user, "indices:a", request);
-            verifyNoMoreInteractions(auditTrail);
-        }
+        assertThrowsAuthorizationExceptionRunAs(
+                () -> authorizationService.authorize(createAuthentication(user), "indices:a", request),
+                "indices:a", "test user", "run as me"); // run as [run as me]
+        verify(auditTrail).runAsDenied(user, "indices:a", request);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testRunAsRequestRunningAsUnAllowedUser() {
@@ -473,14 +433,11 @@ public class AuthorizationServiceTests extends ESTestCase {
                 .add(IndexPrivilege.ALL, "a")
                 .build());
 
-        try {
-            authorizationService.authorize(createAuthentication(user), "indices:a", request);
-            fail("user without roles should be denied for run as");
-        } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user] run as [run as me]"));
-            verify(auditTrail).runAsDenied(user, "indices:a", request);
-            verifyNoMoreInteractions(auditTrail);
-        }
+        assertThrowsAuthorizationExceptionRunAs(
+                () -> authorizationService.authorize(createAuthentication(user), "indices:a", request),
+                "indices:a", "test user", "run as me");
+        verify(auditTrail).runAsDenied(user, "indices:a", request);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testRunAsRequestWithRunAsUserWithoutPermission() {
@@ -507,15 +464,12 @@ public class AuthorizationServiceTests extends ESTestCase {
                     .build());
         }
 
-        try {
-            authorizationService.authorize(createAuthentication(user), "indices:a", request);
-            fail("the run as user's role doesn't exist so they should not get authorized");
-        } catch (ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user] run as [run as me]"));
-            verify(auditTrail).runAsGranted(user, "indices:a", request);
-            verify(auditTrail).accessDenied(user, "indices:a", request);
-            verifyNoMoreInteractions(auditTrail);
-        }
+        assertThrowsAuthorizationExceptionRunAs(
+                () -> authorizationService.authorize(createAuthentication(user), "indices:a", request),
+                "indices:a", "test user", "run as me");
+        verify(auditTrail).runAsGranted(user, "indices:a", request);
+        verify(auditTrail).accessDenied(user, "indices:a", request);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testRunAsRequestWithValidPermissions() {
@@ -577,14 +531,11 @@ public class AuthorizationServiceTests extends ESTestCase {
         for (Tuple<String, TransportRequest> requestTuple : requests) {
             String action = requestTuple.v1();
             TransportRequest request = requestTuple.v2();
-            try {
-                authorizationService.authorize(createAuthentication(user), action, request);
-                fail("only the xpack user can execute operation [" + action + "] against the internal index");
-            } catch (ElasticsearchSecurityException e) {
-                assertAuthorizationException(e, containsString("action [" + action + "] is unauthorized for user [all_access_user]"));
-                verify(auditTrail).accessDenied(user, action, request);
-                verifyNoMoreInteractions(auditTrail);
-            }
+            assertThrowsAuthorizationException(
+                    () -> authorizationService.authorize(createAuthentication(user), action, request),
+                    action, "all_access_user");
+            verify(auditTrail).accessDenied(user, action, request);
+            verifyNoMoreInteractions(auditTrail);
         }
 
         // we should allow waiting for the health of the index or any index if the user has this permission
@@ -729,10 +680,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         TransportRequest request = compositeRequest.v2();
         User user = new User("test user", "no_indices");
         when(rolesStore.role("no_indices")).thenReturn(Role.builder("no_indices").cluster(ClusterPrivilege.action("")).build());
-        ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
-                () -> authorizationService.authorize(createAuthentication(user), action, request));
-        assertThat(securityException.status(), is(RestStatus.FORBIDDEN));
-        assertThat(securityException.getMessage(), containsString("[" + action + "] is unauthorized for user [" + user.principal() + "]"));
+        assertThrowsAuthorizationException(
+                () -> authorizationService.authorize(createAuthentication(user), action, request), action, "test user");
         verify(auditTrail).accessDenied(user, action, request);
         verifyNoMoreInteractions(auditTrail);
     }
@@ -795,11 +744,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(rolesStore.role("roleDenied")).thenReturn(Role.builder("roleDenied").add(IndexPrivilege.ALL, "a").build());
         mockEmptyMetaData();
         authorizationService.authorize(createAuthentication(userAllowed), action, request);
-        ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
-                () -> authorizationService.authorize(createAuthentication(userDenied), action, request));
-        assertThat(securityException.status(), is(RestStatus.FORBIDDEN));
-        assertThat(securityException.getMessage(),
-                containsString("[" + action + "] is unauthorized for user [" + userDenied.principal() + "]"));
+        assertThrowsAuthorizationException(
+                () -> authorizationService.authorize(createAuthentication(userDenied), action, request), action, "userDenied");
     }
 
     private static Tuple<String, TransportRequest> randomCompositeRequest() {

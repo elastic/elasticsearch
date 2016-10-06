@@ -84,6 +84,58 @@ POST /my_alias/_rollover/my_new_index_name
 // TEST[s/^/PUT my_old_index_name\nPUT my_old_index_name\/_alias\/my_alias\n/]
 
 [float]
+=== Using date math with the rolllover API
+
+It can be useful to use <<date-math-index-names,date math>> to name the
+rollover index according to the date that the index rolled over, e.g.
+`logstash-2016.02.03`.  The rollover API supports date math by storing the
+original `provided_name` in the index settings.  For instance:
+
+[source,js]
+--------------------------------------------------
+PUT /<logs-{now/d}> <1>
+{
+  "aliases": {
+    "logs_write": {}
+  }
+}
+
+# Wait for a day to pass
+
+POST /logs_write/_rollover <2>
+{
+  "conditions": {
+    "max_age":   "1d"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:Requires 24h to pass]
+<1> Creates an index named (e.g.) `logs-2016.10.31`
+<2> Rolls over to a new index with today's date, e.g. `logs-2016.11.01`
+
+[WARNING]
+=============================================
+
+Using a date format like `YYYY.MM.dd` for an index name will only work once a
+day.  The second attempt to use the rollover API will fail because the index
+already exists.  If you may need to rollover your indices more than once a
+day, then use a date format with more precision, for example:
+
+[source,js]
+--------------------------------------------------
+PUT /<logs-{now{YYYY.MM.dd-hh.mm.ss}}> <1>
+{
+  "aliases": {
+    "logs_write": {}
+  }
+}
+--------------------------------------------------
+// CONSOLE
+<1> Creates an index named (e.g.) `logs-2016.10.31-16:12:15`
+=============================================
+
+[float]
 === Defining the new index
 
 The settings, mappings, and aliases for the new index are taken from any
@@ -144,5 +196,5 @@ POST /logs_write/_rollover?dry_run
 === Wait For Active Shards
 
 Because the rollover operation creates a new index to rollover to, the
-<<create-index-wait-for-active-shards,wait for active shards>> setting on
+<<create-index-wait-for-active-shards,`wait_for_active_shards`>> setting on
 index creation applies to the rollover action as well.

@@ -32,7 +32,7 @@ window, `CD` to the `%ES_HOME%` directory, for instance:
 CD c:\elasticsearch-{version}
 ----------------------------
 
-endif:[]
+endif::[]
 
 [[windows-running]]
 ==== Running Elasticsearch from the command line

@@ -147,7 +147,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
                                 return version;
                             }
                         },
-                        threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+                        threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         transportService.start();
         transportService.acceptIncomingRequests();
         return transportService;

@@ -66,13 +66,15 @@ public class Netty3ScheduledPingTests extends ESTestCase {
         NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
         final Netty3Transport nettyA = new Netty3Transport(settings, threadPool, new NetworkService(settings, Collections.emptyList()),
             BigArrays.NON_RECYCLING_INSTANCE, registry, circuitBreakerService);
-        MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+        MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                null);
         serviceA.start();
         serviceA.acceptIncomingRequests();
 
         final Netty3Transport nettyB = new Netty3Transport(settings, threadPool, new NetworkService(settings, Collections.emptyList()),
             BigArrays.NON_RECYCLING_INSTANCE, registry, circuitBreakerService);
-        MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+        MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                null);
 
         serviceB.start();
         serviceB.acceptIncomingRequests();

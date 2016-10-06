@@ -88,7 +88,9 @@ public class IndicesStoreTests extends ESTestCase {
     public void before() {
         localNode = new DiscoveryNode("abc", new LocalTransportAddress("abc"), emptyMap(), emptySet(), Version.CURRENT);
         clusterService = createClusterService(threadPool);
-        indicesStore = new IndicesStore(Settings.EMPTY, null, clusterService, new TransportService(clusterService.getSettings(), null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR), null);
+        TransportService transportService = new TransportService(clusterService.getSettings(), null, null,
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+        indicesStore = new IndicesStore(Settings.EMPTY, null, clusterService, transportService, null);
     }
 
     @After

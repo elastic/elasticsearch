@@ -28,7 +28,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
@@ -64,10 +63,8 @@ import java.util.Map;
  * Helper for translating an update request to an index, delete request or update response.
  */
 public class UpdateHelper extends AbstractComponent {
-
     private final ScriptService scriptService;
 
-    @Inject
     public UpdateHelper(Settings settings, ScriptService scriptService) {
         super(settings);
         this.scriptService = scriptService;
@@ -76,7 +73,6 @@ public class UpdateHelper extends AbstractComponent {
     /**
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
-    @SuppressWarnings("unchecked")
     public Result prepare(UpdateRequest request, IndexShard indexShard) {
         final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
                 new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME, TimestampFieldMapper.NAME},

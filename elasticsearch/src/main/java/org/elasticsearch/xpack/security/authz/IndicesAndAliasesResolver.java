@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.authz.indicesresolver;
+package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -20,8 +20,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.security.authz.AuthorizationService;
-import org.elasticsearch.xpack.security.user.User;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,31 +30,23 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.stream.Collectors;
 
-public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolver<TransportRequest> {
+public class IndicesAndAliasesResolver {
 
     public static final String NO_INDEX = "-*";
     private static final List<String> NO_INDICES = Collections.singletonList(NO_INDEX);
 
-    private final AuthorizationService authzService;
     private final IndexNameExpressionResolver nameExpressionResolver;
 
-    public DefaultIndicesAndAliasesResolver(AuthorizationService authzService, IndexNameExpressionResolver nameExpressionResolver) {
-        this.authzService = authzService;
+    public IndicesAndAliasesResolver(IndexNameExpressionResolver nameExpressionResolver) {
         this.nameExpressionResolver = nameExpressionResolver;
     }
 
-    @Override
-    public Class<TransportRequest> requestType() {
-        return TransportRequest.class;
-    }
-
-    @Override
-    public Set<String> resolve(User user, String action, TransportRequest request, MetaData metaData) {
+    public Set<String> resolve(TransportRequest request, MetaData metaData, AuthorizedIndices authorizedIndices) {
         if (request instanceof IndicesAliasesRequest) {
             Set<String> indices = new HashSet<>();
             IndicesAliasesRequest indicesAliasesRequest = (IndicesAliasesRequest) request;
             for (IndicesRequest indicesRequest : indicesAliasesRequest.getAliasActions()) {
-                indices.addAll(resolveIndicesAndAliases(user, action, indicesRequest, metaData));
+                indices.addAll(resolveIndicesAndAliases(indicesRequest, metaData, authorizedIndices));
             }
             return indices;
         }
@@ -65,10 +55,11 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
         if (request instanceof IndicesRequest == false) {
             throw new IllegalStateException("Request [" + request + "] is not an Indices request, but should be.");
         }
-        return resolveIndicesAndAliases(user, action, (IndicesRequest) request, metaData);
+        return resolveIndicesAndAliases((IndicesRequest) request, metaData, authorizedIndices);
     }
 
-    private Set<String> resolveIndicesAndAliases(User user, String action, IndicesRequest indicesRequest, MetaData metaData) {
+    private Set<String> resolveIndicesAndAliases(IndicesRequest indicesRequest, MetaData metaData,
+                                                 AuthorizedIndices authorizedIndices) {
         boolean indicesReplacedWithNoIndices = false;
         final Set<String> indices;
         if (indicesRequest instanceof PutMappingRequest
@@ -85,8 +76,6 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
             IndicesRequest.Replaceable replaceable = (IndicesRequest.Replaceable) indicesRequest;
             final boolean replaceWildcards = indicesRequest.indicesOptions().expandWildcardsOpen()
                     || indicesRequest.indicesOptions().expandWildcardsClosed();
-            List<String> authorizedIndicesAndAliases = authzService.authorizedIndicesAndAliases(user, action);
-
             IndicesOptions indicesOptions = indicesRequest.indicesOptions();
             if (indicesRequest instanceof IndicesExistsRequest) {
                 //indices exists api should never throw exception, make sure that ignore_unavailable and allow_no_indices are true
@@ -99,7 +88,7 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
             // check for all and return list of authorized indices
             if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
                 if (replaceWildcards) {
-                    for (String authorizedIndex : authorizedIndicesAndAliases) {
+                    for (String authorizedIndex : authorizedIndices.get()) {
                         if (isIndexVisible(authorizedIndex, indicesOptions, metaData)) {
                             replacedIndices.add(authorizedIndex);
                         }
@@ -109,11 +98,11 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
                 // we honour allow_no_indices like es core does.
             } else {
                 replacedIndices = replaceWildcardsWithAuthorizedIndices(indicesRequest.indices(),
-                        indicesOptions, metaData, authorizedIndicesAndAliases, replaceWildcards);
+                        indicesOptions, metaData, authorizedIndices.get(), replaceWildcards);
                 if (indicesOptions.ignoreUnavailable()) {
                     //out of all the explicit names (expanded from wildcards and original ones that were left untouched)
                     //remove all the ones that the current user is not authorized for and ignore them
-                    replacedIndices = replacedIndices.stream().filter(authorizedIndicesAndAliases::contains).collect(Collectors.toList());
+                    replacedIndices = replacedIndices.stream().filter(authorizedIndices.get()::contains).collect(Collectors.toList());
                 }
             }
             if (replacedIndices.isEmpty()) {
@@ -149,18 +138,19 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
             //AliasesRequest extends IndicesRequest.Replaceable, hence its indices have already been properly replaced.
             AliasesRequest aliasesRequest = (AliasesRequest) indicesRequest;
             if (aliasesRequest.expandAliasesWildcards()) {
-                List<String> authorizedIndices = authzService.authorizedIndicesAndAliases(user, action);
-                List<String> aliases = replaceWildcardsWithAuthorizedAliases(aliasesRequest.aliases(), loadAuthorizedAliases
-                        (authorizedIndices, metaData));
+                List<String> aliases = replaceWildcardsWithAuthorizedAliases(aliasesRequest.aliases(),
+                        loadAuthorizedAliases(authorizedIndices.get(), metaData));
                 aliasesRequest.aliases(aliases.toArray(new String[aliases.size()]));
             }
             if (indicesReplacedWithNoIndices) {
-                assert indicesRequest instanceof GetAliasesRequest : GetAliasesRequest.class.getSimpleName() + " is the only known " +
-                        "request implementing " + AliasesRequest.class.getSimpleName() + " that may allow no indices. Found [" +
-                        indicesRequest.getClass().getName() + "] which ended up with an empty set of indices.";
+                if (indicesRequest instanceof GetAliasesRequest == false) {
+                    throw new IllegalStateException(GetAliasesRequest.class.getSimpleName() + " is the only known " +
+                            "request implementing " + AliasesRequest.class.getSimpleName() + " that may allow no indices. Found [" +
+                            indicesRequest.getClass().getName() + "] which ended up with an empty set of indices.");
+                }
+                //if we replaced the indices with '-*' we shouldn't be adding the aliases to the list otherwise the request will
+                //not get authorized. Leave only '-*' and ignore the rest, result will anyway be empty.
             } else {
-                //if we are returning '-*' we shouldn't be adding the aliases to the list or the request will not get authorized.
-                //Leave only '-*' and ignore the rest, result will anyway be empty.
                 Collections.addAll(indices, aliasesRequest.aliases());
             }
         }
@@ -203,10 +193,11 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
             }
         }
 
-        //throw exception if the wildcards expansion to authorized aliases resulted in no indices.
-        // This is important as we always need to replace wildcards for security reason,
-        //to make sure that the operation is executed on the aliases that we authorized it to execute on.
-        //If we can't replace because we got an empty set, we can only throw exception.
+        //Throw exception if the wildcards expansion to authorized aliases resulted in no indices.
+        //We always need to replace wildcards for security reasons, to make sure that the operation is executed on the aliases that we
+        //authorized it to execute on. Empty set gets converted to _all by es core though, and unlike with indices, here we don't have
+        //a special expression to replace empty set with, which gives us the guarantee that nothing will be returned.
+        //This is because existing aliases can contain all kinds of special characters, they are only validated since 5.1.
         if (finalAliases.isEmpty()) {
             String indexName = matchAllAliases ? MetaData.ALL : Arrays.toString(aliases);
             throw new IndexNotFoundException(indexName);

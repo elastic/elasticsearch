@@ -19,12 +19,9 @@ import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -38,8 +35,6 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.security.authz.indicesresolver.DefaultIndicesAndAliasesResolver;
-import org.elasticsearch.xpack.security.authz.indicesresolver.IndicesAndAliasesResolver;
 import org.elasticsearch.xpack.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.security.authz.permission.DefaultRole;
 import org.elasticsearch.xpack.security.authz.permission.GlobalPermission;
@@ -56,13 +51,14 @@ import org.elasticsearch.xpack.security.user.XPackUser;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.bouncycastle.asn1.x500.style.RFC4519Style.name;
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.support.Exceptions.authorizationError;
 
@@ -78,7 +74,7 @@ public class AuthorizationService extends AbstractComponent {
     private final ClusterService clusterService;
     private final CompositeRolesStore rolesStore;
     private final AuditTrailService auditTrail;
-    private final IndicesAndAliasesResolver[] indicesAndAliasesResolvers;
+    private final IndicesAndAliasesResolver indicesAndAliasesResolver;
     private final AuthenticationFailureHandler authcFailureHandler;
     private final ThreadContext threadContext;
     private final AnonymousUser anonymousUser;
@@ -92,64 +88,12 @@ public class AuthorizationService extends AbstractComponent {
         this.rolesStore = rolesStore;
         this.clusterService = clusterService;
         this.auditTrail = auditTrail;
-        this.indicesAndAliasesResolvers = new IndicesAndAliasesResolver[] {
-                new DefaultIndicesAndAliasesResolver(this, new IndexNameExpressionResolver(settings))
-        };
+        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(new IndexNameExpressionResolver(settings));
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
         this.anonymousUser = anonymousUser;
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.anonymousAuthzExceptionEnabled = ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.get(settings);
-    }
-
-    /**
-     * Returns all indices and aliases the given user is allowed to execute the given action on.
-     *
-     * @param user      The user
-     * @param action    The action
-     */
-    public List<String> authorizedIndicesAndAliases(User user, String action) {
-        final String[] anonymousRoles = isAnonymousEnabled ? anonymousUser.roles() : Strings.EMPTY_ARRAY;
-        String[] rolesNames = user.roles();
-        if (rolesNames.length == 0 && anonymousRoles.length == 0) {
-            return Collections.emptyList();
-        }
-
-        List<Predicate<String>> predicates = new ArrayList<>();
-        for (String roleName : rolesNames) {
-            Role role = rolesStore.role(roleName);
-            if (role != null) {
-                predicates.add(role.indices().allowedIndicesMatcher(action));
-            }
-        }
-        if (anonymousUser.equals(user) == false) {
-            for (String roleName : anonymousRoles) {
-                Role role = rolesStore.role(roleName);
-                if (role != null) {
-                    predicates.add(role.indices().allowedIndicesMatcher(action));
-                }
-            }
-        }
-        Predicate<String> predicate = predicates.stream().reduce(s -> false, (p1, p2) -> p1.or(p2));
-
-        List<String> indicesAndAliases = new ArrayList<>();
-        MetaData metaData = clusterService.state().metaData();
-        // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
-        for (Map.Entry<String, AliasOrIndex> entry : metaData.getAliasAndIndexLookup().entrySet()) {
-            String aliasOrIndex = entry.getKey();
-            if (predicate.test(aliasOrIndex)) {
-                indicesAndAliases.add(aliasOrIndex);
-            }
-        }
-
-        if (XPackUser.is(user) == false && Arrays.binarySearch(user.roles(), SuperuserRole.NAME) < 0) {
-            // we should filter out the .security index from wildcards
-            if (indicesAndAliases.remove(SecurityTemplateService.SECURITY_INDEX_NAME)) {
-                logger.debug("removed [{}] from user [{}] list of authorized indices",
-                        SecurityTemplateService.SECURITY_INDEX_NAME, user.principal());
-            }
-        }
-        return Collections.unmodifiableList(indicesAndAliases);
     }
 
     /**
@@ -181,12 +125,11 @@ public class AuthorizationService extends AbstractComponent {
         }
 
         // get the roles of the authenticated user, which may be different than the effective
-        GlobalPermission permission = permission(authentication.getUser().roles());
-
+        Collection<Role> roles = roles(authentication.getUser());
+        GlobalPermission permission = permission(roles);
         final boolean isRunAs = authentication.getUser() != authentication.getRunAsUser();
-        // permission can be null as it might be that the user's role
-        // is unknown
-        if (permission == null || permission.isEmpty()) {
+        // permission can be empty as it might be that the user's role is unknown
+        if (permission.isEmpty()) {
             if (isRunAs) {
                 // the request is a run as request so we should call the specific audit event for a denied run as attempt
                 throw denyRunAs(authentication, action, request);
@@ -194,18 +137,16 @@ public class AuthorizationService extends AbstractComponent {
                 throw denial(authentication, action, request);
             }
         }
-
         // check if the request is a run as request
         if (isRunAs) {
             // first we must authorize for the RUN_AS action
             RunAsPermission runAs = permission.runAs();
             if (runAs != null && runAs.check(authentication.getRunAsUser().principal())) {
                 grantRunAs(authentication, action, request);
-                permission = permission(authentication.getRunAsUser().roles());
-
-                // permission can be null as it might be that the user's role
-                // is unknown
-                if (permission == null || permission.isEmpty()) {
+                roles = roles(authentication.getRunAsUser());
+                permission = permission(roles);
+                // permission can be empty as it might be that the run as user's role is unknown
+                if (permission.isEmpty()) {
                     throw denial(authentication, action, request);
                 }
             } else {
@@ -213,8 +154,7 @@ public class AuthorizationService extends AbstractComponent {
             }
         }
 
-        // first, we'll check if the action is a cluster action. If it is, we'll only check it
-        // against the cluster permissions
+        // first, we'll check if the action is a cluster action. If it is, we'll only check it against the cluster permissions
         if (ClusterPrivilege.ACTION_MATCHER.test(action)) {
             ClusterPermission cluster = permission.cluster();
             // we use the effectiveUser for permission checking since we are running as a user!
@@ -235,7 +175,7 @@ public class AuthorizationService extends AbstractComponent {
         if (isCompositeAction(action)) {
             if (request instanceof CompositeIndicesRequest == false) {
                 throw new IllegalStateException("Composite actions must implement " + CompositeIndicesRequest.class.getSimpleName()
-                + ", " + request.getClass().getSimpleName() + " doesn't");
+                        + ", " + request.getClass().getSimpleName() + " doesn't");
             }
             //we check if the user can execute the action, without looking at indices, whici will be authorized at the shard level
             if (permission.indices().check(action)) {
@@ -267,19 +207,19 @@ public class AuthorizationService extends AbstractComponent {
             throw denial(authentication, action, request);
         }
 
-        ClusterState clusterState = clusterService.state();
-        Set<String> indexNames = resolveIndices(authentication, action, request, clusterState);
+        MetaData metaData = clusterService.state().metaData();
+        AuthorizedIndices authorizedIndices = new AuthorizedIndices(authentication.getRunAsUser(), roles, action, metaData);
+        Set<String> indexNames = indicesAndAliasesResolver.resolve(request, metaData, authorizedIndices);
         assert !indexNames.isEmpty() : "every indices request needs to have its indices set thus the resolved indices must not be empty";
 
         //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
         //'-*' matches no indices so we allow the request to go through, which will yield an empty response
-        if (indexNames.size() == 1 && indexNames.contains(DefaultIndicesAndAliasesResolver.NO_INDEX)) {
+        if (indexNames.size() == 1 && indexNames.contains(IndicesAndAliasesResolver.NO_INDEX)) {
             setIndicesAccessControl(IndicesAccessControl.ALLOW_NO_INDICES);
             grant(authentication, action, request);
             return;
         }
 
-        MetaData metaData = clusterState.metaData();
         IndicesAccessControl indicesAccessControl = permission.authorize(action, indexNames, metaData);
         if (!indicesAccessControl.isGranted()) {
             throw denial(authentication, action, request);
@@ -331,38 +271,32 @@ public class AuthorizationService extends AbstractComponent {
         }
     }
 
-    private GlobalPermission permission(String[] roleNames) {
-        final String[] anonymousRoles = isAnonymousEnabled ? anonymousUser.roles() : Strings.EMPTY_ARRAY;
-        if (roleNames.length == 0) {
-            if (anonymousRoles.length == 0) {
-                assert isAnonymousEnabled == false : "anonymous is only enabled when the anonymous user has roles";
-                return DefaultRole.INSTANCE;
-            }
+    private GlobalPermission permission(Collection<Role> roles) {
+        GlobalPermission.Compound.Builder rolesBuilder = GlobalPermission.Compound.builder();
+        for (Role role : roles) {
+            rolesBuilder.add(role);
         }
+        return rolesBuilder.build();
+    }
 
-        // we'll take all the roles and combine their associated permissions
-        final Set<String> uniqueNames = new HashSet<>(Arrays.asList(roleNames));
-        uniqueNames.addAll(Arrays.asList(anonymousRoles));
-
-        GlobalPermission.Compound.Builder roles = GlobalPermission.Compound.builder().add(DefaultRole.INSTANCE);
-        for (String roleName : uniqueNames) {
+    Collection<Role> roles(User user) {
+        Set<String> roleNames = new HashSet<>();
+        Collections.addAll(roleNames, user.roles());
+        if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
+            if (anonymousUser.roles().length == 0) {
+                throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
+            }
+            Collections.addAll(roleNames, anonymousUser.roles());
+        }
+        List<Role> roles = new ArrayList<>();
+        roles.add(DefaultRole.INSTANCE);
+        for (String roleName : roleNames) {
             Role role = rolesStore.role(roleName);
             if (role != null) {
                 roles.add(role);
             }
         }
-        return roles.build();
-    }
-
-    private Set<String> resolveIndices(Authentication authentication, String action, TransportRequest request, ClusterState clusterState) {
-        MetaData metaData = clusterState.metaData();
-        for (IndicesAndAliasesResolver resolver : indicesAndAliasesResolvers) {
-            if (resolver.requestType().isInstance(request)) {
-                return resolver.resolve(authentication.getRunAsUser(), action, request, metaData);
-            }
-        }
-        assert false : "we should be able to resolve indices for any known request that requires indices privileges";
-        throw denial(authentication, action, request);
+        return Collections.unmodifiableList(roles);
     }
 
     private static boolean isCompositeAction(String action) {

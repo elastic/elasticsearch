@@ -28,7 +28,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AlreadyExpiredException;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Date;
@@ -139,15 +138,9 @@ public class TTLFieldMapper extends MetadataFieldMapper {
 
         // Overrides valueForSearch to display live value of remaining ttl
         @Override
-        public Object valueForSearch(Object value) {
-            long now;
-            SearchContext searchContext = SearchContext.current();
-            if (searchContext != null) {
-                now = searchContext.getQueryShardContext().nowInMillis();
-            } else {
-                now = System.currentTimeMillis();
-            }
-            Long val = (Long) super.valueForSearch(value);
+        public Object valueForDisplay(Object value) {
+            final long now = System.currentTimeMillis();
+            Long val = (Long) super.valueForDisplay(value);
             return val - now;
         }
     }
@@ -175,11 +168,6 @@ public class TTLFieldMapper extends MetadataFieldMapper {
 
     public long defaultTTL() {
         return this.defaultTTL;
-    }
-
-    // Other implementation for realtime get display
-    public Object valueForSearch(long expirationTime) {
-        return expirationTime - System.currentTimeMillis();
     }
 
     @Override

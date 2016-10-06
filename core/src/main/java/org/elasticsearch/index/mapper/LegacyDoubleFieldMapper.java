@@ -41,6 +41,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -135,7 +136,7 @@ public class LegacyDoubleFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public java.lang.Double valueForSearch(Object value) {
+        public java.lang.Double valueForDisplay(Object value) {
             if (value == null) {
                 return null;
             }
@@ -157,7 +158,7 @@ public class LegacyDoubleFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             return LegacyNumericRangeQuery.newDoubleRange(name(), numericPrecisionStep(),
                 lowerTerm == null ? null : parseDoubleValue(lowerTerm),
                 upperTerm == null ? null : parseDoubleValue(upperTerm),

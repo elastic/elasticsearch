@@ -65,7 +65,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 /**
@@ -78,6 +77,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private final BitsetFilterCache bitsetFilterCache;
     private final IndexFieldDataService indexFieldDataService;
     private final IndexSettings indexSettings;
+    private final int shardId;
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean cachable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
@@ -97,13 +97,13 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
     private boolean isFilter;
-    private final LongSupplier nowInMillis;
 
-    public QueryShardContext(IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache, IndexFieldDataService indexFieldDataService,
-                             MapperService mapperService, SimilarityService similarityService, ScriptService scriptService,
-                             final IndicesQueriesRegistry indicesQueriesRegistry, Client client,
+    public QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache,
+                             IndexFieldDataService indexFieldDataService, MapperService mapperService, SimilarityService similarityService,
+                             ScriptService scriptService, final IndicesQueriesRegistry indicesQueriesRegistry, Client client,
                              IndexReader reader, ClusterState clusterState, LongSupplier nowInMillis) {
-        super(indexSettings, mapperService, scriptService, indicesQueriesRegistry, client, reader, clusterState);
+        super(indexSettings, mapperService, scriptService, indicesQueriesRegistry, client, reader, clusterState, nowInMillis);
+        this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.similarityService = similarityService;
         this.mapperService = mapperService;
@@ -112,11 +112,11 @@ public class QueryShardContext extends QueryRewriteContext {
         this.allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.nestedScope = new NestedScope();
-        this.nowInMillis = nowInMillis;
+
     }
 
     public QueryShardContext(QueryShardContext source) {
-        this(source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService,
+        this(source.shardId, source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService,
                 source.similarityService, source.scriptService, source.indicesQueriesRegistry, source.client,
                 source.reader, source.clusterState, source.nowInMillis);
         this.types = source.getTypes();
@@ -264,19 +264,10 @@ public class QueryShardContext extends QueryRewriteContext {
     private SearchLookup lookup = null;
 
     public SearchLookup lookup() {
-        SearchContext current = SearchContext.current();
-        if (current != null) {
-            return current.lookup();
-        }
         if (lookup == null) {
-            lookup = new SearchLookup(getMapperService(), indexFieldDataService, null);
+            lookup = new SearchLookup(getMapperService(), indexFieldDataService, types);
         }
         return lookup;
-    }
-
-    public long nowInMillis() {
-        failIfFrozen();
-        return nowInMillis.getAsLong();
     }
 
     public NestedScope nestedScope() {
@@ -411,4 +402,17 @@ public class QueryShardContext extends QueryRewriteContext {
     public boolean isCachable() {
         return cachable;
     }
+
+    /**
+     * Returns the shard ID this context was created for.
+     */
+    public int getShardId() {
+        return shardId;
+    }
+
+    public long nowInMillis() {
+        failIfFrozen();
+        return super.nowInMillis();
+    }
+
 }

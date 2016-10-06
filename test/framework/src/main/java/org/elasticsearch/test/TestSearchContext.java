@@ -514,11 +514,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchLookup lookup() {
-        return new SearchLookup(mapperService(), fieldData(), null);
-    }
-
-    @Override
     public DfsSearchResult dfsResult() {
         return null;
     }

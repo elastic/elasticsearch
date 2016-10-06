@@ -48,7 +48,7 @@ public class QueryShardContextTests extends ESTestCase {
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         final long nowInMillis = randomPositiveLong();
         QueryShardContext context = new QueryShardContext(
-            indexSettings, null, null, mapperService, null, null, null, null, null, null,
+            0, indexSettings, null, null, mapperService, null, null, null, null, null, null,
             () -> nowInMillis);
 
         context.setAllowUnmappedFields(false);

@@ -233,7 +233,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             failIfNotIndexed();
             Long lo = null;
             if (lowerTerm != null) {
@@ -288,7 +288,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Object valueForSearch(Object value) {
+        public Object valueForDisplay(Object value) {
             if (value == null) {
                 return null;
             }

@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.query.GeohashCellQuery.Builder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.spatial4j.shape.Point;
@@ -64,7 +65,7 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
     }
 
     @Override
-    protected void doAssertLuceneQuery(Builder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(Builder queryBuilder, Query query, SearchContext context) throws IOException {
         if (queryBuilder.neighbors()) {
             assertThat(query, instanceOf(TermsQuery.class));
         } else {

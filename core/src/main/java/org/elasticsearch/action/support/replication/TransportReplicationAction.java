@@ -93,16 +93,16 @@ public abstract class TransportReplicationAction<
             Response extends ReplicationResponse
         > extends TransportAction<Request, Response> {
 
-    protected final TransportService transportService;
+    private final TransportService transportService;
     protected final ClusterService clusterService;
-    protected final IndicesService indicesService;
+    private final IndicesService indicesService;
     private final ShardStateAction shardStateAction;
     private final TransportRequestOptions transportOptions;
     private final String executor;
 
     // package private for testing
-    final String transportReplicaAction;
-    final String transportPrimaryAction;
+    private final String transportReplicaAction;
+    private final String transportPrimaryAction;
     private final ReplicasProxy replicasProxy;
 
     protected TransportReplicationAction(Settings settings, String actionName, TransportService transportService,
@@ -167,14 +167,18 @@ public abstract class TransportReplicationAction<
      * Primary operation on node with primary copy.
      *
      * @param shardRequest the request to the primary shard
+     * @param primary      the primary shard to perform the operation on
      */
-    protected abstract PrimaryResult shardOperationOnPrimary(Request shardRequest) throws Exception;
+    protected abstract PrimaryResult shardOperationOnPrimary(Request shardRequest, IndexShard primary) throws Exception;
 
     /**
      * Synchronous replica operation on nodes with replica copies. This is done under the lock form
-     * {@link #acquireReplicaOperationLock(ShardId, long, String, ActionListener)}.
+     * {@link IndexShard#acquireReplicaOperationLock(long, ActionListener, String)}
+     *
+     * @param shardRequest the request to the replica shard
+     * @param replica      the replica shard to perform the operation on
      */
-    protected abstract ReplicaResult shardOperationOnReplica(ReplicaRequest shardRequest);
+    protected abstract ReplicaResult shardOperationOnReplica(ReplicaRequest shardRequest, IndexShard replica);
 
     /**
      * Cluster level block to check before request execution
@@ -436,6 +440,7 @@ public abstract class TransportReplicationAction<
         // allocation id of the replica this request is meant for
         private final String targetAllocationID;
         private final TransportChannel channel;
+        private final IndexShard replica;
         /**
          * The task on the node with the replica shard.
          */
@@ -449,12 +454,15 @@ public abstract class TransportReplicationAction<
             this.channel = channel;
             this.task = task;
             this.targetAllocationID = targetAllocationID;
+            final ShardId shardId = request.shardId();
+            assert shardId != null : "request shardId must be set";
+            this.replica = getIndexShard(shardId);
         }
 
         @Override
         public void onResponse(Releasable releasable) {
             try {
-                ReplicaResult replicaResult = shardOperationOnReplica(request);
+                ReplicaResult replicaResult = shardOperationOnReplica(request, replica);
                 releasable.close(); // release shard operation lock before responding to caller
                 replicaResult.respond(new ResponseListener());
             } catch (Exception e) {
@@ -521,8 +529,12 @@ public abstract class TransportReplicationAction<
         @Override
         protected void doRun() throws Exception {
             setPhase(task, "replica");
-            assert request.shardId() != null : "request shardId must be set";
-            acquireReplicaOperationLock(request.shardId(), request.primaryTerm(), targetAllocationID, this);
+            final String actualAllocationId = this.replica.routingEntry().allocationId().getId();
+            if (actualAllocationId.equals(targetAllocationID) == false) {
+                throw new ShardNotFoundException(this.replica.shardId(), "expected aID [{}] but found [{}]", targetAllocationID,
+                    actualAllocationId);
+            }
+            replica.acquireReplicaOperationLock(request.primaryTerm, this, executor);
         }
 
         /**
@@ -548,6 +560,11 @@ public abstract class TransportReplicationAction<
                 responseWithFailure(e);
             }
         }
+    }
+
+    private IndexShard getIndexShard(ShardId shardId) {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        return indexService.getShard(shardId.id());
     }
 
     /**
@@ -816,10 +833,9 @@ public abstract class TransportReplicationAction<
      * tries to acquire reference to {@link IndexShard} to perform a primary operation. Released after performing primary operation locally
      * and replication of the operation to all replica shards is completed / failed (see {@link ReplicationOperation}).
      */
-    protected void acquirePrimaryShardReference(ShardId shardId, String allocationId,
-                                                ActionListener<PrimaryShardReference> onReferenceAcquired) {
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.getShard(shardId.id());
+    private void acquirePrimaryShardReference(ShardId shardId, String allocationId,
+                                              ActionListener<PrimaryShardReference> onReferenceAcquired) {
+        IndexShard indexShard = getIndexShard(shardId);
         // we may end up here if the cluster state used to route the primary is so stale that the underlying
         // index shard was replaced with a replica. For example - in a two node cluster, if the primary fails
         // the replica will take over and a replica will be assigned to the first node.
@@ -845,20 +861,6 @@ public abstract class TransportReplicationAction<
         };
 
         indexShard.acquirePrimaryOperationLock(onAcquired, executor);
-    }
-
-    /**
-     * tries to acquire an operation on replicas. The lock is closed as soon as replication is completed on the node.
-     */
-    protected void acquireReplicaOperationLock(ShardId shardId, long primaryTerm, final String allocationId,
-                                               ActionListener<Releasable> onLockAcquired) {
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.getShard(shardId.id());
-        final String actualAllocationId = indexShard.routingEntry().allocationId().getId();
-        if (actualAllocationId.equals(allocationId) == false) {
-            throw new ShardNotFoundException(shardId, "expected aID [{}] but found [{}]", allocationId, actualAllocationId);
-        }
-        indexShard.acquireReplicaOperationLock(primaryTerm, onLockAcquired, executor);
     }
 
     /**
@@ -899,7 +901,7 @@ public abstract class TransportReplicationAction<
 
         @Override
         public PrimaryResult perform(Request request) throws Exception {
-            PrimaryResult result = shardOperationOnPrimary(request);
+            PrimaryResult result = shardOperationOnPrimary(request, indexShard);
             result.replicaRequest().primaryTerm(indexShard.getPrimaryTerm());
             return result;
         }

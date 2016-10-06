@@ -94,11 +94,9 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
         if (docValueFields != null) {
             subSearchContext.docValueFieldsContext(new DocValueFieldsContext(docValueFields));
         }
-        if (scriptFields != null) {
-            for (ScriptFieldsContext.ScriptField field : scriptFields) {
-                subSearchContext.scriptFields().add(field);
+        for (ScriptFieldsContext.ScriptField field : scriptFields) {
+            subSearchContext.scriptFields().add(field);
             }
-        }
         if (fetchSourceContext != null) {
             subSearchContext.fetchSourceContext(fetchSourceContext);
         }

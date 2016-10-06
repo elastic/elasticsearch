@@ -65,7 +65,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 /**
@@ -100,9 +99,9 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean isFilter;
     private final LongSupplier nowInMillis;
 
-    public QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache, IndexFieldDataService indexFieldDataService,
-                             MapperService mapperService, SimilarityService similarityService, ScriptService scriptService,
-                             final IndicesQueriesRegistry indicesQueriesRegistry, Client client,
+    public QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache,
+                             IndexFieldDataService indexFieldDataService, MapperService mapperService, SimilarityService similarityService,
+                             ScriptService scriptService, final IndicesQueriesRegistry indicesQueriesRegistry, Client client,
                              IndexReader reader, ClusterState clusterState, LongSupplier nowInMillis) {
         super(indexSettings, mapperService, scriptService, indicesQueriesRegistry, client, reader, clusterState);
         this.shardId = shardId;

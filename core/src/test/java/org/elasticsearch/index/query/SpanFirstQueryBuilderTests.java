@@ -24,6 +24,7 @@ import org.apache.lucene.search.spans.SpanFirstQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -39,7 +40,7 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanFirstQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanFirstQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, instanceOf(SpanFirstQuery.class));
     }
 

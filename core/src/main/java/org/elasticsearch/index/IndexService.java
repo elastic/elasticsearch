@@ -449,9 +449,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * Creates a new QueryShardContext. The context has not types set yet, if types are required set them via
      * {@link QueryShardContext#setTypes(String...)}
      */
-    public QueryShardContext newQueryShardContext(IndexReader indexReader, LongSupplier nowInMillis) {
+    public QueryShardContext newQueryShardContext(int shardId, IndexReader indexReader, LongSupplier nowInMillis) {
         return new QueryShardContext(
-                indexSettings, indexCache.bitsetFilterCache(), indexFieldData, mapperService(),
+            shardId, indexSettings, indexCache.bitsetFilterCache(), indexFieldData, mapperService(),
                 similarityService(), nodeServicesProvider.getScriptService(), nodeServicesProvider.getIndicesQueriesRegistry(),
                 nodeServicesProvider.getClient(), indexReader,
                 nodeServicesProvider.getClusterService().state(),
@@ -464,7 +464,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * used for rewriting since it does not know about the current {@link IndexReader}.
      */
     public QueryShardContext newQueryShardContext() {
-        return newQueryShardContext(null, threadPool::estimatedTimeInMillis);
+        return newQueryShardContext(0, null, threadPool::estimatedTimeInMillis);
     }
 
     public ThreadPool getThreadPool() {

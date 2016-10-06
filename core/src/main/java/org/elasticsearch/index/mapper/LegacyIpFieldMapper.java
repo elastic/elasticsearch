@@ -171,7 +171,7 @@ public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
          * IPs should return as a string.
          */
         @Override
-        public Object valueForSearch(Object value) {
+        public Object valueForDisplay(Object value) {
             Long val = (Long) value;
             if (val == null) {
                 return null;
@@ -210,14 +210,14 @@ public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
                 }
                 if (fromTo != null) {
                     return rangeQuery(fromTo[0] == 0 ? null : fromTo[0],
-                            fromTo[1] == MAX_IP ? null : fromTo[1], true, false);
+                            fromTo[1] == MAX_IP ? null : fromTo[1], true, false, context);
                 }
             }
             return super.termQuery(value, context);
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             return LegacyNumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
                 lowerTerm == null ? null : parseValue(lowerTerm),
                 upperTerm == null ? null : parseValue(upperTerm),

@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.LegacyIntegerFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.LegacyIntegerFieldMapper.IntegerFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.junit.Before;
@@ -41,11 +39,11 @@ public class LegacyIntegerFieldTypeTests extends FieldTypeTestCase {
         IntegerFieldType ft = new IntegerFieldType();
         // current impl ignores args and shourd always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomInt(), randomInt(),
-                randomBoolean(), randomBoolean(), null, null));
+                randomBoolean(), randomBoolean(), null, null, null));
     }
 
     public void testValueForSearch() {
         MappedFieldType ft = createDefaultFieldType();
-        assertEquals(Integer.valueOf(3), ft.valueForSearch(Integer.valueOf(3)));
+        assertEquals(Integer.valueOf(3), ft.valueForDisplay(Integer.valueOf(3)));
     }
 }

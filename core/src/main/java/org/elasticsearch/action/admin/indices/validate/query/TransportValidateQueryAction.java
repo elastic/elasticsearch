@@ -152,7 +152,6 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         ShardSearchLocalRequest shardSearchLocalRequest = new ShardSearchLocalRequest(request.shardId(), request.types(),
             request.nowInMillis(), request.filteringAliases());
         SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT, null);
-        SearchContext.setCurrent(searchContext);
         try {
             ParsedQuery parsedQuery = searchContext.getQueryShardContext().toQuery(request.query());
             searchContext.parsedQuery(parsedQuery);
@@ -166,7 +165,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
             valid = false;
             error = e.getMessage();
         } finally {
-            Releasables.close(searchContext, () -> SearchContext.removeCurrent());
+            Releasables.close(searchContext);
         }
 
         return new ShardValidateQueryResponse(request.shardId(), valid, explanation, error);

@@ -494,7 +494,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (context == null) {
             throw new SearchContextMissingException(id);
         }
-        SearchContext.setCurrent(context);
         return context;
     }
 
@@ -519,15 +518,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     final SearchContext createContext(ShardSearchRequest request, @Nullable Engine.Searcher searcher) throws IOException {
         final DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, searcher);
         try {
-            // we clone the search context here just for rewriting otherwise we
+            // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
             // during rewrite and normalized / evaluate templates etc.
-            // NOTE this context doesn't need to be closed - the outer context will
-            // take care of this.
-            DefaultSearchContext rewriteContext = new DefaultSearchContext(context);
-            SearchContext.setCurrent(rewriteContext);
-            request.rewrite(rewriteContext.getQueryShardContext());
-            SearchContext.setCurrent(context);
+            request.rewrite(new QueryShardContext(context.getQueryShardContext()));
             assert context.getQueryShardContext().isCachable();
             if (request.scroll() != null) {
                 context.scrollContext(new ScrollContext());
@@ -620,9 +614,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void cleanContext(SearchContext context) {
         try {
-            assert context == SearchContext.current();
             context.clearReleasables(Lifetime.PHASE);
-            SearchContext.removeCurrent();
         } finally {
             context.decRef();
         }

@@ -80,21 +80,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 // For reference why we use RefCounted here see #20095
 public abstract class SearchContext extends AbstractRefCounted implements Releasable {
 
-    private static ThreadLocal<SearchContext> current = new ThreadLocal<>();
     public static final int DEFAULT_TERMINATE_AFTER = 0;
-
-    public static void setCurrent(SearchContext value) {
-        current.set(value);
-    }
-
-    public static void removeCurrent() {
-        current.remove();
-    }
-
-    public static SearchContext current() {
-        return current.get();
-    }
-
     private Map<Lifetime, List<Releasable>> clearables = null;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
@@ -315,7 +301,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract void keepAlive(long keepAlive);
 
-    public abstract SearchLookup lookup();
+    public SearchLookup lookup() {
+        return getQueryShardContext().lookup();
+    }
 
     public abstract DfsSearchResult dfsResult();
 

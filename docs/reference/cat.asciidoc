@@ -25,46 +25,67 @@ the available commands.
 === Verbose
 
 Each of the commands accepts a query string parameter `v` to turn on
-verbose output.
+verbose output. For example:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-% curl 'localhost:9200/_cat/master?v'
-id                     ip        node
-EGtKWZlWQYWDmX29fUnp3Q 127.0.0.1 Grey, Sara
+GET /_cat/master?v
 --------------------------------------------------
+// CONSOLE
+
+Might respond with:
+
+[source,js]
+--------------------------------------------------
+id                     host      ip        node
+u_n93zwxThWHi1PDBJAGAg 127.0.0.1 127.0.0.1 u_n93zw
+--------------------------------------------------
+// TESTRESPONSE[s/u_n93zw(xThWHi1PDBJAGAg)?/.+/ _cat]
 
 [float]
 [[help]]
 === Help
 
 Each of the commands accepts a query string parameter `help` which will
-output its available columns.
+output its available columns. For example:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-% curl 'localhost:9200/_cat/master?help'
-id   | node id
-ip   | node transport ip address
-node | node name
+GET /_cat/master?help
 --------------------------------------------------
+// CONSOLE
+
+Might respond respond with:
+
+[source,js]
+--------------------------------------------------
+id   |   | node id
+host | h | host name
+ip   |   | ip address
+node | n | node name
+--------------------------------------------------
+// TESTRESPONSE[s/[|]/[|]/ _cat]
 
 [float]
 [[headers]]
 === Headers
 
 Each of the commands accepts a query string parameter `h` which forces
-only those columns to appear.
+only those columns to appear. For example:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-% curl 'n1:9200/_cat/nodes?h=ip,port,heapPercent,name'
-192.168.56.40 9300 40.3 bGG90GE
-192.168.56.20 9300 15.3 H5dfFeA
-192.168.56.50 9300 17.0 I8hydUG
-192.168.56.10 9300 12.3 DKDM97B
-192.168.56.30 9300 43.9 6-bjhwl
+GET /_cat/nodes?h=ip,port,heapPercent,name
 --------------------------------------------------
+// CONSOLE
+
+Responds with:
+
+[source,js]
+--------------------------------------------------
+127.0.0.1 9300 27 sLBaIGK
+--------------------------------------------------
+// TESTRESPONSE[s/9300 27 sLBaIGK/\\d+ \\d+ .+/ _cat]
 
 You can also request multiple columns using simple wildcards like
 `/_cat/thread_pool?h=ip,bulk.*` to get all headers (or aliases) starting
@@ -94,6 +115,7 @@ green wiki2 3 0 10000   0 105274918 105274918
 green wiki1 3 0 10000 413 103776272 103776272
 green foo   1 0   227   0   2065131   2065131
 --------------------------------------------------
+// NOTCONSOLE
 
 If you want to change the <<time-units,time units>>, use `time` parameter.
 
@@ -106,7 +128,7 @@ If you want to change the <<byte-units,byte units>>, use `bytes` parameter.
 
 [source,sh]
 --------------------------------------------------
-% curl '192.168.56.10:9200/_cat/indices?format=json' | jq .
+% curl 'localhost:9200/_cat/indices?format=json&pretty'
 [
   {
     "pri.store.size": "650b",
@@ -121,6 +143,7 @@ If you want to change the <<byte-units,byte units>>, use `bytes` parameter.
   }
 ]
 --------------------------------------------------
+// NOTCONSOLE
 
 Currently supported formats (for the `?format=` parameter):
 - text (default)
@@ -135,7 +158,7 @@ For example:
 
 [source,sh]
 --------------------------------------------------
-% curl '192.168.56.10:9200/_cat/indices' -H "Accept: application/json" | jq .
+% curl '192.168.56.10:9200/_cat/indices?pretty' -H "Accept: application/json"
 [
   {
     "pri.store.size": "650b",
@@ -150,6 +173,7 @@ For example:
   }
 ]
 --------------------------------------------------
+// NOTCONSOLE
 
 --
 

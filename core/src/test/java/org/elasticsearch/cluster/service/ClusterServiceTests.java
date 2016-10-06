@@ -303,18 +303,18 @@ public class ClusterServiceTests extends ESTestCase {
     }
 
     public void testOneExecutorDontStarveAnother() throws InterruptedException {
-        final List<Integer> executionOrder = Collections.synchronizedList(new ArrayList<>());
+        final List<String> executionOrder = Collections.synchronizedList(new ArrayList<>());
         final Semaphore allowProcessing = new Semaphore(0);
         final Semaphore startedProcessing = new Semaphore(0);
 
-        class TaskExecutor implements ClusterStateTaskExecutor<Integer> {
+        class TaskExecutor implements ClusterStateTaskExecutor<String> {
 
             @Override
-            public BatchResult<Integer> execute(ClusterState currentState, List<Integer> tasks) throws Exception {
+            public BatchResult<String> execute(ClusterState currentState, List<String> tasks) throws Exception {
                 executionOrder.addAll(tasks); // do this first, so startedProcessing can be used as a notification that this is done.
                 startedProcessing.release(tasks.size());
                 allowProcessing.acquire(tasks.size());
-                return BatchResult.<Integer>builder().successes(tasks).build(ClusterState.builder(currentState).build());
+                return BatchResult.<String>builder().successes(tasks).build(ClusterState.builder(currentState).build());
             }
 
             @Override
@@ -323,31 +323,34 @@ public class ClusterServiceTests extends ESTestCase {
             }
         }
 
-        TaskExecutor executor1 = new TaskExecutor();
-        TaskExecutor executor2 = new TaskExecutor();
+        TaskExecutor executorA = new TaskExecutor();
+        TaskExecutor executorB = new TaskExecutor();
 
         final ClusterStateTaskConfig config = ClusterStateTaskConfig.build(Priority.NORMAL);
         final ClusterStateTaskListener noopListener = (source, e) -> { throw new AssertionError(source, e); };
         // this blocks the cluster state queue, so we can set it up right
-        clusterService.submitStateUpdateTask("0", 0, config, executor1, noopListener);
+        clusterService.submitStateUpdateTask("0", "A0", config, executorA, noopListener);
         // wait to be processed
         startedProcessing.acquire(1);
+        assertThat(executionOrder, equalTo(Arrays.asList("A0")));
+
 
         // these will be the first batch
-        clusterService.submitStateUpdateTask("1", 1, config, executor1, noopListener);
-        clusterService.submitStateUpdateTask("2", 2, config, executor1, noopListener);
+        clusterService.submitStateUpdateTask("1", "A1", config, executorA, noopListener);
+        clusterService.submitStateUpdateTask("2", "A2", config, executorA, noopListener);
 
         // release the first 0 task, but not the second
         allowProcessing.release(1);
         startedProcessing.acquire(2);
+        assertThat(executionOrder, equalTo(Arrays.asList("A0", "A1", "A2")));
 
         // setup the queue with pending tasks for another executor same priority
-        clusterService.submitStateUpdateTask("3", 3, config, executor2, noopListener);
-        clusterService.submitStateUpdateTask("4", 4, config, executor2, noopListener);
+        clusterService.submitStateUpdateTask("3", "B3", config, executorB, noopListener);
+        clusterService.submitStateUpdateTask("4", "B4", config, executorB, noopListener);
 
 
-        clusterService.submitStateUpdateTask("5", 5, config, executor1, noopListener);
-        clusterService.submitStateUpdateTask("6", 6, config, executor1, noopListener);
+        clusterService.submitStateUpdateTask("5", "A5", config, executorA, noopListener);
+        clusterService.submitStateUpdateTask("6", "A6", config, executorA, noopListener);
 
         // now release the processing
         allowProcessing.release(6);
@@ -355,7 +358,7 @@ public class ClusterServiceTests extends ESTestCase {
         // wait for last task to be processed
         startedProcessing.acquire(4);
 
-        assertThat(executionOrder, equalTo(Arrays.asList(0, 1, 2, 3, 4, 5, 6)));
+        assertThat(executionOrder, equalTo(Arrays.asList("A0", "A1", "A2", "B3", "B4", "A5", "A6")));
 
     }
 

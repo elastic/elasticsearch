@@ -60,7 +60,9 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
+import static org.elasticsearch.action.support.master.TransportMasterNodeAction.FORCE_LOCAL_SETTING;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
@@ -126,16 +128,27 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         }
     }
 
-    class Response extends ActionResponse {}
+    public static class ReadRequest extends MasterNodeReadRequest<ReadRequest> {
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
+        }
+    }
 
-    class Action extends TransportMasterNodeAction<Request, Response> {
-        Action(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
+    public static class Response extends ActionResponse {}
+
+    static class AbstractAction<Req extends MasterNodeRequest<Req>, Res extends ActionResponse> extends TransportMasterNodeAction<Req, Res> {
+        private final Supplier<Res> responseSupplier;
+
+        AbstractAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService,
+                       ThreadPool threadPool, Supplier<Req> requestSupplier, Supplier<Res> responseSupplier) {
             super(settings, actionName, transportService, clusterService, threadPool,
-                    new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY), Request::new);
+                    new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY), requestSupplier);
+            this.responseSupplier = responseSupplier;
         }
 
         @Override
-        protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
+        protected void doExecute(Task task, final Req request, ActionListener<Res> listener) {
             // remove unneeded threading by wrapping listener with SAME to prevent super.doExecute from wrapping it with LISTENER
             super.doExecute(task, request, new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SAME, listener, false));
         }
@@ -147,18 +160,32 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         }
 
         @Override
-        protected Response newResponse() {
-            return new Response();
+        protected Res newResponse() {
+            return responseSupplier.get();
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            listener.onResponse(new Response()); // default implementation, overridden in specific tests
+        protected void masterOperation(Req request, ClusterState state, ActionListener<Res> listener) throws Exception {
+            listener.onResponse(responseSupplier.get()); // default implementation, overridden in specific tests
         }
 
         @Override
-        protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+        protected ClusterBlockException checkBlock(Req request, ClusterState state) {
             return null; // default implementation, overridden in specific tests
+        }
+    }
+
+    static class Action extends AbstractAction<Request, Response> {
+        Action(Settings settings, String actionName, TransportService transportService, ClusterService clusterService,
+               ThreadPool threadPool) {
+            super(settings, actionName, transportService, clusterService, threadPool, Request::new, Response::new);
+        }
+    }
+
+    static class ReadAction extends AbstractAction<ReadRequest, Response> {
+        ReadAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService,
+               ThreadPool threadPool) {
+            super(settings, actionName, transportService, clusterService, threadPool, ReadRequest::new, Response::new);
         }
     }
 
@@ -247,13 +274,18 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         setState(clusterService, ClusterStateCreationUtils.state(localNode, randomFrom(localNode, remoteNode, null), allNodes));
 
-        new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool) {
-            @Override
-            protected boolean localExecute(Request request) {
-                return true;
-            }
-        }.execute(request, listener);
+        Settings forceLocalSettings = Settings.builder().put(FORCE_LOCAL_SETTING.getKey(), true).build();
+        new Action(forceLocalSettings, "testAction", transportService, clusterService, threadPool)
+            .execute(request, listener);
+        assertTrue(listener.isDone());
+        listener.get();
 
+        ReadRequest readRequest = new ReadRequest();
+        readRequest.local(true);
+        listener = new PlainActionFuture<>();
+
+        new ReadAction(Settings.EMPTY, "testReadAction", transportService, clusterService, threadPool)
+            .execute(readRequest, listener);
         assertTrue(listener.isDone());
         listener.get();
     }

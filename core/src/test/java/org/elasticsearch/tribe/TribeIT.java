@@ -37,7 +37,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -394,8 +393,8 @@ public class TribeIT extends ESIntegTestCase {
             });
 
             // Make sure master level write operations fail... (we don't really have a master)
-            expectThrows(MasterNotDiscoveredException.class, () -> {
-                client().admin().indices().prepareCreate("tribe_index").setMasterNodeTimeout("10ms").get();
+            expectThrows(ClusterBlockException.class, () -> {
+                client().admin().indices().prepareCreate("tribe_index").get();
             });
 
             // Now delete an index and makes sure it's reflected in cluster state

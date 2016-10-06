@@ -69,12 +69,12 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
 
     @Override
     protected ClusterBlockLevel globalBlockLevel() {
-        return ClusterBlockLevel.METADATA_WRITE;
+        return null;
     }
 
     @Override
     protected ClusterBlockLevel indexBlockLevel() {
-        return ClusterBlockLevel.METADATA_WRITE;
+        return null;
     }
 
     @Override

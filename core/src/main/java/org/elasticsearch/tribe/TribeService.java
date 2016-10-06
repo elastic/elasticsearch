@@ -23,7 +23,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -99,6 +99,8 @@ public class TribeService extends AbstractLifecycleComponent {
             RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE));
     public static final ClusterBlock TRIBE_WRITE_BLOCK = new ClusterBlock(11, "tribe node, write not allowed", false, false,
             RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.WRITE));
+    public static final ClusterBlock TRIBE_METADATA_WRITE_BLOCK = new ClusterBlock(12, "tribe node, metadata writes not allowed", false,
+        false, RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.METADATA_WRITE));
 
     public static Settings processSettings(Settings settings) {
         if (TRIBE_NAME_SETTING.exists(settings)) {
@@ -130,7 +132,7 @@ public class TribeService extends AbstractLifecycleComponent {
         if (sb.get("cluster.name") == null) {
             sb.put("cluster.name", "tribe_" + UUIDs.randomBase64UUID()); // make sure it won't join other tribe nodes in the same JVM
         }
-        sb.put(TransportMasterNodeReadAction.FORCE_LOCAL_SETTING.getKey(), true);
+        sb.put(TransportMasterNodeAction.FORCE_LOCAL_SETTING.getKey(), true);
         return sb.build();
     }
 
@@ -206,6 +208,8 @@ public class TribeService extends AbstractLifecycleComponent {
             }
             if (BLOCKS_METADATA_SETTING.get(settings)) {
                 clusterService.addInitialStateBlock(TRIBE_METADATA_BLOCK);
+            } else {
+                clusterService.addInitialStateBlock(TRIBE_METADATA_WRITE_BLOCK);
             }
         }
 

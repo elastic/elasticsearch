@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -44,7 +44,7 @@ import java.util.Set;
 
 /**
  */
-public class TransportClusterSearchShardsAction extends TransportMasterNodeReadAction<ClusterSearchShardsRequest, ClusterSearchShardsResponse> {
+public class TransportClusterSearchShardsAction extends TransportMasterNodeAction<ClusterSearchShardsRequest, ClusterSearchShardsResponse> {
 
     @Inject
     public TransportClusterSearchShardsAction(Settings settings, TransportService transportService, ClusterService clusterService,

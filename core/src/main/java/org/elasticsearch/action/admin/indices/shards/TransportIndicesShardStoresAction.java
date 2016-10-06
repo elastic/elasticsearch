@@ -23,7 +23,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -63,7 +63,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * Transport action that reads the cluster state for shards with the requested criteria (see {@link ClusterHealthStatus}) of specific indices
  * and fetches store information from all the nodes using {@link TransportNodesListGatewayStartedShards}
  */
-public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAction<IndicesShardStoresRequest, IndicesShardStoresResponse> {
+public class TransportIndicesShardStoresAction extends TransportMasterNodeAction<IndicesShardStoresRequest, IndicesShardStoresResponse> {
 
     private final TransportNodesListGatewayStartedShards listShardStoresInfo;
 

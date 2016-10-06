@@ -34,7 +34,7 @@ The `preference` is a query string parameter which can be set to:
 `_shards:2,3`:: 
 	Restricts the operation to the specified shards. (`2`
 	and `3` in this case). This preference can be combined with other
-	preferences but it has to appear first: `_shards:2,3;_primary`
+	preferences but it has to appear first: `_shards:2,3|_primary`
 
 `_only_nodes`::
     Restricts the operation to nodes specified in node specification

@@ -329,7 +329,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "        }\n" +
                 "    }\n" +
                 "}";
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext()).rewrite(null);
+        QueryShardContext context = createShardContext();
+        Query parsedQuery = parseQuery(query).toQuery(context).rewrite(null);
         if (parsedQuery instanceof PointRangeQuery) {
             // TODO what can we assert
         } else {
@@ -337,13 +338,13 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
             // Min value was 2012-01-01 (UTC) so we need to remove one hour
             DateTime min = DateTime.parse("2012-01-01T00:00:00.000+01:00");
-            // Max value is when we started the test. So it should be some ms from now
-            DateTime max = new DateTime(startDate, DateTimeZone.UTC);
+            // Max value is the nowInMillis set by the uery shard context
+            long max = context.nowInMillis();
 
             assertThat(((LegacyNumericRangeQuery) parsedQuery).getMin().longValue(), is(min.getMillis()));
 
             // We should not have a big difference here (should be some ms)
-            assertThat(((LegacyNumericRangeQuery) parsedQuery).getMax().longValue() - max.getMillis(), lessThanOrEqualTo(60000L));
+            assertThat(((LegacyNumericRangeQuery) parsedQuery).getMax().longValue() - max, lessThanOrEqualTo(60000L));
         }
 
         query = "{\n" +

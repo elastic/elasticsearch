@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLParameters;
 import java.util.Locale;
 
 /**
@@ -18,10 +18,10 @@ public enum SSLClientAuth {
             return false;
         }
 
-        public void configure(SSLEngine engine) {
+        public void configure(SSLParameters sslParameters) {
             // nothing to do here
-            assert !engine.getWantClientAuth();
-            assert !engine.getNeedClientAuth();
+            assert !sslParameters.getWantClientAuth();
+            assert !sslParameters.getNeedClientAuth();
         }
     },
     OPTIONAL() {
@@ -29,8 +29,8 @@ public enum SSLClientAuth {
             return true;
         }
 
-        public void configure(SSLEngine engine) {
-            engine.setWantClientAuth(true);
+        public void configure(SSLParameters sslParameters) {
+            sslParameters.setWantClientAuth(true);
         }
     },
     REQUIRED() {
@@ -38,8 +38,8 @@ public enum SSLClientAuth {
             return true;
         }
 
-        public void configure(SSLEngine engine) {
-            engine.setNeedClientAuth(true);
+        public void configure(SSLParameters sslParameters) {
+            sslParameters.setNeedClientAuth(true);
         }
     };
 
@@ -49,9 +49,9 @@ public enum SSLClientAuth {
     public abstract boolean enabled();
 
     /**
-     * Configure client authentication of the provided {@link SSLEngine}
+     * Configure client authentication of the provided {@link SSLParameters}
      */
-    public abstract void configure(SSLEngine engine);
+    public abstract void configure(SSLParameters sslParameters);
 
     public static SSLClientAuth parse(String value) {
         assert value != null;

@@ -283,6 +283,17 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(e.getMessage(), is("none of the ciphers [foo, bar] are supported by this JVM"));
     }
 
+    public void testThatSSLEngineHasCipherSuitesOrderSet() throws Exception {
+        Settings settings = Settings.builder()
+                .put("xpack.ssl.keystore.path", testnodeStore)
+                .put("xpack.ssl.keystore.password", "testnode")
+                .build();
+        SSLService sslService = new SSLService(settings, env);
+        SSLEngine engine = sslService.createSSLEngine(Settings.EMPTY, Settings.EMPTY);
+        assertThat(engine, is(notNullValue()));
+        assertTrue(engine.getSSLParameters().getUseCipherSuitesOrder());
+    }
+
     public void testThatSSLSocketFactoryHasProperCiphersAndProtocols() throws Exception {
         Settings settings = Settings.builder()
                 .put("xpack.ssl.keystore.path", testnodeStore)
@@ -294,11 +305,32 @@ public class SSLServiceTests extends ESTestCase {
         final String[] ciphers = sslService.supportedCiphers(factory.getSupportedCipherSuites(), config.cipherSuites(), false);
         assertThat(factory.getDefaultCipherSuites(), is(ciphers));
 
+        final String[] supportedProtocols = config.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
         try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
             assertThat(socket.getEnabledCipherSuites(), is(ciphers));
             // the order we set the protocols in is not going to be what is returned as internally the JDK may sort the versions
-            assertThat(socket.getEnabledProtocols(), arrayContainingInAnyOrder(config.supportedProtocols().toArray(Strings.EMPTY_ARRAY)));
+            assertThat(socket.getEnabledProtocols(), arrayContainingInAnyOrder(supportedProtocols));
+            assertArrayEquals(ciphers, socket.getSSLParameters().getCipherSuites());
+            assertThat(socket.getSSLParameters().getProtocols(), arrayContainingInAnyOrder(supportedProtocols));
+            assertTrue(socket.getSSLParameters().getUseCipherSuitesOrder());
         }
+    }
+
+    public void testThatSSLEngineHasProperCiphersAndProtocols() throws Exception {
+        Settings settings = Settings.builder()
+                .put("xpack.ssl.keystore.path", testnodeStore)
+                .put("xpack.ssl.keystore.password", "testnode")
+                .build();
+        SSLService sslService = new SSLService(settings, env);
+        SSLEngine engine = sslService.createSSLEngine(Settings.EMPTY, Settings.EMPTY);
+        SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
+        final String[] ciphers = sslService.supportedCiphers(engine.getSupportedCipherSuites(), config.cipherSuites(), false);
+        final String[] supportedProtocols = config.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
+        assertThat(engine.getEnabledCipherSuites(), is(ciphers));
+        assertArrayEquals(ciphers, engine.getSSLParameters().getCipherSuites());
+        // the order we set the protocols in is not going to be what is returned as internally the JDK may sort the versions
+        assertThat(engine.getEnabledProtocols(), arrayContainingInAnyOrder(supportedProtocols));
+        assertThat(engine.getSSLParameters().getProtocols(), arrayContainingInAnyOrder(supportedProtocols));
     }
 
     public void testSSLStrategy() {

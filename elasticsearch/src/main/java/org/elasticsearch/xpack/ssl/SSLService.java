@@ -193,32 +193,22 @@ public class SSLService extends AbstractComponent {
         SSLContext sslContext = sslContext(configuration);
         SSLEngine sslEngine = sslContext.createSSLEngine(host, port);
         String[] ciphers = supportedCiphers(sslEngine.getSupportedCipherSuites(), configuration.cipherSuites(), false);
-        try {
-            sslEngine.setEnabledCipherSuites(ciphers);
-        } catch (ElasticsearchException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IllegalArgumentException("failed loading cipher suites " + Arrays.toString(ciphers), e);
-        }
-
         String[] supportedProtocols = configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
-        try {
-            sslEngine.setEnabledProtocols(supportedProtocols);
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("failed setting supported protocols " + Arrays.toString(supportedProtocols), e);
-        }
-
+        SSLParameters parameters = new SSLParameters(ciphers, supportedProtocols);
         if (configuration.verificationMode().isHostnameVerificationEnabled() && host != null) {
             // By default, a SSLEngine will not perform hostname verification. In order to perform hostname verification
             // we need to specify a EndpointIdentificationAlgorithm. We use the HTTPS algorithm to prevent against
             // man in the middle attacks for all of our connections.
-            SSLParameters parameters = new SSLParameters();
             parameters.setEndpointIdentificationAlgorithm("HTTPS");
-            sslEngine.setSSLParameters(parameters);
         }
+        // we use the cipher suite order so that we can prefer the ciphers we set first in the list
+        parameters.setUseCipherSuitesOrder(true);
+        configuration.sslClientAuth().configure(parameters);
 
-        // TODO configure using SSLParameters
-        configuration.sslClientAuth().configure(sslEngine);
+        // many SSLEngine options can be configured using either SSLParameters or direct methods on the engine itself, but there is one
+        // tricky aspect; if you set a value directly on the engine and then later set the SSLParameters the value set directly on the
+        // engine will be overwritten by the value in the SSLParameters
+        sslEngine.setSSLParameters(parameters);
         return sslEngine;
     }
 
@@ -493,8 +483,10 @@ public class SSLService extends AbstractComponent {
         }
 
         private void configureSSLSocket(SSLSocket socket) {
-            socket.setEnabledProtocols(supportedProtocols);
-            socket.setEnabledCipherSuites(ciphers);
+            SSLParameters parameters = new SSLParameters(ciphers, supportedProtocols);
+            // we use the cipher suite order so that we can prefer the ciphers we set first in the list
+            parameters.setUseCipherSuitesOrder(true);
+            socket.setSSLParameters(parameters);
         }
     }
 

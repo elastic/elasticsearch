@@ -54,8 +54,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Callable;
-
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
 /** A {@link FieldMapper} for ip addresses. */
@@ -361,15 +359,7 @@ public class DateFieldMapper extends FieldMapper {
             } else {
                 strValue = value.toString();
             }
-            return dateParser.parse(strValue, now(context), roundUp, zone);
-        }
-
-        private static Callable<Long> now(QueryRewriteContext context) {
-            return () -> {
-                return context != null
-                        ? context.nowInMillis()
-                        : System.currentTimeMillis();
-            };
+            return dateParser.parse(strValue, context::nowInMillis, roundUp, zone);
         }
 
         @Override

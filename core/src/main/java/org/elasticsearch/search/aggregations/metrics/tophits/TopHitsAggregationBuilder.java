@@ -530,20 +530,17 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     @Override
     protected TopHitsAggregatorFactory doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subfactoriesBuilder)
             throws IOException {
-        List<ScriptFieldsContext.ScriptField> scriptFields = null;
-        if (this.scriptFields != null) {
-            scriptFields = new ArrayList<>();
-            for (ScriptField field : this.scriptFields) {
-                SearchScript searchScript = context.searchContext().scriptService().search(
-                        context.searchContext().lookup(), field.script(), ScriptContext.Standard.SEARCH, Collections.emptyMap());
-                scriptFields.add(new ScriptFieldsContext.ScriptField(
-                        field.fieldName(), searchScript, field.ignoreFailure()));
+        List<ScriptFieldsContext.ScriptField> fields = new ArrayList<>();
+        if (scriptFields != null) {
+            for (ScriptField field : scriptFields) {
+                SearchScript searchScript = context.searchContext().getQueryShardContext().getSearchScript(field.script(),
+                    ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                fields.add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
+                    field.fieldName(), searchScript, field.ignoreFailure()));
             }
-        } else {
-            scriptFields = Collections.emptyList();
         }
         return new TopHitsAggregatorFactory(name, type, from, size, explain, version, trackScores, sorts, highlightBuilder,
-            storedFieldsContext, fieldDataFields, scriptFields, fetchSourceContext, context,
+            storedFieldsContext, fieldDataFields, fields, fetchSourceContext, context,
             parent, subfactoriesBuilder, metaData);
     }
 

@@ -366,7 +366,7 @@ public class DateFieldMapper extends FieldMapper {
             return () -> {
                 final SearchContext context = SearchContext.current();
                 return context != null
-                        ? context.nowInMillis()
+                        ? context.getQueryShardContext().nowInMillis()
                         : System.currentTimeMillis();
             };
         }

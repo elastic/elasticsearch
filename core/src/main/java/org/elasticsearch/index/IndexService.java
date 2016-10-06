@@ -89,6 +89,7 @@ import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongSupplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -448,13 +449,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * Creates a new QueryShardContext. The context has not types set yet, if types are required set them via
      * {@link QueryShardContext#setTypes(String...)}
      */
-    public QueryShardContext newQueryShardContext(IndexReader indexReader) {
+    public QueryShardContext newQueryShardContext(IndexReader indexReader, LongSupplier nowInMillis) {
         return new QueryShardContext(
                 indexSettings, indexCache.bitsetFilterCache(), indexFieldData, mapperService(),
                 similarityService(), nodeServicesProvider.getScriptService(), nodeServicesProvider.getIndicesQueriesRegistry(),
                 nodeServicesProvider.getClient(), indexReader,
-                nodeServicesProvider.getClusterService().state()
-        );
+                nodeServicesProvider.getClusterService().state(),
+            nowInMillis);
     }
 
     /**
@@ -463,7 +464,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * used for rewriting since it does not know about the current {@link IndexReader}.
      */
     public QueryShardContext newQueryShardContext() {
-        return newQueryShardContext(null);
+        return newQueryShardContext(null, threadPool::estimatedTimeInMillis);
     }
 
     public ThreadPool getThreadPool() {

@@ -283,7 +283,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         BigArrays bigArrays = indexService.getBigArrays();
         ThreadPool threadPool = indexService.getThreadPool();
         ScriptService scriptService = node().injector().getInstance(ScriptService.class);
-        return new TestSearchContext(threadPool, bigArrays, scriptService, indexService);
+        return new TestSearchContext(threadPool, bigArrays, indexService);
     }
 
     /**

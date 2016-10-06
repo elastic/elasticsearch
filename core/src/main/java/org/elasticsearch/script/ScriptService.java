@@ -249,7 +249,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         long timePassed = now - lastInlineCompileTime;
         lastInlineCompileTime = now;
 
-        scriptsPerMinCounter += ((double) timePassed) * compilesAllowedPerNano;
+        scriptsPerMinCounter += (timePassed) * compilesAllowedPerNano;
 
         // It's been over the time limit anyway, readjust the bucket to be level
         if (scriptsPerMinCounter > totalCompilesPerMinute) {
@@ -488,7 +488,15 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
      */
     public SearchScript search(SearchLookup lookup, Script script, ScriptContext scriptContext, Map<String, String> params) {
         CompiledScript compiledScript = compile(script, scriptContext, params);
-        return getScriptEngineServiceForLang(compiledScript.lang()).search(compiledScript, lookup, script.getParams());
+        return search(lookup, compiledScript, script.getParams());
+    }
+
+    /**
+     * Binds provided parameters to a compiled script returning a
+     * {@link SearchScript} ready for execution
+     */
+    public SearchScript search(SearchLookup lookup, CompiledScript compiledScript,  Map<String, Object> params) {
+        return getScriptEngineServiceForLang(compiledScript.lang()).search(compiledScript, lookup, params);
     }
 
     private boolean isAnyScriptContextEnabled(String lang, ScriptType scriptType) {

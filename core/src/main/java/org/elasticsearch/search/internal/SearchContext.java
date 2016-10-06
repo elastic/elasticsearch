@@ -43,7 +43,6 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -119,8 +118,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
         }
     }
 
-    private boolean nowInMillisUsed;
-
     @Override
     protected final void closeInternal() {
         try {
@@ -162,21 +159,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract SearchContext queryBoost(float queryBoost);
 
     public abstract long getOriginNanoTime();
-
-    public final long nowInMillis() {
-        nowInMillisUsed = true;
-        return nowInMillisImpl();
-    }
-
-    public final boolean nowInMillisUsed() {
-        return nowInMillisUsed;
-    }
-
-    public final void resetNowInMillisUsed() {
-        this.nowInMillisUsed = false;
-    }
-
-    protected abstract long nowInMillisImpl();
 
     public abstract ScrollContext scrollContext();
 
@@ -240,8 +222,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract AnalysisService analysisService();
 
     public abstract SimilarityService similarityService();
-
-    public abstract ScriptService scriptService();
 
     public abstract BigArrays bigArrays();
 

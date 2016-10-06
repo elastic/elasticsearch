@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -54,6 +53,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -299,6 +300,63 @@ public class ClusterServiceTests extends ESTestCase {
 
         latch.await();
         assertTrue(published.get());
+    }
+
+    public void testOneExecutorDontStarveAnother() throws InterruptedException {
+        final List<Integer> executionOrder = Collections.synchronizedList(new ArrayList<>());
+        final Semaphore allowProcessing = new Semaphore(0);
+        final Semaphore startedProcessing = new Semaphore(0);
+
+        class TaskExecutor implements ClusterStateTaskExecutor<Integer> {
+
+            @Override
+            public BatchResult<Integer> execute(ClusterState currentState, List<Integer> tasks) throws Exception {
+                executionOrder.addAll(tasks); // do this first, so startedProcessing can be used as a notification that this is done.
+                startedProcessing.release(tasks.size());
+                allowProcessing.acquire(tasks.size());
+                return BatchResult.<Integer>builder().successes(tasks).build(ClusterState.builder(currentState).build());
+            }
+
+            @Override
+            public boolean runOnlyOnMaster() {
+                return false;
+            }
+        }
+
+        TaskExecutor executor1 = new TaskExecutor();
+        TaskExecutor executor2 = new TaskExecutor();
+
+        final ClusterStateTaskConfig config = ClusterStateTaskConfig.build(Priority.NORMAL);
+        final ClusterStateTaskListener noopListener = (source, e) -> { throw new AssertionError(source, e); };
+        // this blocks the cluster state queue, so we can set it up right
+        clusterService.submitStateUpdateTask("0", 0, config, executor1, noopListener);
+        // wait to be processed
+        startedProcessing.acquire(1);
+
+        // these will be the first batch
+        clusterService.submitStateUpdateTask("1", 1, config, executor1, noopListener);
+        clusterService.submitStateUpdateTask("2", 2, config, executor1, noopListener);
+
+        // release the first 0 task, but not the second
+        allowProcessing.release(1);
+        startedProcessing.acquire(2);
+
+        // setup the queue with pending tasks for another executor same priority
+        clusterService.submitStateUpdateTask("3", 3, config, executor2, noopListener);
+        clusterService.submitStateUpdateTask("4", 4, config, executor2, noopListener);
+
+
+        clusterService.submitStateUpdateTask("5", 5, config, executor1, noopListener);
+        clusterService.submitStateUpdateTask("6", 6, config, executor1, noopListener);
+
+        // now release the processing
+        allowProcessing.release(6);
+
+        // wait for last task to be processed
+        startedProcessing.acquire(4);
+
+        assertThat(executionOrder, equalTo(Arrays.asList(0, 1, 2, 3, 4, 5, 6)));
+
     }
 
     // test that for a single thread, tasks are executed in the order

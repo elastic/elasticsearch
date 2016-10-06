@@ -891,7 +891,11 @@ public class ClusterService extends AbstractLifecycleComponent {
 
         @Override
         public void run() {
-            runTasksForExecutor(executor);
+            // if this task is already processed, it shouldn't trigger another executing of pending
+            // tasks for the same executor, to be fair to other executors
+            if (processed.get() == false) {
+                runTasksForExecutor(executor);
+            }
         }
 
         public String toString(ClusterStateTaskExecutor<T> executor) {

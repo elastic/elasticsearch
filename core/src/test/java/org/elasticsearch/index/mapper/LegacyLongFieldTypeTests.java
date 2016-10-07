@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.LegacyLongFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.LegacyLongFieldMapper.LongFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.junit.Before;
@@ -41,11 +39,11 @@ public class LegacyLongFieldTypeTests extends FieldTypeTestCase {
         LongFieldType ft = new LongFieldType();
         // current impl ignores args and shourd always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomLong(), randomLong(),
-                randomBoolean(), randomBoolean(), null, null));
+                randomBoolean(), randomBoolean(), null, null, null));
     }
 
     public void testValueForSearch() {
         MappedFieldType ft = createDefaultFieldType();
-        assertEquals(Long.valueOf(3), ft.valueForSearch(Long.valueOf(3)));
+        assertEquals(Long.valueOf(3), ft.valueForDisplay(Long.valueOf(3)));
     }
 }

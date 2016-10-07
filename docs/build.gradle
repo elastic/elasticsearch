@@ -93,9 +93,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/analysis/tokenfilters/stop-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/synonym-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/word-delimiter-tokenfilter.asciidoc',
-  'reference/cat.asciidoc',
-  'reference/cat/alias.asciidoc',
-  'reference/cat/allocation.asciidoc',
   'reference/cat/count.asciidoc',
   'reference/cat/fielddata.asciidoc',
   'reference/cat/health.asciidoc',
@@ -131,7 +128,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/docs/termvectors.asciidoc',
   'reference/docs/update-by-query.asciidoc',
   'reference/docs/update.asciidoc',
-  'reference/getting-started.asciidoc',
   'reference/index-modules/similarity.asciidoc',
   'reference/index-modules/store.asciidoc',
   'reference/index-modules/translog.asciidoc',
@@ -300,3 +296,26 @@ buildRestTests.setups['sales'] = '''
         {"date": "2015/03/01 00:00:00", "price": 200, "type": "hat"}
         {"index":{}}
         {"date": "2015/03/01 00:00:00", "price": 175, "type": "t-shirt"}'''
+
+// Dummy bank account data used by getting-started.asciidoc
+buildRestTests.setups['bank'] = '''
+  - do:
+    bulk:
+      index: bank
+      type: account
+      refresh: true
+      body: |
+#bank_data#
+'''
+/* Load the actual accounts only if we're going to use them. This complicates
+ * dependency checking but that is a small price to pay for not building a
+ * 400kb string every time we start the build. */
+File accountsFile = new File("$projectDir/src/test/resources/accounts.json")
+buildRestTests.inputs.file(accountsFile)
+buildRestTests.doFirst {
+  String accounts = accountsFile.getText('UTF-8')
+  // Indent like a yaml test needs
+  accounts = accounts.replaceAll('(?m)^', '        ')
+  buildRestTests.setups['bank'] =
+    buildRestTests.setups['bank'].replace('#bank_data#', accounts)
+}

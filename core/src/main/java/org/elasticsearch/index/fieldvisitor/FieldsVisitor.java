@@ -90,7 +90,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
             }
             List<Object> fieldValues = entry.getValue();
             for (int i = 0; i < fieldValues.size(); i++) {
-                fieldValues.set(i, fieldType.valueForSearch(fieldValues.get(i)));
+                fieldValues.set(i, fieldType.valueForDisplay(fieldValues.get(i)));
             }
         }
     }

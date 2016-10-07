@@ -61,7 +61,7 @@ import static java.util.Collections.unmodifiableList;
  */
 public class TransportRolloverAction extends TransportMasterNodeAction<RolloverRequest, RolloverResponse> {
 
-    private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-(\\d)+$");
+    private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-\\d+$");
     private final MetaDataCreateIndexService createIndexService;
     private final MetaDataIndexAliasesService indexAliasesService;
     private final ActiveShardsObserver activeShardsObserver;
@@ -186,7 +186,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 + (isDateMath ? ">" : "");
             return newName;
         } else {
-            throw new IllegalArgumentException("index name [" + sourceIndexName + "] does not match pattern '^.*-(\\d)+$'");
+            throw new IllegalArgumentException("index name [" + sourceIndexName + "] does not match pattern '^.*-\\d+$'");
         }
     }
 

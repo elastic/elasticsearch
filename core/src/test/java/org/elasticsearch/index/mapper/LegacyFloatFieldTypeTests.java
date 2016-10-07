@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.LegacyFloatFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.LegacyFloatFieldMapper.FloatFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.junit.Before;
@@ -41,11 +39,11 @@ public class LegacyFloatFieldTypeTests extends FieldTypeTestCase {
         FloatFieldType ft = new FloatFieldType();
         // current impl ignores args and shourd always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomFloat(), randomFloat(),
-                randomBoolean(), randomBoolean(), null, null));
+                randomBoolean(), randomBoolean(), null, null, null));
     }
 
     public void testValueForSearch() {
         MappedFieldType ft = createDefaultFieldType();
-        assertEquals(Float.valueOf(1.2f), ft.valueForSearch(1.2f));
+        assertEquals(Float.valueOf(1.2f), ft.valueForDisplay(1.2f));
     }
 }

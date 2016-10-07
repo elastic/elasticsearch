@@ -39,10 +39,6 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
         this(analyzer.name(), analyzer.scope(), analyzer.analyzer(), positionIncrementGap);
     }
 
-    public NamedAnalyzer(String name, Analyzer analyzer) {
-        this(name, AnalyzerScope.INDEX, analyzer);
-    }
-
     public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer) {
         this(name, scope, analyzer, Integer.MIN_VALUE);
     }
@@ -118,5 +114,13 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
     @Override
     public int hashCode() {
         return Objects.hash(name);
+    }
+
+    @Override
+    public void close() {
+        super.close();
+        if (scope == AnalyzerScope.INDEX) {
+            analyzer.close();
+        }
     }
 }

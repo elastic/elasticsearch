@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -164,7 +163,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         private volatile Map<String, MockIndexService> indices = emptyMap();
 
         @Override
-        public synchronized MockIndexService createIndex(NodeServicesProvider nodeServicesProvider, IndexMetaData indexMetaData,
+        public synchronized MockIndexService createIndex(IndexMetaData indexMetaData,
                                                          List<IndexEventListener> buildInIndexListener) throws IOException {
             MockIndexService indexService = new MockIndexService(new IndexSettings(indexMetaData, Settings.EMPTY));
             indices = newMapBuilder(indices).put(indexMetaData.getIndexUUID(), indexService).immutableMap();
@@ -212,8 +211,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                                           PeerRecoveryTargetService recoveryTargetService,
                                           PeerRecoveryTargetService.RecoveryListener recoveryListener,
                                           RepositoriesService repositoriesService,
-                                          NodeServicesProvider nodeServicesProvider, Callback<IndexShard.ShardFailure> onShardFailure)
-            throws IOException {
+                                          Callback<IndexShard.ShardFailure> onShardFailure) throws IOException {
             failRandomly();
             MockIndexService indexService = indexService(recoveryState.getShardId().getIndex());
             MockIndexShard indexShard = indexService.createShard(shardRouting);

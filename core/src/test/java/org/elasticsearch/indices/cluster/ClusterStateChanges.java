@@ -66,7 +66,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
@@ -133,10 +132,10 @@ public class ClusterStateChanges extends AbstractComponent {
         IndicesService indicesService = mock(IndicesService.class);
         // MetaDataCreateIndexService creates indices using its IndicesService instance to check mappings -> fake it here
         try {
-            when(indicesService.createIndex(any(NodeServicesProvider.class), any(IndexMetaData.class), anyList()))
+            when(indicesService.createIndex(any(IndexMetaData.class), anyList()))
                 .then(invocationOnMock -> {
                     IndexService indexService = mock(IndexService.class);
-                    IndexMetaData indexMetaData = (IndexMetaData)invocationOnMock.getArguments()[1];
+                    IndexMetaData indexMetaData = (IndexMetaData)invocationOnMock.getArguments()[0];
                     when(indexService.index()).thenReturn(indexMetaData.getIndex());
                     MapperService mapperService = mock(MapperService.class);
                     when(indexService.mapperService()).thenReturn(mapperService);
@@ -158,15 +157,14 @@ public class ClusterStateChanges extends AbstractComponent {
                 return indexMetaData;
             }
         };
-        NodeServicesProvider nodeServicesProvider = new NodeServicesProvider(threadPool, null, null, null, null, null, clusterService);
         MetaDataIndexStateService indexStateService = new MetaDataIndexStateService(settings, clusterService, allocationService,
-            metaDataIndexUpgradeService, nodeServicesProvider, indicesService);
+            metaDataIndexUpgradeService, indicesService);
         MetaDataDeleteIndexService deleteIndexService = new MetaDataDeleteIndexService(settings, clusterService, allocationService);
         MetaDataUpdateSettingsService metaDataUpdateSettingsService = new MetaDataUpdateSettingsService(settings, clusterService,
-            allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService, nodeServicesProvider);
+            allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService);
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(settings, clusterService, indicesService,
             allocationService, new AliasValidator(settings), environment,
-            nodeServicesProvider, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, threadPool);
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, threadPool);
 
         transportCloseIndexAction = new TransportCloseIndexAction(settings, transportService, clusterService, threadPool,
             indexStateService, clusterSettings, actionFilters, indexNameExpressionResolver, destructiveOperations);

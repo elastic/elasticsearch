@@ -360,12 +360,13 @@ public class Node implements Closeable {
                 .flatMap(Function.identity()).collect(Collectors.toList());
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
             final MetaStateService metaStateService = new MetaStateService(settings, nodeEnvironment);
+            client = new NodeClient(settings, threadPool);
             final IndicesService indicesService = new IndicesService(settings, pluginsService, nodeEnvironment,
                 settingsModule.getClusterSettings(), analysisModule.getAnalysisRegistry(), searchModule.getQueryParserRegistry(),
                 clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
-                threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, metaStateService);
+                threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays, scriptModule.getScriptService(),
+                clusterService, client, metaStateService);
 
-            client = new NodeClient(settings, threadPool);
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
                                                  scriptModule.getScriptService(), searchModule.getSearchRequestParsers()).stream())

@@ -651,40 +651,4 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
             assertThat(e.getMessage(), equalTo("analyzer on field [field1] must be set when search_analyzer is set"));
         }
     }
-
-    public void testNonAnalyzedFieldPositionIncrement() throws IOException {
-        for (String index : Arrays.asList("no", "not_analyzed")) {
-            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field")
-                .field("type", "string")
-                .field("index", index)
-                .field("position_increment_gap", 10)
-                .endObject().endObject().endObject().endObject().string();
-
-            try {
-                parser.parse("type", new CompressedXContent(mapping));
-                fail("expected failure");
-            } catch (IllegalArgumentException e) {
-                assertEquals("Cannot set position_increment_gap on field [field] without positions enabled", e.getMessage());
-            }
-        }
-    }
-
-    public void testAnalyzedFieldPositionIncrementWithoutPositions() throws IOException {
-        for (String indexOptions : Arrays.asList("docs", "freqs")) {
-            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field")
-                .field("type", "string")
-                .field("index_options", indexOptions)
-                .field("position_increment_gap", 10)
-                .endObject().endObject().endObject().endObject().string();
-            
-            try {
-                parser.parse("type", new CompressedXContent(mapping));
-                fail("expected failure");
-            } catch (IllegalArgumentException e) {
-                assertEquals("Cannot set position_increment_gap on field [field] without positions enabled", e.getMessage());
-            }
-        }
-    }
 }

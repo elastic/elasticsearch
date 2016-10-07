@@ -34,10 +34,8 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class ClusterSerializationTests extends ESAllocationTestCase {
+
     public void testClusterStateSerialization() throws Exception {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))

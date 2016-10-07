@@ -29,7 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -144,11 +144,7 @@ public class RestTasksAction extends AbstractCatAction {
         // Node information. Note that the node may be null because it has left the cluster between when we got this response and now.
         table.addCell(fullId ? nodeId : Strings.substring(nodeId, 0, 4));
         table.addCell(node == null ? "-" : node.getHostAddress());
-        if (node != null && node.getAddress() instanceof InetSocketTransportAddress) {
-            table.addCell(((InetSocketTransportAddress) node.getAddress()).address().getPort());
-        } else {
-            table.addCell("-");
-        }
+        table.addCell(node.getAddress().address().getPort());
         table.addCell(node == null ? "-" : node.getName());
         table.addCell(node == null ? "-" : node.getVersion().toString());
 

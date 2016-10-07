@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAct
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -39,13 +39,16 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
@@ -60,6 +63,9 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         private final TransportService transportService;
         private final TransportClientNodesService transportClientNodesService;
         private final int nodesCount;
+        private TransportAddress livenessAddress = buildNewFakeTransportAddress();
+        public Set<TransportAddress> nodeAddresses = new HashSet<>();
+
 
         TestIteration() {
             Settings settings = Settings.builder().put("cluster.name", "test").build();
@@ -98,7 +104,9 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     new TransportClientNodesService(settings, transportService, threadPool);
             this.nodesCount = randomIntBetween(1, 10);
             for (int i = 0; i < nodesCount; i++) {
-                transportClientNodesService.addTransportAddresses(new LocalTransportAddress("node" + i));
+                TransportAddress transportAddress = buildNewFakeTransportAddress();
+                nodeAddresses.add(transportAddress);
+                transportClientNodesService.addTransportAddresses(transportAddress);
             }
             transport.endConnectMode();
         }
@@ -118,7 +126,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     LivenessResponse livenessResponse = new LivenessResponse(clusterName,
                             new DiscoveryNode(node.getName(), node.getId(), node.getEphemeralId(), "liveness-hostname" + node.getId(),
                                     "liveness-hostaddress" + node.getId(),
-                                    new LocalTransportAddress("liveness-address-" + node.getId()), node.getAttributes(), node.getRoles(),
+                                    livenessAddress, node.getAttributes(), node.getRoles(),
                                     node.getVersion()));
                     handler.handleResponse((T)livenessResponse);
                 }
@@ -237,10 +245,8 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 for (DiscoveryNode discoveryNode : iteration.transportClientNodesService.connectedNodes()) {
                     assertThat(discoveryNode.getHostName(), startsWith("liveness-"));
                     assertThat(discoveryNode.getHostAddress(), startsWith("liveness-"));
-                    assertThat(discoveryNode.getAddress(), instanceOf(LocalTransportAddress.class));
-                    LocalTransportAddress localTransportAddress = (LocalTransportAddress) discoveryNode.getAddress();
-                    //the original listed transport address is kept rather than the one returned from the liveness api
-                    assertThat(localTransportAddress.id(), startsWith("node"));
+                    assertNotEquals(discoveryNode.getAddress(), iteration.livenessAddress);
+                    assertThat(iteration.nodeAddresses, hasItem(discoveryNode.getAddress()));
                 }
             }
         }

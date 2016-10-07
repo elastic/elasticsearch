@@ -53,10 +53,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -331,7 +330,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
             throw new BindHttpException("Failed to resolve host [" + Arrays.toString(bindHosts) + "]", e);
         }
 
-        List<InetSocketTransportAddress> boundAddresses = new ArrayList<>(hostAddresses.length);
+        List<TransportAddress> boundAddresses = new ArrayList<>(hostAddresses.length);
         for (InetAddress address : hostAddresses) {
             boundAddresses.add(bindAddress(address));
         }
@@ -345,15 +344,15 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
 
         final int publishPort = resolvePublishPort(settings, boundAddresses, publishInetAddress);
         final InetSocketAddress publishAddress = new InetSocketAddress(publishInetAddress, publishPort);
-        return new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), new InetSocketTransportAddress(publishAddress));
+        return new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), new TransportAddress(publishAddress));
     }
 
     // package private for tests
-    static int resolvePublishPort(Settings settings, List<InetSocketTransportAddress> boundAddresses, InetAddress publishInetAddress) {
+    static int resolvePublishPort(Settings settings, List<TransportAddress> boundAddresses, InetAddress publishInetAddress) {
         int publishPort = SETTING_HTTP_PUBLISH_PORT.get(settings);
 
         if (publishPort < 0) {
-            for (InetSocketTransportAddress boundAddress : boundAddresses) {
+            for (TransportAddress boundAddress : boundAddresses) {
                 InetAddress boundInetAddress = boundAddress.address().getAddress();
                 if (boundInetAddress.isAnyLocalAddress() || boundInetAddress.equals(publishInetAddress)) {
                     publishPort = boundAddress.getPort();
@@ -365,7 +364,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         // if no matching boundAddress found, check if there is a unique port for all bound addresses
         if (publishPort < 0) {
             final IntSet ports = new IntHashSet();
-            for (InetSocketTransportAddress boundAddress : boundAddresses) {
+            for (TransportAddress boundAddress : boundAddresses) {
                 ports.add(boundAddress.getPort());
             }
             if (ports.size() == 1) {
@@ -415,7 +414,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
             .build();
     }
 
-    private InetSocketTransportAddress bindAddress(final InetAddress hostAddress) {
+    private TransportAddress bindAddress(final InetAddress hostAddress) {
         final AtomicReference<Exception> lastException = new AtomicReference<>();
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
         boolean success = port.iterate(new PortsRange.PortCallback() {
@@ -441,7 +440,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         if (logger.isDebugEnabled()) {
             logger.debug("Bound http to address {{}}", NetworkAddress.format(boundSocket.get()));
         }
-        return new InetSocketTransportAddress(boundSocket.get());
+        return new TransportAddress(boundSocket.get());
     }
 
     @Override

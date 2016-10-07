@@ -45,6 +45,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -100,6 +101,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -130,6 +132,14 @@ import static org.hamcrest.Matchers.equalTo;
 })
 @LuceneTestCase.SuppressReproduceLine
 public abstract class ESTestCase extends LuceneTestCase {
+
+    private static final AtomicInteger portGenerator = new AtomicInteger();
+
+    @AfterClass
+    public static void resetPortCounter() {
+        portGenerator.set(0);
+    }
+
 
     static {
         System.setProperty("log4j.shutdownHookEnabled", "false");
@@ -172,6 +182,14 @@ public abstract class ESTestCase extends LuceneTestCase {
             super.afterAlways(errors);
         }
     });
+
+    /**
+     * Generates a new transport address using {@link TransportAddress#META_ADDRESS} with an incrementing port number.
+     * The port number starts at 0 and is reset after each test suite run.
+     */
+    public static TransportAddress buildNewFakeTransportAddress() {
+        return new TransportAddress(TransportAddress.META_ADDRESS, portGenerator.incrementAndGet());
+    }
 
     /**
      * Called when a test fails, supplying the errors it generated. Not called when the test fails because assumptions are violated.

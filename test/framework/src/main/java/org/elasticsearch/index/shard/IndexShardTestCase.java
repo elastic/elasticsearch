@@ -41,7 +41,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.NodeEnvironment;
@@ -353,7 +352,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     private DiscoveryNode getFakeDiscoNode(String id) {
-        return new DiscoveryNode(id, new LocalTransportAddress("_fake_" + id), Version.CURRENT);
+        return new DiscoveryNode(id, buildNewFakeTransportAddress(), Version.CURRENT);
     }
 
     /** recovers a replica from the given primary **/

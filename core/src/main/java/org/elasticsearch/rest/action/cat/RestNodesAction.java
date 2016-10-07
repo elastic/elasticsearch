@@ -35,7 +35,6 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -236,19 +235,11 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(fullId ? node.getId() : Strings.substring(node.getId(), 0, 4));
             table.addCell(info == null ? null : info.getProcess().getId());
             table.addCell(node.getHostAddress());
-            if (node.getAddress() instanceof InetSocketTransportAddress) {
-                table.addCell(((InetSocketTransportAddress) node.getAddress()).address().getPort());
-            } else {
-                table.addCell("-");
-            }
+            table.addCell(node.getAddress().address().getPort());
             final HttpInfo httpInfo = info == null ? null : info.getHttp();
             if (httpInfo != null) {
                 TransportAddress transportAddress = httpInfo.getAddress().publishAddress();
-                if (transportAddress instanceof InetSocketTransportAddress) {
-                    table.addCell(NetworkAddress.format(((InetSocketTransportAddress)transportAddress).address()));
-                } else {
-                    table.addCell(transportAddress.toString());
-                }
+                table.addCell(NetworkAddress.format(transportAddress.address()));
             } else {
                 table.addCell("-");
             }

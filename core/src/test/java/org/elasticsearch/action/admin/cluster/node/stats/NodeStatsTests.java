@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.zen.publish.PendingClusterStateStats;
 import org.elasticsearch.http.HttpStats;
@@ -255,7 +254,7 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private static NodeStats createNodeStats() {
-        DiscoveryNode node = new DiscoveryNode("test_node", LocalTransportAddress.buildUnique(),
+        DiscoveryNode node = new DiscoveryNode("test_node", buildNewFakeTransportAddress(),
                 emptyMap(), emptySet(), VersionUtils.randomVersion(random()));
         OsStats osStats = null;
         if (frequently()) {

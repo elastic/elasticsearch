@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -106,7 +105,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
 
     private static NodeInfo createNodeInfo() {
         Build build = Build.CURRENT;
-        DiscoveryNode node = new DiscoveryNode("test_node", LocalTransportAddress.buildUnique(),
+        DiscoveryNode node = new DiscoveryNode("test_node", buildNewFakeTransportAddress(),
                 emptyMap(), emptySet(), VersionUtils.randomVersion(random()));
         Settings settings = randomBoolean() ? null : Settings.builder().put("test", "setting").build();
         OsInfo osInfo = null;
@@ -133,7 +132,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         }
         Map<String, BoundTransportAddress> profileAddresses = new HashMap<>();
         BoundTransportAddress dummyBoundTransportAddress = new BoundTransportAddress(
-                new TransportAddress[]{LocalTransportAddress.buildUnique()}, LocalTransportAddress.buildUnique());
+                new TransportAddress[]{buildNewFakeTransportAddress()}, buildNewFakeTransportAddress());
         profileAddresses.put("test_address", dummyBoundTransportAddress);
         TransportInfo transport = randomBoolean() ? null : new TransportInfo(dummyBoundTransportAddress, profileAddresses);
         HttpInfo httpInfo = randomBoolean() ? null : new HttpInfo(dummyBoundTransportAddress, randomLong());

@@ -448,8 +448,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
             module.setSearcherWrapper(indexService ->
                 new SecurityIndexSearcherWrapper(indexService.getIndexSettings(), indexService.newQueryShardContext(),
                     indexService.mapperService(), indexService.cache().bitsetFilterCache(),
-                    indexService.getIndexServices().getThreadPool().getThreadContext(), licenseState,
-                    indexService.getIndexServices().getScriptService()));
+                    indexService.getThreadPool().getThreadContext(), licenseState,
+                    indexService.getScriptService()));
         }
         if (transportClientMode == false) {
             /*  We need to forcefully overwrite the query cache implementation to use security's opt out query cache implementation.

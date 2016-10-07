@@ -334,7 +334,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * Compiles (or retrieves from cache) and binds the parameters to the
      * provided script
      */
-    public SearchScript getSearchScript(Script script, ScriptContext context, Map<String, String> params) {
+    public final SearchScript getSearchScript(Script script, ScriptContext context, Map<String, String> params) {
         failIfFrozen();
         return scriptService.search(lookup(), script, context, params);
     }
@@ -342,7 +342,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * Returns a lazily created {@link SearchScript} that is compiled immediately but can be pulled later once all
      * parameters are available.
      */
-    public Function<Map<String, Object>, SearchScript> getLazySearchScript(Script script, ScriptContext context,
+    public final Function<Map<String, Object>, SearchScript> getLazySearchScript(Script script, ScriptContext context,
             Map<String, String> params) {
         failIfFrozen();
         CompiledScript compile = scriptService.compile(script, context, params);
@@ -353,7 +353,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * Compiles (or retrieves from cache) and binds the parameters to the
      * provided script
      */
-    public ExecutableScript getExecutableScript(Script script, ScriptContext context, Map<String, String> params) {
+    public final ExecutableScript getExecutableScript(Script script, ScriptContext context, Map<String, String> params) {
         failIfFrozen();
         return scriptService.executable(script, context, params);
     }
@@ -362,7 +362,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * Returns a lazily created {@link ExecutableScript} that is compiled immediately but can be pulled later once all
      * parameters are available.
      */
-    public Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(Script script, ScriptContext context,
+    public final Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(Script script, ScriptContext context,
             Map<String, String> params) {
         failIfFrozen();
         CompiledScript executable = scriptService.compile(script, context, params);
@@ -373,15 +373,20 @@ public class QueryShardContext extends QueryRewriteContext {
      * if this method is called the query context will throw exception if methods are accessed
      * that could yield different results across executions like {@link #getTemplateBytes(Script)}
      */
-    public void freezeContext() {
+    public final void freezeContext() {
         this.frozen.set(Boolean.TRUE);
     }
 
     /**
-     * This method fails if {@link #freezeContext()} is called before on this context.
-     * This is used to <i>seal</i>
+     * This method fails if {@link #freezeContext()} is called before on this
+     * context. This is used to <i>seal</i>.
+     *
+     * This methods and all methods that call it should be final to ensure that
+     * setting the request as not cacheable and the freezing behaviour of this
+     * class cannot be bypassed. This is important so we can trust when this
+     * class says a request can be cached.
      */
-    protected void failIfFrozen() {
+    protected final void failIfFrozen() {
         this.cachable = false;
         if (frozen.get() == Boolean.TRUE) {
             throw new IllegalArgumentException("features that prevent cachability are disabled on this context");
@@ -391,7 +396,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     @Override
-    public BytesReference getTemplateBytes(Script template) {
+    public final BytesReference getTemplateBytes(Script template) {
         failIfFrozen();
         return super.getTemplateBytes(template);
     }
@@ -399,7 +404,7 @@ public class QueryShardContext extends QueryRewriteContext {
     /**
      * Returns <code>true</code> iff the result of the processed search request is cachable. Otherwise <code>false</code>
      */
-    public boolean isCachable() {
+    public final boolean isCachable() {
         return cachable;
     }
 
@@ -410,7 +415,8 @@ public class QueryShardContext extends QueryRewriteContext {
         return shardId;
     }
 
-    public long nowInMillis() {
+    @Override
+    public final long nowInMillis() {
         failIfFrozen();
         return super.nowInMillis();
     }

@@ -581,4 +581,13 @@ public class XContentMapValuesTests extends ESTestCase {
         assertEquals(Collections.singletonMap("搜索", 2), XContentMapValues.filter(map, new String[] {"搜索"}, new String[0]));
         assertEquals(Collections.singletonMap("指数", 3), XContentMapValues.filter(map, new String[0], new String[] {"搜索"}));
     }
+
+    public void testSharedPrefixes() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("foobar", 2);
+        map.put("foobaz", 3);
+
+        assertEquals(Collections.singletonMap("foobar", 2), XContentMapValues.filter(map, new String[] {"foobar"}, new String[0]));
+        assertEquals(Collections.singletonMap("foobaz", 3), XContentMapValues.filter(map, new String[0], new String[] {"foobar"}));
+    }
 }

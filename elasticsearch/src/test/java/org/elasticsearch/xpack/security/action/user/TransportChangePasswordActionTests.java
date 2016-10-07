@@ -47,8 +47,9 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "superuser").build();
         AnonymousUser anonymousUser = new AnonymousUser(settings);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        TransportChangePasswordAction action = new TransportChangePasswordAction(settings, mock(ThreadPool.class),
-                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR),
+        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                null);
+        TransportChangePasswordAction action = new TransportChangePasswordAction(settings, mock(ThreadPool.class), transportService,
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
 
         ChangePasswordRequest request = new ChangePasswordRequest();
@@ -77,8 +78,9 @@ public class TransportChangePasswordActionTests extends ESTestCase {
 
     public void testInternalUsers() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        TransportChangePasswordAction action = new TransportChangePasswordAction(Settings.EMPTY, mock(ThreadPool.class),
-                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR),
+        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                null);
+        TransportChangePasswordAction action = new TransportChangePasswordAction(Settings.EMPTY, mock(ThreadPool.class), transportService,
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
 
         ChangePasswordRequest request = new ChangePasswordRequest();
@@ -120,8 +122,9 @@ public class TransportChangePasswordActionTests extends ESTestCase {
                 return null;
             }
         }).when(usersStore).changePassword(eq(request), any(ActionListener.class));
-        TransportChangePasswordAction action = new TransportChangePasswordAction(Settings.EMPTY, mock(ThreadPool.class),
-                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR),
+        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                null);
+        TransportChangePasswordAction action = new TransportChangePasswordAction(Settings.EMPTY, mock(ThreadPool.class), transportService,
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
@@ -160,8 +163,9 @@ public class TransportChangePasswordActionTests extends ESTestCase {
                 return null;
             }
         }).when(usersStore).changePassword(eq(request), any(ActionListener.class));
-        TransportChangePasswordAction action = new TransportChangePasswordAction(Settings.EMPTY, mock(ThreadPool.class),
-                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR),
+        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                null);
+        TransportChangePasswordAction action = new TransportChangePasswordAction(Settings.EMPTY, mock(ThreadPool.class), transportService,
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();

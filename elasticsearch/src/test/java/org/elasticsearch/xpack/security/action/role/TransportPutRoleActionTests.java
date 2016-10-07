@@ -41,9 +41,10 @@ public class TransportPutRoleActionTests extends ESTestCase {
     public void testReservedRole() {
         final String roleName = randomFrom(new ArrayList<>(ReservedRolesStore.names()));
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
+        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                null);
         TransportPutRoleAction action = new TransportPutRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore,
-                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR));
+                mock(IndexNameExpressionResolver.class), rolesStore, transportService);
 
         PutRoleRequest request = new PutRoleRequest();
         request.name(roleName);
@@ -71,9 +72,10 @@ public class TransportPutRoleActionTests extends ESTestCase {
     public void testValidRole() {
         final String roleName = randomFrom("admin", "dept_a", "restricted");
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
+        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                null);
         TransportPutRoleAction action = new TransportPutRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore,
-                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR));
+                mock(IndexNameExpressionResolver.class), rolesStore, transportService);
 
         final boolean created = randomBoolean();
         PutRoleRequest request = new PutRoleRequest();
@@ -114,9 +116,10 @@ public class TransportPutRoleActionTests extends ESTestCase {
         final Exception e = randomFrom(new ElasticsearchSecurityException(""), new IllegalStateException());
         final String roleName = randomFrom("admin", "dept_a", "restricted");
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
+        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                null);
         TransportPutRoleAction action = new TransportPutRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore,
-                new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR));
+                mock(IndexNameExpressionResolver.class), rolesStore, transportService);
 
         PutRoleRequest request = new PutRoleRequest();
         request.name(roleName);

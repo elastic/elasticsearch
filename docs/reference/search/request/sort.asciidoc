@@ -254,9 +254,6 @@ GET /_search
 
     The unit to use when computing sort values. The default is `m` (meters).
 
-NOTE: the geo distance sorting supports `sort_mode` options: `min`,
-`max` and `avg`.
-
 NOTE: geo distance sorting does not support configurable missing values: the
 distance will always be considered equal to +Infinity+ when a document does not
 have values for the field that is used for distance computation.

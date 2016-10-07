@@ -22,8 +22,6 @@ import org.joda.time.format.DateTimeFormatter;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.UUID;
-import java.util.concurrent.Callable;
-
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
@@ -51,21 +49,11 @@ public class TestUtils {
     }
 
     public static String dateMathString(String time, final long now) {
-        return dateTimeFormatter.print(dateMathParser.parse(time, new Callable<Long>() {
-            @Override
-            public Long call() throws Exception {
-                return now;
-            }
-        }));
+        return dateTimeFormatter.print(dateMathParser.parse(time, () -> now));
     }
 
     public static long dateMath(String time, final long now) {
-        return dateMathParser.parse(time, new Callable<Long>() {
-            @Override
-            public Long call() throws Exception {
-                return now;
-            }
-        });
+        return dateMathParser.parse(time, () -> now);
     }
 
     public static LicenseSpec generateRandomLicenseSpec(int version) {

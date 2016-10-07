@@ -22,7 +22,6 @@ import org.joda.time.DateTimeZone;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 /**
  *
@@ -91,7 +90,7 @@ public class WatcherDateTimeUtils {
     }
 
     public static DateTime parseDateMath(String valueString, DateTimeZone timeZone, final Clock clock) {
-        return new DateTime(dateMathParser.parse(valueString, new ClockNowCallable(clock)), timeZone);
+        return new DateTime(dateMathParser.parse(valueString, clock::millis), timeZone);
     }
 
     public static DateTime parseDate(String fieldName, XContentParser parser, DateTimeZone timeZone) throws IOException {
@@ -197,20 +196,6 @@ public class WatcherDateTimeUtils {
             return new TimeValue(millis, TimeUnit.MILLISECONDS);
         } catch (NumberFormatException e) {
             throw new ElasticsearchParseException("Failed to parse [{}]", e, sValue);
-        }
-    }
-
-    private static class ClockNowCallable implements Callable<Long> {
-
-        private final Clock clock;
-
-        ClockNowCallable(Clock clock){
-            this.clock = clock;
-        }
-
-        @Override
-        public Long call() throws Exception {
-            return clock.millis();
         }
     }
 }

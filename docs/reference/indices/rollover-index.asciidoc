@@ -147,6 +147,17 @@ GET _alias
 
 //////////////////////////
 
+These indices can then be referenced as described in the
+<<date-math-index-names,date math documentation>>.  For example, to search
+over indices created in the last three days, you could do the following:
+
+[source,js]
+--------------------------------------------------
+GET /<logs-{now/d}-*>,<logs-{now/d-1d}-*>,<logs-{now/d-2d}-*>/_search
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+// TEST[s/now\//now%2f/]
 
 [float]
 === Defining the new index

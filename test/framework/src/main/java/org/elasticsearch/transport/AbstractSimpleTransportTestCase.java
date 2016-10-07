@@ -1412,8 +1412,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             fail("message round trip did not complete within a sensible time frame");
         }
 
-        assertTrue(nodeA.getAddress().sameHost(addressA.get()));
-        assertTrue(nodeB.getAddress().sameHost(addressB.get()));
+        assertTrue(nodeA.getAddress().getAddress().equals(addressA.get().getAddress()));
+        assertTrue(nodeB.getAddress().getAddress().equals(addressB.get().getAddress()));
     }
 
     public void testBlockingIncomingRequests() throws Exception {

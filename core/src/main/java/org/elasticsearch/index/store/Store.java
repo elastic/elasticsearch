@@ -61,8 +61,8 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
@@ -84,6 +84,7 @@ import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -1373,8 +1374,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             for (String file : files) {
                 try {
                     estimatedSize += directory.fileLength(file);
-                } catch (NoSuchFileException | FileNotFoundException e) {
-                    // ignore, the file is not there no more
+                } catch (NoSuchFileException | FileNotFoundException | AccessDeniedException e) {
+                    // ignore, the file is not there no more; on Windows, if one thread concurrently deletes a file while
+                    // calling Files.size, you can also sometimes hit AccessDeniedException
                 }
             }
             return estimatedSize;

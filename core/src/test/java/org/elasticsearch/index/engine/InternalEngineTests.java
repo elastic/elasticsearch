@@ -583,6 +583,10 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(
                 Long.parseLong(stats1.getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
                 equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+            assertThat(stats1.getUserData(), hasKey(InternalEngine.MAX_SEQ_NO));
+            assertThat(
+                Long.parseLong(stats1.getUserData().get(InternalEngine.MAX_SEQ_NO)),
+                equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
 
             maxSeqNo.set(rarely() ? SequenceNumbersService.NO_OPS_PERFORMED : randomIntBetween(0, 1024));
             localCheckpoint.set(
@@ -608,6 +612,8 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(
                 Long.parseLong(stats2.getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
                 equalTo(globalCheckpoint.get()));
+            assertThat(stats2.getUserData(), hasKey(InternalEngine.MAX_SEQ_NO));
+            assertThat(Long.parseLong(stats2.getUserData().get(InternalEngine.MAX_SEQ_NO)), equalTo(maxSeqNo.get()));
         } finally {
             IOUtils.close(engine);
         }
@@ -1625,6 +1631,7 @@ public class InternalEngineTests extends ESTestCase {
         long localCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
         long replicaLocalCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
         long globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        long maxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
         InternalEngine initialEngine = null;
 
         try {
@@ -1653,6 +1660,7 @@ public class InternalEngineTests extends ESTestCase {
 
                 if (rarely()) {
                     localCheckpoint = primarySeqNo;
+                    maxSeqNo = primarySeqNo;
                     globalCheckpoint = replicaLocalCheckpoint;
                     initialEngine.seqNoService().updateGlobalCheckpointOnPrimary();
                     initialEngine.flush(true, true);
@@ -1661,6 +1669,7 @@ public class InternalEngineTests extends ESTestCase {
 
             initialEngine.seqNoService().updateGlobalCheckpointOnPrimary();
 
+            assertEquals(primarySeqNo, initialEngine.seqNoService().getMaxSeqNo());
             assertThat(initialEngine.seqNoService().stats().getMaxSeqNo(), equalTo(primarySeqNo));
             assertThat(initialEngine.seqNoService().stats().getLocalCheckpoint(), equalTo(primarySeqNo));
             assertThat(initialEngine.seqNoService().stats().getGlobalCheckpoint(), equalTo(replicaLocalCheckpoint));
@@ -1671,6 +1680,9 @@ public class InternalEngineTests extends ESTestCase {
             assertThat(
                 Long.parseLong(initialEngine.commitStats().getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
                 equalTo(globalCheckpoint));
+            assertThat(
+                Long.parseLong(initialEngine.commitStats().getUserData().get(InternalEngine.MAX_SEQ_NO)),
+                equalTo(maxSeqNo));
 
         } finally {
             IOUtils.close(initialEngine);
@@ -1681,12 +1693,17 @@ public class InternalEngineTests extends ESTestCase {
             recoveringEngine = new InternalEngine(copy(initialEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
             recoveringEngine.recoverFromTranslog();
 
+            assertEquals(primarySeqNo, recoveringEngine.seqNoService().getMaxSeqNo());
             assertThat(
                 Long.parseLong(recoveringEngine.commitStats().getUserData().get(InternalEngine.LOCAL_CHECKPOINT_KEY)),
                 equalTo(primarySeqNo));
             assertThat(
                 Long.parseLong(recoveringEngine.commitStats().getUserData().get(InternalEngine.GLOBAL_CHECKPOINT_KEY)),
                 equalTo(globalCheckpoint));
+            assertThat(
+                Long.parseLong(recoveringEngine.commitStats().getUserData().get(InternalEngine.MAX_SEQ_NO)),
+                // after recovering from translog, all docs have been flushed to Lucene segments, so check against primarySeqNo
+                equalTo(primarySeqNo));
             assertThat(recoveringEngine.seqNoService().stats().getLocalCheckpoint(), equalTo(primarySeqNo));
             assertThat(recoveringEngine.seqNoService().stats().getMaxSeqNo(), equalTo(primarySeqNo));
             assertThat(recoveringEngine.seqNoService().generateSeqNo(), equalTo(primarySeqNo + 1));

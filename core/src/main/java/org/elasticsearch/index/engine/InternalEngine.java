@@ -43,7 +43,6 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
@@ -59,7 +58,6 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.internal.SeqNoFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -85,8 +83,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
-
-import static org.elasticsearch.index.seqno.SequenceNumbersService.NO_OPS_PERFORMED;
 
 public class InternalEngine extends Engine {
 
@@ -121,6 +117,7 @@ public class InternalEngine extends Engine {
     private final SequenceNumbersService seqNoService;
     static final String LOCAL_CHECKPOINT_KEY = "local_checkpoint";
     static final String GLOBAL_CHECKPOINT_KEY = "global_checkpoint";
+    static final String MAX_SEQ_NO = "max_seq_no";
 
     // How many callers are currently requesting index throttling.  Currently there are only two situations where we do this: when merges
     // are falling behind and when writing indexing buffer to disk is too slow.  When this is 0, there is no throttling, else we throttling
@@ -326,30 +323,18 @@ public class InternalEngine extends Engine {
     }
 
     private SeqNoStats loadSeqNoStatsFromCommit(IndexWriter writer) throws IOException {
-        final long maxSeqNo;
-        try (IndexReader reader = DirectoryReader.open(writer)) {
-            final FieldStats stats = SeqNoFieldMapper.Defaults.FIELD_TYPE.stats(reader);
-            if (stats != null) {
-                maxSeqNo = (long) stats.getMaxValue();
-            } else {
-                maxSeqNo = NO_OPS_PERFORMED;
+        long maxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
+        long localCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
+        long globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        for (Map.Entry<String, String> entry : writer.getLiveCommitData()) {
+            final String key = entry.getKey();
+            if (key.equals(LOCAL_CHECKPOINT_KEY)) {
+                localCheckpoint = Long.parseLong(entry.getValue());
+            } else if (key.equals(GLOBAL_CHECKPOINT_KEY)) {
+                globalCheckpoint = Long.parseLong(entry.getValue());
+            } else if (key.equals(MAX_SEQ_NO)) {
+                maxSeqNo = Long.parseLong(entry.getValue());
             }
-        }
-
-        final Map<String, String> commitUserData = writer.getCommitData();
-
-        final long localCheckpoint;
-        if (commitUserData.containsKey(LOCAL_CHECKPOINT_KEY)) {
-            localCheckpoint = Long.parseLong(commitUserData.get(LOCAL_CHECKPOINT_KEY));
-        } else {
-            localCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
-        }
-
-        final long globalCheckpoint;
-        if (commitUserData.containsKey(GLOBAL_CHECKPOINT_KEY)) {
-            globalCheckpoint = Long.parseLong(commitUserData.get(GLOBAL_CHECKPOINT_KEY));
-        } else {
-            globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
         }
 
         return new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
@@ -1336,10 +1321,26 @@ public class InternalEngine extends Engine {
             }
 
             if (logger.isTraceEnabled()) {
-                logger.trace("committing writer with commit data [{}]", commitData);
+                logger.trace("committing writer with commit data (max_seq_no excluded) [{}]", commitData);
             }
 
-            indexWriter.setCommitData(commitData);
+            indexWriter.setLiveCommitData(() -> {
+                /**
+                 * The user data in the commitData map contains data that must be evaluated *before*
+                 * Lucene flushes segments, including the local and global checkpoints amongst other values.
+                 * The maximum sequence number is different - we never want the maximum sequence number to be
+                 * less than the last sequence number to go into a Lucene commit, otherwise we run the risk
+                 * of re-using a sequence number for two different documents when restoring from this commit
+                 * point and subsequently writing new documents to the index.  Since we only know which Lucene
+                 * documents made it into the final commit after the {@link IndexWriter#commit()} call flushes
+                 * all documents, we defer computation of the max_seq_no to the time of invocation of the commit
+                 * data iterator (which occurs after all documents have been flushed to Lucene).
+                 */
+                final Map<String, String> deferredCommitData = new HashMap<>(commitData.size() + 1);
+                deferredCommitData.putAll(commitData);
+                deferredCommitData.put(MAX_SEQ_NO, Long.toString(seqNoService().getMaxSeqNo()));
+                return deferredCommitData.entrySet().iterator();
+            });
             writer.commit();
         } catch (Exception ex) {
             try {
@@ -1395,7 +1396,8 @@ public class InternalEngine extends Engine {
     public SequenceNumbersService seqNoService() {
         return seqNoService;
     }
-        @Override
+
+    @Override
     public DocsStats getDocStats() {
         final int numDocs = indexWriter.numDocs();
         final int maxDoc = indexWriter.maxDoc();

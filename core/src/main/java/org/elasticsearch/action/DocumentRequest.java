@@ -166,7 +166,7 @@ public interface DocumentRequest<T> extends IndicesRequest {
     /** read a document write (index/delete/update) request */
     static DocumentRequest readDocumentRequest(StreamInput in) throws IOException {
         byte type = in.readByte();
-        final DocumentRequest documentRequest;
+        DocumentRequest documentRequest;
         if (type == 0) {
             IndexRequest indexRequest = new IndexRequest();
             indexRequest.readFrom(in);

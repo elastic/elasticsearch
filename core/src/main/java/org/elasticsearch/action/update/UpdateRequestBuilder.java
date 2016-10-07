@@ -23,7 +23,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
+import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -37,7 +37,7 @@ import org.elasticsearch.script.Script;
 
 import java.util.Map;
 
-public class UpdateRequestBuilder extends ReplicationRequestBuilder<UpdateRequest, UpdateResponse, UpdateRequestBuilder>
+public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<UpdateRequest, UpdateResponse, UpdateRequestBuilder>
         implements WriteRequestBuilder<UpdateRequestBuilder> {
     private static final DeprecationLogger DEPRECATION_LOGGER =
         new DeprecationLogger(Loggers.getLogger(RestUpdateAction.class));

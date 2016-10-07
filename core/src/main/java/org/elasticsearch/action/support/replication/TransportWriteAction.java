@@ -49,40 +49,38 @@ import java.util.function.Supplier;
  */
 public abstract class TransportWriteAction<
             Request extends ReplicatedWriteRequest<Request>,
-            ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
             Response extends ReplicationResponse & WriteResponse
-        > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
+        > extends TransportReplicationAction<Request, Request, Response> {
 
     protected TransportWriteAction(Settings settings, String actionName, TransportService transportService,
             ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
-                                   Supplier<ReplicaRequest> replicaRequest,
             String executor) {
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-                indexNameExpressionResolver, request, replicaRequest, executor);
+                indexNameExpressionResolver, request, request, executor);
     }
 
     /**
      * Called on the primary with a reference to the {@linkplain IndexShard} to modify.
      */
-    protected abstract WriteResult<ReplicaRequest, Response> onPrimaryShard(Request request, IndexShard indexShard) throws Exception;
+    protected abstract WriteResult<Response> onPrimaryShard(Request request, IndexShard indexShard) throws Exception;
 
     /**
      * Called once per replica with a reference to the {@linkplain IndexShard} to modify.
      *
      * @return the translog location of the {@linkplain IndexShard} after the write was completed or null if no write occurred
      */
-    protected abstract Translog.Location onReplicaShard(ReplicaRequest request, IndexShard indexShard);
+    protected abstract Translog.Location onReplicaShard(Request request, IndexShard indexShard);
 
     @Override
     protected final WritePrimaryResult shardOperationOnPrimary(Request request) throws Exception {
         IndexShard indexShard = indexShard(request);
-        WriteResult<ReplicaRequest, Response> result = onPrimaryShard(request, indexShard);
-        return new WritePrimaryResult(request, result, indexShard);
+        WriteResult<Response> result = onPrimaryShard(request, indexShard);
+        return new WritePrimaryResult(request, result.getResponse(), result.getLocation(), indexShard);
     }
 
     @Override
-    protected final WriteReplicaResult shardOperationOnReplica(ReplicaRequest request) {
+    protected final WriteReplicaResult shardOperationOnReplica(Request request) {
         IndexShard indexShard = indexShard(request);
         Translog.Location location = onReplicaShard(request, indexShard);
         return new WriteReplicaResult(indexShard, request, location);
@@ -91,7 +89,7 @@ public abstract class TransportWriteAction<
     /**
      * Fetch the IndexShard for the request. Protected so it can be mocked in tests.
      */
-    protected IndexShard indexShard(ReplicatedWriteRequest request) {
+    protected IndexShard indexShard(Request request) {
         final ShardId shardId = request.shardId();
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         return indexService.getShard(shardId.id());
@@ -100,13 +98,11 @@ public abstract class TransportWriteAction<
     /**
      * Simple result from a write action. Write actions have static method to return these so they can integrate with bulk.
      */
-    public static class WriteResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>, Response extends ReplicationResponse> {
-        private final ReplicaRequest replicaRequest;
+    public static class WriteResult<Response extends ReplicationResponse> {
         private final Response response;
         private final Translog.Location location;
 
-        public WriteResult(ReplicaRequest replicaRequest, Response response, @Nullable Location location) {
-            this.replicaRequest = replicaRequest;
+        public WriteResult(Response response, @Nullable Location location) {
             this.response = response;
             this.location = location;
         }
@@ -118,10 +114,6 @@ public abstract class TransportWriteAction<
         public Translog.Location getLocation() {
             return location;
         }
-
-        public ReplicaRequest getReplicaRequest() {
-            return replicaRequest;
-        }
     }
 
     /**
@@ -131,15 +123,15 @@ public abstract class TransportWriteAction<
         boolean finishedAsyncActions;
         ActionListener<Response> listener = null;
 
-        public WritePrimaryResult(Request request,
-                                  WriteResult<ReplicaRequest, Response> result,
+        public WritePrimaryResult(Request request, Response finalResponse,
+                                  @Nullable Translog.Location location,
                                   IndexShard indexShard) {
-            super(result.getReplicaRequest(), result.getResponse());
+            super(request, finalResponse);
             /*
              * We call this before replication because this might wait for a refresh and that can take a while. This way we wait for the
              * refresh in parallel on the primary and on the replica.
              */
-            new AsyncAfterWriteAction(indexShard, request, result.getLocation(), this, logger).run();
+            new AsyncAfterWriteAction(indexShard, request, location, this, logger).run();
         }
 
         @Override

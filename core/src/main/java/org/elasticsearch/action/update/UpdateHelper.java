@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.update;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -28,8 +27,11 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -61,14 +63,14 @@ import java.util.Map;
 /**
  * Helper for translating an update request to an index, delete request or update response.
  */
-public class UpdateHelper {
+public class UpdateHelper extends AbstractComponent {
 
     private final ScriptService scriptService;
-    private final Logger logger;
 
-    public UpdateHelper(ScriptService scriptService, Logger logger) {
+    @Inject
+    public UpdateHelper(Settings settings, ScriptService scriptService) {
+        super(settings);
         this.scriptService = scriptService;
-        this.logger = logger;
     }
 
     /**
@@ -257,7 +259,7 @@ public class UpdateHelper {
         return ctx;
     }
 
-    private static TimeValue getTTLFromScriptContext(Map<String, Object> ctx) {
+    private TimeValue getTTLFromScriptContext(Map<String, Object> ctx) {
         Object fetchedTTL = ctx.get("_ttl");
         if (fetchedTTL != null) {
             if (fetchedTTL instanceof Number) {

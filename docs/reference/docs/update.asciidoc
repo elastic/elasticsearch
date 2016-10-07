@@ -162,8 +162,8 @@ the request was ignored.
 --------------------------------------------------
 {
    "_shards": {
-        "total": 1,
-        "successful": 1,
+        "total": 0,
+        "successful": 0,
         "failed": 0
    },
    "_index": "test",

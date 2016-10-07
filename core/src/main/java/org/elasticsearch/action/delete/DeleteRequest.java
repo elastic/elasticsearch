@@ -43,7 +43,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Client#delete(DeleteRequest)
  * @see org.elasticsearch.client.Requests#deleteRequest(String)
  */
-public class DeleteRequest extends DocumentRequest<DeleteRequest> {
+public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> implements DocumentRequest<DeleteRequest> {
 
     private String type;
     private String id;

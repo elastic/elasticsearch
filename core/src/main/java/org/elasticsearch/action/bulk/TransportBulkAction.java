@@ -27,12 +27,14 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.replication.TransportWriteAction;
+import org.elasticsearch.action.update.TransportUpdateAction;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -209,7 +211,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final ConcreteIndices concreteIndices = new ConcreteIndices(clusterState, indexNameExpressionResolver);
         MetaData metaData = clusterState.metaData();
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
-            DocumentRequest documentRequest = bulkRequest.requests.get(i);
+            DocumentRequest<?> documentRequest = bulkRequest.requests.get(i);
             //the request can only be null because we set it to null in the previous step, so it gets ignored
             if (documentRequest == null) {
                 continue;
@@ -232,8 +234,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         indexRequest.process(mappingMd, allowIdGeneration, concreteIndex.getName());
                         break;
                     case UPDATE:
+                        TransportUpdateAction.resolveAndValidateRouting(metaData, concreteIndex.getName(), (UpdateRequest)documentRequest);
+                        break;
                     case DELETE:
-                        TransportWriteAction.resolveAndValidateRouting(metaData, concreteIndex.getName(), documentRequest);
+                        TransportDeleteAction.resolveAndValidateRouting(metaData, concreteIndex.getName(), (DeleteRequest)documentRequest);
                         break;
                     default: throw new AssertionError("request type not supported: [" + documentRequest.opType() + "]");
                 }

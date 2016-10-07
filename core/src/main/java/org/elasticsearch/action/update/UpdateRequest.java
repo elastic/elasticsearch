@@ -23,6 +23,9 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -53,7 +56,10 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class UpdateRequest extends DocumentRequest<UpdateRequest> {
+public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
+        implements DocumentRequest<UpdateRequest>, WriteRequest<UpdateRequest> {
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(UpdateRequest.class));
 
     private String type;
     private String id;
@@ -91,7 +97,7 @@ public class UpdateRequest extends DocumentRequest<UpdateRequest> {
     }
 
     public UpdateRequest(String index, String type, String id) {
-        this.index = index;
+        super(index);
         this.type = type;
         this.id = id;
     }
@@ -487,6 +493,39 @@ public class UpdateRequest extends DocumentRequest<UpdateRequest> {
     @Override
     public OpType opType() {
         return OpType.UPDATE;
+    }
+
+    @Override
+    public UpdateRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {
+        this.refreshPolicy = refreshPolicy;
+        return this;
+    }
+
+    @Override
+    public RefreshPolicy getRefreshPolicy() {
+        return refreshPolicy;
+    }
+
+    public ActiveShardCount waitForActiveShards() {
+        return this.waitForActiveShards;
+    }
+
+    /**
+     * Sets the number of shard copies that must be active before proceeding with the write.
+     * See {@link ReplicationRequest#waitForActiveShards(ActiveShardCount)} for details.
+     */
+    public UpdateRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
+        this.waitForActiveShards = waitForActiveShards;
+        return this;
+    }
+
+    /**
+     * A shortcut for {@link #waitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    public UpdateRequest waitForActiveShards(final int waitForActiveShards) {
+        return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 
     /**

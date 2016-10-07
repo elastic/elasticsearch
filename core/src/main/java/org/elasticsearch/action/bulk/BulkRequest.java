@@ -528,11 +528,11 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         }
         for (DocumentRequest<?> request : requests) {
             // We first check if refresh has been set
-            if (request.getRefreshPolicy() != RefreshPolicy.NONE) {
+            if (((WriteRequest<?>) request).getRefreshPolicy() != RefreshPolicy.NONE) {
                 validationException = addValidationError(
                         "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.", validationException);
             }
-            ActionRequestValidationException ex = request.validate();
+            ActionRequestValidationException ex = ((WriteRequest<?>) request).validate();
             if (ex != null) {
                 if (validationException == null) {
                     validationException = new ActionRequestValidationException();

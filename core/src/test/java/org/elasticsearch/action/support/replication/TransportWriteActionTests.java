@@ -20,7 +20,6 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
@@ -129,21 +128,21 @@ public class TransportWriteActionTests extends ESTestCase {
         resultChecker.accept(listener.response, forcedRefresh);
     }
 
-    private class TestAction extends TransportWriteAction<TestRequest, TestRequest, TestResponse> {
+    private class TestAction extends TransportWriteAction<TestRequest, TestResponse> {
         protected TestAction() {
             super(Settings.EMPTY, "test", new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR),
                 null, null, null, null, new ActionFilters(new HashSet<>()),
-                    new IndexNameExpressionResolver(Settings.EMPTY), TestRequest::new, TestRequest::new, ThreadPool.Names.SAME);
+                    new IndexNameExpressionResolver(Settings.EMPTY), TestRequest::new, ThreadPool.Names.SAME);
         }
 
         @Override
-        protected IndexShard indexShard(ReplicatedWriteRequest request) {
+        protected IndexShard indexShard(TestRequest request) {
             return indexShard;
         }
 
         @Override
-        protected WriteResult<TestRequest, TestResponse> onPrimaryShard(TestRequest request, IndexShard indexShard) throws Exception {
-            return new WriteResult<>(request, new TestResponse(), location);
+        protected WriteResult<TestResponse> onPrimaryShard(TestRequest request, IndexShard indexShard) throws Exception {
+            return new WriteResult<>(new TestResponse(), location);
         }
 
         @Override

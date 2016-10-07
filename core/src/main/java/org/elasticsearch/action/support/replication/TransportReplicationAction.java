@@ -23,8 +23,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.DocumentRequest;
-import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -162,16 +160,6 @@ public abstract class TransportReplicationAction<
             // if the wait for active shard count has not been set in the request,
             // resolve it from the index settings
             request.waitForActiveShards(indexMetaData.getWaitForActiveShards());
-        }
-    }
-
-    /** helper to verify and resolve request routing */
-    public static void resolveAndValidateRouting(final MetaData metaData, final String concreteIndex,
-                                                 DocumentRequest request) {
-        request.routing(metaData.resolveIndexRouting(request.parent(), request.routing(), request.index()));
-        // check if routing is required, if so, throw error if routing wasn't specified
-        if (request.routing() == null && metaData.routingRequired(concreteIndex, request.type())) {
-            throw new RoutingMissingException(concreteIndex, request.type(), request.id());
         }
     }
 
@@ -912,9 +900,7 @@ public abstract class TransportReplicationAction<
         @Override
         public PrimaryResult perform(Request request) throws Exception {
             PrimaryResult result = shardOperationOnPrimary(request);
-            if (result.replicaRequest() != null) {
-                result.replicaRequest().primaryTerm(indexShard.getPrimaryTerm());
-            }
+            result.replicaRequest().primaryTerm(indexShard.getPrimaryTerm());
             return result;
         }
 

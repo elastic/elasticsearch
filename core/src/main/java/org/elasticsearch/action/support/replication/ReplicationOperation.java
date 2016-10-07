@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -113,23 +112,21 @@ public class ReplicationOperation<
         pendingActions.incrementAndGet();
         primaryResult = primary.perform(request);
         final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
-        if (replicaRequest != null) {
-            assert replicaRequest.primaryTerm() > 0 : "replicaRequest doesn't have a primary term";
-            if (logger.isTraceEnabled()) {
-                logger.trace("[{}] op [{}] completed on primary for request [{}]", primaryId, opType, request);
-            }
-
-            // we have to get a new state after successfully indexing into the primary in order to honour recovery semantics.
-            // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
-            // to the recovery target. If we use an old cluster state, we may miss a relocation that has started since then.
-            ClusterState clusterState = clusterStateSupplier.get();
-            final List<ShardRouting> shards = getShards(primaryId, clusterState);
-            Set<String> inSyncAllocationIds = getInSyncAllocationIds(primaryId, clusterState);
-
-            markUnavailableShardsAsStale(replicaRequest, inSyncAllocationIds, shards);
-
-            performOnReplicas(replicaRequest, shards);
+        assert replicaRequest.primaryTerm() > 0 : "replicaRequest doesn't have a primary term";
+        if (logger.isTraceEnabled()) {
+            logger.trace("[{}] op [{}] completed on primary for request [{}]", primaryId, opType, request);
         }
+
+        // we have to get a new state after successfully indexing into the primary in order to honour recovery semantics.
+        // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
+        // to the recovery target. If we use an old cluster state, we may miss a relocation that has started since then.
+        ClusterState clusterState = clusterStateSupplier.get();
+        final List<ShardRouting> shards = getShards(primaryId, clusterState);
+        Set<String> inSyncAllocationIds = getInSyncAllocationIds(primaryId, clusterState);
+
+        markUnavailableShardsAsStale(replicaRequest, inSyncAllocationIds, shards);
+
+        performOnReplicas(replicaRequest, shards);
 
         successfulShards.incrementAndGet();
         decPendingAndFinishIfNeeded();
@@ -422,10 +419,7 @@ public class ReplicationOperation<
 
     public interface PrimaryResult<R extends ReplicationRequest<R>> {
 
-        /**
-         * @return null if no operation needs to be sent to a replica
-         */
-        @Nullable R replicaRequest();
+        R replicaRequest();
 
         void setShardInfo(ReplicationResponse.ShardInfo shardInfo);
     }

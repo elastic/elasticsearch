@@ -21,7 +21,6 @@ package org.elasticsearch.action.delete;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -50,7 +49,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Performs the delete operation.
  */
-public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, DeleteRequest, DeleteResponse> {
+public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, DeleteResponse> {
 
     private final AutoCreateIndex autoCreateIndex;
     private final TransportCreateIndexAction createIndexAction;
@@ -62,7 +61,7 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
                                  IndexNameExpressionResolver indexNameExpressionResolver,
                                  AutoCreateIndex autoCreateIndex) {
         super(settings, DeleteAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-                indexNameExpressionResolver, DeleteRequest::new, DeleteRequest::new, ThreadPool.Names.INDEX);
+                indexNameExpressionResolver, DeleteRequest::new, ThreadPool.Names.INDEX);
         this.createIndexAction = createIndexAction;
         this.autoCreateIndex = autoCreateIndex;
     }
@@ -71,11 +70,7 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
     protected void doExecute(Task task, final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
         ClusterState state = clusterService.state();
         if (autoCreateIndex.shouldAutoCreate(request.index(), state)) {
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest();
-            createIndexRequest.index(request.index());
-            createIndexRequest.cause("auto(delete api)");
-            createIndexRequest.masterNodeTimeout(request.timeout());
-            createIndexAction.execute(task, createIndexRequest, new ActionListener<CreateIndexResponse>() {
+            createIndexAction.execute(task, new CreateIndexRequest().index(request.index()).cause("auto(delete api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     innerExecute(task, request, listener);
@@ -105,6 +100,15 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
         request.setShardId(shardId);
     }
 
+    public static void resolveAndValidateRouting(final MetaData metaData, final String concreteIndex,
+                                                 DeleteRequest request) {
+        request.routing(metaData.resolveIndexRouting(request.parent(), request.routing(), request.index()));
+        // check if routing is required, if so, throw error if routing wasn't specified
+        if (request.routing() == null && metaData.routingRequired(concreteIndex, request.type())) {
+            throw new RoutingMissingException(concreteIndex, request.type(), request.id());
+        }
+    }
+
     private void innerExecute(Task task, final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
         super.doExecute(task, request, listener);
     }
@@ -115,7 +119,7 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
     }
 
     @Override
-    protected WriteResult<DeleteRequest, DeleteResponse> onPrimaryShard(DeleteRequest request, IndexShard indexShard) {
+    protected WriteResult<DeleteResponse> onPrimaryShard(DeleteRequest request, IndexShard indexShard) {
         return executeDeleteRequestOnPrimary(request, indexShard);
     }
 
@@ -124,7 +128,7 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
         return executeDeleteRequestOnReplica(request, indexShard).getTranslogLocation();
     }
 
-    public static WriteResult<DeleteRequest, DeleteResponse> executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard indexShard) {
+    public static WriteResult<DeleteResponse> executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard indexShard) {
         Engine.Delete delete = indexShard.prepareDeleteOnPrimary(request.type(), request.id(), request.version(), request.versionType());
         indexShard.delete(delete);
         // update the request with the version so it will go to the replicas
@@ -133,7 +137,7 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
 
         assert request.versionType().validateVersionForWrites(request.version());
         DeleteResponse response = new DeleteResponse(indexShard.shardId(), request.type(), request.id(), delete.version(), delete.found());
-        return new WriteResult<>(request, response, delete.getTranslogLocation());
+        return new WriteResult<>(response, delete.getTranslogLocation());
     }
 
     public static Engine.Delete executeDeleteRequestOnReplica(DeleteRequest request, IndexShard indexShard) {

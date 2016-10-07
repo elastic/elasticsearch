@@ -145,7 +145,7 @@ final class BootstrapCheck {
      */
     // visible for testing
     static boolean enforceLimits(BoundTransportAddress boundTransportAddress) {
-        Predicate<TransportAddress> isLoopbackOrLinkLocalAddress = (t) -> t.address().getAddress().isLinkLocalAddress()
+        Predicate<TransportAddress> isLoopbackOrLinkLocalAddress = t -> t.address().getAddress().isLinkLocalAddress()
             || t.address().getAddress().isLoopbackAddress();
         return !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackOrLinkLocalAddress) &&
                 isLoopbackOrLinkLocalAddress.test(boundTransportAddress.publishAddress()));

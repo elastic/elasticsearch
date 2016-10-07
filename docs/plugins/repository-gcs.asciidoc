@@ -21,7 +21,7 @@ The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
 This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/repository-gcs/{version}/repository-gcs-{version}.zip.
+{plugin_url}/repository-gcs/repository-gcs-{version}.zip.
 
 [[repository-gcs-remove]]
 [float]

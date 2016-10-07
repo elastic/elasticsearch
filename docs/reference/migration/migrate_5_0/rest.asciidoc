@@ -1,6 +1,15 @@
-
 [[breaking_50_rest_api_changes]]
 === REST API changes
+
+==== Strict REST query string parameter parsing
+
+Previous versions of Elasticsearch ignored unrecognized URL query
+string parameters. This means that extraneous parameters or parameters
+containing typographical errors would be silently accepted by
+Elasticsearch. This is dangerous from an end-user perspective because it
+means a submitted request will silently execute not as intended. This
+leniency has been removed and Elasticsearch will now fail any request
+that contains unrecognized query string parameters.
 
 ==== id values longer than 512 bytes are rejected
 

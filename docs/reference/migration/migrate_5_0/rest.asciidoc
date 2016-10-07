@@ -3,7 +3,7 @@
 
 ==== Strict REST query string parameter parsing
 
-Previous versions of Elasticsearch accepted unrecognized URL query
+Previous versions of Elasticsearch ignored unrecognized URL query
 string parameters. This means that extraneous parameters or parameters
 containing typographical errors would be silently accepted by
 Elasticsearch. This is dangerous from an end-user perspective because it

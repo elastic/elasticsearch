@@ -207,17 +207,4 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 .getDefault(Settings.EMPTY)).build()));
         assertThat(e.getMessage(), endsWith(errorMessage));
     }
-
-    private MetaDataCreateIndexService getCreateIndexService() {
-        return new MetaDataCreateIndexService(
-            Settings.EMPTY,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null);
-    }
 }

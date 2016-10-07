@@ -36,7 +36,7 @@ public class GatewayServiceTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 null);
         return new GatewayService(settings.build(),
-                null, clusterService, null, null, null, new NoopDiscovery(), null, null);
+                null, clusterService, null, null, null, new NoopDiscovery(), null);
     }
 
     public void testDefaultRecoverAfterTime() throws IOException {

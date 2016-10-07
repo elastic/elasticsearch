@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
@@ -58,9 +57,6 @@ import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
-import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
@@ -170,7 +166,6 @@ public class IndicesModule extends AbstractModule {
         bind(SyncedFlushService.class).asEagerSingleton();
         bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();
         bind(IndicesTTLService.class).asEagerSingleton();
-        bind(NodeServicesProvider.class).asEagerSingleton();
     }
 
     /**

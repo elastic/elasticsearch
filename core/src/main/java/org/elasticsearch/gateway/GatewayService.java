@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -43,7 +44,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -98,10 +98,10 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     public GatewayService(Settings settings, AllocationService allocationService, ClusterService clusterService,
                           ThreadPool threadPool, GatewayMetaState metaState,
                           TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery,
-                          NodeServicesProvider nodeServicesProvider, IndicesService indicesService) {
+                          IndicesService indicesService) {
         super(settings);
         this.gateway = new Gateway(settings, clusterService, metaState, listGatewayMetaState, discovery,
-            nodeServicesProvider, indicesService);
+            indicesService);
         this.allocationService = allocationService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;

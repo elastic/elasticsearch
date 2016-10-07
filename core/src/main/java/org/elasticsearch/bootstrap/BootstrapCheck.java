@@ -43,6 +43,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Predicate;
 
 /**
  * We enforce limits once any network host is configured. In this case we assume the node is running in production
@@ -144,8 +145,10 @@ final class BootstrapCheck {
      */
     // visible for testing
     static boolean enforceLimits(BoundTransportAddress boundTransportAddress) {
-        return !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(TransportAddress::isLoopbackOrLinkLocalAddress) &&
-                boundTransportAddress.publishAddress().isLoopbackOrLinkLocalAddress());
+        Predicate<TransportAddress> isLoopbackOrLinkLocalAddress = t -> t.address().getAddress().isLinkLocalAddress()
+            || t.address().getAddress().isLoopbackAddress();
+        return !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackOrLinkLocalAddress) &&
+                isLoopbackOrLinkLocalAddress.test(boundTransportAddress.publishAddress()));
     }
 
     // the list of checks to execute

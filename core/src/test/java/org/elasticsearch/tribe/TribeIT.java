@@ -207,7 +207,7 @@ public class TribeIT extends ESIntegTestCase {
             Set<String> hosts = new HashSet<>();
             for (Transport transport : c.getInstances(Transport.class)) {
                 TransportAddress address = transport.boundAddress().publishAddress();
-                hosts.add(address.getHost() + ":" + address.getPort());
+                hosts.add(address.getAddress() + ":" + address.getPort());
             }
             settings.putArray(tribeSetting + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(),
                     hosts.toArray(new String[hosts.size()]));

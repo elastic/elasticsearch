@@ -78,7 +78,7 @@ public final class TransportAddress implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        byte[] bytes = address().getAddress().getAddress();  // 4 bytes (IPv4) or 16 bytes (IPv6)
+        byte[] bytes = address.getAddress().getAddress();  // 4 bytes (IPv4) or 16 bytes (IPv6)
         out.writeByte((byte) bytes.length); // 1 byte
         out.write(bytes, 0, bytes.length);
         // don't serialize scope ids over the network!!!!
@@ -87,26 +87,24 @@ public final class TransportAddress implements Writeable {
         out.writeInt(address.getPort());
     }
 
-    public boolean sameHost(TransportAddress other) {
-        return address.getAddress().equals(other.address.getAddress());
-    }
-
-    public boolean isLoopbackOrLinkLocalAddress() {
-        return address.getAddress().isLinkLocalAddress() || address.getAddress().isLoopbackAddress();
-    }
-
-    public String getHost() {
-       return getAddress(); // just delegate no resolving
-    }
-
+    /**
+     * Returns a string representation of the enclosed {@link InetSocketAddress}
+     * @see NetworkAddress#format(InetAddress)
+     */
     public String getAddress() {
         return NetworkAddress.format(address.getAddress());
     }
 
+    /**
+     * Returns the addresses port
+     */
     public int getPort() {
         return address.getPort();
     }
 
+    /**
+     * Returns the enclosed {@link InetSocketAddress}
+     */
     public InetSocketAddress address() {
         return this.address;
     }

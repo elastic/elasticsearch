@@ -124,6 +124,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -1625,10 +1626,10 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public void testSeqNoAndCheckpoints() throws IOException {
-        // nocommit: does not test deletes
         final int opCount = randomIntBetween(1, 256);
         long primarySeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
         final String[] ids = new String[]{"1", "2", "3"};
+        final Set<String> indexedIds = new HashSet<>();
         long localCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
         long replicaLocalCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
         long globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
@@ -1641,18 +1642,38 @@ public class InternalEngineTests extends ESTestCase {
                 .seqNoService()
                 .updateAllocationIdsFromMaster(new HashSet<>(Arrays.asList("primary", "replica")), Collections.emptySet());
             for (int op = 0; op < opCount; op++) {
-                final String id = randomFrom(ids);
-                ParsedDocument doc = testParsedDocument("test#" + id, id, "test", null, -1, -1, testDocumentWithTextField(), SOURCE, null);
-                final Engine.Index index = new Engine.Index(newUid("test#" + id), doc,
-                    SequenceNumbersService.UNASSIGNED_SEQ_NO,
-                    rarely() ? 100 : Versions.MATCH_ANY, VersionType.INTERNAL,
-                    PRIMARY, 0, -1, false);
+                final String id;
                 boolean versionConflict = false;
-                try {
-                    initialEngine.index(index);
+                // mostly index, sometimes delete
+                if (rarely() && indexedIds.isEmpty() == false) {
+                    // we have some docs indexed, so delete one of them
+                    id = randomFrom(indexedIds);
+                    final Engine.Delete delete = new Engine.Delete(
+                        "test", id, newUid("test#" + id), SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                        rarely() ? 100 : Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0, false);
+                    try {
+                        initialEngine.delete(delete);
+                        indexedIds.remove(id);
+                    } catch (VersionConflictEngineException e) {
+                        versionConflict = true;
+                    }
+                } else {
+                    // index a document
+                    id = randomFrom(ids);
+                    ParsedDocument doc = testParsedDocument("test#" + id, id, "test", null, -1, -1, testDocumentWithTextField(), SOURCE, null);
+                    final Engine.Index index = new Engine.Index(newUid("test#" + id), doc,
+                        SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                        rarely() ? 100 : Versions.MATCH_ANY, VersionType.INTERNAL,
+                        PRIMARY, 0, -1, false);
+                    try {
+                        initialEngine.index(index);
+                        indexedIds.add(id);
+                    } catch (VersionConflictEngineException e) {
+                        versionConflict = true;
+                    }
+                }
+                if (versionConflict == false) {
                     primarySeqNo++;
-                } catch (VersionConflictEngineException e) {
-                    versionConflict = true;
                 }
 
                 replicaLocalCheckpoint =
@@ -1662,7 +1683,7 @@ public class InternalEngineTests extends ESTestCase {
 
                 // make sure the max seq no in the latest commit hasn't advanced due to more documents having been added;
                 // the first time the commit data iterable gets an iterator, the max seq no from that point in time should
-                // remain from any subsequent call to IndexWriter#getLiveCommitData unless the commit data is overridden by a
+                // remain from any subsequent call to IndexWriter#getLiveCommitData unless the commit data is overwritten by a
                 // subsequent call to IndexWriter#setLiveCommitData.
                 if (initialEngine.seqNoService().getMaxSeqNo() != SequenceNumbersService.NO_OPS_PERFORMED) {
                     assertThat(

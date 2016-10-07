@@ -135,8 +135,7 @@ public class ShardAllocationDecision {
 
     private static ShardAllocationDecision getCachedDecision(AllocationStatus allocationStatus) {
         ShardAllocationDecision decision = CACHED_DECISIONS.get(allocationStatus);
-        assert decision != null : "precomputed decision not found for " + allocationStatus;
-        return decision;
+        return Objects.requireNonNull(decision, "precomputed decision not found for " + allocationStatus);
     }
 
     /**

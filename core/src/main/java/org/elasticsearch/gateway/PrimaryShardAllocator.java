@@ -178,8 +178,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 // this shard will be picked up when the node joins and we do another allocation reroute
                 logger.debug("[{}][{}]: not allocating, number_of_allocated_shards_found [{}]",
                              unassignedShard.index(), unassignedShard.id(), nodeShardsResult.allocationsFound);
-                return ShardAllocationDecision.no(AllocationStatus.NO_VALID_SHARD_COPY, explain ?
-                    "shard was previously allocated, but no valid shard copy could be found amongst the nodes in the cluster" : null);
+                return ShardAllocationDecision.no(AllocationStatus.NO_VALID_SHARD_COPY,
+                    explain ? "shard was previously allocated, but no valid shard copy could be found amongst the nodes in the cluster" : null);
             }
         }
 
@@ -214,8 +214,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             } else if (nodesToForceAllocate.throttleNodeShards.isEmpty() == false) {
                 logger.debug("[{}][{}]: throttling allocation [{}] to [{}] on forced primary allocation",
                              unassignedShard.index(), unassignedShard.id(), unassignedShard, nodesToForceAllocate.throttleNodeShards);
-                return ShardAllocationDecision.throttle(explain ?
-                        "allocation throttled as all nodes to which the shard may be force allocated are busy with other recoveries" : null,
+                return ShardAllocationDecision.throttle(
+                    explain ? "allocation throttled as all nodes to which the shard may be force allocated are busy with other recoveries" : null,
                     buildNodeDecisions(nodesToForceAllocate, explain));
             } else {
                 logger.debug("[{}][{}]: forced primary allocation denied [{}]",

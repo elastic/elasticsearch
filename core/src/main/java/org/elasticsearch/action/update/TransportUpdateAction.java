@@ -100,6 +100,14 @@ public class TransportUpdateAction extends TransportWriteAction<UpdateRequest, U
         request.setShardId(shardId);
     }
 
+    public static void resolveAndValidateRouting(MetaData metaData, String concreteIndex, UpdateRequest request) {
+        request.routing((metaData.resolveIndexRouting(request.parent(), request.routing(), request.index())));
+        // Fail fast on the node that received the request, rather than failing when translating on the index or delete request.
+        if (request.routing() == null && metaData.routingRequired(concreteIndex, request.type())) {
+            throw new RoutingMissingException(concreteIndex, request.type(), request.id());
+        }
+    }
+
     @Override
     protected void doExecute(Task task, UpdateRequest request, ActionListener<UpdateResponse> listener) {
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API

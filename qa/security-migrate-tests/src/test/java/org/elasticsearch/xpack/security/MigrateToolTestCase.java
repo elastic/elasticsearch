@@ -12,9 +12,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -42,7 +40,6 @@ import static org.hamcrest.Matchers.notNullValue;
  * your test.
  */
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
-@ESIntegTestCase.SuppressLocalMode
 public abstract class MigrateToolTestCase extends LuceneTestCase {
 
     /**
@@ -105,7 +102,7 @@ public abstract class MigrateToolTestCase extends LuceneTestCase {
             String ip = stringAddress.substring(0, lastColon);
             String port = stringAddress.substring(lastColon + 1);
             try {
-                transportAddresses[i++] = new InetSocketTransportAddress(InetAddress.getByName(ip), Integer.valueOf(port));
+                transportAddresses[i++] = new TransportAddress(InetAddress.getByName(ip), Integer.valueOf(port));
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("port is not valid, expected number but was [" + port + "]");
             }

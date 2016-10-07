@@ -36,7 +36,6 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -707,12 +706,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         TransportAddress address = message.remoteAddress();
         if (address != null) {
             builder.field(Field.ORIGIN_TYPE, "transport");
-            if (address instanceof InetSocketTransportAddress) {
-                builder.field(Field.ORIGIN_ADDRESS,
-                        NetworkAddress.format(((InetSocketTransportAddress) address).address().getAddress()));
-            } else {
-                builder.field(Field.ORIGIN_ADDRESS, address);
-            }
+            builder.field(Field.ORIGIN_ADDRESS,
+                    NetworkAddress.format(address.address().getAddress()));
             return builder;
         }
 
@@ -771,7 +766,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                 .put(theClientSetting).build(), Settings.EMPTY, Collections.singletonList(XPackPlugin.class)) {};
         for (Tuple<String, Integer> pair : hostPortPairs) {
             try {
-                transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName(pair.v1()), pair.v2()));
+                transportClient.addTransportAddress(new TransportAddress(InetAddress.getByName(pair.v1()), pair.v2()));
             } catch (UnknownHostException e) {
                 throw new ElasticsearchException("could not find host {}", e, pair.v1());
             }

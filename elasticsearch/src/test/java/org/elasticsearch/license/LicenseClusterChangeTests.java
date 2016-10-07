@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.junit.After;
 import org.junit.Before;
@@ -64,7 +63,7 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
     }
 
     public void testTrialLicenseGeneration() throws Exception {
-        DiscoveryNode master = new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode master = new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         ClusterState oldState = ClusterState.builder(new ClusterName("a"))
                 .nodes(DiscoveryNodes.builder().masterNodeId(master.getId()).add(master)).build();
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);

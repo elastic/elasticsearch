@@ -16,7 +16,6 @@ import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.xpack.security.Security;
@@ -161,8 +160,6 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
     private String getNodeUrl() {
         TransportAddress transportAddress = randomFrom(internalCluster().getInstance(HttpServerTransport.class)
                 .boundAddress().boundAddresses());
-        assertThat(transportAddress, is(instanceOf(InetSocketTransportAddress.class)));
-        InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) transportAddress;
-        return String.format(Locale.ROOT, "https://localhost:%s/", inetSocketTransportAddress.address().getPort());
+        return String.format(Locale.ROOT, "https://localhost:%s/", transportAddress.address().getPort());
     }
 }

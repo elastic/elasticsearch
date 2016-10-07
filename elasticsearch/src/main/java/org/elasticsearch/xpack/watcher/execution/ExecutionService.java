@@ -64,7 +64,7 @@ public class ExecutionService extends AbstractComponent {
     private final TimeValue maxStopTimeout;
     private final ThreadPool threadPool;
 
-    private volatile CurrentExecutions currentExecutions = null;
+    private volatile CurrentExecutions currentExecutions;
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     @Inject

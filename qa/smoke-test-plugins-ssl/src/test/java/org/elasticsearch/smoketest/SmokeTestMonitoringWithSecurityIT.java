@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -134,7 +134,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
 
         InetSocketAddress[] httpAddresses = new InetSocketAddress[nodes.size()];
         for (int i = 0; i < nodes.size(); i++) {
-            httpAddresses[i] = ((InetSocketTransportAddress) nodes.get(i).getHttp().address().publishAddress()).address();
+            httpAddresses[i] = nodes.get(i).getHttp().address().publishAddress().address();
         }
         return httpAddresses;
     }

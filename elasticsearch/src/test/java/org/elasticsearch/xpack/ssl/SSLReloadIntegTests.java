@@ -17,10 +17,9 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.network.InetAddressHelper;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.Transport;
@@ -114,7 +113,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(settings, new Environment(settings));
         SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(settings);
-        InetSocketTransportAddress address = (InetSocketTransportAddress) internalCluster()
+        TransportAddress address = internalCluster()
                 .getInstance(Transport.class, node).boundAddress().publishAddress();
         try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {
             assertThat(socket.isConnected(), is(true));

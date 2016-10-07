@@ -14,7 +14,6 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
@@ -408,13 +407,9 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail {
         TransportAddress address = message.remoteAddress();
         if (address != null) {
             builder.append("origin_type=[transport], ");
-            if (address instanceof InetSocketTransportAddress) {
-                builder.append("origin_address=[").
-                        append(NetworkAddress.format(((InetSocketTransportAddress) address).address().getAddress())).
+            builder.append("origin_address=[").
+                        append(NetworkAddress.format(address.address().getAddress())).
                         append("]");
-            } else {
-                builder.append("origin_address=[").append(address).append("]");
-            }
             return builder.toString();
         }
 

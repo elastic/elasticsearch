@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.test.ESTestCase;
@@ -96,7 +95,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         clusterService =  new ClusterService(Settings.builder().put("cluster.name",
                 TransportMonitoringBulkActionTests.class.getName()).build(),
                 new ClusterSettings(Settings.EMPTY, clusterSettings), threadPool);
-        clusterService.setLocalNode(new DiscoveryNode("node", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(),
+        clusterService.setLocalNode(new DiscoveryNode("node", buildNewFakeTransportAddress(), emptyMap(), emptySet(),
                 Version.CURRENT));
         clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override

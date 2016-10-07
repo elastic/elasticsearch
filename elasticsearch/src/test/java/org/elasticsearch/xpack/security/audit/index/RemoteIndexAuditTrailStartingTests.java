@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.audit.index;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
@@ -81,7 +81,7 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();
         final String clusterName = response.getClusterName().value();
         for (NodeInfo nodeInfo : response.getNodes()) {
-            InetSocketTransportAddress address = (InetSocketTransportAddress) nodeInfo.getTransport().address().publishAddress();
+            TransportAddress address = nodeInfo.getTransport().address().publishAddress();
             addresses.add(address.address().getHostString() + ":" + address.address().getPort());
         }
 

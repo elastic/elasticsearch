@@ -10,7 +10,6 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -44,7 +43,7 @@ public class ClusterInfoResolverTests extends MonitoringIndexNameResolverTestCas
             ClusterInfoMonitoringDoc doc = new ClusterInfoMonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
             doc.setClusterUUID(randomAsciiOfLength(5));
             doc.setTimestamp(Math.abs(randomLong()));
-            doc.setSourceNode(new DiscoveryNode("id", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
+            doc.setSourceNode(new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
             doc.setVersion(randomFrom(Version.V_2_0_0, Version.CURRENT).toString());
             doc.setLicense(licenseBuilder.build());
             doc.setClusterName(randomAsciiOfLength(5));

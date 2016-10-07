@@ -677,7 +677,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
     }
 
     @Override
-    public List<TransportInterceptor> getTransportInterceptors() {
+    public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry) {
         if (transportClientMode || enabled == false) { // don't register anything if we are not enabled
             // interceptors are not installed if we are running on the transport client
             return Collections.emptyList();

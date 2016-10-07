@@ -9,11 +9,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.TestXPackTransportClient;
 
 import java.net.InetSocketAddress;
@@ -92,15 +90,14 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
     public void testThatHostnameMismatchDeniesTransportClientConnection() throws Exception {
         Transport transport = internalCluster().getDataNodeInstance(Transport.class);
         TransportAddress transportAddress = transport.boundAddress().publishAddress();
-        assertThat(transportAddress, instanceOf(InetSocketTransportAddress.class));
-        InetSocketAddress inetSocketAddress = ((InetSocketTransportAddress) transportAddress).address();
+        InetSocketAddress inetSocketAddress = transportAddress.address();
 
         Settings settings = Settings.builder().put(transportClientSettings())
                 .put("xpack.ssl.verification_mode", "full")
                 .build();
 
         try (TransportClient client = new TestXPackTransportClient(settings)) {
-            client.addTransportAddress(new InetSocketTransportAddress(inetSocketAddress.getAddress(), inetSocketAddress.getPort()));
+            client.addTransportAddress(new TransportAddress(inetSocketAddress.getAddress(), inetSocketAddress.getPort()));
             client.admin().cluster().prepareHealth().get();
             fail("Expected a NoNodeAvailableException due to hostname verification failures");
         } catch (NoNodeAvailableException e) {

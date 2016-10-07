@@ -11,7 +11,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -91,8 +90,7 @@ public class OldMonitoringIndicesBackwardsCompatibilityIT extends AbstractOldXPa
             // If we're using the http exporter we need feed it the port and enable it
             NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
             TransportAddress publishAddress = nodeInfos.getNodes().get(0).getHttp().address().publishAddress();
-            assertEquals(1, publishAddress.uniqueAddressTypeId());
-            InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
+            InetSocketAddress address = publishAddress.address();
             Settings.Builder settings = Settings.builder();
             setupHttpExporter(settings, address.getPort());
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get();

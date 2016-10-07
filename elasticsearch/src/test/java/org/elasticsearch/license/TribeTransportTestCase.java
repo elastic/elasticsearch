@@ -21,6 +21,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
+import org.elasticsearch.node.MockNode;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.node.Node;
@@ -54,7 +56,7 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
     protected final Settings nodeSettings(int nodeOrdinal) {
         final Settings.Builder builder = Settings.builder()
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                .put("transport.type", "local")
+                .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
                 .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local");
         List<String> enabledFeatures = enabledFeatures();
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), enabledFeatures.contains(XPackPlugin.SECURITY));
@@ -128,8 +130,8 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
         Settings merged = Settings.builder()
                 .put("tribe.t1.cluster.name", internalCluster().getClusterName())
                 .put("tribe.t2.cluster.name", cluster2.getClusterName())
-                .put("tribe.t1.transport.type", "local")
-                .put("tribe.t2.transport.type", "local")
+                .put("tribe.t1.transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
+                .put("tribe.t2.transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
                 .put("tribe.t1.discovery.type", "local")
                 .put("tribe.t2.discovery.type", "local")
                 .put("tribe.blocks.write", false)
@@ -138,10 +140,10 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(internalCluster().getDefaultSettings())
                 .put("node.name", "tribe_node") // make sure we can identify threads from this node
-                .put("transport.type", "local")
+                .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
                 .build();
 
-        final Node tribeNode = new Node(merged).start();
+        final Node tribeNode = new MockNode(merged, Collections.singleton(MockTcpTransportPlugin.class)).start();
         Client tribeClient = tribeNode.client();
 
         logger.info("wait till tribe has the same nodes as the 2 clusters");

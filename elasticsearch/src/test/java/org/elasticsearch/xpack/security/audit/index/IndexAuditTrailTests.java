@@ -32,8 +32,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
@@ -77,9 +76,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 @ESIntegTestCase.ClusterScope(scope = SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class IndexAuditTrailTests extends SecurityIntegTestCase {
     public static final String SECOND_CLUSTER_NODE_PREFIX = "remote_" + SUITE_CLUSTER_NODE_PREFIX;
@@ -89,6 +85,8 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     private static Settings remoteSettings;
     private static byte[] systemKey;
 
+    private TransportAddress remoteAddress = buildNewFakeTransportAddress();
+    private TransportAddress localAddress = new TransportAddress(InetAddress.getLoopbackAddress(), 0);
     private IndexNameResolver.Rollover rollover;
     private IndexAuditTrail auditor;
     private SetOnce<Message> enqueuedMessage;
@@ -160,7 +158,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
         NodesInfoResponse response = remoteCluster.client().admin().cluster().prepareNodesInfo().execute().actionGet();
         TransportInfo info = response.getNodes().get(0).getTransport();
-        InetSocketTransportAddress inet = (InetSocketTransportAddress) info.address().publishAddress();
+        TransportAddress inet = info.address().publishAddress();
 
         Settings.Builder builder = Settings.builder()
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), useSecurity)
@@ -266,8 +264,8 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         Settings settings = builder.put(settings(rollover, includes, excludes)).build();
         logger.info("--> settings: [{}]", settings.getAsMap().toString());
         DiscoveryNode localNode = mock(DiscoveryNode.class);
-        when(localNode.getHostAddress()).thenReturn(remoteHostAddress().getAddress());
-        when(localNode.getHostName()).thenReturn(remoteHostAddress().getHost());
+        when(localNode.getHostAddress()).thenReturn(remoteAddress.getAddress());
+        when(localNode.getHostName()).thenReturn(remoteAddress.getHost());
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(localNode);
         threadPool = new TestThreadPool("index audit trail tests");
@@ -291,9 +289,9 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertAuditMessage(hit, "transport", "anonymous_access_denied");
         Map<String, Object> sourceMap = hit.sourceAsMap();
         if (message instanceof RemoteHostMockMessage) {
-            assertEquals(remoteHostAddress().toString(), sourceMap.get("origin_address"));
+            assertEquals(remoteAddress.getAddress(), sourceMap.get("origin_address"));
         } else {
-            assertEquals("local[local_host]", sourceMap.get("origin_address"));
+            assertEquals(localAddress.getAddress(), sourceMap.get("origin_address"));
         }
 
         assertEquals("_action", sourceMap.get("action"));
@@ -328,9 +326,9 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertAuditMessage(hit, "transport", "authentication_failed");
 
         if (message instanceof RemoteHostMockMessage) {
-            assertEquals(remoteHostAddress().toString(), sourceMap.get("origin_address"));
+            assertEquals(remoteAddress.getAddress(), sourceMap.get("origin_address"));
         } else {
-            assertEquals("local[local_host]", sourceMap.get("origin_address"));
+            assertEquals(localAddress.getAddress(), sourceMap.get("origin_address"));
         }
 
         assertEquals("_principal", sourceMap.get("principal"));
@@ -348,9 +346,9 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertAuditMessage(hit, "transport", "authentication_failed");
         Map<String, Object> sourceMap = hit.sourceAsMap();
         if (message instanceof RemoteHostMockMessage) {
-            assertEquals(remoteHostAddress().toString(), sourceMap.get("origin_address"));
+            assertEquals(remoteAddress.getAddress(), sourceMap.get("origin_address"));
         } else {
-            assertEquals("local[local_host]", sourceMap.get("origin_address"));
+            assertEquals(localAddress.getAddress(), sourceMap.get("origin_address"));
         }
 
         assertThat(sourceMap.get("principal"), nullValue());
@@ -403,9 +401,9 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         Map<String, Object> sourceMap = hit.sourceAsMap();
 
         if (message instanceof RemoteHostMockMessage) {
-            assertEquals(remoteHostAddress().toString(), sourceMap.get("origin_address"));
+            assertEquals(remoteAddress.getAddress(), sourceMap.get("origin_address"));
         } else {
-            assertEquals("local[local_host]", sourceMap.get("origin_address"));
+            assertEquals(localAddress.getAddress(), sourceMap.get("origin_address"));
         }
 
         assertEquals("transport", sourceMap.get("origin_type"));
@@ -688,8 +686,8 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         DateTime dateTime = ISODateTimeFormat.dateTimeParser().withZoneUTC().parseDateTime((String) sourceMap.get("@timestamp"));
         assertThat(dateTime.isBefore(DateTime.now(DateTimeZone.UTC)), is(true));
 
-        assertThat(remoteHostAddress().getHost(), equalTo(sourceMap.get("node_host_name")));
-        assertThat(remoteHostAddress().getAddress(), equalTo(sourceMap.get("node_host_address")));
+        assertThat(remoteAddress.getHost(), equalTo(sourceMap.get("node_host_name")));
+        assertThat(remoteAddress.getAddress(), equalTo(sourceMap.get("node_host_address")));
 
         assertEquals(layer, sourceMap.get("layer"));
         assertEquals(type, sourceMap.get("event_type"));
@@ -702,25 +700,25 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             assertThat(sourceMap.get("request_body"), nullValue());
         }
     }
-    private static class LocalHostMockMessage extends TransportMessage {
+    private class LocalHostMockMessage extends TransportMessage {
         LocalHostMockMessage() {
-            remoteAddress(new LocalTransportAddress("local_host"));
+            remoteAddress(localAddress);
         }
     }
 
-    private static class RemoteHostMockMessage extends TransportMessage {
+    private class RemoteHostMockMessage extends TransportMessage {
         RemoteHostMockMessage() throws Exception {
-            remoteAddress(remoteHostAddress());
+            remoteAddress(remoteAddress);
         }
     }
 
-    private static class RemoteHostMockTransportRequest extends TransportRequest {
+    private class RemoteHostMockTransportRequest extends TransportRequest {
         RemoteHostMockTransportRequest() throws Exception {
-            remoteAddress(remoteHostAddress());
+            remoteAddress(remoteAddress);
         }
     }
 
-    private static class MockIndicesTransportMessage extends RemoteHostMockMessage implements IndicesRequest {
+    private class MockIndicesTransportMessage extends RemoteHostMockMessage implements IndicesRequest {
         MockIndicesTransportMessage() throws Exception {
             super();
         }
@@ -810,10 +808,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
         logger.debug("indices {} are yellow", indices.length == 0 ? "[_all]" : indices);
         return actionGet.getStatus();
-    }
-
-    private static LocalTransportAddress remoteHostAddress() {
-        return new LocalTransportAddress("_remote_host_");
     }
 }
 

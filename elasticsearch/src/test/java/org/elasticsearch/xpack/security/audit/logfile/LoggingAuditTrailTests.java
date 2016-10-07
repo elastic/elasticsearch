@@ -16,8 +16,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
@@ -119,7 +117,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put("xpack.security.audit.logfile.events.emit_request_body", includeRequestBody)
                 .build();
         localNode = mock(DiscoveryNode.class);
-        when(localNode.getHostAddress()).thenReturn(LocalTransportAddress.buildUnique().toString());
+        when(localNode.getHostAddress()).thenReturn(buildNewFakeTransportAddress().toString());
         clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(localNode);
         prefix = LoggingAuditTrail.resolvePrefix(settings, localNode);
@@ -595,12 +593,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             return;
         }
 
-        if (address instanceof InetSocketTransportAddress) {
-            assertThat(text, equalTo("origin_type=[transport], origin_address=[" +
-                    NetworkAddress.format(((InetSocketTransportAddress) address).address().getAddress()) + "]"));
-        } else {
-            assertThat(text, equalTo("origin_type=[transport], origin_address=[" + address + "]"));
-        }
+        assertThat(text, equalTo("origin_type=[transport], origin_address=[" +
+                    NetworkAddress.format(address.address().getAddress()) + "]"));
     }
 
     public void testAuthenticationSuccessRest() throws Exception {
@@ -716,9 +710,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         private MockMessage(ThreadContext threadContext) throws IOException {
             if (randomBoolean()) {
                 if (randomBoolean()) {
-                    remoteAddress(new LocalTransportAddress("local_host"));
+                    remoteAddress(buildNewFakeTransportAddress());
                 } else {
-                    remoteAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 1234));
+                    remoteAddress(new TransportAddress(InetAddress.getLoopbackAddress(), 1234));
                 }
             }
             if (randomBoolean()) {
@@ -731,7 +725,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         private MockIndicesRequest(ThreadContext threadContext) throws IOException {
             if (randomBoolean()) {
-                remoteAddress(new LocalTransportAddress("_host"));
+                remoteAddress(buildNewFakeTransportAddress());
             }
             if (randomBoolean()) {
                 RemoteHostHeader.putRestRemoteAddress(threadContext, new InetSocketAddress(forge("localhost", "127.0.0.1"), 1234));

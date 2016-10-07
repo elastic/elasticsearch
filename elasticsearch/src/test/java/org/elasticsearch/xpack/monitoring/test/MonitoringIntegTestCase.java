@@ -24,7 +24,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.store.MockFSIndexStore;
-import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -141,7 +140,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
         Set<Class<? extends Plugin>> plugins = new HashSet<>(super.getMockPlugins());
         plugins.remove(MockTransportService.TestPlugin.class); // security has its own transport service
-        plugins.remove(AssertingLocalTransport.TestPlugin.class); // security has its own transport
         plugins.add(MockFSIndexStore.TestPlugin.class);
         return plugins;
     }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -24,6 +25,6 @@ public class TestXPackTransportClient extends TransportClient {
     }
 
     public TestXPackTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins) {
-        super(settings, Settings.EMPTY, addPlugins(plugins, XPackPlugin.class));
+        super(settings, Settings.EMPTY, addPlugins(plugins, XPackPlugin.class, MockTcpTransportPlugin.class));
     }
 }

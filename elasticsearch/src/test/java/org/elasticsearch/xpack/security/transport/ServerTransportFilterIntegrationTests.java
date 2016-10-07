@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.transport;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
@@ -87,9 +86,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
 
         Transport transport = internalCluster().getDataNodeInstance(Transport.class);
         TransportAddress transportAddress = transport.boundAddress().publishAddress();
-        assertThat(transportAddress, instanceOf(InetSocketTransportAddress.class));
-        InetSocketAddress inetSocketAddress = ((InetSocketTransportAddress) transportAddress).address();
-        String unicastHost = NetworkAddress.format(inetSocketAddress);
+        String unicastHost = NetworkAddress.format(transportAddress.address());
 
         // test that starting up a node works
         Settings nodeSettings = Settings.builder()
@@ -118,13 +115,6 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         writeFile(xpackConf, "users", configUsers());
         writeFile(xpackConf, "users_roles", configUsersRoles());
         writeFile(xpackConf, "roles.yml", configRoles());
-
-        Transport transport = internalCluster().getDataNodeInstance(Transport.class);
-        TransportAddress transportAddress = transport.profileBoundAddresses().get("client").publishAddress();
-        assertThat(transportAddress, instanceOf(InetSocketTransportAddress.class));
-        InetSocketAddress inetSocketAddress = ((InetSocketTransportAddress) transportAddress).address();
-        int port = inetSocketAddress.getPort();
-
         // test that starting up a node works
         Settings nodeSettings = Settings.builder()
                 .put("xpack.security.authc.realms.file.type", FileRealm.TYPE)

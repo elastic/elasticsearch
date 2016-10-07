@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -58,7 +59,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ClusterScope(scope = SUITE, numDataNodes = 0)
-@ESIntegTestCase.SuppressLocalMode
 public class TransportFilterTests extends ESIntegTestCase {
 
     @Override
@@ -305,7 +305,7 @@ public class TransportFilterTests extends ESIntegTestCase {
             }
 
             @Override
-            public List<TransportInterceptor> getTransportInterceptors() {
+            public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry) {
                 return Collections.singletonList(new TransportInterceptor() {
                     @Override
                     public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action,

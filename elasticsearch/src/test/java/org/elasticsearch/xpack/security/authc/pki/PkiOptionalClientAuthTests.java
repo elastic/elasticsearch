@@ -13,7 +13,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.Transport;
@@ -95,8 +95,7 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
 
     public void testTransportClientWithoutClientCertificate() {
         Transport transport = internalCluster().getDataNodeInstance(Transport.class);
-        int port = ((InetSocketTransportAddress)
-                randomFrom(transport.profileBoundAddresses().get("want_client_auth").boundAddresses())).address().getPort();
+        int port = randomFrom(transport.profileBoundAddresses().get("want_client_auth").boundAddresses()).address().getPort();
 
         Settings sslSettingsForStore = getSSLSettingsForStore
                 ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks", "truststore-testnode-only");
@@ -109,7 +108,7 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
 
 
         try (TransportClient client = new TestXPackTransportClient(settings)) {
-            client.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), port));
+            client.addTransportAddress(new TransportAddress(InetAddress.getLoopbackAddress(), port));
             assertGreenClusterState(client);
         }
     }

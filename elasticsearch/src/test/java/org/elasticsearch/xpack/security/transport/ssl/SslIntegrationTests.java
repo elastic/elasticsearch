@@ -20,7 +20,6 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.xpack.ssl.SSLService;
@@ -132,8 +131,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
     private String getNodeUrl() {
         TransportAddress transportAddress =
                 randomFrom(internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddresses());
-        assertThat(transportAddress, is(instanceOf(InetSocketTransportAddress.class)));
-        InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) transportAddress;
+        TransportAddress inetSocketTransportAddress = transportAddress;
         return String.format(Locale.ROOT, "https://%s:%s/", "localhost", inetSocketTransportAddress.address().getPort());
     }
 }

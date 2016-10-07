@@ -10,7 +10,6 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.license.XPackLicenseState;
@@ -55,7 +54,7 @@ public class IPFilterNetty3UpstreamHandlerTests extends ESTestCase {
         boolean isHttpEnabled = randomBoolean();
 
         Transport transport = mock(Transport.class);
-        InetSocketTransportAddress address = new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9300);
+        TransportAddress address = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
         when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { address }, address));
         when(transport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(
@@ -73,7 +72,7 @@ public class IPFilterNetty3UpstreamHandlerTests extends ESTestCase {
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
         if (isHttpEnabled) {
             HttpServerTransport httpTransport = mock(HttpServerTransport.class);
-            InetSocketTransportAddress httpAddress = new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9200);
+            TransportAddress httpAddress = new TransportAddress(InetAddress.getLoopbackAddress(), 9200);
             when(httpTransport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { httpAddress }, httpAddress));
             when(httpTransport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
             ipFilter.setBoundHttpTransportAddress(httpTransport.boundAddress());

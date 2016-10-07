@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.transport.filter;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -53,11 +52,8 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
     public void testThatIpFilteringIsIntegratedIntoNettyPipelineViaHttp() throws Exception {
         TransportAddress transportAddress =
                 randomFrom(internalCluster().getDataNodeInstance(HttpServerTransport.class).boundAddress().boundAddresses());
-        assertThat(transportAddress, is(instanceOf(InetSocketTransportAddress.class)));
-        InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) transportAddress;
-
         try (Socket socket = new Socket()){
-            trySocketConnection(socket, inetSocketTransportAddress.address());
+            trySocketConnection(socket, transportAddress.address());
             assertThat(socket.isClosed(), is(true));
         }
     }
@@ -88,7 +84,6 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
     private static int getProfilePort(String profile) {
         TransportAddress transportAddress =
                 randomFrom(internalCluster().getInstance(Transport.class).profileBoundAddresses().get(profile).boundAddresses());
-        assert transportAddress instanceof InetSocketTransportAddress;
-        return ((InetSocketTransportAddress)transportAddress).address().getPort();
+        return transportAddress.address().getPort();
     }
 }

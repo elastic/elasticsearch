@@ -20,7 +20,6 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -55,7 +54,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
     @Before
     public void setup() {
         DiscoveryNode localNode = mock(DiscoveryNode.class);
-        when(localNode.getHostAddress()).thenReturn(LocalTransportAddress.buildUnique().toString());
+        when(localNode.getHostAddress()).thenReturn(buildNewFakeTransportAddress().toString());
         clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(localNode);
 

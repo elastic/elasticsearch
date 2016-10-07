@@ -26,7 +26,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
@@ -41,7 +40,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.store.MockFSIndexStore;
-import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
@@ -165,7 +163,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         // security has its own transport service
         plugins.remove(MockTransportService.TestPlugin.class);
         // security has its own transport
-        plugins.remove(AssertingLocalTransport.TestPlugin.class);
         // we have to explicitly add it otherwise we will fail to set the check_index_on_close setting
         plugins.add(MockFSIndexStore.TestPlugin.class);
         plugins.add(MockMustacheScriptEngine.TestPlugin.class);

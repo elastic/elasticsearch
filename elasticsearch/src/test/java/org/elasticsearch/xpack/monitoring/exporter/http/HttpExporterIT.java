@@ -24,7 +24,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -495,14 +494,14 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
             IndexRecoveryMonitoringDoc doc = new IndexRecoveryMonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString());
             doc.setClusterUUID(internalCluster().getClusterName());
             doc.setTimestamp(System.currentTimeMillis());
-            doc.setSourceNode(new DiscoveryNode("id", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
+            doc.setSourceNode(new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
             doc.setRecoveryResponse(new RecoveryResponse());
             return doc;
         } else {
             ClusterStateMonitoringDoc doc = new ClusterStateMonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString());
             doc.setClusterUUID(internalCluster().getClusterName());
             doc.setTimestamp(System.currentTimeMillis());
-            doc.setSourceNode(new DiscoveryNode("id", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
+            doc.setSourceNode(new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
             doc.setClusterState(ClusterState.PROTO);
             doc.setStatus(ClusterHealthStatus.GREEN);
             return doc;

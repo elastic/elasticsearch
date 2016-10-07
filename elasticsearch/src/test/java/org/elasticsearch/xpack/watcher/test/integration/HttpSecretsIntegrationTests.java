@@ -224,7 +224,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         value = contentSource.getValue("result.actions.0.webhook.request.auth.username");
         assertThat(value, notNullValue());
         assertThat(value, instanceOf(String.class));
-        assertThat((String) value, is(USERNAME)); // the auth username exists
+        assertThat(value, is(USERNAME)); // the auth username exists
 
         value = contentSource.getValue("result.actions.0.webhook.request.auth.password");
         assertThat(value, nullValue()); // but the auth password was filtered out

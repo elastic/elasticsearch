@@ -18,7 +18,6 @@ import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.SuppressLocalMode;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.watcher.WatcherService;
@@ -55,7 +54,6 @@ import static org.hamcrest.core.Is.is;
 @BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 @TestLogging("org.elasticsearch.discovery:TRACE,org.elasticsearch.watcher:TRACE")
 @ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 0)
-@SuppressLocalMode
 public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
     private ClusterDiscoveryConfiguration.UnicastZen config;
 

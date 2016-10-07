@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.transport.filter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.jboss.netty.handler.ipfilter.IpFilterRule;
 import org.jboss.netty.handler.ipfilter.IpSubnetFilterRule;
@@ -154,8 +153,7 @@ public class SecurityIpFilterRule implements IpFilterRule {
                 firstAdded = true;
             }
 
-            assert transportAddress instanceof InetSocketTransportAddress;
-            ruleSpec.append(NetworkAddress.format(((InetSocketTransportAddress) transportAddress).address().getAddress()));
+            ruleSpec.append(NetworkAddress.format(transportAddress.address().getAddress()));
         }
         return ruleSpec.toString();
     }

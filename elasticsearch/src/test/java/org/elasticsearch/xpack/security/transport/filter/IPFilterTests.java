@@ -11,7 +11,6 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.license.XPackLicenseState;
@@ -68,17 +67,17 @@ public class IPFilterTests extends ESTestCase {
                 TransportSettings.TRANSPORT_PROFILES_SETTING)));
 
         httpTransport = mock(HttpServerTransport.class);
-        InetSocketTransportAddress httpAddress = new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9200);
+        TransportAddress httpAddress = new TransportAddress(InetAddress.getLoopbackAddress(), 9200);
         when(httpTransport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { httpAddress }, httpAddress));
         when(httpTransport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
 
         transport = mock(Transport.class);
-        InetSocketTransportAddress address = new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9300);
+        TransportAddress address = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
         when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[]{ address }, address));
         when(transport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
 
         Map<String, BoundTransportAddress> profileBoundAddresses = Collections.singletonMap("client",
-                new BoundTransportAddress(new TransportAddress[]{ new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9500) },
+                new BoundTransportAddress(new TransportAddress[]{ new TransportAddress(InetAddress.getLoopbackAddress(), 9500) },
                         address));
         when(transport.profileBoundAddresses()).thenReturn(profileBoundAddresses);
     }
@@ -196,7 +195,7 @@ public class IPFilterTests extends ESTestCase {
     public void testThatBoundAddressIsNeverRejected() throws Exception {
         List<String> addressStrings = new ArrayList<>();
         for (TransportAddress address : transport.boundAddress().boundAddresses()) {
-            addressStrings.add(NetworkAddress.format(((InetSocketTransportAddress) address).address().getAddress()));
+            addressStrings.add(NetworkAddress.format(address.address().getAddress()));
         }
 
         Settings settings;

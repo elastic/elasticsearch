@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -35,7 +34,7 @@ public class ShardsResolverTests extends MonitoringIndexNameResolverTestCase<Sha
         doc.setClusterUUID(randomAsciiOfLength(5));
         doc.setTimestamp(Math.abs(randomLong()));
         doc.setClusterStateUUID(UUID.randomUUID().toString());
-        doc.setSourceNode(new DiscoveryNode("id", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
+        doc.setSourceNode(new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
 
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
                 new ShardId(new Index(randomAsciiOfLength(5), UUID.randomUUID().toString()), randomIntBetween(0, 5)),
@@ -53,7 +52,7 @@ public class ShardsResolverTests extends MonitoringIndexNameResolverTestCase<Sha
 
         final String clusterStateUUID = UUID.randomUUID().toString();
         doc.setClusterStateUUID(clusterStateUUID);
-        doc.setSourceNode(new DiscoveryNode("id", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
+        doc.setSourceNode(new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
 
         ShardsResolver resolver = newResolver();
         assertThat(resolver.index(doc), equalTo(".monitoring-es-" + MonitoringTemplateUtils.TEMPLATE_VERSION + "-2015.07.22"));

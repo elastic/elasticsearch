@@ -14,7 +14,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.XPackSettings;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.client.SecurityClient;
-import org.elasticsearch.test.ESIntegTestCase.SuppressLocalMode;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.AfterClass;
@@ -51,7 +49,6 @@ import static org.hamcrest.core.IsCollectionContaining.hasItem;
  *
  * @see SecuritySettingsSource
  */
-@SuppressLocalMode
 public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS;
@@ -394,8 +391,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         NodeInfo ni = randomFrom(nodes);
         boolean useSSL = XPackSettings.HTTP_SSL_ENABLED.get(ni.getSettings());
         TransportAddress publishAddress = ni.getHttp().address().publishAddress();
-        assertEquals(1, publishAddress.uniqueAddressTypeId());
-        InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
+        InetSocketAddress address = publishAddress.address();
         return (useSSL ? "https://" : "http://") + NetworkAddress.format(address.getAddress()) + ":" + address.getPort();
     }
 }

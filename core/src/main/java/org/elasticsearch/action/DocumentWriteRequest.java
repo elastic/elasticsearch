@@ -178,7 +178,6 @@ public abstract class DocumentWriteRequest<T extends ReplicatedWriteRequest<T>> 
 
     /** write a document write (index/delete/update) request*/
     public static void writeDocumentRequest(StreamOutput out, DocumentWriteRequest request)  throws IOException {
-        assert request != null : "request must not be null";
         if (request instanceof IndexRequest) {
             out.writeByte((byte) 0);
         } else if (request instanceof DeleteRequest) {

@@ -30,11 +30,17 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
@@ -43,6 +49,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     protected MappedFieldType createDefaultFieldType() {
         return new DateFieldMapper.DateFieldType();
     }
+
+    private static long nowInMillis;
 
     @Before
     public void setupProperties() {
@@ -59,6 +67,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 ((DateFieldType) ft).setDateTimeFormatter(Joda.forPattern("date_optional_time", Locale.CANADA));
             }
         });
+        nowInMillis = randomPositiveLong();
     }
 
     public void testIsFieldWithinQueryEmptyReader() throws IOException {
@@ -71,26 +80,27 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private void doTestIsFieldWithinQuery(DateFieldType ft, DirectoryReader reader,
             DateTimeZone zone, DateMathParser alternateFormat) throws IOException {
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null, null, null, null, null, () -> nowInMillis);
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02",
-                randomBoolean(), randomBoolean(), null, null, null));
+                randomBoolean(), randomBoolean(), null, null, context));
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2016-01-02", "2016-06-20",
-                randomBoolean(), randomBoolean(), null, null, null));
+                randomBoolean(), randomBoolean(), null, null, context));
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2016-01-02", "2016-02-12",
-                randomBoolean(), randomBoolean(), null, null, null));
+                randomBoolean(), randomBoolean(), null, null, context));
         assertEquals(Relation.DISJOINT, ft.isFieldWithinQuery(reader, "2014-01-02", "2015-02-12",
-                randomBoolean(), randomBoolean(), null, null, null));
+                randomBoolean(), randomBoolean(), null, null, context));
         assertEquals(Relation.DISJOINT, ft.isFieldWithinQuery(reader, "2016-05-11", "2016-08-30",
-                randomBoolean(), randomBoolean(), null, null, null));
+                randomBoolean(), randomBoolean(), null, null, context));
         assertEquals(Relation.WITHIN, ft.isFieldWithinQuery(reader, "2015-09-25", "2016-05-29",
-                randomBoolean(), randomBoolean(), null, null, null));
+                randomBoolean(), randomBoolean(), null, null, context));
         assertEquals(Relation.WITHIN, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03",
-                true, true, null, null, null));
+                true, true, null, null, context));
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03",
-                false, false, null, null, null));
+                false, false, null, null, context));
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03",
-                false, true, null, null, null));
+                false, true, null, null, context));
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03",
-                true, false, null, null, null));
+                true, false, null, null, context));
     }
 
     public void testIsFieldWithinQuery() throws IOException {
@@ -145,20 +155,31 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        QueryShardContext context = new QueryShardContext(0,
+                new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(),
+                        indexSettings),
+                null, null, null, null, null, null, null, null, null, () -> nowInMillis);
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         String date = "2015-10-12T14:10:55";
         long instant = LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date).getMillis();
         ft.setIndexOptions(IndexOptions.DOCS);
-        assertEquals(LongPoint.newExactQuery("field", instant), ft.termQuery(date, null));
+        assertEquals(LongPoint.newExactQuery("field", instant), ft.termQuery(date, context));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> ft.termQuery(date, null));
+                () -> ft.termQuery(date, context));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
     public void testRangeQuery() throws IOException {
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        QueryShardContext context = new QueryShardContext(0,
+                new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings),
+                null, null, null, null, null, null, null, null, null, () -> nowInMillis);
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         String date1 = "2015-10-12T14:10:55";
@@ -167,11 +188,11 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant2 = LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date2).getMillis();
         ft.setIndexOptions(IndexOptions.DOCS);
         assertEquals(LongPoint.newRangeQuery("field", instant1, instant2),
-                ft.rangeQuery(date1, date2, true, true, null).rewrite(new MultiReader()));
+                ft.rangeQuery(date1, date2, true, true, context).rewrite(new MultiReader()));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> ft.rangeQuery(date1, date2, true, true, null));
+                () -> ft.rangeQuery(date1, date2, true, true, context));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 }

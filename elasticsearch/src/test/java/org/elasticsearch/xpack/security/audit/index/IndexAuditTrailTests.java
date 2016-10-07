@@ -265,7 +265,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         logger.info("--> settings: [{}]", settings.getAsMap().toString());
         DiscoveryNode localNode = mock(DiscoveryNode.class);
         when(localNode.getHostAddress()).thenReturn(remoteAddress.getAddress());
-        when(localNode.getHostName()).thenReturn(remoteAddress.getHost());
+        when(localNode.getHostName()).thenReturn(remoteAddress.getAddress());
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(localNode);
         threadPool = new TestThreadPool("index audit trail tests");
@@ -686,7 +686,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         DateTime dateTime = ISODateTimeFormat.dateTimeParser().withZoneUTC().parseDateTime((String) sourceMap.get("@timestamp"));
         assertThat(dateTime.isBefore(DateTime.now(DateTimeZone.UTC)), is(true));
 
-        assertThat(remoteAddress.getHost(), equalTo(sourceMap.get("node_host_name")));
+        assertThat(remoteAddress.getAddress(), equalTo(sourceMap.get("node_host_name")));
         assertThat(remoteAddress.getAddress(), equalTo(sourceMap.get("node_host_address")));
 
         assertEquals(layer, sourceMap.get("layer"));

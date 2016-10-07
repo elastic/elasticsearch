@@ -573,6 +573,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     /**
+     * Whether the tested query builder returns queries that are cacheable.
+     */
+    protected boolean builderGeneratesCacheableQueries() {
+        return true;
+    }
+
+    /**
      * Test creates the {@link Query} from the {@link QueryBuilder} under test and delegates the
      * assertions being made on the result to the implementing subclass.
      */
@@ -618,8 +625,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             assertNotNull("toQuery should not return null", secondLuceneQuery);
             assertLuceneQuery(secondQuery, secondLuceneQuery, searchContext);
 
-            assertEquals("two equivalent query builders lead to different lucene queries",
-                    rewrite(secondLuceneQuery), rewrite(firstLuceneQuery));
+            if (builderGeneratesCacheableQueries()) {
+                assertEquals("two equivalent query builders lead to different lucene queries",
+                        rewrite(secondLuceneQuery), rewrite(firstLuceneQuery));
+            }
 
             if (supportsBoostAndQueryName()) {
                 secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
@@ -663,7 +672,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * {@link #doAssertLuceneQuery(AbstractQueryBuilder, Query, SearchContext)} for query specific checks.
      */
     private void assertLuceneQuery(QB queryBuilder, Query query, SearchContext context) throws IOException {
-        if (queryBuilder.queryName() != null) {
+        if (queryBuilder.queryName() != null && builderGeneratesCacheableQueries()) {
             Query namedQuery = context.getQueryShardContext().copyNamedQueries().get(queryBuilder.queryName());
             assertThat(namedQuery, equalTo(query));
         }

@@ -42,8 +42,15 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     }
 
     @Override
+    protected boolean builderGeneratesCacheableQueries() {
+        return false;
+    }
+
+    @Override
     protected void doAssertLuceneQuery(ScriptQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, instanceOf(ScriptQueryBuilder.ScriptQuery.class));
+        // make sure queries are never equal to themselves so that they do not get cached
+        assertFalse(query.equals(query));
     }
 
     public void testIllegalConstructorArg() {
@@ -95,4 +102,5 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     protected boolean isCachable(ScriptQueryBuilder queryBuilder) {
         return false;
     }
+
 }

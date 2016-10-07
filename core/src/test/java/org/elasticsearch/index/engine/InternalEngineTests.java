@@ -1685,15 +1685,14 @@ public class InternalEngineTests extends ESTestCase {
                 // the first time the commit data iterable gets an iterator, the max seq no from that point in time should
                 // remain from any subsequent call to IndexWriter#getLiveCommitData unless the commit data is overwritten by a
                 // subsequent call to IndexWriter#setLiveCommitData.
-                if (initialEngine.seqNoService().getMaxSeqNo() != SequenceNumbersService.NO_OPS_PERFORMED) {
-                    assertThat(
-                        initialEngine.seqNoService().getMaxSeqNo(),
-                        // its possible that right after a commit, a version conflict exception happened so the max seq no was not updated,
-                        // so here we check greater than or equal to
-                        versionConflict ? greaterThanOrEqualTo(initialEngine.loadSeqNoStatsFromCommit().getMaxSeqNo()) :
-                                          greaterThan(initialEngine.loadSeqNoStatsFromCommit().getMaxSeqNo())
-                    );
-                }
+                assertThat(
+                    initialEngine.seqNoService().getMaxSeqNo(),
+                    // its possible we haven't indexed any documents yet, or its possible that right after a commit, a version conflict
+                    // exception happened so the max seq no was not updated, so here we check greater than or equal to
+                    initialEngine.seqNoService().getMaxSeqNo() != SequenceNumbersService.NO_OPS_PERFORMED || versionConflict ?
+                        greaterThanOrEqualTo(initialEngine.loadSeqNoStatsFromCommit().getMaxSeqNo()) :
+                        greaterThan(initialEngine.loadSeqNoStatsFromCommit().getMaxSeqNo())
+                );
 
                 if (rarely()) {
                     localCheckpoint = primarySeqNo;

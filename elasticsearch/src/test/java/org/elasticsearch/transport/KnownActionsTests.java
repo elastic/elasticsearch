@@ -10,6 +10,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.license.Licensing;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.security.action.SecurityActionModule;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -36,6 +37,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableSet;
 import static org.hamcrest.CoreMatchers.hasItems;
@@ -47,6 +49,13 @@ public class KnownActionsTests extends SecurityIntegTestCase {
     private static Set<String> knownActions;
     private static Set<String> knownHandlers;
     private static Set<String> codeActions;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        Collection<Class<? extends Plugin>> mockPlugins = super.getMockPlugins();
+        // no handler wrapping here we check the requestHandlers below and this plugin wraps it
+        return mockPlugins.stream().filter(p -> p != AssertingTransportInterceptor.TestPlugin.class).collect(Collectors.toList());
+    }
 
     @BeforeClass
     public static void init() throws Exception {

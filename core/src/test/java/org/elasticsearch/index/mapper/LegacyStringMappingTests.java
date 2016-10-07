@@ -731,9 +731,8 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
                 .field("position_increment_gap", 10)
                 .endObject().endObject().endObject().endObject().string();
 
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> parser.parse("type", new CompressedXContent(mapping)));
-            assertEquals("Cannot set position_increment_gap on field [field] without positions enabled", e.getMessage());
+            // allowed in index created before 5.0
+            parser.parse("type", new CompressedXContent(mapping));
         }
     }
 
@@ -746,9 +745,8 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
                 .field("position_increment_gap", 10)
                 .endObject().endObject().endObject().endObject().string();
 
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> parser.parse("type", new CompressedXContent(mapping)));
-            assertEquals("Cannot set position_increment_gap on field [field] without positions enabled", e.getMessage());
+            // allowed in index created before 5.0
+            parser.parse("type", new CompressedXContent(mapping));
         }
     }
 

@@ -554,22 +554,31 @@ public class XContentMapValuesTests extends ESTestCase {
 
     public void testDotsInFieldNames() {
         Map<String, Object> map = new HashMap<>();
-        map.put("a.b", 2);
+        map.put("foo.bar", 2);
         Map<String, Object> sub = new HashMap<>();
-        sub.put("c", 3);
-        map.put("a", sub);
-        map.put("d", 5);
+        sub.put("baz", 3);
+        map.put("foo", sub);
+        map.put("quux", 5);
 
         // dots in field names in includes
-        Map<String, Object> filtered = XContentMapValues.filter(map, new String[] {"a"}, new String[0]);
+        Map<String, Object> filtered = XContentMapValues.filter(map, new String[] {"foo"}, new String[0]);
         Map<String, Object> expected = new HashMap<>(map);
-        expected.remove("d");
+        expected.remove("quux");
         assertEquals(expected, filtered);
 
         // dots in field names in excludes
-        filtered = XContentMapValues.filter(map, new String[0], new String[] {"a"});
+        filtered = XContentMapValues.filter(map, new String[0], new String[] {"foo"});
         expected = new HashMap<>(map);
-        expected.keySet().retainAll(Collections.singleton("d"));
+        expected.keySet().retainAll(Collections.singleton("quux"));
         assertEquals(expected, filtered);
+    }
+
+    public void testSupplementaryCharactersInPaths() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("搜索", 2);
+        map.put("指数", 3);
+
+        assertEquals(Collections.singletonMap("搜索", 2), XContentMapValues.filter(map, new String[] {"搜索"}, new String[0]));
+        assertEquals(Collections.singletonMap("指数", 3), XContentMapValues.filter(map, new String[0], new String[] {"搜索"}));
     }
 }

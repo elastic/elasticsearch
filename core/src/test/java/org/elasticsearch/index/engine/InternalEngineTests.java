@@ -138,6 +138,7 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1646,17 +1647,32 @@ public class InternalEngineTests extends ESTestCase {
                     SequenceNumbersService.UNASSIGNED_SEQ_NO,
                     rarely() ? 100 : Versions.MATCH_ANY, VersionType.INTERNAL,
                     PRIMARY, 0, -1, false);
+                boolean versionConflict = false;
                 try {
                     initialEngine.index(index);
                     primarySeqNo++;
                 } catch (VersionConflictEngineException e) {
-
+                    versionConflict = true;
                 }
 
                 replicaLocalCheckpoint =
                     rarely() ? replicaLocalCheckpoint : randomIntBetween(Math.toIntExact(replicaLocalCheckpoint), Math.toIntExact(primarySeqNo));
                 initialEngine.seqNoService().updateLocalCheckpointForShard("primary", initialEngine.seqNoService().getLocalCheckpoint());
                 initialEngine.seqNoService().updateLocalCheckpointForShard("replica", replicaLocalCheckpoint);
+
+                // make sure the max seq no in the latest commit hasn't advanced due to more documents having been added;
+                // the first time the commit data iterable gets an iterator, the max seq no from that point in time should
+                // remain from any subsequent call to IndexWriter#getLiveCommitData unless the commit data is overridden by a
+                // subsequent call to IndexWriter#setLiveCommitData.
+                if (initialEngine.seqNoService().getMaxSeqNo() != SequenceNumbersService.NO_OPS_PERFORMED) {
+                    assertThat(
+                        initialEngine.seqNoService().getMaxSeqNo(),
+                        // its possible that right after a commit, a version conflict exception happened so the max seq no was not updated,
+                        // so here we check greater than or equal to
+                        versionConflict ? greaterThanOrEqualTo(initialEngine.loadSeqNoStatsFromCommit().getMaxSeqNo()) :
+                                          greaterThan(initialEngine.loadSeqNoStatsFromCommit().getMaxSeqNo())
+                    );
+                }
 
                 if (rarely()) {
                     localCheckpoint = primarySeqNo;

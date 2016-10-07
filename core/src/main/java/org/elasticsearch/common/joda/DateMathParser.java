@@ -63,13 +63,10 @@ public class DateMathParser {
         } else {
             int index = text.indexOf("||");
             if (index == -1) {
-                return parseDateTime(text, timeZone);
+                return parseDateTime(text, timeZone, roundUp);
             }
-            time = parseDateTime(text.substring(0, index), timeZone);
+            time = parseDateTime(text.substring(0, index), timeZone, false);
             mathString = text.substring(index + 2);
-            if (mathString.isEmpty()) {
-                return time;
-            }
         }
 
         return parseMath(mathString, time, roundUp, timeZone);
@@ -190,15 +187,29 @@ public class DateMathParser {
         return dateTime.getMillis();
     }
 
-    private long parseDateTime(String value, DateTimeZone timeZone) {
+    private long parseDateTime(String value, DateTimeZone timeZone, boolean roundUpIfNoTime) {
         DateTimeFormatter parser = dateTimeFormatter.parser();
         if (timeZone != null) {
             parser = parser.withZone(timeZone);
         }
         try {
-            return parser.parseMillis(value);
+            MutableDateTime date;
+            // We use 01/01/1970 as a base date so that things keep working with date
+            // fields that are filled with times without dates
+            if (roundUpIfNoTime) {
+                date = new MutableDateTime(1970, 1, 1, 23, 59, 59, 999, DateTimeZone.UTC);
+            } else {
+                date = new MutableDateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC);
+            }
+            final int end = parser.parseInto(date, value, 0);
+            if (end < 0) {
+                int position = ~end;
+                throw new IllegalArgumentException("Parse failure at index [" + position + "] of [" + value + "]");
+            } else if (end != value.length()) {
+                throw new IllegalArgumentException("Unrecognized chars at the end of [" + value + "]: [" + value.substring(end) + "]");
+            }
+            return date.getMillis();
         } catch (IllegalArgumentException e) {
-
             throw new ElasticsearchParseException("failed to parse date field [{}] with format [{}]", e, value, dateTimeFormatter.format());
         }
     }

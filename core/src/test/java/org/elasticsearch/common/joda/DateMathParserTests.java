@@ -68,8 +68,14 @@ public class DateMathParserTests extends ESTestCase {
     }
 
     public void testRoundingDoesNotAffectExactDate() {
-        assertDateMathEquals("2014-11-12T22:55:00Z", "2014-11-12T22:55:00Z", 0, true, null);
-        assertDateMathEquals("2014-11-12T22:55:00Z", "2014-11-12T22:55:00Z", 0, false, null);
+        assertDateMathEquals("2014-11-12T22:55:00.000Z", "2014-11-12T22:55:00.000Z", 0, true, null);
+        assertDateMathEquals("2014-11-12T22:55:00.000Z", "2014-11-12T22:55:00.000Z", 0, false, null);
+
+        assertDateMathEquals("2014-11-12T22:55:00.000", "2014-11-12T21:55:00.000Z", 0, true, DateTimeZone.forID("+01:00"));
+        assertDateMathEquals("2014-11-12T22:55:00.000", "2014-11-12T21:55:00.000Z", 0, false, DateTimeZone.forID("+01:00"));
+
+        assertDateMathEquals("2014-11-12T22:55:00.000+01:00", "2014-11-12T21:55:00.000Z", 0, true, null);
+        assertDateMathEquals("2014-11-12T22:55:00.000+01:00", "2014-11-12T21:55:00.000Z", 0, false, null);
     }
 
     public void testTimezone() {
@@ -134,7 +140,43 @@ public class DateMathParserTests extends ESTestCase {
         assertDateMathEquals("now/m", "2014-11-18T14:27", now, false, DateTimeZone.forID("+02:00"));
     }
 
-    public void testRounding() {
+    public void testRoundingPreservesEpochAsBaseDate() {
+        // If a user only specifies times, then the date needs to always be 1970-01-01 regardless of rounding
+        FormatDateTimeFormatter formatter = Joda.forPattern("HH:mm:ss");
+        DateMathParser parser = new DateMathParser(formatter);
+        assertEquals(
+                this.formatter.parser().parseMillis("1970-01-01T04:52:20.000Z"),
+                parser.parse("04:52:20", () -> 0, false, null));
+        assertEquals(
+                this.formatter.parser().parseMillis("1970-01-01T04:52:20.999Z"),
+                parser.parse("04:52:20", () -> 0, true, null));
+    }
+
+    // Implicit rounding happening when parts of the date are not specified
+    public void testImplicitRounding() {
+        assertDateMathEquals("2014-11-18", "2014-11-18", 0, false, null);
+        assertDateMathEquals("2014-11-18", "2014-11-18T23:59:59.999Z", 0, true, null);
+
+        assertDateMathEquals("2014-11-18T09:20", "2014-11-18T09:20", 0, false, null);
+        assertDateMathEquals("2014-11-18T09:20", "2014-11-18T09:20:59.999Z", 0, true, null);
+
+        assertDateMathEquals("2014-11-18", "2014-11-17T23:00:00.000Z", 0, false, DateTimeZone.forID("CET"));
+        assertDateMathEquals("2014-11-18", "2014-11-18T22:59:59.999Z", 0, true, DateTimeZone.forID("CET"));
+
+        assertDateMathEquals("2014-11-18T09:20", "2014-11-18T08:20:00.000Z", 0, false, DateTimeZone.forID("CET"));
+        assertDateMathEquals("2014-11-18T09:20", "2014-11-18T08:20:59.999Z", 0, true, DateTimeZone.forID("CET"));
+
+        // implicit rounding with explicit timezone in the date format
+        FormatDateTimeFormatter formatter = Joda.forPattern("YYYY-MM-ddZ");
+        DateMathParser parser = new DateMathParser(formatter);
+        long time = parser.parse("2011-10-09+01:00", () -> 0, false, null);
+        assertEquals(this.parser.parse("2011-10-09T00:00:00.000+01:00", () -> 0), time);
+        time = parser.parse("2011-10-09+01:00", () -> 0, true, null);
+        assertEquals(this.parser.parse("2011-10-09T23:59:59.999+01:00", () -> 0), time);
+    }
+
+    // Explicit rounding using the || separator
+    public void testExplicitRounding() {
         assertDateMathEquals("2014-11-18||/y", "2014-01-01", 0, false, null);
         assertDateMathEquals("2014-11-18||/y", "2014-12-31T23:59:59.999", 0, true, null);
         assertDateMathEquals("2014||/y", "2014-01-01", 0, false, null);

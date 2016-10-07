@@ -29,7 +29,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.DocWriteResponse.Result;
-import org.elasticsearch.action.DocumentWriteRequest;
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -49,6 +49,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
@@ -260,27 +261,27 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 ShardId shardId = new ShardId(new Index("name", "uid"), 0);
                 if (rarely()) {
                     versionConflicts++;
-                    responses[i] = new BulkItemResponse(i, randomFrom(DocumentWriteRequest.OpType.values()),
+                    responses[i] = new BulkItemResponse(i, randomFrom(DocumentRequest.OpType.values()),
                         new Failure(shardId.getIndexName(), "type", "id" + i,
                             new VersionConflictEngineException(shardId, "type", "id", "test")));
                     continue;
                 }
                 boolean createdResponse;
-                DocumentWriteRequest.OpType opType;
+                DocumentRequest.OpType opType;
                 switch (randomIntBetween(0, 2)) {
                 case 0:
                     createdResponse = true;
-                    opType = DocumentWriteRequest.OpType.CREATE;
+                    opType = DocumentRequest.OpType.CREATE;
                     created++;
                     break;
                 case 1:
                     createdResponse = false;
-                    opType = randomFrom(DocumentWriteRequest.OpType.INDEX, DocumentWriteRequest.OpType.UPDATE);
+                    opType = randomFrom(DocumentRequest.OpType.INDEX, DocumentRequest.OpType.UPDATE);
                     updated++;
                     break;
                 case 2:
                     createdResponse = false;
-                    opType = DocumentWriteRequest.OpType.DELETE;
+                    opType = DocumentRequest.OpType.DELETE;
                     deleted++;
                     break;
                 default:
@@ -362,7 +363,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         Failure failure = new Failure("index", "type", "id", new RuntimeException("test"));
         DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction();
         BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]
-            {new BulkItemResponse(0, DocumentWriteRequest.OpType.CREATE, failure)}, randomLong());
+            {new BulkItemResponse(0, DocumentRequest.OpType.CREATE, failure)}, randomLong());
         action.onBulkResponse(timeValueNanos(System.nanoTime()), bulkResponse);
         BulkIndexByScrollResponse response = listener.get();
         assertThat(response.getBulkFailures(), contains(failure));
@@ -768,7 +769,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 }
                 BulkItemResponse[] responses = new BulkItemResponse[bulk.requests().size()];
                 for (int i = 0; i < bulk.requests().size(); i++) {
-                    DocumentWriteRequest<?> item = bulk.requests().get(i);
+                    DocumentRequest<?> item = bulk.requests().get(i);
                     DocWriteResponse response;
                     ShardId shardId = new ShardId(new Index(item.index(), "uuid"), 0);
                     if (item instanceof IndexRequest) {

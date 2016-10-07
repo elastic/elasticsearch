@@ -22,7 +22,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.DocumentWriteRequest;
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -72,7 +72,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
      * {@link WriteRequest}s to this but java doesn't support syntax to declare that everything in the array has both types so we declare
      * the one with the least casts.
      */
-    final List<DocumentWriteRequest<?>> requests = new ArrayList<>();
+    final List<DocumentRequest<?>> requests = new ArrayList<>();
     List<Object> payloads = null;
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
@@ -87,14 +87,14 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     /**
      * Adds a list of requests to be executed. Either index or delete requests.
      */
-    public BulkRequest add(DocumentWriteRequest<?>... requests) {
-        for (DocumentWriteRequest<?> request : requests) {
+    public BulkRequest add(DocumentRequest<?>... requests) {
+        for (DocumentRequest<?> request : requests) {
             add(request, null);
         }
         return this;
     }
 
-    public BulkRequest add(DocumentWriteRequest<?> request) {
+    public BulkRequest add(DocumentRequest<?> request) {
         return add(request, null);
     }
 
@@ -104,7 +104,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
      * @param payload Optional payload
      * @return the current bulk request
      */
-    public BulkRequest add(DocumentWriteRequest<?> request, @Nullable Object payload) {
+    public BulkRequest add(DocumentRequest<?> request, @Nullable Object payload) {
         if (request instanceof IndexRequest) {
             add((IndexRequest) request, payload);
         } else if (request instanceof DeleteRequest) {
@@ -120,8 +120,8 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     /**
      * Adds a list of requests to be executed. Either index or delete requests.
      */
-    public BulkRequest add(Iterable<DocumentWriteRequest<?>> requests) {
-        for (DocumentWriteRequest<?> request : requests) {
+    public BulkRequest add(Iterable<DocumentRequest<?>> requests) {
+        for (DocumentRequest<?> request : requests) {
             add(request);
         }
         return this;
@@ -207,7 +207,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     /**
      * The list of requests in this bulk request.
      */
-    public List<DocumentWriteRequest<?>> requests() {
+    public List<DocumentRequest<?>> requests() {
         return this.requests;
     }
 
@@ -508,7 +508,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
      * @return Whether this bulk request contains index request with an ingest pipeline enabled.
      */
     public boolean hasIndexRequestsWithPipelines() {
-        for (DocumentWriteRequest<?> actionRequest : requests) {
+        for (DocumentRequest<?> actionRequest : requests) {
             if (actionRequest instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) actionRequest;
                 if (Strings.hasText(indexRequest.getPipeline())) {
@@ -526,7 +526,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         if (requests.isEmpty()) {
             validationException = addValidationError("no requests added", validationException);
         }
-        for (DocumentWriteRequest<?> request : requests) {
+        for (DocumentRequest<?> request : requests) {
             // We first check if refresh has been set
             if (request.getRefreshPolicy() != RefreshPolicy.NONE) {
                 validationException = addValidationError(
@@ -550,7 +550,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         waitForActiveShards = ActiveShardCount.readFrom(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            requests.add(DocumentWriteRequest.readDocumentRequest(in));
+            requests.add(DocumentRequest.readDocumentRequest(in));
         }
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = new TimeValue(in);
@@ -561,8 +561,8 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         super.writeTo(out);
         waitForActiveShards.writeTo(out);
         out.writeVInt(requests.size());
-        for (DocumentWriteRequest<?> request : requests) {
-            DocumentWriteRequest.writeDocumentRequest(out, request);
+        for (DocumentRequest<?> request : requests) {
+            DocumentRequest.writeDocumentRequest(out, request);
         }
         refreshPolicy.writeTo(out);
         timeout.writeTo(out);

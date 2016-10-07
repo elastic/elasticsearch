@@ -21,10 +21,12 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.common.lucene.BytesRefs;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 /**
  *

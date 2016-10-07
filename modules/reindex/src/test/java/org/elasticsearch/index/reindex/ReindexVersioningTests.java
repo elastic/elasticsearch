@@ -21,7 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.get.GetResponse;
 
-import static org.elasticsearch.action.DocumentWriteRequest.OpType.CREATE;
+import static org.elasticsearch.action.DocumentRequest.OpType.CREATE;
 import static org.elasticsearch.index.VersionType.EXTERNAL;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 

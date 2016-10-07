@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.action.DocumentWriteRequest;
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -32,7 +32,7 @@ import java.io.IOException;
 public class BulkItemRequest implements Streamable {
 
     private int id;
-    private DocumentWriteRequest<?> request;
+    private DocumentRequest<?> request;
     private volatile BulkItemResponse primaryResponse;
     private volatile boolean ignoreOnReplica;
 
@@ -40,7 +40,7 @@ public class BulkItemRequest implements Streamable {
 
     }
 
-    public BulkItemRequest(int id, DocumentWriteRequest<?> request) {
+    public BulkItemRequest(int id, DocumentRequest<?> request) {
         this.id = id;
         this.request = request;
     }
@@ -49,7 +49,7 @@ public class BulkItemRequest implements Streamable {
         return id;
     }
 
-    public DocumentWriteRequest<?> request() {
+    public DocumentRequest<?> request() {
         return request;
     }
 
@@ -86,7 +86,7 @@ public class BulkItemRequest implements Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         id = in.readVInt();
-        request = DocumentWriteRequest.readDocumentRequest(in);
+        request = DocumentRequest.readDocumentRequest(in);
         if (in.readBoolean()) {
             primaryResponse = BulkItemResponse.readBulkItem(in);
         }
@@ -96,7 +96,7 @@ public class BulkItemRequest implements Streamable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
-        DocumentWriteRequest.writeDocumentRequest(out, request);
+        DocumentRequest.writeDocumentRequest(out, request);
         out.writeOptionalStreamable(primaryResponse);
         out.writeBoolean(ignoreOnReplica);
     }

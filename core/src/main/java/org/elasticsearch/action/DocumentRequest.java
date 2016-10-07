@@ -34,7 +34,7 @@ import java.util.Locale;
  * Generic interface to group ActionRequest, which perform writes to a single document
  * Action requests implementing this can be part of {@link org.elasticsearch.action.bulk.BulkRequest}
  */
-public abstract class DocumentWriteRequest<T extends ReplicatedWriteRequest<T>> extends ReplicatedWriteRequest<T> {
+public abstract class DocumentRequest<T extends ReplicatedWriteRequest<T>> extends ReplicatedWriteRequest<T> {
 
     /**
      * Get the type that this request operates on
@@ -153,7 +153,7 @@ public abstract class DocumentWriteRequest<T extends ReplicatedWriteRequest<T>> 
     }
 
     /** read a document write (index/delete/update) request */
-    public static DocumentWriteRequest readDocumentRequest(StreamInput in) throws IOException {
+    public static DocumentRequest readDocumentRequest(StreamInput in) throws IOException {
         byte type = in.readByte();
         if (type == 0) {
             IndexRequest indexRequest = new IndexRequest();
@@ -177,7 +177,7 @@ public abstract class DocumentWriteRequest<T extends ReplicatedWriteRequest<T>> 
     }
 
     /** write a document write (index/delete/update) request*/
-    public static void writeDocumentRequest(StreamOutput out, DocumentWriteRequest request)  throws IOException {
+    public static void writeDocumentRequest(StreamOutput out, DocumentRequest request)  throws IOException {
         if (request instanceof IndexRequest) {
             out.writeByte((byte) 0);
         } else if (request instanceof DeleteRequest) {

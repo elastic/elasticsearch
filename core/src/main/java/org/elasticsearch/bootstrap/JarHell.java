@@ -272,20 +272,6 @@ public class JarHell {
                         "class: " + clazz + System.lineSeparator() +
                         "exists multiple times in jar: " + jarpath + " !!!!!!!!!");
             } else {
-                if (clazz.startsWith("org.apache.logging.log4j.core.impl.ThrowableProxy")) {
-                    /*
-                     * deliberate to hack around a bug in Log4j
-                     * cf. https://github.com/elastic/elasticsearch/issues/20304
-                     * cf. https://issues.apache.org/jira/browse/LOG4J2-1560
-                     */
-                    return;
-                } else if (clazz.startsWith("org.apache.logging.log4j.core.jmx.Server")) {
-                    /*
-                     * deliberate to hack around a bug in Log4j
-                     * cf. https://issues.apache.org/jira/browse/LOG4J2-1506
-                     */
-                    return;
-                }
                 throw new IllegalStateException("jar hell!" + System.lineSeparator() +
                         "class: " + clazz + System.lineSeparator() +
                         "jar1: " + previous + System.lineSeparator() +

@@ -25,11 +25,11 @@ import org.joda.time.MutableDateTime;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.util.Objects;
-import java.util.concurrent.Callable;
+import java.util.function.LongSupplier;
 
 /**
  * A parser for date/time formatted text with optional date math.
- * 
+ *
  * The format of the datetime is configurable, and unix timestamps can also be used. Datemath
  * is appended to a datetime with the following syntax:
  * <code>||[+-/](\d+)?[yMwdhHms]</code>.
@@ -43,19 +43,19 @@ public class DateMathParser {
         this.dateTimeFormatter = dateTimeFormatter;
     }
 
-    public long parse(String text, Callable<Long> now) {
+    public long parse(String text, LongSupplier now) {
         return parse(text, now, false, null);
     }
 
     // Note: we take a callable here for the timestamp in order to be able to figure out
     // if it has been used. For instance, the request cache does not cache requests that make
     // use of `now`.
-    public long parse(String text, Callable<Long> now, boolean roundUp, DateTimeZone timeZone) {
+    public long parse(String text, LongSupplier now, boolean roundUp, DateTimeZone timeZone) {
         long time;
         String mathString;
         if (text.startsWith("now")) {
             try {
-                time = now.call();
+                time = now.getAsLong();
             } catch (Exception e) {
                 throw new ElasticsearchParseException("could not read the current timestamp", e);
             }
@@ -97,7 +97,7 @@ public class DateMathParser {
                     throw new ElasticsearchParseException("operator not supported for date math [{}]", mathString);
                 }
             }
-                
+
             if (i >= mathString.length()) {
                 throw new ElasticsearchParseException("truncated date math [{}]", mathString);
             }
@@ -198,7 +198,7 @@ public class DateMathParser {
         try {
             return parser.parseMillis(value);
         } catch (IllegalArgumentException e) {
-            
+
             throw new ElasticsearchParseException("failed to parse date field [{}] with format [{}]", e, value, dateTimeFormatter.format());
         }
     }

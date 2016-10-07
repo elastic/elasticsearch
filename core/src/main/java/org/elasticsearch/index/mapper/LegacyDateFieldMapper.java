@@ -54,7 +54,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
@@ -453,7 +452,7 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
             } else {
                 strValue = value.toString();
             }
-            return dateParser.parse(strValue, now(context), inclusive, zone);
+            return dateParser.parse(strValue, context::nowInMillis, inclusive, zone);
         }
 
         @Override
@@ -483,17 +482,6 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
     @Override
     public DateFieldType fieldType() {
         return (DateFieldType) super.fieldType();
-    }
-
-    private static Callable<Long> now(QueryRewriteContext context) {
-        return new Callable<Long>() {
-            @Override
-            public Long call() {
-                return context != null
-                    ? context.nowInMillis()
-                    : System.currentTimeMillis();
-            }
-        };
     }
 
     @Override

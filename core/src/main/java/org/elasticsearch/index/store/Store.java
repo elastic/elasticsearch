@@ -55,6 +55,7 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.*;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.*;
@@ -1539,8 +1540,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             for (String file : files) {
                 try {
                     estimatedSize += directory.fileLength(file);
-                } catch (NoSuchFileException | FileNotFoundException e) {
-                    // ignore, the file is not there no more
+                } catch (NoSuchFileException | FileNotFoundException | AccessDeniedException e) {
+                    // ignore, the file is not there no more; on Windows, if one thread concurrently deletes a file while
+                    // calling Files.size, you can also sometimes hit AccessDeniedException
                 }
             }
             return estimatedSize;

@@ -82,10 +82,14 @@ Plugin Lang Painless::
 * Fix String Concatenation Bug In Painless {pull}20623[#20623]
 
 REST::
+* Change separator for shards preference {pull}20786[#20786] (issues: {issue}20722[#20722], {issue}20769[#20769])
 * Remove lenient URL parameter parsing {pull}20722[#20722] (issue: {issue}14719[#14719])
 
 Scripting::
 * Native scripts should be created once per index, not per segment. {pull}20609[#20609]
+
+Search::
+* Make range queries round up upper bounds again. {pull}20582[#20582] (issues: {issue}20579[#20579], {issue}8889[#8889])
 
 Settings::
 * Fix Setting.timeValue() method {pull}20696[#20696] (issue: {issue}20662[#20662])

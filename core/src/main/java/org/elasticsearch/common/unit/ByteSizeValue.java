@@ -105,25 +105,6 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue> {
         return ((double) getBytes()) / ByteSizeUnit.C5;
     }
 
-    public long convert(ByteSizeUnit unit) {
-        switch (unit) {
-            case BYTES:
-                return getBytes();
-            case KB:
-                return getKb();
-            case MB:
-                return getMb();
-            case GB:
-                return getGb();
-            case TB:
-                return getTb();
-            case PB:
-                return getPb();
-            default:
-                throw new UnsupportedOperationException("Unsupported ByteSizeUnit: " + unit.toString());
-        }
-    }
-
     @Override
     public String toString() {
         long bytes = getBytes();
@@ -210,38 +191,24 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue> {
             return false;
         }
 
-        return compareTo((ByteSizeValue)o) == 0;
+        return compareTo((ByteSizeValue) o) == 0;
     }
 
     @Override
     public int hashCode() {
-        int result = Long.hashCode(size);
-        result = 31 * result + (unit != null ? unit.hashCode() : 0);
-        return result;
+        return Double.hashCode(((double) size) * unit.toBytes(1));
     }
 
     @Override
     public int compareTo(ByteSizeValue other) {
-        long unitValue = unit.toBytes(1);
-        long otherUnitValue = other.unit.toBytes(1);
-
-        ByteSizeUnit minUnit = unitValue < otherUnitValue ? unit : other.unit;
-        long thisValue = this.convert(minUnit);
-        long otherValue = other.convert(minUnit);
-
-        if (thisValue == otherValue) {
-            if (thisValue == Long.MAX_VALUE || thisValue == Long.MIN_VALUE) {
-                if (unitValue > otherUnitValue) {
-                    return 1;
-                } else if (unitValue < otherUnitValue) {
-                    return -1;
-                }
-            }
-            return 0;
-        } else if (thisValue < otherValue) {
+        double firstValue = ((double) size) * unit.toBytes(1);
+        double otherValue = ((double) other.size) * other.unit.toBytes(1);
+        if (firstValue < otherValue) {
             return -1;
-        } else {
+        } else if (firstValue > otherValue) {
             return 1;
+        } else {
+            return 0;
         }
     }
 }

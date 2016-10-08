@@ -251,4 +251,10 @@ public class TimeValueTests extends ESTestCase {
         assertTrue(firstValue.compareTo(secondValue) < 0);
         assertTrue(secondValue.compareTo(firstValue) > 0);
     }
+
+    public void testConversionHashCode() {
+        TimeValue firstValue = new TimeValue(randomIntBetween(0, Integer.MAX_VALUE), TimeUnit.MINUTES);
+        TimeValue secondValue = new TimeValue(firstValue.getSeconds(), TimeUnit.SECONDS);
+        assertEquals(firstValue.hashCode(), secondValue.hashCode());
+    }
 }

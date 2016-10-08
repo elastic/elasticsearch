@@ -203,6 +203,12 @@ public class ByteSizeValueTests extends ESTestCase {
         assertTrue(maxLongValuePB.compareTo(maxLongValueB) > 0);
     }
 
+    public void testConversionHashCode() {
+        ByteSizeValue firstValue = new ByteSizeValue(randomIntBetween(0, Integer.MAX_VALUE), ByteSizeUnit.GB);
+        ByteSizeValue secondValue = new ByteSizeValue(firstValue.getBytes(), ByteSizeUnit.BYTES);
+        assertEquals(firstValue.hashCode(), secondValue.hashCode());
+    }
+
     public void testSerialization() throws IOException {
         ByteSizeValue byteSizeValue = new ByteSizeValue(randomPositiveLong(), randomFrom(ByteSizeUnit.values()));
         try (BytesStreamOutput out = new BytesStreamOutput()) {

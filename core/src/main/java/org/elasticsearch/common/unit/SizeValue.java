@@ -142,25 +142,6 @@ public class SizeValue implements Writeable, Comparable<SizeValue> {
         return petaFrac();
     }
 
-    public long convert(SizeUnit unit) {
-        switch (unit) {
-            case SINGLE:
-                return singles();
-            case KILO:
-                return kilo();
-            case MEGA:
-                return mega();
-            case GIGA:
-                return giga();
-            case TERA:
-                return tera();
-            case PETA:
-                return peta();
-            default:
-                throw new UnsupportedOperationException("Unsupported SizeUnit: " + unit.toString());
-        }
-    }
-
     @Override
     public String toString() {
         long singles = singles();
@@ -220,38 +201,24 @@ public class SizeValue implements Writeable, Comparable<SizeValue> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        return compareTo((SizeValue)o) == 0;
+        return compareTo((SizeValue) o) == 0;
     }
 
     @Override
     public int hashCode() {
-        int result = Long.hashCode(size);
-        result = 31 * result + (sizeUnit != null ? sizeUnit.hashCode() : 0);
-        return result;
+        return Double.hashCode(((double) size) * sizeUnit.toSingles(1));
     }
 
     @Override
     public int compareTo(SizeValue other) {
-        long unitSize = sizeUnit.toSingles(1);
-        long otherUnitSize = other.sizeUnit.toSingles(1);
-
-        SizeUnit minUnit = unitSize < otherUnitSize ? sizeUnit : other.sizeUnit;
-        long thisSize = this.convert(minUnit);
-        long otherSize = other.convert(minUnit);
-
-        if (thisSize == otherSize) {
-            if (thisSize == Long.MAX_VALUE || thisSize == Long.MIN_VALUE) {
-                if (unitSize < otherUnitSize) {
-                    return -1;
-                } else if (unitSize > otherUnitSize) {
-                    return 1;
-                }
-            }
-            return 0;
-        } else if (thisSize < otherSize) {
+        double thisSize = ((double) size) * sizeUnit.toSingles(1);
+        double otherSize = ((double) other.size) * other.sizeUnit.toSingles(1);
+        if (thisSize < otherSize) {
             return -1;
-        } else {
+        } else if (thisSize > otherSize) {
             return 1;
+        } else {
+            return 0;
         }
     }
 }

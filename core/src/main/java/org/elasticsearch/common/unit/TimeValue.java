@@ -375,13 +375,12 @@ public class TimeValue implements Writeable, Comparable<TimeValue> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        return this.compareTo(((TimeValue)o)) == 0;
+        return this.compareTo(((TimeValue) o)) == 0;
     }
 
     @Override
     public int hashCode() {
-        long normalized = timeUnit.toNanos(duration);
-        return Long.hashCode(normalized);
+        return Double.hashCode(((double) duration) * timeUnit.toNanos(1));
     }
 
     public static long nsecToMSec(long ns) {
@@ -390,25 +389,14 @@ public class TimeValue implements Writeable, Comparable<TimeValue> {
 
     @Override
     public int compareTo(TimeValue timeValue) {
-        Byte thisByte = TIME_UNIT_BYTE_MAP.get(timeUnit);
-        Byte otherByte = TIME_UNIT_BYTE_MAP.get(timeValue.timeUnit);
-        TimeUnit minUnit = BYTE_TIME_UNIT_MAP.get(thisByte > otherByte ? thisByte : otherByte);
-        long thisDuration = minUnit.convert(duration, timeUnit);
-        long otherDuration = minUnit.convert(timeValue.duration, timeValue.timeUnit);
-
-        if (thisDuration == otherDuration) {
-            if (thisDuration == Long.MAX_VALUE || thisDuration == Long.MIN_VALUE) {
-                if (thisByte > otherByte) {
-                    return 1;
-                } else if (thisByte < otherByte) {
-                    return -1;
-                }
-            }
-            return 0;
-        } else if (thisDuration < otherDuration) {
+        double thisSize = ((double) duration) * timeUnit.toNanos(1);
+        double otherSize = ((double) timeValue.duration) * timeValue.timeUnit.toNanos(1);
+        if (thisSize < otherSize) {
             return -1;
-        } else {
+        } else if (thisSize > otherSize) {
             return 1;
+        } else {
+            return 0;
         }
     }
 }

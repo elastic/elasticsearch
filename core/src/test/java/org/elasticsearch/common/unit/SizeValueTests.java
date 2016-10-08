@@ -94,4 +94,10 @@ public class SizeValueTests extends ESTestCase {
         assertTrue(firstValue.compareTo(secondValue) < 0);
         assertTrue(secondValue.compareTo(firstValue) > 0);
     }
+
+    public void testConversionHashCode() {
+        SizeValue firstValue = new SizeValue(randomIntBetween(0, Integer.MAX_VALUE), SizeUnit.GIGA);
+        SizeValue secondValue = new SizeValue(firstValue.getSingles(), SizeUnit.SINGLE);
+        assertEquals(firstValue.hashCode(), secondValue.hashCode());
+    }
 }

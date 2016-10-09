@@ -201,14 +201,8 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue> {
 
     @Override
     public int compareTo(ByteSizeValue other) {
-        double firstValue = ((double) size) * unit.toBytes(1);
+        double thisValue = ((double) size) * unit.toBytes(1);
         double otherValue = ((double) other.size) * other.unit.toBytes(1);
-        if (firstValue < otherValue) {
-            return -1;
-        } else if (firstValue > otherValue) {
-            return 1;
-        } else {
-            return 0;
-        }
+        return Double.compare(thisValue, otherValue);
     }
 }

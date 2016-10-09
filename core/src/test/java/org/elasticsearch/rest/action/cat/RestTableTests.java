@@ -194,7 +194,7 @@ public class RestTableTests extends ESTestCase {
         table.endHeaders();
         restRequest.params().put("s", "notaheader");
         Exception e = expectThrows(UnsupportedOperationException.class, () -> RestTable.getRowOrder(table, restRequest));
-        assertEquals("Unable to sort by unknown sort key notaheader", e.getMessage());
+        assertEquals("Unable to sort by unknown sort key `notaheader`", e.getMessage());
     }
 
     public void testAliasSort() {

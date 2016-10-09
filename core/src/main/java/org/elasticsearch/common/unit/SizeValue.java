@@ -211,14 +211,8 @@ public class SizeValue implements Writeable, Comparable<SizeValue> {
 
     @Override
     public int compareTo(SizeValue other) {
-        double thisSize = ((double) size) * sizeUnit.toSingles(1);
-        double otherSize = ((double) other.size) * other.sizeUnit.toSingles(1);
-        if (thisSize < otherSize) {
-            return -1;
-        } else if (thisSize > otherSize) {
-            return 1;
-        } else {
-            return 0;
-        }
+        double thisValue = ((double) size) * sizeUnit.toSingles(1);
+        double otherValue = ((double) other.size) * other.sizeUnit.toSingles(1);
+        return Double.compare(thisValue, otherValue);
     }
 }

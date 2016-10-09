@@ -207,7 +207,7 @@ public class TableTests extends ESTestCase {
         table.addCell("ghij", "alias:g,h");
         table.endHeaders();
         Map<String, String> aliasMap = table.getAliasMap();
-        assertEquals(3, aliasMap.size());
+        assertEquals(5, aliasMap.size());
         assertEquals("asdf", aliasMap.get("a"));
         assertEquals("ghij", aliasMap.get("g"));
         assertEquals("ghij", aliasMap.get("h"));

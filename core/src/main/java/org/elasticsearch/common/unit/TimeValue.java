@@ -389,14 +389,8 @@ public class TimeValue implements Writeable, Comparable<TimeValue> {
 
     @Override
     public int compareTo(TimeValue timeValue) {
-        double thisSize = ((double) duration) * timeUnit.toNanos(1);
-        double otherSize = ((double) timeValue.duration) * timeValue.timeUnit.toNanos(1);
-        if (thisSize < otherSize) {
-            return -1;
-        } else if (thisSize > otherSize) {
-            return 1;
-        } else {
-            return 0;
-        }
+        double thisValue = ((double) duration) * timeUnit.toNanos(1);
+        double otherValue = ((double) timeValue.duration) * timeValue.timeUnit.toNanos(1);
+        return Double.compare(thisValue, otherValue);
     }
 }

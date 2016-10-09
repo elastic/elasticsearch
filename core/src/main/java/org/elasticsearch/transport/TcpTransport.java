@@ -1013,10 +1013,14 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             };
             addedReleaseListener = internalSendMessage(channel, reference, onRequestSent);
         } finally {
-            IOUtils.close(stream);
-            if (!addedReleaseListener) {
-                Releasables.close(bStream.bytes());
+            try {
+                IOUtils.close(stream);
+            } finally {
+                if (!addedReleaseListener) {
+                    Releasables.close(bStream.bytes());
+                }
             }
+
         }
     }
 

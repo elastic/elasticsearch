@@ -406,7 +406,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         } else {
             DateMathParser dateMathParser = format == null ? null : new DateMathParser(format);
             return fieldType.isFieldWithinQuery(queryRewriteContext.getIndexReader(), from, to, includeLower,
-                    includeUpper, timeZone, dateMathParser);
+                    includeUpper, timeZone, dateMathParser, queryRewriteContext);
         }
     }
 
@@ -445,21 +445,21 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                     forcedDateParser = new DateMathParser(this.format);
                 }
                 query = ((LegacyDateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper,
-                        timeZone, forcedDateParser);
+                        timeZone, forcedDateParser, context);
             } else if (mapper instanceof DateFieldMapper.DateFieldType) {
                 DateMathParser forcedDateParser = null;
                 if (this.format  != null) {
                     forcedDateParser = new DateMathParser(this.format);
                 }
                 query = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper,
-                        timeZone, forcedDateParser);
+                        timeZone, forcedDateParser, context);
             } else  {
                 if (timeZone != null) {
                     throw new QueryShardException(context, "[range] time_zone can not be applied to non date field ["
                             + fieldName + "]");
                 }
                 //LUCENE 4 UPGRADE Mapper#rangeQuery should use bytesref as well?
-                query = mapper.rangeQuery(from, to, includeLower, includeUpper);
+                query = mapper.rangeQuery(from, to, includeLower, includeUpper, context);
             }
         } else {
             if (timeZone != null) {

@@ -209,7 +209,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         serviceHolder.clientInvocationHandler.delegate = this;
     }
 
-    private static void setSearchContext(String[] types, QueryShardContext context) {
+    private static SearchContext getSearchContext(String[] types, QueryShardContext context) {
         TestSearchContext testSearchContext = new TestSearchContext(context) {
             @Override
             public MapperService mapperService() {
@@ -222,13 +222,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             }
         };
         testSearchContext.getQueryShardContext().setTypes(types);
-        SearchContext.setCurrent(testSearchContext);
+        return testSearchContext;
     }
 
     @After
     public void afterTest() {
         serviceHolder.clientInvocationHandler.delegate = null;
-        SearchContext.removeCurrent();
     }
 
     public final QB createTestQueryBuilder() {
@@ -580,15 +579,26 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     public void testToQuery() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QueryShardContext context = createShardContext();
+            assert context.isCachable();
             context.setAllowUnmappedFields(true);
             QB firstQuery = createTestQueryBuilder();
             QB controlQuery = copyQuery(firstQuery);
-            setSearchContext(randomTypes, context); // only set search context for toQuery to be more realistic
-            Query firstLuceneQuery = rewriteQuery(firstQuery, context).toQuery(context);
+            SearchContext searchContext = getSearchContext(randomTypes, context);// only set search context for toQuery to be more realistic
+/* we use a private rewrite context here since we want the most realistic way of asserting that we are cachabel or not.
+             * We do it this way in SearchService where
+             * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
+            QueryBuilder rewritten = rewriteQuery(firstQuery, new QueryShardContext(context));
+            Query firstLuceneQuery = rewritten.toQuery(context);
+            if (isCachable(firstQuery)) {
+                assertTrue("query was marked as not cacheable in the context but this test indicates it should be cacheable: "
+                        + firstQuery.toString(), context.isCachable());
+            } else {
+                assertFalse("query was marked as cacheable in the context but this test indicates it should not be cacheable: "
+                        + firstQuery.toString(), context.isCachable());
+            }
             assertNotNull("toQuery should not return null", firstLuceneQuery);
-            assertLuceneQuery(firstQuery, firstLuceneQuery, context);
+            assertLuceneQuery(firstQuery, firstLuceneQuery, searchContext);
             //remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
-            SearchContext.removeCurrent();
             assertTrue(
                     "query is not equal to its copy after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
                     firstQuery.equals(controlQuery));
@@ -603,20 +613,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 secondQuery.queryName(secondQuery.queryName() == null ? randomAsciiOfLengthBetween(1, 30) : secondQuery.queryName()
                         + randomAsciiOfLengthBetween(1, 10));
             }
-            setSearchContext(randomTypes, context);
+            searchContext = getSearchContext(randomTypes, context);
             Query secondLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
             assertNotNull("toQuery should not return null", secondLuceneQuery);
-            assertLuceneQuery(secondQuery, secondLuceneQuery, context);
-            SearchContext.removeCurrent();
+            assertLuceneQuery(secondQuery, secondLuceneQuery, searchContext);
 
             assertEquals("two equivalent query builders lead to different lucene queries",
                     rewrite(secondLuceneQuery), rewrite(firstLuceneQuery));
 
             if (supportsBoostAndQueryName()) {
                 secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
-                setSearchContext(randomTypes, context);
                 Query thirdLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
-                SearchContext.removeCurrent();
                 assertNotEquals("modifying the boost doesn't affect the corresponding lucene query", rewrite(firstLuceneQuery),
                         rewrite(thirdLuceneQuery));
             }
@@ -636,6 +643,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return rewritten;
     }
 
+    protected boolean isCachable(QB queryBuilder) {
+        return true;
+    }
+
     /**
      * Few queries allow you to set the boost and queryName on the java api, although the corresponding parser
      * doesn't parse them as they are not supported. This method allows to disable boost and queryName related tests for those queries.
@@ -649,11 +660,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Checks the result of {@link QueryBuilder#toQuery(QueryShardContext)} given the original {@link QueryBuilder}
      * and {@link QueryShardContext}. Verifies that named queries and boost are properly handled and delegates to
-     * {@link #doAssertLuceneQuery(AbstractQueryBuilder, Query, QueryShardContext)} for query specific checks.
+     * {@link #doAssertLuceneQuery(AbstractQueryBuilder, Query, SearchContext)} for query specific checks.
      */
-    private void assertLuceneQuery(QB queryBuilder, Query query, QueryShardContext context) throws IOException {
+    private void assertLuceneQuery(QB queryBuilder, Query query, SearchContext context) throws IOException {
         if (queryBuilder.queryName() != null) {
-            Query namedQuery = context.copyNamedQueries().get(queryBuilder.queryName());
+            Query namedQuery = context.getQueryShardContext().copyNamedQueries().get(queryBuilder.queryName());
             assertThat(namedQuery, equalTo(query));
         }
         if (query != null) {
@@ -677,7 +688,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Checks the result of {@link QueryBuilder#toQuery(QueryShardContext)} given the original {@link QueryBuilder}
      * and {@link QueryShardContext}. Contains the query specific checks to be implemented by subclasses.
      */
-    protected abstract void doAssertLuceneQuery(QB queryBuilder, Query query, QueryShardContext context) throws IOException;
+    protected abstract void doAssertLuceneQuery(QB queryBuilder, Query query, SearchContext context) throws IOException;
 
     protected static void assertTermOrBoostQuery(Query query, String field, String value, float fieldBoost) {
         if (fieldBoost != AbstractQueryBuilder.DEFAULT_BOOST) {
@@ -999,7 +1010,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
         QB queryBuilder = createTestQueryBuilder();
-        setSearchContext(randomTypes, context); // only set search context for toQuery to be more realistic
         queryBuilder.toQuery(context);
     }
 
@@ -1020,6 +1030,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         private final BitsetFilterCache bitsetFilterCache;
         private final ScriptService scriptService;
         private final Client client;
+        private final long nowInMillis = randomPositiveLong();
 
         ServiceHolder(Settings nodeSettings, Settings indexSettings,
                       Collection<Class<? extends Plugin>> plugins, AbstractQueryTestCase<?> testCase) throws IOException {
@@ -1097,8 +1108,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
         QueryShardContext createShardContext() {
             ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
-            return new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
-                    scriptService, indicesQueriesRegistry, this.client, null, state);
+            return new QueryShardContext(0, idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
+                    scriptService, indicesQueriesRegistry, this.client, null, state, () -> nowInMillis);
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

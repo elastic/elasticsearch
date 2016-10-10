@@ -51,7 +51,6 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -89,7 +88,6 @@ final class DefaultSearchContext extends SearchContext {
     private final Counter timeEstimateCounter;
     private SearchType searchType;
     private final Engine.Searcher engineSearcher;
-    private final ScriptService scriptService;
     private final BigArrays bigArrays;
     private final IndexShard indexShard;
     private final IndexService indexService;
@@ -138,7 +136,6 @@ final class DefaultSearchContext extends SearchContext {
     private SearchContextHighlight highlight;
     private SuggestionSearchContext suggest;
     private List<RescoreSearchContext> rescore;
-    private SearchLookup searchLookup;
     private volatile long keepAlive;
     private final long originNanoTime = System.nanoTime();
     private volatile long lastAccessTime = -1;
@@ -150,9 +147,9 @@ final class DefaultSearchContext extends SearchContext {
     private FetchPhase fetchPhase;
 
     DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget, Engine.Searcher engineSearcher,
-            IndexService indexService, IndexShard indexShard, ScriptService scriptService,
-            BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher, TimeValue timeout,
-            FetchPhase fetchPhase) {
+                         IndexService indexService, IndexShard indexShard,
+                         BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher, TimeValue timeout,
+                         FetchPhase fetchPhase) {
         super(parseFieldMatcher);
         this.id = id;
         this.request = request;
@@ -160,7 +157,6 @@ final class DefaultSearchContext extends SearchContext {
         this.searchType = request.searchType();
         this.shardTarget = shardTarget;
         this.engineSearcher = engineSearcher;
-        this.scriptService = scriptService;
         // SearchContexts use a BigArrays that can circuit break
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.dfsResult = new DfsSearchResult(id, shardTarget);
@@ -171,7 +167,7 @@ final class DefaultSearchContext extends SearchContext {
         this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
         this.timeEstimateCounter = timeEstimateCounter;
         this.timeout = timeout;
-        queryShardContext = indexService.newQueryShardContext(searcher.getIndexReader());
+        queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher.getIndexReader(), request::nowInMillis);
         queryShardContext.setTypes(request.types());
     }
 
@@ -359,11 +355,6 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    protected long nowInMillisImpl() {
-        return request.nowInMillis();
-    }
-
-    @Override
     public ScrollContext scrollContext() {
         return this.scrollContext;
     }
@@ -499,11 +490,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public SimilarityService similarityService() {
         return indexService.similarityService();
-    }
-
-    @Override
-    public ScriptService scriptService() {
-        return scriptService;
     }
 
     @Override
@@ -746,15 +732,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public void keepAlive(long keepAlive) {
         this.keepAlive = keepAlive;
-    }
-
-    @Override
-    public SearchLookup lookup() {
-        // TODO: The types should take into account the parsing context in QueryParserContext...
-        if (searchLookup == null) {
-            searchLookup = new SearchLookup(mapperService(), fieldData(), request.types());
-        }
-        return searchLookup;
     }
 
     @Override

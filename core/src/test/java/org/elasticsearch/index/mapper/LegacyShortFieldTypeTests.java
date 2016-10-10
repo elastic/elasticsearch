@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.LegacyShortFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.junit.Before;
 
 public class LegacyShortFieldTypeTests extends FieldTypeTestCase {
@@ -36,6 +34,6 @@ public class LegacyShortFieldTypeTests extends FieldTypeTestCase {
     public void testValueForSearch() {
         MappedFieldType ft = createDefaultFieldType();
         // shorts are stored as ints
-        assertEquals(Short.valueOf((short) 3), ft.valueForSearch(Integer.valueOf(3)));
+        assertEquals(Short.valueOf((short) 3), ft.valueForDisplay(Integer.valueOf(3)));
     }
 }

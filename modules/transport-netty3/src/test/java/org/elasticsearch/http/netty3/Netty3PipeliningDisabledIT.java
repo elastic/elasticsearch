@@ -21,7 +21,6 @@ package org.elasticsearch.http.netty3;
 import org.elasticsearch.ESNetty3IntegTestCase;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -57,10 +56,10 @@ public class Netty3PipeliningDisabledIT extends ESNetty3IntegTestCase {
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         TransportAddress[] boundAddresses = httpServerTransport.boundAddress().boundAddresses();
-        InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) randomFrom(boundAddresses);
+        TransportAddress transportAddress = (TransportAddress) randomFrom(boundAddresses);
 
         try (Netty3HttpClient nettyHttpClient = new Netty3HttpClient()) {
-            Collection<HttpResponse> responses = nettyHttpClient.get(inetSocketTransportAddress.address(), requests);
+            Collection<HttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests);
             assertThat(responses, hasSize(requests.length));
 
             List<String> opaqueIds = new ArrayList<>(returnOpaqueIds(responses));

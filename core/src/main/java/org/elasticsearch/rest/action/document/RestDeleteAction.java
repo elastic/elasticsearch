@@ -26,11 +26,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
@@ -46,7 +47,7 @@ public class RestDeleteAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         DeleteRequest deleteRequest = new DeleteRequest(request.param("index"), request.param("type"), request.param("id"));
         deleteRequest.routing(request.param("routing"));
         deleteRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
@@ -60,6 +61,6 @@ public class RestDeleteAction extends BaseRestHandler {
             deleteRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
 
-        client.delete(deleteRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.delete(deleteRequest, new RestStatusToXContentListener<>(channel));
     }
 }

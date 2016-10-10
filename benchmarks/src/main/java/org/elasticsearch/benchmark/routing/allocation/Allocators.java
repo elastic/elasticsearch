@@ -31,15 +31,18 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayAllocator;
 
 import java.lang.reflect.InvocationTargetException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class Allocators {
     private static class NoopGatewayAllocator extends GatewayAllocator {
@@ -91,8 +94,11 @@ public final class Allocators {
 
     }
 
+    private static final AtomicInteger portGenerator = new AtomicInteger();
+
     public static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
-        return new DiscoveryNode("", nodeId, LocalTransportAddress.buildUnique(), attributes, Sets.newHashSet(DiscoveryNode.Role.MASTER,
+        return new DiscoveryNode("", nodeId, new TransportAddress(TransportAddress.META_ADDRESS,
+            portGenerator.incrementAndGet()), attributes, Sets.newHashSet(DiscoveryNode.Role.MASTER,
             DiscoveryNode.Role.DATA), Version.CURRENT);
     }
 }

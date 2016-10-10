@@ -259,6 +259,9 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     @Override
     protected DateRangeAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+        // We need to call processRanges here so they are parsed and we know whether `now` has been used before we make 
+        // the decision of whether to cache the request
+        Range[] ranges = processRanges(context, config);
         return new DateRangeAggregatorFactory(name, type, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
                 metaData);
     }

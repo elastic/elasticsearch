@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -41,7 +40,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -54,6 +52,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -115,7 +115,7 @@ public class ClusterServiceTests extends ESTestCase {
         TimedClusterService timedClusterService = new TimedClusterService(Settings.builder().put("cluster.name",
             "ClusterServiceTests").build(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool);
-        timedClusterService.setLocalNode(new DiscoveryNode("node1", LocalTransportAddress.buildUnique(), emptyMap(),
+        timedClusterService.setLocalNode(new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(),
             emptySet(), Version.CURRENT));
         timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
@@ -299,6 +299,66 @@ public class ClusterServiceTests extends ESTestCase {
 
         latch.await();
         assertTrue(published.get());
+    }
+
+    public void testOneExecutorDontStarveAnother() throws InterruptedException {
+        final List<String> executionOrder = Collections.synchronizedList(new ArrayList<>());
+        final Semaphore allowProcessing = new Semaphore(0);
+        final Semaphore startedProcessing = new Semaphore(0);
+
+        class TaskExecutor implements ClusterStateTaskExecutor<String> {
+
+            @Override
+            public BatchResult<String> execute(ClusterState currentState, List<String> tasks) throws Exception {
+                executionOrder.addAll(tasks); // do this first, so startedProcessing can be used as a notification that this is done.
+                startedProcessing.release(tasks.size());
+                allowProcessing.acquire(tasks.size());
+                return BatchResult.<String>builder().successes(tasks).build(ClusterState.builder(currentState).build());
+            }
+
+            @Override
+            public boolean runOnlyOnMaster() {
+                return false;
+            }
+        }
+
+        TaskExecutor executorA = new TaskExecutor();
+        TaskExecutor executorB = new TaskExecutor();
+
+        final ClusterStateTaskConfig config = ClusterStateTaskConfig.build(Priority.NORMAL);
+        final ClusterStateTaskListener noopListener = (source, e) -> { throw new AssertionError(source, e); };
+        // this blocks the cluster state queue, so we can set it up right
+        clusterService.submitStateUpdateTask("0", "A0", config, executorA, noopListener);
+        // wait to be processed
+        startedProcessing.acquire(1);
+        assertThat(executionOrder, equalTo(Arrays.asList("A0")));
+
+
+        // these will be the first batch
+        clusterService.submitStateUpdateTask("1", "A1", config, executorA, noopListener);
+        clusterService.submitStateUpdateTask("2", "A2", config, executorA, noopListener);
+
+        // release the first 0 task, but not the second
+        allowProcessing.release(1);
+        startedProcessing.acquire(2);
+        assertThat(executionOrder, equalTo(Arrays.asList("A0", "A1", "A2")));
+
+        // setup the queue with pending tasks for another executor same priority
+        clusterService.submitStateUpdateTask("3", "B3", config, executorB, noopListener);
+        clusterService.submitStateUpdateTask("4", "B4", config, executorB, noopListener);
+
+
+        clusterService.submitStateUpdateTask("5", "A5", config, executorA, noopListener);
+        clusterService.submitStateUpdateTask("6", "A6", config, executorA, noopListener);
+
+        // now release the processing
+        allowProcessing.release(6);
+
+        // wait for last task to be processed
+        startedProcessing.acquire(4);
+
+        assertThat(executionOrder, equalTo(Arrays.asList("A0", "A1", "A2", "B3", "B4", "A5", "A6")));
+
     }
 
     // test that for a single thread, tasks are executed in the order

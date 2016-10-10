@@ -22,15 +22,16 @@ package org.elasticsearch.index.search;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
@@ -45,6 +46,8 @@ import java.io.IOException;
 import java.util.Arrays;
 
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class MultiMatchQueryTests extends ESSingleNodeTestCase {
 
@@ -153,5 +156,14 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
                 .build();
         Query actual = MultiMatchQuery.blendTerm(new BytesRef("baz"), null, 1f, new FieldAndFieldType(ft1, 2), new FieldAndFieldType(ft2, 3));
         assertEquals(expected, actual);
+    }
+
+    public void testMultiMatchPrefixWithAllField() throws IOException {
+        QueryShardContext queryShardContext = indexService.newQueryShardContext();
+        queryShardContext.setAllowUnmappedFields(true);
+        Query parsedQuery =
+            multiMatchQuery("foo").field("_all").type(MultiMatchQueryBuilder.Type.PHRASE_PREFIX).toQuery(queryShardContext);
+        assertThat(parsedQuery, instanceOf(MultiPhrasePrefixQuery.class));
+        assertThat(parsedQuery.toString(), equalTo("_all:\"foo*\""));
     }
 }

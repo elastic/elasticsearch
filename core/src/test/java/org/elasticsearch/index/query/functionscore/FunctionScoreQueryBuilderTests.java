@@ -39,7 +39,6 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
@@ -50,6 +49,7 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
@@ -172,12 +172,14 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             break;
         case 3:
             RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilderWithFixedSeed();
-            if (randomBoolean()) {
-                randomScoreFunctionBuilder.seed(randomLong());
-            } else if (randomBoolean()) {
-                randomScoreFunctionBuilder.seed(randomInt());
-            } else {
-                randomScoreFunctionBuilder.seed(randomAsciiOfLengthBetween(1, 10));
+            if (randomBoolean()) { // sometimes provide no seed
+                if (randomBoolean()) {
+                    randomScoreFunctionBuilder.seed(randomLong());
+                } else if (randomBoolean()) {
+                    randomScoreFunctionBuilder.seed(randomInt());
+                } else {
+                    randomScoreFunctionBuilder.seed(randomAsciiOfLengthBetween(1, 10));
+                }
             }
             functionBuilder = randomScoreFunctionBuilder;
             break;
@@ -238,7 +240,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     @Override
-    protected void doAssertLuceneQuery(FunctionScoreQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(FunctionScoreQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, either(instanceOf(FunctionScoreQuery.class)).or(instanceOf(FiltersFunctionScoreQuery.class)));
     }
 
@@ -763,12 +765,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         }
 
         @Override
-        int getCurrentShardId() {
-            // We can't use the method that normal queries use during this test so we hack something instead
-            return 0;
-        }
-
-        @Override
         public String getName() {
             return NAME;
         }
@@ -777,7 +773,9 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 throws IOException, ParsingException {
             RandomScoreFunctionBuilder builder = RandomScoreFunctionBuilder.fromXContent(parseContext);
             RandomScoreFunctionBuilderWithFixedSeed replacement = new RandomScoreFunctionBuilderWithFixedSeed();
-            replacement.seed(builder.getSeed());
+            if (builder.getSeed() != null) {
+                replacement.seed(builder.getSeed());
+            }
             return replacement;
         }
     }
@@ -788,5 +786,19 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             return singletonList(new ScoreFunctionSpec<>(RandomScoreFunctionBuilderWithFixedSeed.NAME,
                     RandomScoreFunctionBuilderWithFixedSeed::new, RandomScoreFunctionBuilderWithFixedSeed::fromXContent));
         }
+    }
+
+    @Override
+    protected boolean isCachable(FunctionScoreQueryBuilder queryBuilder) {
+        FilterFunctionBuilder[] filterFunctionBuilders = queryBuilder.filterFunctionBuilders();
+        for (FilterFunctionBuilder builder : filterFunctionBuilders) {
+            if (builder.getScoreFunction() instanceof ScriptScoreFunctionBuilder) {
+                return false;
+            } else if (builder.getScoreFunction() instanceof RandomScoreFunctionBuilder
+                && ((RandomScoreFunctionBuilder) builder.getScoreFunction()).getSeed() == null) {
+                return false;
+            }
+        }
+        return true;
     }
 }

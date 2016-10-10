@@ -43,9 +43,9 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.LegacyNumberFieldMapper.Defaults;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -54,8 +54,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Callable;
-
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
 /** A {@link FieldMapper} for ip addresses. */
@@ -172,15 +170,17 @@ public class DateFieldMapper extends FieldMapper {
             final boolean includeUpper;
             final DateTimeZone timeZone;
             final DateMathParser forcedDateParser;
+            private QueryShardContext queryShardContext;
 
             public LateParsingQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser forcedDateParser) {
+                    DateTimeZone timeZone, DateMathParser forcedDateParser, QueryShardContext queryShardContext) {
                 this.lowerTerm = lowerTerm;
                 this.upperTerm = upperTerm;
                 this.includeLower = includeLower;
                 this.includeUpper = includeUpper;
                 this.timeZone = timeZone;
                 this.forcedDateParser = forcedDateParser;
+                this.queryShardContext = queryShardContext;
             }
 
             @Override
@@ -189,7 +189,7 @@ public class DateFieldMapper extends FieldMapper {
                 if (rewritten != this) {
                     return rewritten;
                 }
-                return innerRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser);
+                return innerRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser, queryShardContext);
             }
 
             // Even though we only cache rewritten queries it is good to let all queries implement hashCode() and equals():
@@ -301,7 +301,7 @@ public class DateFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            Query query = innerRangeQuery(value, value, true, true, null, null);
+            Query query = innerRangeQuery(value, value, true, true, null, null, context);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -309,19 +309,19 @@ public class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             failIfNotIndexed();
-            return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, null, null);
+            return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, null, null, context);
         }
 
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser) {
+                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
             failIfNotIndexed();
-            return new LateParsingQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser);
+            return new LateParsingQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser, context);
         }
 
         Query innerRangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser) {
+                @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
             failIfNotIndexed();
             DateMathParser parser = forcedDateParser == null
                     ? dateMathParser
@@ -330,7 +330,7 @@ public class DateFieldMapper extends FieldMapper {
             if (lowerTerm == null) {
                 l = Long.MIN_VALUE;
             } else {
-                l = parseToMilliseconds(lowerTerm, !includeLower, timeZone, parser);
+                l = parseToMilliseconds(lowerTerm, !includeLower, timeZone, parser, context);
                 if (includeLower == false) {
                     ++l;
                 }
@@ -338,7 +338,7 @@ public class DateFieldMapper extends FieldMapper {
             if (upperTerm == null) {
                 u = Long.MAX_VALUE;
             } else {
-                u = parseToMilliseconds(upperTerm, includeUpper, timeZone, parser);
+                u = parseToMilliseconds(upperTerm, includeUpper, timeZone, parser, context);
                 if (includeUpper == false) {
                     --u;
                 }
@@ -347,7 +347,7 @@ public class DateFieldMapper extends FieldMapper {
         }
 
         public long parseToMilliseconds(Object value, boolean roundUp,
-                @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser) {
+                @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser, QueryRewriteContext context) {
             DateMathParser dateParser = dateMathParser();
             if (forcedDateParser != null) {
                 dateParser = forcedDateParser;
@@ -359,16 +359,7 @@ public class DateFieldMapper extends FieldMapper {
             } else {
                 strValue = value.toString();
             }
-            return dateParser.parse(strValue, now(), roundUp, zone);
-        }
-
-        private static Callable<Long> now() {
-            return () -> {
-                final SearchContext context = SearchContext.current();
-                return context != null
-                        ? context.nowInMillis()
-                        : System.currentTimeMillis();
-            };
+            return dateParser.parse(strValue, context::nowInMillis, roundUp, zone);
         }
 
         @Override
@@ -390,7 +381,7 @@ public class DateFieldMapper extends FieldMapper {
         public Relation isFieldWithinQuery(IndexReader reader,
                 Object from, Object to,
                 boolean includeLower, boolean includeUpper,
-                DateTimeZone timeZone, DateMathParser dateParser) throws IOException {
+                DateTimeZone timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }
@@ -405,7 +396,7 @@ public class DateFieldMapper extends FieldMapper {
 
             long fromInclusive = Long.MIN_VALUE;
             if (from != null) {
-                fromInclusive = parseToMilliseconds(from, !includeLower, timeZone, dateParser);
+                fromInclusive = parseToMilliseconds(from, !includeLower, timeZone, dateParser, context);
                 if (includeLower == false) {
                     if (fromInclusive == Long.MAX_VALUE) {
                         return Relation.DISJOINT;
@@ -416,7 +407,7 @@ public class DateFieldMapper extends FieldMapper {
 
             long toInclusive = Long.MAX_VALUE;
             if (to != null) {
-                toInclusive = parseToMilliseconds(to, includeUpper, timeZone, dateParser);
+                toInclusive = parseToMilliseconds(to, includeUpper, timeZone, dateParser, context);
                 if (includeUpper == false) {
                     if (toInclusive == Long.MIN_VALUE) {
                         return Relation.DISJOINT;
@@ -441,7 +432,7 @@ public class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Object valueForSearch(Object value) {
+        public Object valueForDisplay(Object value) {
             Long val = (Long) value;
             if (val == null) {
                 return null;
@@ -496,10 +487,7 @@ public class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext originalContext, List<Field> fields) throws IOException {
-        // Date fields, by default, will not be included in _all
-        final ParseContext context = originalContext.setIncludeInAllDefault(false);
-
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         String dateAsString;
         if (context.externalValueSet()) {
             Object dateAsObject = context.externalValue();

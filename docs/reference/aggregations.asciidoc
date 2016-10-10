@@ -58,6 +58,7 @@ The following snippet captures the basic structure of aggregations:
     [,"<aggregation_name_2>" : { ... } ]*
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 The `aggregations` object (the key `aggs` can also be used) in the JSON holds the aggregations to be computed. Each aggregation
 is associated with a logical name that the user defines (e.g. if the aggregation computes the average price, then it would

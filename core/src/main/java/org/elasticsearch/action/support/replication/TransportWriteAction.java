@@ -29,9 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.indices.IndicesService;
@@ -73,26 +71,15 @@ public abstract class TransportWriteAction<
     protected abstract Translog.Location onReplicaShard(Request request, IndexShard indexShard);
 
     @Override
-    protected final WritePrimaryResult shardOperationOnPrimary(Request request) throws Exception {
-        IndexShard indexShard = indexShard(request);
-        WriteResult<Response> result = onPrimaryShard(request, indexShard);
-        return new WritePrimaryResult(request, result.getResponse(), result.getLocation(), indexShard);
+    protected final WritePrimaryResult shardOperationOnPrimary(Request request, IndexShard primary) throws Exception {
+        WriteResult<Response> result = onPrimaryShard(request, primary);
+        return new WritePrimaryResult(request, result.getResponse(), result.getLocation(), primary);
     }
 
     @Override
-    protected final WriteReplicaResult shardOperationOnReplica(Request request) {
-        IndexShard indexShard = indexShard(request);
-        Translog.Location location = onReplicaShard(request, indexShard);
-        return new WriteReplicaResult(indexShard, request, location);
-    }
-
-    /**
-     * Fetch the IndexShard for the request. Protected so it can be mocked in tests.
-     */
-    protected IndexShard indexShard(Request request) {
-        final ShardId shardId = request.shardId();
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        return indexService.getShard(shardId.id());
+    protected final WriteReplicaResult shardOperationOnReplica(Request request, IndexShard replica) {
+        Translog.Location location = onReplicaShard(request, replica);
+        return new WriteReplicaResult(replica, request, location);
     }
 
     /**
@@ -213,7 +200,7 @@ public abstract class TransportWriteAction<
      * callback used by {@link AsyncAfterWriteAction} to notify that all post
      * process actions have been executed
      */
-    private interface RespondingWriteResult {
+    interface RespondingWriteResult {
         /**
          * Called on successful processing of all post write actions
          * @param forcedRefresh <code>true</code> iff this write has caused a refresh

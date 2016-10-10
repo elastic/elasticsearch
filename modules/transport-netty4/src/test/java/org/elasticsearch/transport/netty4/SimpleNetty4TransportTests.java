@@ -23,8 +23,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -45,9 +46,8 @@ import static org.hamcrest.Matchers.containsString;
 
 public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase {
 
-    public static MockTransportService nettyFromThreadPool(
-        Settings settings,
-        ThreadPool threadPool, final Version version) {
+    public static MockTransportService nettyFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
+            ClusterSettings clusterSettings) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         Transport transport = new Netty4Transport(settings, threadPool, new NetworkService(settings, Collections.emptyList()),
             BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
@@ -56,20 +56,21 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                 return version;
             }
         };
-        return new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+        return new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                clusterSettings);
     }
 
     @Override
-    protected MockTransportService build(Settings settings, Version version) {
+    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings) {
         settings = Settings.builder().put(settings).put(TransportSettings.PORT.getKey(), "0").build();
-        MockTransportService transportService = nettyFromThreadPool(settings, threadPool, version);
+        MockTransportService transportService = nettyFromThreadPool(settings, threadPool, version, clusterSettings);
         transportService.start();
         return transportService;
     }
 
     public void testConnectException() throws UnknownHostException {
         try {
-            serviceA.connectToNode(new DiscoveryNode("C", new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9876),
+            serviceA.connectToNode(new DiscoveryNode("C", new TransportAddress(InetAddress.getByName("localhost"), 9876),
                     emptyMap(), emptySet(),Version.CURRENT));
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {

@@ -43,7 +43,6 @@ import java.util.Objects;
  */
 public final class Script implements ToXContent, Writeable {
 
-    public static final ScriptType DEFAULT_TYPE = ScriptType.INLINE;
     public static final String DEFAULT_SCRIPT_LANG = "painless";
 
     private String script;

@@ -40,10 +40,10 @@ public class AbstractRangeAggregatorFactory<AF extends AbstractRangeAggregatorFa
         extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, AF> {
 
     private final InternalRange.Factory<?, ?> rangeFactory;
-    private final List<R> ranges;
+    private final R[] ranges;
     private final boolean keyed;
 
-    public AbstractRangeAggregatorFactory(String name, Type type, ValuesSourceConfig<Numeric> config, List<R> ranges, boolean keyed,
+    public AbstractRangeAggregatorFactory(String name, Type type, ValuesSourceConfig<Numeric> config, R[] ranges, boolean keyed,
             InternalRange.Factory<?, ?> rangeFactory, AggregationContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, type, config, context, parent, subFactoriesBuilder, metaData);
@@ -55,7 +55,7 @@ public class AbstractRangeAggregatorFactory<AF extends AbstractRangeAggregatorFa
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        return new Unmapped<R>(name, ranges, keyed, config.format(), context, parent, rangeFactory, pipelineAggregators, metaData);
+        return new Unmapped<>(name, ranges, keyed, config.format(), context, parent, rangeFactory, pipelineAggregators, metaData);
     }
 
     @Override

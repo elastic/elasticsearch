@@ -75,6 +75,8 @@ public class Version {
     public static final Version V_2_3_5 = new Version(V_2_3_5_ID, org.apache.lucene.util.Version.LUCENE_5_5_0);
     public static final int V_2_4_0_ID = 2040099;
     public static final Version V_2_4_0 = new Version(V_2_4_0_ID, org.apache.lucene.util.Version.LUCENE_5_5_2);
+    public static final int V_2_4_1_ID = 2040199;
+    public static final Version V_2_4_1 = new Version(V_2_4_1_ID, org.apache.lucene.util.Version.LUCENE_5_5_2);
     public static final int V_5_0_0_alpha1_ID = 5000001;
     public static final Version V_5_0_0_alpha1 = new Version(V_5_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_6_0_0);
     public static final int V_5_0_0_alpha2_ID = 5000002;
@@ -85,8 +87,10 @@ public class Version {
     public static final Version V_5_0_0_alpha4 = new Version(V_5_0_0_alpha4_ID, org.apache.lucene.util.Version.LUCENE_6_1_0);
     public static final int V_5_0_0_alpha5_ID = 5000005;
     public static final Version V_5_0_0_alpha5 = new Version(V_5_0_0_alpha5_ID, org.apache.lucene.util.Version.LUCENE_6_1_0);
-    public static final int V_5_0_0_alpha6_ID = 5000006;
-    public static final Version V_5_0_0_alpha6 = new Version(V_5_0_0_alpha6_ID, org.apache.lucene.util.Version.LUCENE_6_2_0);
+    public static final int V_5_0_0_beta1_ID = 5000026;
+    public static final Version V_5_0_0_beta1 = new Version(V_5_0_0_beta1_ID, org.apache.lucene.util.Version.LUCENE_6_2_0);
+    public static final int V_5_0_0_rc1_ID = 5000051;
+    public static final Version V_5_0_0_rc1 = new Version(V_5_0_0_rc1_ID, org.apache.lucene.util.Version.LUCENE_6_2_0);
     public static final int V_6_0_0_alpha1_ID = 6000001;
     public static final Version V_6_0_0_alpha1 = new Version(V_6_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_6_2_0);
     public static final Version CURRENT = V_6_0_0_alpha1;
@@ -104,8 +108,10 @@ public class Version {
         switch (id) {
             case V_6_0_0_alpha1_ID:
                 return V_6_0_0_alpha1;
-            case V_5_0_0_alpha6_ID:
-                return V_5_0_0_alpha6;
+            case V_5_0_0_rc1_ID:
+                return V_5_0_0_rc1;
+            case V_5_0_0_beta1_ID:
+                return V_5_0_0_beta1;
             case V_5_0_0_alpha5_ID:
                 return V_5_0_0_alpha5;
             case V_5_0_0_alpha4_ID:
@@ -116,6 +122,8 @@ public class Version {
                 return V_5_0_0_alpha2;
             case V_5_0_0_alpha1_ID:
                 return V_5_0_0_alpha1;
+            case V_2_4_1_ID:
+                return V_2_4_1;
             case V_2_4_0_ID:
                 return V_2_4_0;
             case V_2_3_5_ID:
@@ -352,4 +360,9 @@ public class Version {
     public boolean isRC() {
         return build > 50 && build < 99;
     }
+
+    public boolean isRelease() {
+        return build == 99;
+    }
+
 }

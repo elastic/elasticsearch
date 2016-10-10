@@ -2,7 +2,8 @@
 === Ingest Geoip Processor Plugin
 
 The GeoIP processor adds information about the geographical location of IP addresses, based on data from the Maxmind databases.
-This processor adds this information by default under the `geoip` field.
+This processor adds this information by default under the `geoip` field. The `geoip` processor can resolve both IPv4 and
+IPv6 addresses.
 
 The ingest-geoip plugin ships by default with the GeoLite2 City and GeoLite2 Country geoip2 databases from Maxmind made available
 under the CCA-ShareAlike 3.0 license. For more details see, http://dev.maxmind.com/geoip/geoip2/geolite2/
@@ -26,7 +27,7 @@ The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
 This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/ingest-geoip/{version}/ingest-geoip-{version}.zip.
+{plugin_url}/ingest-geoip/ingest-geoip-{version}.zip.
 
 [[ingest-geoip-remove]]
 [float]

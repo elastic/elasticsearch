@@ -26,9 +26,19 @@ rpm --import https://artifacts.elastic.co/GPG-KEY-elasticsearch
 [[rpm-repo]]
 ==== Installing from the RPM repository
 
+ifeval::["{release-state}"=="unreleased"]
+
+Version {version} of Elasticsearch has not yet been released.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+
 Create a file called `elasticsearch.repo` in the `/etc/yum.repos.d/` directory
 for RedHat based distributions, or in the `/etc/zypp/repos.d/` directory for
 OpenSuSE based distributions, containing:
+
+ifeval::["{release-state}"=="released"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
@@ -42,6 +52,24 @@ autorefresh=1
 type=rpm-md
 --------------------------------------------------
 
+endif::[]
+
+ifeval::["{release-state}"=="prerelease"]
+
+["source","sh",subs="attributes,callouts"]
+--------------------------------------------------
+[elasticsearch-{major-version}]
+name=Elasticsearch repository for {major-version} packages
+baseurl=https://artifacts.elastic.co/packages/{major-version}/yum
+gpgcheck=1
+gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
+enabled=1
+autorefresh=1
+type=rpm-md
+--------------------------------------------------
+
+endif::[]
+
 And your repository is ready for use. You can now install Elasticsearch with one of the following commands:
 
 [source,sh]
@@ -54,8 +82,18 @@ sudo zypper install elasticsearch <3>
 <2> Use `dnf` on Fedora and other newer Red Hat distributions.
 <3> Use `zypper` on OpenSUSE based distributions
 
+endif::[]
+
 [[install-rpm]]
 ==== Download and install the RPM manually
+
+ifeval::["{release-state}"=="unreleased"]
+
+Version {version} of Elasticsearch has not yet been released.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
 
 The RPM for Elastisearch v{version} can be downloaded from the website and installed as follows:
 
@@ -67,6 +105,8 @@ sudo rpm --install elasticsearch-{version}.rpm
 --------------------------------------------
 <1> Compare the SHA produced by `sha1sum` or `shasum` with the
     https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.rpm.sha1[published SHA].
+
+endif::[]
 
 include::init-systemd.asciidoc[]
 

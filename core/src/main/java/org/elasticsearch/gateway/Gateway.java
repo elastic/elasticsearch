@@ -21,6 +21,7 @@ package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -34,7 +35,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.indices.IndicesService;
 
 import java.util.Arrays;
@@ -50,13 +50,11 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
 
     private final Supplier<Integer> minimumMasterNodesProvider;
     private final IndicesService indicesService;
-    private final NodeServicesProvider nodeServicesProvider;
 
     public Gateway(Settings settings, ClusterService clusterService, GatewayMetaState metaState,
                    TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery,
-                   NodeServicesProvider nodeServicesProvider, IndicesService indicesService) {
+                   IndicesService indicesService) {
         super(settings);
-        this.nodeServicesProvider = nodeServicesProvider;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.metaState = metaState;
@@ -133,7 +131,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                     try {
                         if (electedIndexMetaData.getState() == IndexMetaData.State.OPEN) {
                             // verify that we can actually create this index - if not we recover it as closed with lots of warn logs
-                            indicesService.verifyIndexMetadata(nodeServicesProvider, electedIndexMetaData, electedIndexMetaData);
+                            indicesService.verifyIndexMetadata(electedIndexMetaData, electedIndexMetaData);
                         }
                     } catch (Exception e) {
                         final Index electedIndex = electedIndexMetaData.getIndex();

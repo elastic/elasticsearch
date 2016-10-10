@@ -2,8 +2,10 @@
 === File Descriptors
 
 [NOTE]
-This is only a problem for Linux and macOS and can be safely ignored if running
-Elasticsearch on Windows.
+This is only relevant for Linux and macOS and can be safely ignored if running
+Elasticsearch on Windows. On Windows that JVM uses an
+https://msdn.microsoft.com/en-us/library/windows/desktop/aa363858(v=vs.85).aspx[API]
+limited only by available resources.
 
 Elasticsearch uses a lot of file descriptors or file handles.  Running out of
 file descriptors can be disastrous and will most probably lead to data loss.

@@ -849,6 +849,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     success = true;
                 } finally {
                     if (success == false) {
+                        // it's fine to call this more than once
                         closeChannel.run();
                     }
                 }

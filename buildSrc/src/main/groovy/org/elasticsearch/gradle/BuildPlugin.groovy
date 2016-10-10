@@ -393,7 +393,7 @@ class BuildPlugin implements Plugin<Project> {
                 }
 
                 options.encoding = 'UTF-8'
-                //options.incremental = true
+                options.incremental = true
 
                 if (project.javaVersion == JavaVersion.VERSION_1_9) {
                     // hack until gradle supports java 9's new "--release" arg

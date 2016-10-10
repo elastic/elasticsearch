@@ -27,6 +27,7 @@ import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheException;
 import com.github.mustachejava.MustacheVisitor;
 import com.github.mustachejava.TemplateContext;
+import com.github.mustachejava.codes.DefaultMustache;
 import com.github.mustachejava.codes.IterableCode;
 import com.github.mustachejava.codes.WriteCode;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,6 +36,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -83,6 +86,8 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
                 list.add(new JoinerCode(templateContext, df, mustache));
             } else if (CustomJoinerCode.match(variable)) {
                 list.add(new CustomJoinerCode(templateContext, df, mustache, variable));
+            } else if (UrlEncoderCode.match(variable)) {
+                list.add(new UrlEncoderCode(templateContext, df, mustache, variable));
             } else {
                 list.add(new IterableCode(templateContext, df, mustache, variable));
             }
@@ -250,6 +255,42 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
         static boolean match(String variable) {
             return PATTERN.matcher(variable).matches();
+        }
+    }
+
+    /**
+     * This function encodes a string using the {@link URLEncoder#encode(String, String)} method
+     * with the UTF-8 charset.
+     */
+    static class UrlEncoderCode extends DefaultMustache {
+
+        private static final String CODE = "url";
+
+        public UrlEncoderCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String variable) {
+            super(tc, df, mustache.getCodes(), variable);
+        }
+
+        @Override
+        public Writer run(Writer writer, List<Object> scopes) {
+            if (getCodes() != null) {
+                for (Code code : getCodes()) {
+                    try (StringWriter capture = new StringWriter()) {
+                        code.execute(capture, scopes);
+
+                        String s = capture.toString();
+                        if (s != null) {
+                            writer.write(URLEncoder.encode(s, StandardCharsets.UTF_8.name()));
+                        }
+                    } catch (IOException e) {
+                        throw new MustacheException("Exception while parsing mustache function at line " + tc.line(), e);
+                    }
+                }
+            }
+            return writer;
+        }
+
+        static boolean match(String variable) {
+            return CODE.equalsIgnoreCase(variable);
         }
     }
 

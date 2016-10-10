@@ -5,7 +5,7 @@
 === Use bulk requests
 
 Bulk requests will yield much better performance than single-document index
-requests. In order to know the optimal size of a bulk request, you shoud run
+requests. In order to know the optimal size of a bulk request, you should run
 a benchmark on a single node with a single shard. First try to index 100
 documents at once, then 200, then 400, etc. doubling the number of documents
 in a bulk request in every benchmark run. When the indexing speed starts to
@@ -32,7 +32,7 @@ When it happens, you should pause indexing a bit before trying again, ideally
 with randomized exponential backoff.
 
 Similarly to sizing bulk requests, only testing can tell what the optimal
-number of workers is. This can be tested by progressivily increasing the
+number of workers is. This can be tested by progressively increasing the
 number of workers until either I/O or CPU is saturated on the cluster.
 
 [float]
@@ -58,7 +58,7 @@ original values.
 === Disable swapping
 
 You should make sure that the operating system is not swapping out the java
-process by <<setup-configuration-memory,disabling swappping>>.
+process by <<setup-configuration-memory,disabling swapping>>.
 
 [float]
 === Give memory to the filesystem cache

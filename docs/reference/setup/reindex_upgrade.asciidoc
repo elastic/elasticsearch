@@ -1,0 +1,3 @@
+[[reindex-upgrade]]
+=== Reindex upgrade
+

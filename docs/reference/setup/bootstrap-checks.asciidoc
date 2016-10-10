@@ -101,7 +101,7 @@ process has unlimited address space and is enforced only on Linux. To
 pass the maximum size virtual memory check, you must configure your
 system to allow the Elasticsearch process the ability to have unlimited
 address space. This can be done via `/etc/security/limits.conf` using
-the `as` setting to `unlimited` (note that you might have to increaes
+the `as` setting to `unlimited` (note that you might have to increase
 the limits for the `root` user too).
 
 === Maximum map count check

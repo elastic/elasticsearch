@@ -79,7 +79,7 @@ By default, elasticsearch completely relies on the operating system file system
 cache for caching I/O operations. It is possible to set `index.store.preload`
 in order to tell the operating system to load the content of hot index
 files into memory upon opening. This setting accept a comma-separated list of
-files extensions: all files whose extenion is in the list will be pre-loaded
+files extensions: all files whose extension is in the list will be pre-loaded
 upon opening. This can be useful to improve search performance of an index,
 especially when the host operating system is restarted, since this causes the
 file system cache to be trashed. However note that this may slow down the

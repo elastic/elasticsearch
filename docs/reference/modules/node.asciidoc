@@ -287,7 +287,7 @@ machine. In production, however, it is recommended to run only one node of Elast
 
 By default, Elasticsearch is configured to prevent more than one node from sharing the same data
 path. To allow for more than one node (e.g., on your development machine), use the setting
-`node.max_local_storage_nodes` and set this to a positve integer larger than one.
+`node.max_local_storage_nodes` and set this to a positive integer larger than one.
 
 WARNING: Never run different node types (i.e. master, data) from the same data directory. This can
 lead to unexpected data loss.

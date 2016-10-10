@@ -551,4 +551,43 @@ public class XContentMapValuesTests extends ESTestCase {
                     parser.list());
         }
     }
+
+    public void testDotsInFieldNames() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("foo.bar", 2);
+        Map<String, Object> sub = new HashMap<>();
+        sub.put("baz", 3);
+        map.put("foo", sub);
+        map.put("quux", 5);
+
+        // dots in field names in includes
+        Map<String, Object> filtered = XContentMapValues.filter(map, new String[] {"foo"}, new String[0]);
+        Map<String, Object> expected = new HashMap<>(map);
+        expected.remove("quux");
+        assertEquals(expected, filtered);
+
+        // dots in field names in excludes
+        filtered = XContentMapValues.filter(map, new String[0], new String[] {"foo"});
+        expected = new HashMap<>(map);
+        expected.keySet().retainAll(Collections.singleton("quux"));
+        assertEquals(expected, filtered);
+    }
+
+    public void testSupplementaryCharactersInPaths() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("搜索", 2);
+        map.put("指数", 3);
+
+        assertEquals(Collections.singletonMap("搜索", 2), XContentMapValues.filter(map, new String[] {"搜索"}, new String[0]));
+        assertEquals(Collections.singletonMap("指数", 3), XContentMapValues.filter(map, new String[0], new String[] {"搜索"}));
+    }
+
+    public void testSharedPrefixes() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("foobar", 2);
+        map.put("foobaz", 3);
+
+        assertEquals(Collections.singletonMap("foobar", 2), XContentMapValues.filter(map, new String[] {"foobar"}, new String[0]));
+        assertEquals(Collections.singletonMap("foobaz", 3), XContentMapValues.filter(map, new String[0], new String[] {"foobar"}));
+    }
 }

@@ -2907,4 +2907,45 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertThat(field.getFragments().length, equalTo(1));
         assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
     }
+
+    public void testSynonyms() throws IOException {
+        Builder builder = Settings.builder()
+            .put(indexSettings())
+            .put("index.analysis.analyzer.synonym.tokenizer", "whitespace")
+            .putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
+            .put("index.analysis.filter.synonym.type", "synonym")
+            .putArray("index.analysis.filter.synonym.synonyms", "fast,quick");
+
+        assertAcked(prepareCreate("test").setSettings(builder.build())
+            .addMapping("type1", "field1",
+                "type=text,term_vector=with_positions_offsets,search_analyzer=synonym," +
+                    "analyzer=english,index_options=offsets"));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1", "0").setSource(
+            "field1", "The quick brown fox jumps over the lazy dog").get();
+        refresh();
+        for (String highlighterType : new String[] {"plain", "postings", "fvh"}) {
+            logger.info("--> highlighting (type=" + highlighterType + ") and searching on field1");
+            SearchSourceBuilder source = searchSource()
+                .query(matchQuery("field1", "quick brown fox").operator(Operator.AND))
+                .highlighter(
+                    highlight()
+                        .field("field1")
+                        .order("score")
+                        .preTags("<x>")
+                        .postTags("</x>")
+                        .highlighterType(highlighterType));
+            SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+            assertHighlight(searchResponse, 0, "field1", 0, 1,
+                equalTo("The <x>quick</x> <x>brown</x> <x>fox</x> jumps over the lazy dog"));
+
+            source = searchSource()
+                .query(matchQuery("field1", "fast brown fox").operator(Operator.AND))
+                .highlighter(highlight().field("field1").order("score").preTags("<x>").postTags("</x>"));
+            searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+            assertHighlight(searchResponse, 0, "field1", 0, 1,
+                equalTo("The <x>quick</x> <x>brown</x> <x>fox</x> jumps over the lazy dog"));
+        }
+    }
 }

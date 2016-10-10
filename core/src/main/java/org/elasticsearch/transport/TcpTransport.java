@@ -836,13 +836,22 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         } else if (e instanceof TcpTransport.HttpOnTransportException) {
             // in case we are able to return data, serialize the exception content and sent it back to the client
             if (isOpen(channel)) {
-                sendMessage(channel, new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8)), () -> {
+                final Runnable closeChannel = () -> {
                     try {
                         closeChannels(Collections.singletonList(channel));
                     } catch (IOException e1) {
                         logger.debug("failed to close httpOnTransport channel", e1);
                     }
-                });
+                };
+                boolean success = false;
+                try {
+                    sendMessage(channel, new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8)), closeChannel);
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        closeChannel.run();
+                    }
+                }
             }
         } else {
             logger.warn(

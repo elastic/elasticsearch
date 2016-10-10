@@ -74,7 +74,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1320,46 +1319,34 @@ public class InternalEngine extends Engine {
             final String localCheckpoint = Long.toString(seqNoService().getLocalCheckpoint());
             final String globalCheckpoint = Long.toString(seqNoService().getGlobalCheckpoint());
 
-            writer.setLiveCommitData(new Iterable<Map.Entry<String, String>>() {
-                // save the max seq no the first time its computed, so subsequent iterations don't recompute,
-                // potentially getting a different value
-                private String computedMaxSeqNoEntry = null;
-
-                @Override
-                public Iterator<Map.Entry<String, String>> iterator() {
-                    /**
-                     * The user data captured above (e.g. local/global checkpoints) contains data that must be evaluated
-                     * *before* Lucene flushes segments, including the local and global checkpoints amongst other values.
-                     * The maximum sequence number is different - we never want the maximum sequence number to be
-                     * less than the last sequence number to go into a Lucene commit, otherwise we run the risk
-                     * of re-using a sequence number for two different documents when restoring from this commit
-                     * point and subsequently writing new documents to the index.  Since we only know which Lucene
-                     * documents made it into the final commit after the {@link IndexWriter#commit()} call flushes
-                     * all documents, we defer computation of the max_seq_no to the time of invocation of the commit
-                     * data iterator (which occurs after all documents have been flushed to Lucene).
-                     */
-                    final Map<String, String> commitData = new HashMap<>(6);
-                    commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGen);
-                    commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
-                    commitData.put(LOCAL_CHECKPOINT_KEY, localCheckpoint);
-                    commitData.put(GLOBAL_CHECKPOINT_KEY, globalCheckpoint);
-                    if (syncId != null) {
-                        commitData.put(Engine.SYNC_COMMIT_ID, syncId);
-                    }
-                    if (computedMaxSeqNoEntry == null) {
-                        // evaluated once at the time of the first invocation of this method
-                        computedMaxSeqNoEntry = Long.toString(seqNoService().getMaxSeqNo());
-                    }
-                    commitData.put(MAX_SEQ_NO, computedMaxSeqNoEntry);
-                    return commitData.entrySet().iterator();
+            writer.setLiveCommitData(() -> {
+                /**
+                 * The user data captured above (e.g. local/global checkpoints) contains data that must be evaluated
+                 * *before* Lucene flushes segments, including the local and global checkpoints amongst other values.
+                 * The maximum sequence number is different - we never want the maximum sequence number to be
+                 * less than the last sequence number to go into a Lucene commit, otherwise we run the risk
+                 * of re-using a sequence number for two different documents when restoring from this commit
+                 * point and subsequently writing new documents to the index.  Since we only know which Lucene
+                 * documents made it into the final commit after the {@link IndexWriter#commit()} call flushes
+                 * all documents, we defer computation of the max_seq_no to the time of invocation of the commit
+                 * data iterator (which occurs after all documents have been flushed to Lucene).
+                 */
+                final Map<String, String> commitData = new HashMap<>(6);
+                commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGen);
+                commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
+                commitData.put(LOCAL_CHECKPOINT_KEY, localCheckpoint);
+                commitData.put(GLOBAL_CHECKPOINT_KEY, globalCheckpoint);
+                if (syncId != null) {
+                    commitData.put(Engine.SYNC_COMMIT_ID, syncId);
                 }
+                commitData.put(MAX_SEQ_NO, Long.toString(seqNoService().getMaxSeqNo()));
+                if (logger.isTraceEnabled()) {
+                    logger.trace("committed writer with commit data [{}]", commitDataAsMap(writer));
+                }
+                return commitData.entrySet().iterator();
             });
 
             writer.commit();
-
-            if (logger.isTraceEnabled()) {
-                logger.trace("committed writer with commit data [{}]", commitDataAsMap(writer));
-            }
         } catch (Exception ex) {
             try {
                 failEngine("lucene commit failed", ex);

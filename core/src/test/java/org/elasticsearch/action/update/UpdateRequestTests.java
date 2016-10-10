@@ -28,13 +28,25 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContextRegistry;
+import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -184,9 +196,10 @@ public class UpdateRequestTests extends ESTestCase {
                 .doc(jsonBuilder().startObject().field("fooz", "baz").endObject())
                 .upsert(indexRequest);
 
+        long nowInMillis = randomPositiveLong();
         // We simulate that the document is not existing yet
         GetResult getResult = new GetResult("test", "type1", "1", 0, false, null, null);
-        UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0),updateRequest, getResult);
+        UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0),updateRequest, getResult, () -> nowInMillis);
         Streamable action = result.action();
         assertThat(action, instanceOf(IndexRequest.class));
         IndexRequest indexAction = (IndexRequest) action;
@@ -203,7 +216,7 @@ public class UpdateRequestTests extends ESTestCase {
 
         // We simulate that the document is not existing yet
         getResult = new GetResult("test", "type1", "2", 0, false, null, null);
-        result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult);
+        result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> nowInMillis);
         action = result.action();
         assertThat(action, instanceOf(IndexRequest.class));
         indexAction = (IndexRequest) action;
@@ -275,5 +288,71 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(request.fetchSource().excludes().length, equalTo(1));
         assertThat(request.fetchSource().includes()[0], equalTo("path.inner.*"));
         assertThat(request.fetchSource().excludes()[0], equalTo("another.inner.*"));
+    }
+
+    public void testNowInScript() throws IOException {
+        Path genericConfigFolder = createTempDir();
+        Settings baseSettings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
+            .build();
+        Environment environment = new Environment(baseSettings);
+        Map<String, Function<Map<String, Object>, Object>> scripts =  new HashMap<>();
+        scripts.put("ctx._source.update_timestamp = ctx._now",
+            (vars) -> {
+                Map<String, Object> ctx = (Map) vars.get("ctx");
+                Map<String, Object> source = (Map) ctx.get("_source");
+                source.put("update_timestamp", ctx.get("_now"));
+                return null;});
+        scripts.put("ctx._timestamp = ctx._now",
+            (vars) -> {
+                Map<String, Object> ctx = (Map) vars.get("ctx");
+                ctx.put("_timestamp", ctx.get("_now"));
+                return null;});
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new MockScriptEngine("mock",
+            scripts)));
+
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        ScriptService scriptService = new ScriptService(baseSettings, environment,
+            new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+        TimeValue providedTTLValue = TimeValue.parseTimeValue(randomTimeValue(), null, "ttl");
+        Settings settings = settings(Version.CURRENT).build();
+
+        UpdateHelper updateHelper = new UpdateHelper(settings, scriptService);
+
+        // We just upsert one document with now() using a script
+        IndexRequest indexRequest = new IndexRequest("test", "type1", "2")
+            .source(jsonBuilder().startObject().field("foo", "bar").endObject())
+            .ttl(providedTTLValue);
+
+        {
+            UpdateRequest updateRequest = new UpdateRequest("test", "type1", "2")
+                .upsert(indexRequest)
+                .script(new Script("ctx._source.update_timestamp = ctx._now", ScriptType.INLINE, "mock", Collections.emptyMap()))
+                .scriptedUpsert(true);
+            long nowInMillis = randomPositiveLong();
+            // We simulate that the document is not existing yet
+            GetResult getResult = new GetResult("test", "type1", "2", 0, false, null, null);
+            UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> nowInMillis);
+            Streamable action = result.action();
+            assertThat(action, instanceOf(IndexRequest.class));
+            IndexRequest indexAction = (IndexRequest) action;
+            assertEquals(indexAction.sourceAsMap().get("update_timestamp"), nowInMillis);
+        }
+        {
+            UpdateRequest updateRequest = new UpdateRequest("test", "type1", "2")
+                .upsert(indexRequest)
+                .script(new Script("ctx._timestamp = ctx._now", ScriptType.INLINE, "mock", Collections.emptyMap()))
+                .scriptedUpsert(true);
+            long nowInMillis = randomPositiveLong();
+            // We simulate that the document is not existing yet
+            GetResult getResult = new GetResult("test", "type1", "2", 0, true, new BytesArray("{}"), null);
+            UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> nowInMillis);
+            Streamable action = result.action();
+            assertThat(action, instanceOf(IndexRequest.class));
+            IndexRequest indexAction = (IndexRequest) action;
+            assertEquals(indexAction.timestamp(), Long.toString(nowInMillis));
+        }
     }
 }

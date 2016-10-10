@@ -60,7 +60,7 @@ public class Strings {
 
     private static final String CURRENT_PATH = ".";
 
-    public static void spaceify(int spaces, String from, StringBuilder to) throws Exception {
+    public static void specify(int spaces, String from, StringBuilder to) throws Exception {
         try (BufferedReader reader = new BufferedReader(new FastStringReader(from))) {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -462,18 +462,19 @@ public class Strings {
 
         for (int i = pathArray.length - 1; i >= 0; i--) {
             String element = pathArray[i];
-            if (CURRENT_PATH.equals(element)) {
-                // Points to current directory - drop it.
-            } else if (TOP_PATH.equals(element)) {
-                // Registering top path found.
-                tops++;
-            } else {
-                if (tops > 0) {
-                    // Merging path element with element corresponding to top path.
-                    tops--;
+            // Points to current directory - drop it.
+            if (!CURRENT_PATH.equals(element)) {
+                if (TOP_PATH.equals(element)) {
+                    // Registering top path found.
+                    tops++;
                 } else {
-                    // Normal path element found.
-                    pathElements.add(0, element);
+                    if (tops > 0) {
+                        // Merging path element with element corresponding to top path.
+                        tops--;
+                    } else {
+                        // Normal path element found.
+                        pathElements.add(0, element);
+                    }
                 }
             }
         }
@@ -858,7 +859,7 @@ public class Strings {
      */
     public static String substring(String s, int beginIndex, int endIndex) {
         if (s == null) {
-            return s;
+            return null;
         }
 
         int realEndIndex = s.length() > 0 ? s.length() - 1 : 0;
@@ -914,7 +915,7 @@ public class Strings {
      */
     public static String cleanTruncate(String s, int length) {
         if (s == null) {
-            return s;
+            return null;
         }
         /*
          * Its pretty silly for you to truncate to 0 length but just in case

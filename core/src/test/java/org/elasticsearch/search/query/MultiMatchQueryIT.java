@@ -619,6 +619,14 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("ultimate1"));
     }
 
+    public void testMultiMatchPrefixWithAllField() throws IOException {
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(multiMatchQuery("americ").field("_all").type(MultiMatchQueryBuilder.Type.PHRASE_PREFIX))
+                .get();
+        assertHitCount(searchResponse, 1L);
+        assertFirstHit(searchResponse, hasId("theone"));
+    }
+
     private static void assertEquivalent(String query, SearchResponse left, SearchResponse right) {
         assertNoFailures(left);
         assertNoFailures(right);

@@ -257,7 +257,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 NodeChannels channels = entry.getValue();
                 for (Channel channel : channels.allChannels) {
                     try {
-                        sendMessage(channel, pingHeader, successfulPings::inc, false);
+                        sendMessage(channel, pingHeader, successfulPings::inc);
                     } catch (Exception e) {
                         if (isOpen(channel)) {
                             logger.debug(
@@ -837,7 +837,23 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         } else if (e instanceof TcpTransport.HttpOnTransportException) {
             // in case we are able to return data, serialize the exception content and sent it back to the client
             if (isOpen(channel)) {
-                sendMessage(channel, new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8)), () -> {}, true);
+                final Runnable closeChannel = () -> {
+                    try {
+                        closeChannels(Collections.singletonList(channel));
+                    } catch (IOException e1) {
+                        logger.debug("failed to close httpOnTransport channel", e1);
+                    }
+                };
+                boolean success = false;
+                try {
+                    sendMessage(channel, new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8)), closeChannel);
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        // it's fine to call this more than once
+                        closeChannel.run();
+                    }
+                }
             }
         } else {
             logger.warn(
@@ -871,7 +887,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected abstract NodeChannels connectToChannelsLight(DiscoveryNode node) throws IOException;
 
 
-    protected abstract void sendMessage(Channel channel, BytesReference reference, Runnable sendListener, boolean close) throws IOException;
+    protected abstract void sendMessage(Channel channel, BytesReference reference, Runnable sendListener) throws IOException;
 
     /**
      * Connects to the node in a <tt>heavy</tt> way.
@@ -944,7 +960,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     private boolean internalSendMessage(Channel targetChannel, BytesReference message, Runnable onRequestSent) throws IOException {
         boolean success;
         try {
-            sendMessage(targetChannel, message, onRequestSent, false);
+            sendMessage(targetChannel, message, onRequestSent);
             success = true;
         } catch (IOException ex) {
             // passing exception handling to deal with this and raise disconnect events and decide the right logging level
@@ -976,7 +992,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             final BytesReference bytes = stream.bytes();
             final BytesReference header = buildHeader(requestId, status, nodeVersion, bytes.length());
             Runnable onRequestSent = () -> transportServiceAdapter.onResponseSent(requestId, action, error);
-            sendMessage(channel, new CompositeBytesReference(header, bytes), onRequestSent, false);
+            sendMessage(channel, new CompositeBytesReference(header, bytes), onRequestSent);
         }
     }
 
@@ -1014,10 +1030,14 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             };
             addedReleaseListener = internalSendMessage(channel, reference, onRequestSent);
         } finally {
-            IOUtils.close(stream);
-            if (!addedReleaseListener) {
-                Releasables.close(bStream.bytes());
+            try {
+                IOUtils.close(stream);
+            } finally {
+                if (!addedReleaseListener) {
+                    Releasables.close(bStream.bytes());
+                }
             }
+
         }
     }
 

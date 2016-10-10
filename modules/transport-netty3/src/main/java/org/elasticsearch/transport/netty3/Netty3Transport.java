@@ -491,19 +491,9 @@ public class Netty3Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected void sendMessage(Channel channel, BytesReference reference, Runnable sendListener, boolean close) {
+    protected void sendMessage(Channel channel, BytesReference reference, Runnable sendListener) {
         final ChannelFuture future = channel.write(Netty3Utils.toChannelBuffer(reference));
-        if (close) {
-            future.addListener(f -> {
-                try {
-                    sendListener.run();
-                } finally {
-                    f.getChannel().close();
-                }
-            });
-        } else {
-            future.addListener(future1 -> sendListener.run());
-        }
+        future.addListener(future1 -> sendListener.run());
     }
 
     @Override

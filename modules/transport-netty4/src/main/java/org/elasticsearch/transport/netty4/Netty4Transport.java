@@ -445,19 +445,9 @@ public class Netty4Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected void sendMessage(Channel channel, BytesReference reference, Runnable sendListener, boolean close) {
+    protected void sendMessage(Channel channel, BytesReference reference, Runnable sendListener) {
         final ChannelFuture future = channel.writeAndFlush(Netty4Utils.toByteBuf(reference));
-        if (close) {
-            future.addListener(f -> {
-                try {
-                    sendListener.run();
-                } finally {
-                    future.channel().close();
-                }
-            });
-        } else {
-            future.addListener(f -> sendListener.run());
-        }
+        future.addListener(f -> sendListener.run());
     }
 
     @Override

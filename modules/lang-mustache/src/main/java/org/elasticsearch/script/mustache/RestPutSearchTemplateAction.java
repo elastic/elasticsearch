@@ -49,7 +49,7 @@ public class RestPutSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, NodeClient client) {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         StoredScriptSource source;
 
         try (XContentParser parser = XContentHelper.createParser(request.content())) {
@@ -59,7 +59,7 @@ public class RestPutSearchTemplateAction extends BaseRestHandler {
         }
 
         PutStoredScriptRequest putRequest = new PutStoredScriptRequest(request.param("id"), source);
-        client.admin().cluster().putStoredScript(putRequest, new AcknowledgedRestListener<>(channel));
+        return channel -> client.admin().cluster().putStoredScript(putRequest, new AcknowledgedRestListener<>(channel));
     }
 
 

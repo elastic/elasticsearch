@@ -25,19 +25,39 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.Nullable;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 /**
- * Represents the allocation decision by an allocator for an unassigned shard.
+ * Represents the allocation decision by an allocator for a shard.
  */
-public class UnassignedShardDecision {
+public class ShardAllocationDecision {
     /** a constant representing a shard decision where no decision was taken */
-    public static final UnassignedShardDecision DECISION_NOT_TAKEN =
-        new UnassignedShardDecision(null, null, null, null, null, null);
+    public static final ShardAllocationDecision DECISION_NOT_TAKEN =
+        new ShardAllocationDecision(null, null, null, null, null, null);
+    /**
+     * a map of cached common no/throttle decisions that don't need explanations,
+     * this helps prevent unnecessary object allocations for the non-explain API case
+     */
+    private static final Map<AllocationStatus, ShardAllocationDecision> CACHED_DECISIONS;
+    static {
+        Map<AllocationStatus, ShardAllocationDecision> cachedDecisions = new HashMap<>();
+        cachedDecisions.put(AllocationStatus.FETCHING_SHARD_DATA,
+            new ShardAllocationDecision(Type.NO, AllocationStatus.FETCHING_SHARD_DATA, null, null, null, null));
+        cachedDecisions.put(AllocationStatus.NO_VALID_SHARD_COPY,
+            new ShardAllocationDecision(Type.NO, AllocationStatus.NO_VALID_SHARD_COPY, null, null, null, null));
+        cachedDecisions.put(AllocationStatus.DECIDERS_NO,
+            new ShardAllocationDecision(Type.NO, AllocationStatus.DECIDERS_NO, null, null, null, null));
+        cachedDecisions.put(AllocationStatus.DECIDERS_THROTTLED,
+            new ShardAllocationDecision(Type.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, null, null, null, null));
+        cachedDecisions.put(AllocationStatus.DELAYED_ALLOCATION,
+            new ShardAllocationDecision(Type.NO, AllocationStatus.DELAYED_ALLOCATION, null, null, null, null));
+        CACHED_DECISIONS = Collections.unmodifiableMap(cachedDecisions);
+    }
 
     @Nullable
-    private final Decision finalDecision;
+    private final Type finalDecision;
     @Nullable
     private final AllocationStatus allocationStatus;
     @Nullable
@@ -49,17 +69,15 @@ public class UnassignedShardDecision {
     @Nullable
     private final Map<String, Decision> nodeDecisions;
 
-    private UnassignedShardDecision(Decision finalDecision,
+    private ShardAllocationDecision(Type finalDecision,
                                     AllocationStatus allocationStatus,
                                     String finalExplanation,
                                     String assignedNodeId,
                                     String allocationId,
                                     Map<String, Decision> nodeDecisions) {
-        assert finalExplanation != null || finalDecision == null :
-            "if a decision was taken, there must be an explanation for it";
-        assert assignedNodeId != null || finalDecision == null || finalDecision.type() != Type.YES :
+        assert assignedNodeId != null || finalDecision == null || finalDecision != Type.YES :
             "a yes decision must have a node to assign the shard to";
-        assert allocationStatus != null || finalDecision == null || finalDecision.type() == Type.YES :
+        assert allocationStatus != null || finalDecision == null || finalDecision == Type.YES :
             "only a yes decision should not have an allocation status";
         assert allocationId == null || assignedNodeId != null :
             "allocation id can only be null if the assigned node is null";
@@ -72,33 +90,36 @@ public class UnassignedShardDecision {
     }
 
     /**
-     * Creates a NO decision with the given {@link AllocationStatus} and explanation for the NO decision.
+     * Returns a NO decision with the given {@link AllocationStatus} and explanation for the NO decision, if in explain mode.
      */
-    public static UnassignedShardDecision noDecision(AllocationStatus allocationStatus, String explanation) {
-        return noDecision(allocationStatus, explanation, null);
+    public static ShardAllocationDecision no(AllocationStatus allocationStatus, @Nullable String explanation) {
+        return no(allocationStatus, explanation, null);
     }
 
     /**
-     * Creates a NO decision with the given {@link AllocationStatus} and explanation for the NO decision,
-     * as well as the individual node-level decisions that comprised the final NO decision.
+     * Returns a NO decision with the given {@link AllocationStatus}, and the explanation for the NO decision
+     * as well as the individual node-level decisions that comprised the final NO decision if in explain mode.
      */
-    public static UnassignedShardDecision noDecision(AllocationStatus allocationStatus,
-                                                     String explanation,
-                                                     @Nullable Map<String, Decision> nodeDecisions) {
-        Objects.requireNonNull(explanation, "explanation must not be null");
+    public static ShardAllocationDecision no(AllocationStatus allocationStatus, @Nullable String explanation,
+                                             @Nullable Map<String, Decision> nodeDecisions) {
         Objects.requireNonNull(allocationStatus, "allocationStatus must not be null");
-        return new UnassignedShardDecision(Decision.NO, allocationStatus, explanation, null, null, nodeDecisions);
+        if (explanation != null) {
+            return new ShardAllocationDecision(Type.NO, allocationStatus, explanation, null, null, nodeDecisions);
+        } else {
+            return getCachedDecision(allocationStatus);
+        }
     }
 
     /**
-     * Creates a THROTTLE decision with the given explanation and individual node-level decisions that
-     * comprised the final THROTTLE decision.
+     * Returns a THROTTLE decision, with the given explanation and individual node-level decisions that
+     * comprised the final THROTTLE decision if in explain mode.
      */
-    public static UnassignedShardDecision throttleDecision(String explanation,
-                                                           Map<String, Decision> nodeDecisions) {
-        Objects.requireNonNull(explanation, "explanation must not be null");
-        return new UnassignedShardDecision(Decision.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, explanation, null, null,
-                                           nodeDecisions);
+    public static ShardAllocationDecision throttle(@Nullable String explanation, @Nullable Map<String, Decision> nodeDecisions) {
+        if (explanation != null) {
+            return new ShardAllocationDecision(Type.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, explanation, null, null, nodeDecisions);
+        } else {
+            return getCachedDecision(AllocationStatus.DECIDERS_THROTTLED);
+        }
     }
 
     /**
@@ -106,13 +127,15 @@ public class UnassignedShardDecision {
      * comprised the final YES decision, along with the node id to which the shard is assigned and
      * the allocation id for the shard, if available.
      */
-    public static UnassignedShardDecision yesDecision(String explanation,
-                                                      String assignedNodeId,
-                                                      @Nullable String allocationId,
-                                                      Map<String, Decision> nodeDecisions) {
-        Objects.requireNonNull(explanation, "explanation must not be null");
+    public static ShardAllocationDecision yes(String assignedNodeId, @Nullable String explanation, @Nullable String allocationId,
+                                              @Nullable Map<String, Decision> nodeDecisions) {
         Objects.requireNonNull(assignedNodeId, "assignedNodeId must not be null");
-        return new UnassignedShardDecision(Decision.YES, null, explanation, assignedNodeId, allocationId, nodeDecisions);
+        return new ShardAllocationDecision(Type.YES, null, explanation, assignedNodeId, allocationId, nodeDecisions);
+    }
+
+    private static ShardAllocationDecision getCachedDecision(AllocationStatus allocationStatus) {
+        ShardAllocationDecision decision = CACHED_DECISIONS.get(allocationStatus);
+        return Objects.requireNonNull(decision, "precomputed decision not found for " + allocationStatus);
     }
 
     /**
@@ -124,20 +147,20 @@ public class UnassignedShardDecision {
     }
 
     /**
-     * Returns the final decision made by the allocator on whether to assign the unassigned shard.
+     * Returns the final decision made by the allocator on whether to assign the shard.
      * This value can only be {@code null} if {@link #isDecisionTaken()} returns {@code false}.
      */
     @Nullable
-    public Decision getFinalDecision() {
+    public Type getFinalDecision() {
         return finalDecision;
     }
 
     /**
-     * Returns the final decision made by the allocator on whether to assign the unassigned shard.
+     * Returns the final decision made by the allocator on whether to assign the shard.
      * Only call this method if {@link #isDecisionTaken()} returns {@code true}, otherwise it will
      * throw an {@code IllegalArgumentException}.
      */
-    public Decision getFinalDecisionSafe() {
+    public Type getFinalDecisionSafe() {
         if (isDecisionTaken() == false) {
             throw new IllegalArgumentException("decision must have been taken in order to return the final decision");
         }
@@ -158,18 +181,6 @@ public class UnassignedShardDecision {
      */
     @Nullable
     public String getFinalExplanation() {
-        return finalExplanation;
-    }
-
-    /**
-     * Returns the free-text explanation for the reason behind the decision taken in {@link #getFinalDecision()}.
-     * Only call this method if {@link #isDecisionTaken()} returns {@code true}, otherwise it will
-     * throw an {@code IllegalArgumentException}.
-     */
-    public String getFinalExplanationSafe() {
-        if (isDecisionTaken() == false) {
-            throw new IllegalArgumentException("decision must have been taken in order to return the final explanation");
-        }
         return finalExplanation;
     }
 

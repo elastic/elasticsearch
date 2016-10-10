@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CancellableThreads;
@@ -184,7 +183,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
                     }
                 }
             };
-            InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();
+            final InetSocketAddress address = node.getAddress().address();
             // we just use a single connections
             configureSocket(socket);
             socket.connect(address, (int) TCP_CONNECT_TIMEOUT.get(settings).millis());
@@ -226,7 +225,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected void sendMessage(MockChannel mockChannel, BytesReference reference, Runnable sendListener, boolean close) throws IOException {
+    protected void sendMessage(MockChannel mockChannel, BytesReference reference, Runnable sendListener) throws IOException {
         synchronized (mockChannel) {
             final Socket socket = mockChannel.activeChannel;
             OutputStream outputStream = new BufferedOutputStream(socket.getOutputStream());
@@ -235,9 +234,6 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         }
         if (sendListener != null) {
             sendListener.run();
-        }
-        if (close) {
-            IOUtils.closeWhileHandlingException(mockChannel);
         }
     }
 

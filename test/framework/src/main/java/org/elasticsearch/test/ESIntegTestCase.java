@@ -34,6 +34,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.transport.AssertingTransportInterceptor;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -86,7 +87,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -124,7 +124,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
-import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -1679,7 +1678,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         for (String stringAddress : stringAddresses) {
             URL url = new URL("http://" + stringAddress);
             InetAddress inetAddress = InetAddress.getByName(url.getHost());
-            transportAddresses[i++] = new InetSocketTransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
+            transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
         }
         return new ExternalTestCluster(createTempDir(), externalClusterClientSettings(), transportClientPlugins(), transportAddresses);
     }
@@ -1730,9 +1729,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             ArrayList<Class<? extends Plugin>> mocks = new ArrayList<>(mockPlugins);
             // add both mock plugins - local and tcp if they are not there
             // we do this in case somebody overrides getMockPlugins and misses to call super
-            if (mockPlugins.contains(AssertingLocalTransport.TestPlugin.class) == false) {
-                mocks.add(AssertingLocalTransport.TestPlugin.class);
-            }
             if (mockPlugins.contains(MockTcpTransportPlugin.class) == false) {
                 mocks.add(MockTcpTransportPlugin.class);
             }
@@ -1744,24 +1740,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected NodeConfigurationSource getNodeConfigSource() {
-        SuppressLocalMode noLocal = getAnnotation(this.getClass(), SuppressLocalMode.class);
-        SuppressNetworkMode noNetwork = getAnnotation(this.getClass(), SuppressNetworkMode.class);
         Settings.Builder networkSettings = Settings.builder();
-        final boolean isNetwork;
-        if (noLocal != null && noNetwork != null) {
-            throw new IllegalStateException("Can't suppress both network and local mode");
-        } else if (noLocal != null) {
-            if (addMockTransportService()) {
-                networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
-            }
-            isNetwork = true;
-        } else {
-            if (addMockTransportService()) {
-                networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, AssertingLocalTransport.ASSERTING_TRANSPORT_NAME);
-            } else {
-                networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, "local");
-            }
-            isNetwork = false;
+        if (addMockTransportService()) {
+            networkSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
         }
 
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
@@ -1769,8 +1750,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder()
                     .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                    .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(),
-                        isNetwork ? DiscoveryModule.DISCOVERY_TYPE_SETTING.getDefault(Settings.EMPTY) : "local")
+                    .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local")
                     .put(networkSettings.build()).
                         put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
             }
@@ -1789,12 +1769,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             @Override
             public Collection<Class<? extends Plugin>> transportClientPlugins() {
                 Collection<Class<? extends Plugin>> plugins = ESIntegTestCase.this.transportClientPlugins();
-                if (isNetwork && plugins.contains(MockTcpTransportPlugin.class) == false) {
+                if (plugins.contains(MockTcpTransportPlugin.class) == false) {
                     plugins = new ArrayList<>(plugins);
                     plugins.add(MockTcpTransportPlugin.class);
-                } else if (isNetwork == false && plugins.contains(AssertingLocalTransport.class) == false) {
-                    plugins = new ArrayList<>(plugins);
-                    plugins.add(AssertingLocalTransport.TestPlugin.class);
                 }
                 return Collections.unmodifiableCollection(plugins);
             }
@@ -1838,10 +1815,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
             if (randomBoolean()) {
                 mocks.add(MockSearchService.TestPlugin.class);
             }
+            if (randomBoolean()) {
+                mocks.add(AssertingTransportInterceptor.TestPlugin.class);
+            }
         }
 
         if (addMockTransportService()) {
-            mocks.add(AssertingLocalTransport.TestPlugin.class);
             mocks.add(MockTcpTransportPlugin.class);
         }
         mocks.add(TestSeedPlugin.class);
@@ -2106,8 +2085,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         for (NodeInfo node : nodes) {
             if (node.getHttp() != null) {
                 TransportAddress publishAddress = node.getHttp().address().publishAddress();
-                assertEquals(1, publishAddress.uniqueAddressTypeId());
-                InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
+                InetSocketAddress address = publishAddress.address();
                 hosts.add(new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), protocol));
             }
         }
@@ -2143,29 +2121,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public @interface SuiteScopeTestCase {
     }
 
-    /**
-     * If used the test will never run in local mode.
-     */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Inherited
-    @Target(ElementType.TYPE)
-    public @interface SuppressLocalMode {
-    }
-
-    /**
-     * If used the test will never run in network mode
-     */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Inherited
-    @Target(ElementType.TYPE)
-    public @interface SuppressNetworkMode {
-    }
-
     public static Index resolveIndex(String index) {
         GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetaData.SETTING_INDEX_UUID);
         return new Index(index, uuid);
     }
-
 }

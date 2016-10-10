@@ -84,6 +84,82 @@ POST /my_alias/_rollover/my_new_index_name
 // TEST[s/^/PUT my_old_index_name\nPUT my_old_index_name\/_alias\/my_alias\n/]
 
 [float]
+=== Using date math with the rolllover API
+
+It can be useful to use <<date-math-index-names,date math>> to name the
+rollover index according to the date that the index rolled over, e.g.
+`logstash-2016.02.03`.  The rollover API supports date math, but requires the
+index name to end with a dash followed by a number, e.g.
+`logstash-2016.02.03-1` which is incremented every time the index is rolled
+over. For instance:
+
+[source,js]
+--------------------------------------------------
+PUT /<logs-{now/d}-1> <1>
+{
+  "aliases": {
+    "logs_write": {}
+  }
+}
+
+PUT logs_write/log/1
+{
+  "message": "a dummy log"
+}
+
+# Wait for a day to pass
+
+POST /logs_write/_rollover <2>
+{
+  "conditions": {
+    "max_docs":   "1"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/\{now\//{2016.10.31||%2f/]
+<1> Creates an index named with today's date (e.g.) `logs-2016.10.31-1`
+<2> Rolls over to a new index with today's date, e.g. `logs-2016.10.31-000002` if run immediately, or `logs-2016.11.01-000002` if run after 24 hours
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+GET _alias
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
+{
+  "logs-2016.10.31-000002": {
+    "aliases": {
+      "logs_write": {}
+    }
+  },
+  "logs-2016.10.31-1": {
+    "aliases": {}
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+//////////////////////////
+
+These indices can then be referenced as described in the
+<<date-math-index-names,date math documentation>>.  For example, to search
+over indices created in the last three days, you could do the following:
+
+[source,js]
+--------------------------------------------------
+GET /<logs-{now/d}-*>,<logs-{now/d-1d}-*>,<logs-{now/d-2d}-*>/_search
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+// TEST[s/now\//now%2f/]
+
+[float]
 === Defining the new index
 
 The settings, mappings, and aliases for the new index are taken from any
@@ -144,5 +220,5 @@ POST /logs_write/_rollover?dry_run
 === Wait For Active Shards
 
 Because the rollover operation creates a new index to rollover to, the
-<<create-index-wait-for-active-shards,wait for active shards>> setting on
+<<create-index-wait-for-active-shards,`wait_for_active_shards`>> setting on
 index creation applies to the rollover action as well.

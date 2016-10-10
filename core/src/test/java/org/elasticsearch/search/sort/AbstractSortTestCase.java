@@ -280,8 +280,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             public void onCache(ShardId shardId, Accountable accountable) {
             }
         });
-        return new QueryShardContext(idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
-                indicesQueriesRegistry, null, null, null) {
+        long nowInMillis = randomPositiveLong();
+        return new QueryShardContext(0, idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
+                indicesQueriesRegistry, null, null, null, () -> nowInMillis) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);

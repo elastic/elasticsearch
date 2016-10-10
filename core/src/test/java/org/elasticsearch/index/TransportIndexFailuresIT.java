@@ -49,7 +49,6 @@ import static org.hamcrest.Matchers.equalTo;
  * Test failure when index replication actions fail mid-flight
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
-@ESIntegTestCase.SuppressLocalMode
 public class TransportIndexFailuresIT extends ESIntegTestCase {
 
     private static final Settings nodeSettings = Settings.builder()

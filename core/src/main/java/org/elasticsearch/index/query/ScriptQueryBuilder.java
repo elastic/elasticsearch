@@ -43,7 +43,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -136,7 +135,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return new ScriptQuery(script, context.getScriptService(), context.lookup());
+        return new ScriptQuery(script, context.getSearchScript(script, ScriptContext.Standard.SEARCH, Collections.emptyMap()));
     }
 
     static class ScriptQuery extends Query {
@@ -145,10 +144,9 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
         private final SearchScript searchScript;
 
-        public ScriptQuery(ScriptInput script, ScriptService scriptService, SearchLookup searchLookup) {
+        public ScriptQuery(ScriptInput script, SearchScript searchScript) {
             this.script = script;
-            this.searchScript =
-                SearchScriptBinding.bind(scriptService, ScriptContext.Standard.SEARCH, searchLookup, script.lookup, script.params);
+            this.searchScript = searchScript;
         }
 
         @Override
@@ -219,4 +217,6 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
     protected boolean doEquals(ScriptQueryBuilder other) {
         return Objects.equals(script, other.script);
     }
+
+
 }

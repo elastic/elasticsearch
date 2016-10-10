@@ -378,8 +378,8 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     }
 
     private SearchScript createScript(ScriptInput script, SearchContext context) {
-        return script == null ? null : SearchScriptBinding.bind(
-            context.scriptService(), ScriptContext.Standard.AGGS, context.lookup(), script.lookup, script.params);
+        return script == null ? null :
+            context.getQueryShardContext().getSearchScript(script, ScriptContext.Standard.AGGS, Collections.emptyMap());
     }
 
     private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {

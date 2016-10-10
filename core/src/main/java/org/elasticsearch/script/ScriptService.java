@@ -405,7 +405,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         long timePassed = now - lastInlineCompileTime;
         lastInlineCompileTime = now;
 
-        scriptsPerMinCounter += ((double) timePassed) * compilesAllowedPerNano;
+        scriptsPerMinCounter += (timePassed) * compilesAllowedPerNano;
 
         // It's been over the time limit anyway, readjust the bucket to be level
         if (scriptsPerMinCounter > totalCompilesPerMinute) {

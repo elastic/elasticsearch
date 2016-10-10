@@ -28,7 +28,6 @@ import org.elasticsearch.transport.netty3.Netty3Transport;
 import java.util.Arrays;
 import java.util.Collection;
 
-@ESIntegTestCase.SuppressLocalMode
 public abstract class ESNetty3IntegTestCase extends ESIntegTestCase {
 
     @Override

@@ -79,7 +79,7 @@ public class SingleFieldsVisitor extends FieldsVisitor {
             return;
         }
         for (int i = 0; i < fieldValues.size(); i++) {
-            fieldValues.set(i, fieldType.valueForSearch(fieldValues.get(i)));
+            fieldValues.set(i, fieldType.valueForDisplay(fieldValues.get(i)));
         }
     }
 }

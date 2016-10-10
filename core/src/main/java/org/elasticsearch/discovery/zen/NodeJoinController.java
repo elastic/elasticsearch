@@ -37,7 +37,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
@@ -385,7 +385,8 @@ public class NodeJoinController extends AbstractComponent {
     /**
      * a task indicated that the current node should become master, if no current master is known
      */
-    private static final DiscoveryNode BECOME_MASTER_TASK = new DiscoveryNode("_BECOME_MASTER_TASK_", LocalTransportAddress.buildUnique(),
+    private static final DiscoveryNode BECOME_MASTER_TASK = new DiscoveryNode("_BECOME_MASTER_TASK_",
+        new TransportAddress(TransportAddress.META_ADDRESS, 0),
         Collections.emptyMap(), Collections.emptySet(), Version.CURRENT) {
         @Override
         public String toString() {
@@ -398,7 +399,7 @@ public class NodeJoinController extends AbstractComponent {
      * it may be use in combination with {@link #BECOME_MASTER_TASK}
      */
     private static final DiscoveryNode FINISH_ELECTION_TASK = new DiscoveryNode("_FINISH_ELECTION_",
-        LocalTransportAddress.buildUnique(), Collections.emptyMap(), Collections.emptySet(), Version.CURRENT) {
+        new TransportAddress(TransportAddress.META_ADDRESS, 0), Collections.emptyMap(), Collections.emptySet(), Version.CURRENT) {
             @Override
             public String toString() {
                 return ""; // this is not really task , so don't log anything about it...

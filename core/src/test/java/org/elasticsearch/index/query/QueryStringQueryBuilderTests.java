@@ -39,6 +39,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
@@ -155,7 +156,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     @Override
     protected void doAssertLuceneQuery(QueryStringQueryBuilder queryBuilder,
-                                       Query query, QueryShardContext context) throws IOException {
+                                       Query query, SearchContext context) throws IOException {
         if ("".equals(queryBuilder.queryString())) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {

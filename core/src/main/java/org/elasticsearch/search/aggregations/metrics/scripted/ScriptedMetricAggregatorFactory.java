@@ -19,8 +19,9 @@
 
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
-import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -35,22 +36,23 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
+import java.util.function.Function;
 
 public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedMetricAggregatorFactory> {
 
-    private final ScriptInput initScript;
-    private final ScriptInput mapScript;
-    private final ScriptInput combineScript;
+    private final Function<Map<String, Object>, SearchScript> mapScript;
+    private final Function<Map<String, Object>, ExecutableScript> combineScript;
     private final ScriptInput reduceScript;
     private final Map<String, Object> params;
+    private final Function<Map<String, Object>, ExecutableScript> initScript;
 
-    public ScriptedMetricAggregatorFactory(String name, Type type, ScriptInput initScript, ScriptInput mapScript, ScriptInput combineScript,
+    public ScriptedMetricAggregatorFactory(String name, Type type, Function<Map<String, Object>, SearchScript> mapScript,
+            Function<Map<String, Object>, ExecutableScript> initScript, Function<Map<String, Object>, ExecutableScript> combineScript,
             ScriptInput reduceScript, Map<String, Object> params, AggregationContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
         super(name, type, context, parent, subFactories, metaData);
-        this.initScript = initScript;
         this.mapScript = mapScript;
+        this.initScript = initScript;
         this.combineScript = combineScript;
         this.reduceScript = reduceScript;
         this.params = params;
@@ -69,17 +71,18 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
             params = new HashMap<>();
             params.put("_agg", new HashMap<String, Object>());
         }
-        return new ScriptedMetricAggregator(name, insertParams(initScript, params), insertParams(mapScript, params),
-                insertParams(combineScript, params), deepCopyScript(reduceScript, context.searchContext()), params, context, parent,
-                pipelineAggregators, metaData);
-    }
 
-    private static ScriptInput insertParams(ScriptInput script, Map<String, Object> params) {
-        if (script == null) {
-            return null;
+        final ExecutableScript initScript = this.initScript.apply(params);
+        final SearchScript mapScript = this.mapScript.apply(params);
+        final ExecutableScript combineScript = this.combineScript.apply(params);
+
+        final ScriptInput reduceScript = deepCopyScript(this.reduceScript, context.searchContext());
+        if (initScript != null) {
+            initScript.run();
         }
-
-        return ScriptInput.update(script, null, null, null, null, params);
+        return new ScriptedMetricAggregator(name, mapScript,
+                combineScript, reduceScript, params, context, parent,
+                pipelineAggregators, metaData);
     }
 
     private static ScriptInput deepCopyScript(ScriptInput script, SearchContext context) {
@@ -100,26 +103,27 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
         if (original instanceof Map) {
             Map<?, ?> originalMap = (Map<?, ?>) original;
             Map<Object, Object> clonedMap = new HashMap<>();
-            for (Entry<?, ?> e : originalMap.entrySet()) {
+            for (Map.Entry<?, ?> e : originalMap.entrySet()) {
                 clonedMap.put(deepCopyParams(e.getKey(), context), deepCopyParams(e.getValue(), context));
             }
             clone = (T) clonedMap;
         } else if (original instanceof List) {
             List<?> originalList = (List<?>) original;
-            List<Object> clonedList = new ArrayList<Object>();
+            List<Object> clonedList = new ArrayList<>();
             for (Object o : originalList) {
                 clonedList.add(deepCopyParams(o, context));
             }
             clone = (T) clonedList;
         } else if (original instanceof String || original instanceof Integer || original instanceof Long || original instanceof Short
-                || original instanceof Byte || original instanceof Float || original instanceof Double || original instanceof Character
-                || original instanceof Boolean) {
+            || original instanceof Byte || original instanceof Float || original instanceof Double || original instanceof Character
+            || original instanceof Boolean) {
             clone = original;
         } else {
             throw new SearchParseException(context,
-                    "Can only clone primitives, String, ArrayList, and HashMap. Found: " + original.getClass().getCanonicalName(), null);
+                "Can only clone primitives, String, ArrayList, and HashMap. Found: " + original.getClass().getCanonicalName(), null);
         }
         return clone;
     }
+
 
 }

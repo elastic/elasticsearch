@@ -577,8 +577,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         }
         if (scriptFields != null) {
             for (ScriptField field : scriptFields) {
-                SearchScript searchScript = SearchScriptBinding.bind(innerHitsContext.scriptService(), ScriptContext.Standard.SEARCH,
-                    innerHitsContext.lookup(), field.script().lookup, field.script().params);
+                SearchScript searchScript = innerHitsContext.getQueryShardContext().getSearchScript(field.script(),
+                    ScriptContext.Standard.SEARCH, Collections.emptyMap());
                 innerHitsContext.scriptFields().add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                         field.fieldName(), searchScript, field.ignoreFailure()));
             }

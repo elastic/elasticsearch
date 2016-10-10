@@ -5,7 +5,10 @@ See: https://github.com/elastic/docs
 
 Snippets marked with `// CONSOLE` are automatically annotated with "VIEW IN
 SENSE" in the documentation and are automatically tested by the command
-`gradle :docs:check`. By default `// CONSOLE` snippet runs as its own isolated
+`gradle :docs:check`. To test just the docs from a single page, use e.g.
+`gradle :docs:check -Dtest.method=*rollover*`.
+
+By default `// CONSOLE` snippet runs as its own isolated
 test. You can manipulate the test execution in the following ways:
 
 * `// TEST`: Explicitly marks a snippet as a test. Snippets marked this way

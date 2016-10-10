@@ -41,9 +41,8 @@ public class RestDeleteStoredScriptAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest(request.param("id"));
-
         return channel -> client.admin().cluster().deleteStoredScript(deleteStoredScriptRequest, new AcknowledgedRestListener<>(channel));
     }
 }

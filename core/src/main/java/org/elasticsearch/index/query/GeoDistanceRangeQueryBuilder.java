@@ -356,7 +356,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
             IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
             String bboxOptimization = Strings.isEmpty(optimizeBbox) ? DEFAULT_OPTIMIZE_BBOX : optimizeBbox;
             return new GeoDistanceRangeQuery(point, fromValue, toValue, includeLower, includeUpper, geoDistance, geoFieldType,
-                indexFieldData, bboxOptimization);
+                    indexFieldData, bboxOptimization, context);
         }
 
         // if index created V_2_2 use (soon to be legacy) numeric encoding postings format

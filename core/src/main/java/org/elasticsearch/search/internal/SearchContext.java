@@ -42,7 +42,6 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -81,21 +80,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 // For reference why we use RefCounted here see #20095
 public abstract class SearchContext extends AbstractRefCounted implements Releasable {
 
-    private static ThreadLocal<SearchContext> current = new ThreadLocal<>();
     public static final int DEFAULT_TERMINATE_AFTER = 0;
-
-    public static void setCurrent(SearchContext value) {
-        current.set(value);
-    }
-
-    public static void removeCurrent() {
-        current.remove();
-    }
-
-    public static SearchContext current() {
-        return current.get();
-    }
-
     private Map<Lifetime, List<Releasable>> clearables = null;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
@@ -117,8 +102,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
             decRef();
         }
     }
-
-    private boolean nowInMillisUsed;
 
     @Override
     protected final void closeInternal() {
@@ -161,21 +144,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract SearchContext queryBoost(float queryBoost);
 
     public abstract long getOriginNanoTime();
-
-    public final long nowInMillis() {
-        nowInMillisUsed = true;
-        return nowInMillisImpl();
-    }
-
-    public final boolean nowInMillisUsed() {
-        return nowInMillisUsed;
-    }
-
-    public final void resetNowInMillisUsed() {
-        this.nowInMillisUsed = false;
-    }
-
-    protected abstract long nowInMillisImpl();
 
     public abstract ScrollContext scrollContext();
 
@@ -237,8 +205,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract MapperService mapperService();
 
     public abstract SimilarityService similarityService();
-
-    public abstract ScriptService scriptService();
 
     public abstract BigArrays bigArrays();
 
@@ -335,7 +301,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract void keepAlive(long keepAlive);
 
-    public abstract SearchLookup lookup();
+    public SearchLookup lookup() {
+        return getQueryShardContext().lookup();
+    }
 
     public abstract DfsSearchResult dfsResult();
 

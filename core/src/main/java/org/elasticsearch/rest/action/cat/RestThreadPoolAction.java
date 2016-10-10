@@ -34,7 +34,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -195,11 +195,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 table.addCell(info == null ? null : info.getProcess().getId());
                 table.addCell(node.getHostName());
                 table.addCell(node.getHostAddress());
-                if (node.getAddress() instanceof InetSocketTransportAddress) {
-                    table.addCell(((InetSocketTransportAddress) node.getAddress()).address().getPort());
-                } else {
-                    table.addCell("-");
-                }
+                table.addCell(node.getAddress().address().getPort());
                 final ThreadPoolStats.Stats poolStats = entry.getValue();
                 final ThreadPool.Info poolInfo = poolThreadInfo.get(entry.getKey());
 

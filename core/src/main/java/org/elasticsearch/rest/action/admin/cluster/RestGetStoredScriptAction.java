@@ -52,7 +52,7 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         GetStoredScriptRequest getRequest = new GetStoredScriptRequest(request.param("id"));
 
         return channel -> client.admin().cluster().getStoredScript(getRequest, new RestBuilderListener<GetStoredScriptResponse>(channel) {

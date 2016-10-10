@@ -58,6 +58,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.test.tasks.MockTaskManagerListener;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.TransportService;
 
@@ -102,8 +103,10 @@ public class TasksIT extends ESIntegTestCase {
     private Map<Tuple<String, String>, RecordingTaskManagerListener> listeners = new HashMap<>();
 
     @Override
-    protected boolean addMockTransportService() {
-        return false;
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        Collection<Class<? extends Plugin>> mockPlugins = new ArrayList<>(super.getMockPlugins());
+        mockPlugins.remove(MockTransportService.TestPlugin.class);
+        return mockPlugins;
     }
 
     @Override

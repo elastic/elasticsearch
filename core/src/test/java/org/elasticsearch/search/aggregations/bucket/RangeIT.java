@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -33,21 +34,27 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.script.Script.ScriptType;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRange;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -392,7 +399,7 @@ public class RangeIT extends ESIntegTestCase {
                 .addAggregation(
                         range("range")
                                 .field(SINGLE_VALUED_FIELD_NAME)
-                                .script(ScriptInput.inline(CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))
+                                .script(ScriptInput.inline(CustomScriptPlugin.NAME, "_value + 1", emptyMap()))
                                 .addUnboundedTo(3)
                                 .addRange(3, 6)
                                 .addUnboundedFrom(6))
@@ -512,7 +519,7 @@ public class RangeIT extends ESIntegTestCase {
                 .addAggregation(
                         range("range")
                                 .field(MULTI_VALUED_FIELD_NAME)
-                                .script(ScriptInput.inline(CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))
+                                .script(ScriptInput.inline(CustomScriptPlugin.NAME, "_value + 1", emptyMap()))
                                 .addUnboundedTo(3)
                                 .addRange(3, 6)
                                 .addUnboundedFrom(6))
@@ -574,7 +581,7 @@ public class RangeIT extends ESIntegTestCase {
 
     public void testScriptSingleValue() throws Exception {
         ScriptInput script =
-            ScriptInput.inline(CustomScriptPlugin.NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", Collections.emptyMap());
+            ScriptInput.inline(CustomScriptPlugin.NAME, "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value", emptyMap());
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -660,7 +667,7 @@ public class RangeIT extends ESIntegTestCase {
 
     public void testScriptMultiValued() throws Exception {
         ScriptInput script =
-            ScriptInput.inline(CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "'].values", Collections.emptyMap());
+            ScriptInput.inline(CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "'].values", emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -909,5 +916,47 @@ public class RangeIT extends ESIntegTestCase {
         assertThat(buckets.get(0).getToAsString(), equalTo("2.0"));
         assertThat(buckets.get(0).getDocCount(), equalTo(0L));
 
+    }
+
+    /**
+     * Make sure that a request using a script does not get cached and a request
+     * not using a script does get cached.
+     */
+    public void testDontCacheScripts() throws Exception {
+        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "i", "type=integer")
+                .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
+                .get());
+        indexRandom(true,
+                client().prepareIndex("cache_test_idx", "type", "1").setSource(jsonBuilder().startObject().field("i", 1).endObject()),
+                client().prepareIndex("cache_test_idx", "type", "2").setSource(jsonBuilder().startObject().field("i", 2).endObject()));
+
+        // Make sure we are starting with a clear cache
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // Test that a request using a script does not get cached
+        Map<String, Object> params = new HashMap<>();
+        params.put("fieldname", "date");
+        SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(
+                range("foo").field("i").script(ScriptInput.inline(CustomScriptPlugin.NAME, "_value + 1", emptyMap())).addRange(0, 10))
+                .get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(0L));
+
+        // To make sure that the cache is working test that a request not using
+        // a script is cached
+        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(range("foo").field("i").addRange(0, 10)).get();
+        assertSearchResponse(r);
+
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMissCount(), equalTo(1L));
     }
 }

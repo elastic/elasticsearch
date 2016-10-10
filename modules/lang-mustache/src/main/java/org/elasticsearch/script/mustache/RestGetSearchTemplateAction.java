@@ -34,6 +34,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.script.Script.StoredScriptSource;
 
+import java.io.IOException;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetSearchTemplateAction extends BaseRestHandler {
@@ -50,10 +52,10 @@ public class RestGetSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, NodeClient client) {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final GetStoredScriptRequest getRequest = new GetStoredScriptRequest(request.param("id"));
 
-        client.admin().cluster().getStoredScript(getRequest, new RestBuilderListener<GetStoredScriptResponse>(channel) {
+        return channel -> client.admin().cluster().getStoredScript(getRequest, new RestBuilderListener<GetStoredScriptResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetStoredScriptResponse response, XContentBuilder builder) throws Exception {
                 StoredScriptSource source = response.getSource();

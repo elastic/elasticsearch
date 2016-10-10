@@ -13,6 +13,14 @@ link:/downloads/past-releases[Past Releases page].
 [[install-windows]]
 ==== Download and install the `.zip` package
 
+ifeval::["{release-state}"=="unreleased"]
+
+Version {version} of Elasticsearch has not yet been released.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+
 Download the `.zip` archive for Elasticsearch v{version} from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.zip
 
 Unzip it with your favourite unzip tool.  This will create a folder called
@@ -23,6 +31,8 @@ window, `CD` to the `%ES_HOME%` directory, for instance:
 ----------------------------
 CD c:\elasticsearch-{version}
 ----------------------------
+
+endif::[]
 
 [[windows-running]]
 ==== Running Elasticsearch from the command line

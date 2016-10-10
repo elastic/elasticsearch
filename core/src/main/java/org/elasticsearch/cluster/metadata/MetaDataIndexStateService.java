@@ -37,7 +37,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreService;
@@ -61,15 +60,13 @@ public class MetaDataIndexStateService extends AbstractComponent {
     private final AllocationService allocationService;
 
     private final MetaDataIndexUpgradeService metaDataIndexUpgradeService;
-    private final NodeServicesProvider nodeServiceProvider;
     private final IndicesService indicesService;
 
     @Inject
     public MetaDataIndexStateService(Settings settings, ClusterService clusterService, AllocationService allocationService,
                                      MetaDataIndexUpgradeService metaDataIndexUpgradeService,
-                                     NodeServicesProvider nodeServicesProvider, IndicesService indicesService) {
+                                     IndicesService indicesService) {
         super(settings);
-        this.nodeServiceProvider = nodeServicesProvider;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
@@ -170,7 +167,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     // We need to check that this index can be upgraded to the current version
                     indexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData);
                     try {
-                        indicesService.verifyIndexMetadata(nodeServiceProvider, indexMetaData, indexMetaData);
+                        indicesService.verifyIndexMetadata(indexMetaData, indexMetaData);
                     } catch (Exception e) {
                         throw new ElasticsearchException("Failed to verify index " + indexMetaData.getIndex(), e);
                     }

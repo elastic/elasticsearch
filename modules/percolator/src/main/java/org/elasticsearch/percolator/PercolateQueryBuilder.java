@@ -33,6 +33,7 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
@@ -50,7 +51,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -366,6 +366,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        // Call nowInMillis() so that this query becomes un-cacheable since we
+        // can't be sure that it doesn't use now or scripts
+        context.nowInMillis();
         if (indexedDocumentIndex != null || indexedDocumentType != null || indexedDocumentId != null) {
             throw new IllegalStateException("query builder must be rewritten first");
         }
@@ -407,6 +410,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         Version indexVersionCreated = context.getIndexSettings().getIndexVersionCreated();
         boolean mapUnmappedFieldsAsString = context.getIndexSettings()
                 .getValue(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
+        // We have to make a copy of the QueryShardContext here so we can have a unfrozen version for parsing the legacy
+        // percolator queries
+        QueryShardContext percolateShardContext = new QueryShardContext(context);
         if (indexVersionCreated.onOrAfter(Version.V_5_0_0_alpha1)) {
             MappedFieldType fieldType = context.fieldMapper(field);
             if (fieldType == null) {
@@ -418,11 +424,11 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         "] to be of type [percolator], but is of type [" + fieldType.typeName() + "]");
             }
             PercolatorFieldMapper.FieldType pft = (PercolatorFieldMapper.FieldType) fieldType;
-            PercolateQuery.QueryStore queryStore = createStore(pft, context, mapUnmappedFieldsAsString);
+            PercolateQuery.QueryStore queryStore = createStore(pft, percolateShardContext, mapUnmappedFieldsAsString);
             return pft.percolateQuery(documentType, queryStore, document, docSearcher);
         } else {
             Query percolateTypeQuery = new TermQuery(new Term(TypeFieldMapper.NAME, MapperService.PERCOLATOR_LEGACY_TYPE_NAME));
-            PercolateQuery.QueryStore queryStore = createLegacyStore(context, mapUnmappedFieldsAsString);
+            PercolateQuery.QueryStore queryStore = createLegacyStore(percolateShardContext, mapUnmappedFieldsAsString);
             return new PercolateQuery(documentType, queryStore, document, percolateTypeQuery, docSearcher,
                     new MatchNoDocsQuery("pre 5.0.0-alpha1 index, no verified matches"));
         }

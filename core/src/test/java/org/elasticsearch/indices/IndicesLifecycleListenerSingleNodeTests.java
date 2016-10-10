@@ -26,10 +26,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -95,8 +93,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
         };
         indicesService.deleteIndex(idx, "simon says");
         try {
-            NodeServicesProvider nodeServicesProvider = getInstanceFromNode(NodeServicesProvider.class);
-            IndexService index = indicesService.createIndex(nodeServicesProvider, metaData, Arrays.asList(countingListener));
+            IndexService index = indicesService.createIndex(metaData, Arrays.asList(countingListener));
             idx = index.index();
             ShardRouting newRouting = shardRouting;
             String nodeId = newRouting.currentNodeId();
@@ -106,7 +103,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
             IndexShard shard = index.createShard(newRouting);
             shard.updateRoutingEntry(newRouting);
-            final DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(),
+            final DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
                     emptyMap(), emptySet(), Version.CURRENT);
             shard.markAsRecovering("store", new RecoveryState(newRouting, localNode, null));
             shard.recoverFromStore();

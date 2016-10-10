@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -67,7 +66,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-    private DiscoveryNode node = new DiscoveryNode("node-0", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+    private DiscoveryNode node = new DiscoveryNode("node-0", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
     private static Decision.Multi yesDecision = new Decision.Multi();
     private static Decision.Multi noDecision = new Decision.Multi();
 

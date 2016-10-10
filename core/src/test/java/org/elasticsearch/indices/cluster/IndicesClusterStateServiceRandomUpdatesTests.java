@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
@@ -353,7 +352,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             roles.add(mustHaveRole);
         }
         final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
-        return new DiscoveryNode(id, id, LocalTransportAddress.buildUnique(), Collections.emptyMap(), roles,
+        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles,
             Version.CURRENT);
     }
 
@@ -369,7 +368,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final MockIndicesService indicesService = indicesServiceSupplier.get();
         final Settings settings = Settings.builder().put("node.name", discoveryNode.getName()).build();
         final TransportService transportService = new TransportService(settings, null, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         final ClusterService clusterService = mock(ClusterService.class);
         final RepositoriesService repositoriesService = new RepositoriesService(settings, clusterService,
             transportService, null);
@@ -377,7 +376,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             transportService, null, clusterService);
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
         return new IndicesClusterStateService(settings, indicesService, clusterService,
-            threadPool, recoveryTargetService, shardStateAction, null, repositoriesService, null, null, null, null, null);
+            threadPool, recoveryTargetService, shardStateAction, null, repositoriesService, null, null, null, null);
     }
 
     private class RecordingIndicesService extends MockIndicesService {

@@ -55,6 +55,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -284,8 +285,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
-        final SearchScript searchScript = SearchScriptBinding.bind(
-            context.getScriptService(), ScriptContext.Standard.SEARCH, context.lookup(), script.lookup, script.params);
+        final SearchScript searchScript = context.getSearchScript(script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
 
         MultiValueMode valueMode = null;
         if (sortMode != null) {

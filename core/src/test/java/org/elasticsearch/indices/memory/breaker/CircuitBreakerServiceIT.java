@@ -417,6 +417,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             .build();
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(insane).get();
 
+        // now check that resetting to defaults work.
         reset();
 
         assertThat(client().admin().cluster().prepareState().get()

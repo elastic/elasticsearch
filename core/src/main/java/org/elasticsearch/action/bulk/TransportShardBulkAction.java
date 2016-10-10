@@ -402,7 +402,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     private UpdateResult shardUpdateOperation(IndexMetaData metaData, BulkShardRequest bulkShardRequest, UpdateRequest updateRequest, IndexShard indexShard) {
-        UpdateHelper.Result translate = updateHelper.prepare(updateRequest, indexShard);
+        UpdateHelper.Result translate = updateHelper.prepare(updateRequest, indexShard, threadPool::estimatedTimeInMillis);
         switch (translate.getResponseResult()) {
             case CREATED:
             case UPDATED:

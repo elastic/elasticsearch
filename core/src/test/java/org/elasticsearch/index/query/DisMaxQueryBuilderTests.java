@@ -22,10 +22,10 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -98,7 +98,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         QueryShardContext context = createShardContext();
         Query luceneQuery = queryBuilder.toQuery(context);
         assertThat(luceneQuery, instanceOf(MatchNoDocsQuery.class));
-        assertThat(((MatchNoDocsQuery) luceneQuery).toString(), equalTo("MatchNoDocsQuery[\"no clauses for dismax query.\"]"));
+        assertThat(luceneQuery.toString(), equalTo("MatchNoDocsQuery(\"no clauses for dismax query.\")"));
     }
 
     public void testIllegalArguments() {

@@ -138,9 +138,8 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     static class ScriptQuery extends Query {
 
-        private final Script script;
-
-        private final SearchScript searchScript;
+        final Script script;
+        final SearchScript searchScript;
 
         public ScriptQuery(Script script, SearchScript searchScript) {
             this.script = script;
@@ -166,7 +165,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                 return false;
             ScriptQuery other = (ScriptQuery) obj;
             return Objects.equals(script, other.script);*/
-            return false;
+            return this == obj;
         }
 
         @Override

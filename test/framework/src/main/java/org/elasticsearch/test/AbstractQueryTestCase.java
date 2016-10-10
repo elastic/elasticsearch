@@ -573,7 +573,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     /**
-     * Whether the tested query builder returns queries that are cacheable.
+     * Whether the queries produced by this builder are expected to be cacheable.
      */
     protected boolean builderGeneratesCacheableQueries() {
         return true;
@@ -672,7 +672,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * {@link #doAssertLuceneQuery(AbstractQueryBuilder, Query, SearchContext)} for query specific checks.
      */
     private void assertLuceneQuery(QB queryBuilder, Query query, SearchContext context) throws IOException {
-        if (queryBuilder.queryName() != null && builderGeneratesCacheableQueries()) {
+        if (queryBuilder.queryName() != null) {
             Query namedQuery = context.getQueryShardContext().copyNamedQueries().get(queryBuilder.queryName());
             assertThat(namedQuery, equalTo(query));
         }

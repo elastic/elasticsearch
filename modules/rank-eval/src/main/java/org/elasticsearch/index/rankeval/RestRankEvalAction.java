@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
@@ -173,7 +172,7 @@ public class RestRankEvalAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         RankEvalRequest rankEvalRequest = new RankEvalRequest();
         BytesReference restContent = RestActions.hasBodyContent(request) ? RestActions.getRestContent(request) : null;
         try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
@@ -184,7 +183,8 @@ public class RestRankEvalAction extends BaseRestHandler {
                         new RankEvalContext(parseFieldMatcher, parseContext, searchRequestParsers));
             }
         }
-        client.execute(RankEvalAction.INSTANCE, rankEvalRequest, new RestToXContentListener<RankEvalResponse>(channel));
+        return channel -> client.executeLocally(RankEvalAction.INSTANCE, rankEvalRequest,
+                new RestToXContentListener<RankEvalResponse>(channel));
     }
 
     public static void parseRankEvalRequest(RankEvalRequest rankEvalRequest, RestRequest request, RankEvalContext context)

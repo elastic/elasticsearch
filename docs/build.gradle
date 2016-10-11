@@ -93,7 +93,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/analysis/tokenfilters/stop-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/synonym-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/word-delimiter-tokenfilter.asciidoc',
-  'reference/cat/indices.asciidoc',
   'reference/cat/master.asciidoc',
   'reference/cat/nodeattrs.asciidoc',
   'reference/cat/nodes.asciidoc',

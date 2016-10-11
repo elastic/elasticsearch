@@ -35,7 +35,7 @@ import java.io.IOException;
 public class BulkItemRequest implements Streamable {
 
     private int id;
-    private DocumentRequest<?> request;
+    private DocumentRequest request;
     private volatile BulkItemResponse primaryResponse;
     private volatile boolean ignoreOnReplica;
 
@@ -43,7 +43,7 @@ public class BulkItemRequest implements Streamable {
 
     }
 
-    public BulkItemRequest(int id, DocumentRequest<?> request) {
+    public BulkItemRequest(int id, DocumentRequest request) {
         this.id = id;
         this.request = request;
     }
@@ -52,7 +52,7 @@ public class BulkItemRequest implements Streamable {
         return id;
     }
 
-    public DocumentRequest<?> request() {
+    public DocumentRequest request() {
         return request;
     }
 

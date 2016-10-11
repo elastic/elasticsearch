@@ -135,7 +135,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         return Integer.MAX_VALUE;
     }
 
-    static final class BulkRequestModifier implements Iterator<DocumentRequest<?>> {
+    static final class BulkRequestModifier implements Iterator<DocumentRequest> {
 
         final BulkRequest bulkRequest;
         final Set<Integer> failedSlots;
@@ -151,7 +151,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         }
 
         @Override
-        public DocumentRequest<?> next() {
+        public DocumentRequest next() {
             return bulkRequest.requests().get(++currentSlot);
         }
 
@@ -172,7 +172,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
                 int slot = 0;
                 originalSlots = new int[bulkRequest.requests().size() - failedSlots.size()];
                 for (int i = 0; i < bulkRequest.requests().size(); i++) {
-                    DocumentRequest<?> request = bulkRequest.requests().get(i);
+                    DocumentRequest request = bulkRequest.requests().get(i);
                     if (failedSlots.contains(i) == false) {
                         modifiedBulkRequest.add(request);
                         originalSlots[slot++] = i;

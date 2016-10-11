@@ -145,7 +145,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             if (!(ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException)) {
                                 // fail all requests involving this index, if create didnt work
                                 for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                                    DocumentRequest<?> request = bulkRequest.requests.get(i);
+                                    DocumentRequest request = bulkRequest.requests.get(i);
                                     if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
                                         bulkRequest.requests.set(i, null);
                                     }
@@ -180,7 +180,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return autoCreateIndex.shouldAutoCreate(index, state);
     }
 
-    private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, DocumentRequest<?> request, String index, Exception e) {
+    private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, DocumentRequest request, String index, Exception e) {
         if (index.equals(request.index())) {
             responses.set(idx, new BulkItemResponse(idx, request.opType(), new BulkItemResponse.Failure(request.index(), request.type(), request.id(), e)));
             return true;
@@ -211,7 +211,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final ConcreteIndices concreteIndices = new ConcreteIndices(clusterState, indexNameExpressionResolver);
         MetaData metaData = clusterState.metaData();
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
-            DocumentRequest<?> documentRequest = bulkRequest.requests.get(i);
+            DocumentRequest documentRequest = bulkRequest.requests.get(i);
             //the request can only be null because we set it to null in the previous step, so it gets ignored
             if (documentRequest == null) {
                 continue;
@@ -253,7 +253,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         // first, go over all the requests and create a ShardId -> Operations mapping
         Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
-            DocumentRequest<?> request = bulkRequest.requests.get(i);
+            DocumentRequest request = bulkRequest.requests.get(i);
             if (request == null) {
                 continue;
             }
@@ -300,7 +300,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     // create failures for all relevant requests
                     for (BulkItemRequest request : requests) {
                         final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
-                        DocumentRequest<?> documentRequest = request.request();
+                        DocumentRequest documentRequest = request.request();
                         responses.set(request.id(), new BulkItemResponse(request.id(), documentRequest.opType(),
                             new BulkItemResponse.Failure(indexName, documentRequest.type(), documentRequest.id(), e)));
                     }

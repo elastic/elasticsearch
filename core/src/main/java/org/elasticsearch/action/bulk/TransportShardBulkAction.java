@@ -147,14 +147,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             if (retryPrimaryException(e)) {
                 // restore updated versions...
                 for (int j = 0; j < requestIndex; j++) {
-                    DocumentRequest<?> documentRequest = request.items()[j].request();
+                    DocumentRequest documentRequest = request.items()[j].request();
                     documentRequest.version(preVersions[j]);
                     documentRequest.versionType(preVersionTypes[j]);
                 }
                 throw (ElasticsearchException) e;
             }
             BulkItemRequest item = request.items()[requestIndex];
-            DocumentRequest<?> documentRequest = item.request();
+            DocumentRequest documentRequest = item.request();
             if (isConflictException(e)) {
                 logger.trace((Supplier<?>) () -> new ParameterizedMessage("{} failed to execute bulk item ({}) {}",
                         request.shardId(), documentRequest.opType().getLowercase(), request), e);
@@ -179,7 +179,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private WriteResult<? extends DocWriteResponse> innerExecuteBulkItemRequest(IndexMetaData metaData, IndexShard indexShard,
                                                             BulkShardRequest request, int requestIndex) throws Exception {
-        DocumentRequest<?> itemRequest = request.items()[requestIndex].request();
+        DocumentRequest itemRequest = request.items()[requestIndex].request();
         switch (itemRequest.opType()) {
             case CREATE:
             case INDEX:
@@ -268,7 +268,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             if (item == null || item.isIgnoreOnReplica()) {
                 continue;
             }
-            DocumentRequest<?> documentRequest = item.request();
+            DocumentRequest documentRequest = item.request();
             final Engine.Operation operation;
             try {
                 switch (documentRequest.opType()) {

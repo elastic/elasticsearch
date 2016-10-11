@@ -499,7 +499,7 @@ TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
     "aggs" : {
         "genres" : {
             "terms" : {
-                "field" : "gendre",
+                "field" : "gender",
                 "script" : {
                     "inline" : "'Genre: ' +_value"
                     "lang" : "painless"

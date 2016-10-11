@@ -20,7 +20,7 @@ package org.elasticsearch.http.netty3;
 
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.netty3.Netty3HttpServerTransport.HttpChannelPipelineFactory;
@@ -95,7 +95,7 @@ public class Netty3HttpServerPipeliningTests extends ESTestCase {
                                .build();
         httpServerTransport = new CustomNetty3HttpServerTransport(settings);
         httpServerTransport.start();
-        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress()
+        TransportAddress transportAddress = (TransportAddress) randomFrom(httpServerTransport.boundAddress()
             .boundAddresses());
 
         List<String> requests = Arrays.asList("/firstfast", "/slow?sleep=500", "/secondfast", "/slow?sleep=1000", "/thirdfast");
@@ -113,7 +113,7 @@ public class Netty3HttpServerPipeliningTests extends ESTestCase {
                                 .build();
         httpServerTransport = new CustomNetty3HttpServerTransport(settings);
         httpServerTransport.start();
-        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress()
+        TransportAddress transportAddress = (TransportAddress) randomFrom(httpServerTransport.boundAddress()
             .boundAddresses());
 
         List<String> requests = Arrays.asList("/slow?sleep=1000", "/firstfast", "/secondfast", "/thirdfast", "/slow?sleep=500");

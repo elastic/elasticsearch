@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.query.ScriptQueryBuilder.ScriptQuery;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -42,8 +43,18 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     }
 
     @Override
+    protected boolean builderGeneratesCacheableQueries() {
+        return false;
+    }
+
+    @Override
     protected void doAssertLuceneQuery(ScriptQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, instanceOf(ScriptQueryBuilder.ScriptQuery.class));
+        // make sure the query would not get cached
+        ScriptQuery sQuery = (ScriptQuery) query;
+        ScriptQuery clone = new ScriptQuery(sQuery.script, sQuery.searchScript);
+        assertFalse(sQuery.equals(clone));
+        assertFalse(sQuery.hashCode() == clone.hashCode());
     }
 
     public void testIllegalConstructorArg() {

@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -165,10 +164,9 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 null,
                 null,
                 null,
-                null,
                 null, null, null);
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(Settings.EMPTY, null, createIndexService,
-                new AliasValidator(Settings.EMPTY), null, null,
+                new AliasValidator(Settings.EMPTY), null,
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS));
 
         final List<Throwable> throwables = new ArrayList<>();
@@ -189,7 +187,6 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     private List<Throwable> putTemplateDetail(PutRequest request) throws Exception {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        NodeServicesProvider nodeServicesProvider = getInstanceFromNode(NodeServicesProvider.class);
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(
             Settings.EMPTY,
             clusterService,
@@ -197,11 +194,10 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            nodeServicesProvider,
             null,
             null);
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(
-                Settings.EMPTY, clusterService, createIndexService, new AliasValidator(Settings.EMPTY), indicesService, nodeServicesProvider,
+                Settings.EMPTY, clusterService, createIndexService, new AliasValidator(Settings.EMPTY), indicesService,
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS));
 
         final List<Throwable> throwables = new ArrayList<>();

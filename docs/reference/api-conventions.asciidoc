@@ -106,6 +106,7 @@ GET /<logstash-{now/d}>/_search
 ======================================================
 The special characters used for date rounding must be url encoded as follows:
 
+[horizontal]
 `<`:: `%3C`
 `>`:: `%3E`
 `/`:: `%2F`

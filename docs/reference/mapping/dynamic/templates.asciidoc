@@ -353,7 +353,7 @@ remove it as described in the previous section.
 
 ===== Time-series
 
-When doing time series analysis with elastisearch, it is common to have many
+When doing time series analysis with elasticsearch, it is common to have many
 numeric fields that you will often aggregate on but never filter on. In such a
 case, you could disable indexing on those fields to save disk space and also
 maybe gain some indexing speed:

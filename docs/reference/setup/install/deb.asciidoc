@@ -90,9 +90,19 @@ Duplicate sources.list entry https://artifacts.elastic.co/packages/{major-versio
 Examine +/etc/apt/sources.list.d/elasticsearch-{major-version}.list+ for the duplicate entry or locate the duplicate entry amongst the files in `/etc/apt/sources.list.d/` and the `/etc/apt/sources.list` file.
 ==================================================
 
+endif::[]
+
 
 [[install-deb]]
 ==== Download and install the Debian package manually
+
+ifeval::["{release-state}"=="unreleased"]
+
+Version {version} of Elasticsearch has not yet been released.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
 
 The Debian package for Elastisearch v{version} can be downloaded from the website and installed as follows:
 
@@ -106,7 +116,6 @@ sudo dpkg -i elasticsearch-{version}.deb
     https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.deb.sha1[published SHA].
 
 endif::[]
-// release-state!=unreleased
 
 include::init-systemd.asciidoc[]
 

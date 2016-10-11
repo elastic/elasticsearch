@@ -125,8 +125,8 @@ public class RetryTests extends ESSingleNodeTestCase {
     public void testReindexFromRemote() throws Exception {
         NodeInfo nodeInfo = client().admin().cluster().prepareNodesInfo().get().getNodes().get(0);
         TransportAddress address = nodeInfo.getHttp().getAddress().publishAddress();
-        RemoteInfo remote = new RemoteInfo("http", address.getHost(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null, null,
-                emptyMap());
+        RemoteInfo remote = new RemoteInfo("http", address.getAddress(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null,
+            null, emptyMap());
         ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client()).source("source").destination("dest")
                 .setRemoteInfo(remote);
         testCase(ReindexAction.NAME, request, matcher().created(DOC_COUNT));

@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-public class ByteSizeValue implements Writeable {
+public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue> {
 
     private final long size;
     private final ByteSizeUnit unit;
@@ -191,15 +191,18 @@ public class ByteSizeValue implements Writeable {
             return false;
         }
 
-        ByteSizeValue sizeValue = (ByteSizeValue) o;
-
-        return getBytes() == sizeValue.getBytes();
+        return compareTo((ByteSizeValue) o) == 0;
     }
 
     @Override
     public int hashCode() {
-        int result = Long.hashCode(size);
-        result = 31 * result + (unit != null ? unit.hashCode() : 0);
-        return result;
+        return Double.hashCode(((double) size) * unit.toBytes(1));
+    }
+
+    @Override
+    public int compareTo(ByteSizeValue other) {
+        double thisValue = ((double) size) * unit.toBytes(1);
+        double otherValue = ((double) other.size) * other.unit.toBytes(1);
+        return Double.compare(thisValue, otherValue);
     }
 }

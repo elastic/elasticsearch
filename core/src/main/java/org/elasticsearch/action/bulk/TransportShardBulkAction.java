@@ -223,7 +223,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                                                          int requestIndex, UpdateRequest updateRequest)
         throws Exception {
         // Todo: capture read version conflicts, missing documents and malformed script errors in the write result due to get request
-        UpdateHelper.Result translate = updateHelper.prepare(updateRequest, indexShard);
+        UpdateHelper.Result translate = updateHelper.prepare(updateRequest, indexShard, threadPool::estimatedTimeInMillis);
         switch (translate.getResponseResult()) {
             case CREATED:
             case UPDATED:

@@ -40,12 +40,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.TestSearchContext;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
@@ -235,6 +235,12 @@ public class LegacyDateFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testHourFormat() throws Exception {
+        long nowInMillis = randomPositiveLong();
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        QueryShardContext context = new QueryShardContext(0,
+                new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings), null, null, null, null,
+                null, null, null, null, null, () -> nowInMillis);
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .field("date_detection", false)
                 .startObject("properties").startObject("date_field").field("type", "date").field("format", "HH:mm:ss").endObject().endObject()
@@ -250,12 +256,18 @@ public class LegacyDateFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(((LegacyLongFieldMapper.CustomLongNumericField) doc.rootDoc().getField("date_field")).numericAsString(), equalTo(Long.toString(new DateTime(TimeValue.timeValueHours(10).millis(), DateTimeZone.UTC).getMillis())));
 
         LegacyNumericRangeQuery<Long> rangeQuery = (LegacyNumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType()
-                    .rangeQuery("10:00:00", "11:00:00", true, true, null).rewrite(null);
-        assertThat(rangeQuery.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(11).millis(), DateTimeZone.UTC).getMillis()));
+                .rangeQuery("10:00:00", "11:00:00", true, true, context).rewrite(null);
+        assertThat(rangeQuery.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(11).millis(), DateTimeZone.UTC).getMillis() + 999));
         assertThat(rangeQuery.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(10).millis(), DateTimeZone.UTC).getMillis()));
     }
 
     public void testDayWithoutYearFormat() throws Exception {
+        long nowInMillis = randomPositiveLong();
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        QueryShardContext context = new QueryShardContext(0,
+                new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings), null, null, null, null,
+                null, null, null, null, null, () -> nowInMillis);
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .field("date_detection", false)
                 .startObject("properties").startObject("date_field").field("type", "date").field("format", "MMM dd HH:mm:ss").endObject().endObject()
@@ -271,8 +283,8 @@ public class LegacyDateFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(((LegacyLongFieldMapper.CustomLongNumericField) doc.rootDoc().getField("date_field")).numericAsString(), equalTo(Long.toString(new DateTime(TimeValue.timeValueHours(34).millis(), DateTimeZone.UTC).getMillis())));
 
         LegacyNumericRangeQuery<Long> rangeQuery = (LegacyNumericRangeQuery<Long>) defaultMapper.mappers().smartNameFieldMapper("date_field").fieldType()
-                    .rangeQuery("Jan 02 10:00:00", "Jan 02 11:00:00", true, true, null).rewrite(null);
-        assertThat(rangeQuery.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(35).millis(), DateTimeZone.UTC).getMillis()));
+                .rangeQuery("Jan 02 10:00:00", "Jan 02 11:00:00", true, true, context).rewrite(null);
+        assertThat(rangeQuery.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(35).millis() + 999, DateTimeZone.UTC).getMillis()));
         assertThat(rangeQuery.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(34).millis(), DateTimeZone.UTC).getMillis()));
     }
 

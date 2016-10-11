@@ -50,7 +50,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -1009,20 +1008,13 @@ public class DateHistogramIT extends ESIntegTestCase {
 
         DateMathParser parser = new DateMathParser(Joda.getStrictStandardDateFormatter());
 
-        final Callable<Long> callable = new Callable<Long>() {
-            @Override
-            public Long call() throws Exception {
-                return System.currentTimeMillis();
-            }
-        };
-
         // we pick a random timezone offset of +12/-12 hours and insert two documents
         // one at 00:00 in that time zone and one at 12:00
         List<IndexRequestBuilder> builders = new ArrayList<>();
         int timeZoneHourOffset = randomIntBetween(-12, 12);
         DateTimeZone timezone = DateTimeZone.forOffsetHours(timeZoneHourOffset);
-        DateTime timeZoneStartToday = new DateTime(parser.parse("now/d", callable, false, timezone), DateTimeZone.UTC);
-        DateTime timeZoneNoonToday = new DateTime(parser.parse("now/d+12h", callable, false, timezone), DateTimeZone.UTC);
+        DateTime timeZoneStartToday = new DateTime(parser.parse("now/d", System::currentTimeMillis, false, timezone), DateTimeZone.UTC);
+        DateTime timeZoneNoonToday = new DateTime(parser.parse("now/d+12h", System::currentTimeMillis, false, timezone), DateTimeZone.UTC);
         builders.add(indexDoc(index, timeZoneStartToday, 1));
         builders.add(indexDoc(index, timeZoneNoonToday, 2));
         indexRandom(true, builders);

@@ -22,7 +22,6 @@ package org.elasticsearch.indices.recovery;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -85,7 +84,6 @@ public class RecoverySettings extends AbstractComponent {
 
     private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
 
-    @Inject
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
 
@@ -142,7 +140,7 @@ public class RecoverySettings extends AbstractComponent {
 
     public ByteSizeValue getChunkSize() { return chunkSize; }
 
-    void setChunkSize(ByteSizeValue chunkSize) { // only settable for tests
+    public void setChunkSize(ByteSizeValue chunkSize) { // only settable for tests
         if (chunkSize.bytesAsInt() <= 0) {
             throw new IllegalArgumentException("chunkSize must be > 0");
         }

@@ -53,7 +53,6 @@ import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardRelocatedException;
@@ -92,7 +91,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final PeerRecoveryTargetService recoveryTargetService;
     private final ShardStateAction shardStateAction;
     private final NodeMappingRefreshAction nodeMappingRefreshAction;
-    private final NodeServicesProvider nodeServicesProvider;
 
     private static final ShardStateAction.Listener SHARD_STATE_ACTION_LISTENER = new ShardStateAction.Listener() {
     };
@@ -115,11 +113,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                       NodeMappingRefreshAction nodeMappingRefreshAction,
                                       RepositoriesService repositoriesService, RestoreService restoreService,
                                       SearchService searchService, SyncedFlushService syncedFlushService,
-                                      PeerRecoverySourceService peerRecoverySourceService, NodeServicesProvider nodeServicesProvider) {
+                                      PeerRecoverySourceService peerRecoverySourceService) {
         this(settings, (AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>>) indicesService,
             clusterService, threadPool, recoveryTargetService, shardStateAction,
-            nodeMappingRefreshAction, repositoriesService, restoreService, searchService, syncedFlushService, peerRecoverySourceService,
-            nodeServicesProvider);
+            nodeMappingRefreshAction, repositoriesService, restoreService, searchService, syncedFlushService, peerRecoverySourceService);
     }
 
     // for tests
@@ -131,7 +128,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                NodeMappingRefreshAction nodeMappingRefreshAction,
                                RepositoriesService repositoriesService, RestoreService restoreService,
                                SearchService searchService, SyncedFlushService syncedFlushService,
-                               PeerRecoverySourceService peerRecoverySourceService, NodeServicesProvider nodeServicesProvider) {
+                               PeerRecoverySourceService peerRecoverySourceService) {
         super(settings);
         this.buildInIndexListener = Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, syncedFlushService);
         this.indicesService = indicesService;
@@ -143,7 +140,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.restoreService = restoreService;
         this.repositoriesService = repositoriesService;
         this.sendRefreshMapping = this.settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
-        this.nodeServicesProvider = nodeServicesProvider;
     }
 
     @Override
@@ -433,7 +429,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
             AllocatedIndex<? extends Shard> indexService = null;
             try {
-                indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, buildInIndexListener);
+                indexService = indicesService.createIndex(indexMetaData, buildInIndexListener);
                 if (indexService.updateMapping(indexMetaData) && sendRefreshMapping) {
                     nodeMappingRefreshAction.nodeMappingRefresh(state.nodes().getMasterNode(),
                         new NodeMappingRefreshAction.NodeMappingRefreshRequest(indexMetaData.getIndex().getName(),
@@ -532,7 +528,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             logger.debug("{} creating shard", shardRouting.shardId());
             RecoveryState recoveryState = new RecoveryState(shardRouting, nodes.getLocalNode(), sourceNode);
             indicesService.createShard(shardRouting, recoveryState, recoveryTargetService, new RecoveryListener(shardRouting),
-                repositoriesService, nodeServicesProvider, failedShardHandler);
+                repositoriesService, failedShardHandler);
         } catch (IndexShardAlreadyExistsException e) {
             // ignore this, the method call can happen several times
             logger.debug("Trying to create shard that already exists", e);
@@ -767,8 +763,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          *                             the per-index listeners
          * @throws IndexAlreadyExistsException if the index already exists.
          */
-        U createIndex(NodeServicesProvider nodeServicesProvider, IndexMetaData indexMetaData,
-                         List<IndexEventListener> builtInIndexListener) throws IOException;
+        U createIndex(IndexMetaData indexMetaData, List<IndexEventListener> builtInIndexListener) throws IOException;
 
         /**
          * Verify that the contents on disk for the given index is deleted; if not, delete the contents.
@@ -815,7 +810,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          */
         T createShard(ShardRouting shardRouting, RecoveryState recoveryState, PeerRecoveryTargetService recoveryTargetService,
                       PeerRecoveryTargetService.RecoveryListener recoveryListener, RepositoriesService repositoriesService,
-                      NodeServicesProvider nodeServicesProvider, Callback<IndexShard.ShardFailure> onShardFailure) throws IOException;
+                      Callback<IndexShard.ShardFailure> onShardFailure) throws IOException;
 
         /**
          * Returns shard for the specified id if it exists otherwise returns <code>null</code>.

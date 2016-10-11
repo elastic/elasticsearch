@@ -27,7 +27,7 @@ import org.elasticsearch.client.benchmark.ops.bulk.BulkRequestExecutor;
 import org.elasticsearch.client.benchmark.ops.search.SearchRequestExecutor;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugin.noop.NoopPlugin;
 import org.elasticsearch.plugin.noop.action.bulk.NoopBulkAction;
@@ -51,7 +51,7 @@ public final class TransportClientBenchmark extends AbstractBenchmark<TransportC
     @Override
     protected TransportClient client(String benchmarkTargetHost) throws Exception {
         TransportClient client = new PreBuiltTransportClient(Settings.EMPTY, NoopPlugin.class);
-        client.addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName(benchmarkTargetHost), 9300));
+        client.addTransportAddress(new TransportAddress(InetAddress.getByName(benchmarkTargetHost), 9300));
         return client;
     }
 

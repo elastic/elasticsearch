@@ -28,7 +28,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
@@ -59,15 +58,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.LongSupplier;
 
 /**
  * Helper for translating an update request to an index, delete request or update response.
  */
 public class UpdateHelper extends AbstractComponent {
-
     private final ScriptService scriptService;
 
-    @Inject
     public UpdateHelper(Settings settings, ScriptService scriptService) {
         super(settings);
         this.scriptService = scriptService;
@@ -76,19 +74,18 @@ public class UpdateHelper extends AbstractComponent {
     /**
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
-    @SuppressWarnings("unchecked")
-    public Result prepare(UpdateRequest request, IndexShard indexShard) {
+    public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) {
         final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
                 new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME, TimestampFieldMapper.NAME},
                 true, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE);
-        return prepare(indexShard.shardId(), request, getResult);
+        return prepare(indexShard.shardId(), request, getResult, nowInMillis);
     }
 
     /**
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
     @SuppressWarnings("unchecked")
-    protected Result prepare(ShardId shardId, UpdateRequest request, final GetResult getResult) {
+    protected Result prepare(ShardId shardId, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis) {
         long getDateNS = System.nanoTime();
         if (!getResult.isExists()) {
             if (request.upsertRequest() == null && !request.docAsUpsert()) {
@@ -104,6 +101,7 @@ public class UpdateHelper extends AbstractComponent {
                 // Tell the script that this is a create and not an update
                 ctx.put("op", "create");
                 ctx.put("_source", upsertDoc);
+                ctx.put("_now", nowInMillis.getAsLong());
                 ctx = executeScript(request.script, ctx);
                 //Allow the script to set TTL using ctx._ttl
                 if (ttl == null) {
@@ -192,6 +190,7 @@ public class UpdateHelper extends AbstractComponent {
             ctx.put("_timestamp", originalTimestamp);
             ctx.put("_ttl", originalTtl);
             ctx.put("_source", sourceAndContent.v2());
+            ctx.put("_now", nowInMillis.getAsLong());
 
             ctx = executeScript(request.script, ctx);
 
@@ -308,7 +307,7 @@ public class UpdateHelper extends AbstractComponent {
         if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
             sourceRequested = true;
             if (request.fetchSource().includes().length > 0 || request.fetchSource().excludes().length > 0) {
-                Object value = sourceLookup.filter(request.fetchSource().includes(), request.fetchSource().excludes());
+                Object value = sourceLookup.filter(request.fetchSource());
                 try {
                     final int initialCapacity = Math.min(1024, sourceAsBytes.length());
                     BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);

@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.Uid;
@@ -90,7 +89,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     protected DiscoveryNode getDiscoveryNode(String id) {
-        return new DiscoveryNode(id, id, new LocalTransportAddress(id), Collections.emptyMap(),
+        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(),
             Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
     }
 

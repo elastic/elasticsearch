@@ -338,7 +338,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
             // Min value was 2012-01-01 (UTC) so we need to remove one hour
             DateTime min = DateTime.parse("2012-01-01T00:00:00.000+01:00");
-            // Max value is the nowInMillis set by the uery shard context
+            // Max value is the nowInMillis set by the query shard context
             long max = context.nowInMillis();
 
             assertThat(((LegacyNumericRangeQuery) parsedQuery).getMin().longValue(), is(min.getMillis()));

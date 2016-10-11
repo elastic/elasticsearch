@@ -56,7 +56,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -1191,7 +1190,7 @@ public final class InternalTestCluster extends TestCluster {
     public InetSocketAddress[] httpAddresses() {
         List<InetSocketAddress> addresses = new ArrayList<>();
         for (HttpServerTransport httpServerTransport : getInstances(HttpServerTransport.class)) {
-            addresses.add(((InetSocketTransportAddress) httpServerTransport.boundAddress().publishAddress()).address());
+            addresses.add(httpServerTransport.boundAddress().publishAddress().address());
         }
         return addresses.toArray(new InetSocketAddress[addresses.size()]);
     }

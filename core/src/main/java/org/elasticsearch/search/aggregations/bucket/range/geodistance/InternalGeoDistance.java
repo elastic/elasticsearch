@@ -119,4 +119,9 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
     public InternalRange.Factory<Bucket, InternalGeoDistance> getFactory() {
         return FACTORY;
     }
+
+    @Override
+    public String getWriteableName() {
+        return GeoDistanceAggregationBuilder.NAME;
+    }
 }

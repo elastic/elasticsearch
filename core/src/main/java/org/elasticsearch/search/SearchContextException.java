@@ -24,9 +24,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class SearchContextException extends SearchException {
 
     public SearchContextException(SearchContext context, String msg) {

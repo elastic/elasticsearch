@@ -30,9 +30,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class BulkItemRequest implements Streamable {
 
     private int id;

@@ -26,9 +26,6 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Objects;
 
-/**
- *
- */
 public class IndexFailedEngineException extends EngineException {
 
     private final String type;

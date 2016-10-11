@@ -74,9 +74,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class AnalysisModuleTests extends ModuleTestCase {
 
     public IndexAnalyzers getIndexAnalyzers(Settings settings) throws IOException {

@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.exists.indices;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class IndicesExistsAction extends Action<IndicesExistsRequest, IndicesExistsResponse, IndicesExistsRequestBuilder> {
 
     public static final IndicesExistsAction INSTANCE = new IndicesExistsAction();

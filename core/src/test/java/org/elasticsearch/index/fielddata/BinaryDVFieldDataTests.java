@@ -32,9 +32,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
     @Override
     protected boolean hasDocValues() {

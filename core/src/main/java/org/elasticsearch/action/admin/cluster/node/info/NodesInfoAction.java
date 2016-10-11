@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class NodesInfoAction extends Action<NodesInfoRequest, NodesInfoResponse, NodesInfoRequestBuilder> {
 
     public static final NodesInfoAction INSTANCE = new NodesInfoAction();

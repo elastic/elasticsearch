@@ -24,9 +24,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class MapperParsingException extends MapperException {
 
     public MapperParsingException(StreamInput in) throws IOException {

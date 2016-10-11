@@ -35,9 +35,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class PythonScriptMultiThreadedTests extends ESTestCase {
 
     public void testExecutableNoRuntimeParams() throws Exception {

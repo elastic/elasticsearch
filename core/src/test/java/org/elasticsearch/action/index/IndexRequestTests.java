@@ -37,8 +37,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
 public class IndexRequestTests extends ESTestCase {
     public void testIndexRequestOpTypeFromString() throws Exception {
         String create = "create";

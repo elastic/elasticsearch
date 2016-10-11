@@ -24,8 +24,6 @@ import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.test.NoopDiscovery;
 
-/**
- */
 public class DiscoveryModuleTests extends ModuleTestCase {
 
     public static class DummyMasterElectionService extends ElectMasterService {

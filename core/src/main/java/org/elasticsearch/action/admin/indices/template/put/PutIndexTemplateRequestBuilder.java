@@ -27,9 +27,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.util.Map;
 
-/**
- *
- */
 public class PutIndexTemplateRequestBuilder
     extends MasterNodeOperationRequestBuilder<PutIndexTemplateRequest, PutIndexTemplateResponse, PutIndexTemplateRequestBuilder> {
 

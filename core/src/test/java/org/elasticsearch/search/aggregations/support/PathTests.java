@@ -27,9 +27,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class PathTests extends ESTestCase {
     public void testInvalidPaths() throws Exception {
         assertInvalidPath("[foo]", "brackets at the beginning of the token expression");

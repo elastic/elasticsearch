@@ -29,9 +29,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class TDigestPercentileRanksAggregator extends AbstractTDigestPercentilesAggregator {
 
     public TDigestPercentileRanksAggregator(String name, Numeric valuesSource, AggregationContext context, Aggregator parent, double[] percents,

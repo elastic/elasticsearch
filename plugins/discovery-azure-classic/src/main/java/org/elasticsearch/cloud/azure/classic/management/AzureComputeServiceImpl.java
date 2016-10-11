@@ -36,9 +36,6 @@ import org.elasticsearch.common.settings.Settings;
 import java.io.IOException;
 import java.util.ServiceLoader;
 
-/**
- *
- */
 public class AzureComputeServiceImpl extends AbstractLifecycleComponent
     implements AzureComputeService {
 

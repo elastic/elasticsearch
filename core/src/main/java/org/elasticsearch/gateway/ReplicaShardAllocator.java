@@ -48,8 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- */
 public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
 
     public ReplicaShardAllocator(Settings settings) {

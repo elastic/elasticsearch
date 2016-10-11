@@ -41,8 +41,6 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 @ClusterScope(scope= ESIntegTestCase.Scope.TEST, numDataNodes =0, minNumDataNodes = 2)
 public class AwarenessAllocationIT extends ESIntegTestCase {
 

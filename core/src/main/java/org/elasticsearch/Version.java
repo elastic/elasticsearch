@@ -29,8 +29,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
 
-/**
- */
 public class Version {
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA

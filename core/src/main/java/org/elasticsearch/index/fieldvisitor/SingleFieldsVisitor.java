@@ -27,8 +27,6 @@ import org.elasticsearch.index.mapper.UidFieldMapper;
 import java.io.IOException;
 import java.util.List;
 
-/**
- */
 public class SingleFieldsVisitor extends FieldsVisitor {
 
     private String field;

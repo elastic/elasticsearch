@@ -38,8 +38,6 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import java.io.IOException;
 
 
-/**
- */
 public class RestNodesHotThreadsAction extends BaseRestHandler {
 
     @Inject

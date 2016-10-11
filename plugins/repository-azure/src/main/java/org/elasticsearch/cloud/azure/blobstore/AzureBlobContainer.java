@@ -38,9 +38,6 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Map;
 
-/**
- *
- */
 public class AzureBlobContainer extends AbstractBlobContainer {
 
     protected final Logger logger = Loggers.getLogger(AzureBlobContainer.class);

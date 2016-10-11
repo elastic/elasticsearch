@@ -38,9 +38,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 
-/**
- *
- */
 public abstract class TransportAction<Request extends ActionRequest<Request>, Response extends ActionResponse> extends AbstractComponent {
 
     protected final ThreadPool threadPool;

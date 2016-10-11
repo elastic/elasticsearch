@@ -37,9 +37,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 
-/**
- *
- */
 public class AnalyzeActionIT extends ESIntegTestCase {
     public void testSimpleAnalyzerTests() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));

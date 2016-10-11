@@ -39,9 +39,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     public static final ParseField SIGMA_FIELD = new ParseField("sigma");

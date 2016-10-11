@@ -39,9 +39,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-/**
- *
- */
 public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
     private final Logger logger = Loggers.getLogger(IndexBalanceTests.class);
 

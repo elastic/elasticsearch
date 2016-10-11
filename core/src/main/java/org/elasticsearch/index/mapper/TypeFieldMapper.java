@@ -45,9 +45,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- *
- */
 public class TypeFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_type";

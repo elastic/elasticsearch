@@ -36,9 +36,6 @@ import static org.elasticsearch.http.netty3.Netty3HttpClient.returnOpaqueIds;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 
-/**
- *
- */
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
 public class Netty3PipeliningDisabledIT extends ESNetty3IntegTestCase {
     @Override

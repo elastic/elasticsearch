@@ -44,9 +44,6 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-/**
- *
- */
 public class RestGetMappingAction extends BaseRestHandler {
 
     @Inject

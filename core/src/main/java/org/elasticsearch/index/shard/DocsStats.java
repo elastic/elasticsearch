@@ -27,8 +27,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-/**
- */
 public class DocsStats implements Streamable, ToXContent {
 
     long count = 0;

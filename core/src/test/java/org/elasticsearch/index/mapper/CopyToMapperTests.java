@@ -40,9 +40,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
-/**
- *
- */
 public class CopyToMapperTests extends ESSingleNodeTestCase {
     @SuppressWarnings("unchecked")
     public void testCopyToFieldsParsing() throws Exception {

@@ -34,9 +34,6 @@ import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 @ClusterScope(scope= Scope.TEST, numDataNodes =0)
 public class SimpleDataNodesIT extends ESIntegTestCase {
     public void testDataNodes() throws Exception {

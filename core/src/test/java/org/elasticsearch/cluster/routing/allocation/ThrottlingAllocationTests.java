@@ -55,9 +55,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class ThrottlingAllocationTests extends ESAllocationTestCase {
     private final Logger logger = Loggers.getLogger(ThrottlingAllocationTests.class);
 

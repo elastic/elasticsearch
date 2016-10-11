@@ -25,9 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class ReverseTokenFilterFactory extends AbstractTokenFilterFactory {
 
     public ReverseTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {

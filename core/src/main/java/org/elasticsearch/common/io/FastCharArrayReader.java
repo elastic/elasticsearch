@@ -22,9 +22,6 @@ package org.elasticsearch.common.io;
 import java.io.IOException;
 import java.io.Reader;
 
-/**
- *
- */
 public class FastCharArrayReader extends Reader {
 
     /**

@@ -30,8 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-/**
- */
 public class FieldDataStats implements Streamable, ToXContent {
 
     long memorySize;

@@ -22,9 +22,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
-/**
- *
- */
 public class PercentileRanksParser extends AbstractPercentilesParser {
 
     public static final ParseField VALUES_FIELD = new ParseField("values");

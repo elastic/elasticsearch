@@ -25,9 +25,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class DfsPhaseExecutionException extends SearchContextException {
 
     public DfsPhaseExecutionException(SearchContext context, String msg, Throwable t) {

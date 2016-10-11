@@ -37,9 +37,6 @@ import java.util.Set;
 
 import static java.util.Collections.emptySet;
 
-/**
- *
- */
 public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
 
     public static final AliasMetaData PROTO = new AliasMetaData("", null, null, null);

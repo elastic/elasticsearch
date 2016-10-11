@@ -28,9 +28,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.tartarus.snowball.ext.DutchStemmer;
 
-/**
- *
- */
 public class DutchStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final CharArraySet exclusions;

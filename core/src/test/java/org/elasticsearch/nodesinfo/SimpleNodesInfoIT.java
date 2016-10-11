@@ -36,9 +36,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 @ClusterScope(scope= Scope.TEST, numDataNodes = 0)
 public class SimpleNodesInfoIT extends ESIntegTestCase {
 

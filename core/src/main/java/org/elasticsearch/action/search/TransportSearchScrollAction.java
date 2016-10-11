@@ -35,9 +35,6 @@ import static org.elasticsearch.action.search.ParsedScrollId.QUERY_AND_FETCH_TYP
 import static org.elasticsearch.action.search.ParsedScrollId.QUERY_THEN_FETCH_TYPE;
 import static org.elasticsearch.action.search.TransportSearchHelper.parseScrollId;
 
-/**
- *
- */
 public class TransportSearchScrollAction extends HandledTransportAction<SearchScrollRequest, SearchResponse> {
 
     private final ClusterService clusterService;

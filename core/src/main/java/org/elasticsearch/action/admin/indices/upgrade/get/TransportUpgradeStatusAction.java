@@ -43,9 +43,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-/**
- *
- */
 public class TransportUpgradeStatusAction extends TransportBroadcastByNodeAction<UpgradeStatusRequest, UpgradeStatusResponse, ShardUpgradeStatus> {
 
     private final IndicesService indicesService;

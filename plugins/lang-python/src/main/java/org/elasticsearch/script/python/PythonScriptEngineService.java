@@ -48,9 +48,6 @@ import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 import java.util.Map;
 
-/**
- *
- */
 //TODO we can optimize the case for Map<String, Object> similar to PyStringMap
 public class PythonScriptEngineService extends AbstractComponent implements ScriptEngineService {
 

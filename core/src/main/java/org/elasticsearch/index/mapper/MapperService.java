@@ -63,9 +63,6 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
-/**
- *
- */
 public class MapperService extends AbstractIndexComponent {
 
     /**

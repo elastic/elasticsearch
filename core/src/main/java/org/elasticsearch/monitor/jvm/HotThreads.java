@@ -36,8 +36,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-/**
- */
 public class HotThreads {
 
     private static final Object mutex = new Object();

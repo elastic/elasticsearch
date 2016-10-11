@@ -82,8 +82,6 @@ import org.tartarus.snowball.ext.SpanishStemmer;
 import org.tartarus.snowball.ext.SwedishStemmer;
 import org.tartarus.snowball.ext.TurkishStemmer;
 
-/**
- */
 public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private String language;

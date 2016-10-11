@@ -44,9 +44,6 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class SimpleAllTests extends ESTestCase {
     private FieldType getAllFieldType() {
         FieldType ft = new FieldType();

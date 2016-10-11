@@ -22,8 +22,6 @@ package org.elasticsearch.action.fieldstats;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class FieldStatsRequestBuilder extends
     BroadcastOperationRequestBuilder<FieldStatsRequest, FieldStatsResponse, FieldStatsRequestBuilder> {
 

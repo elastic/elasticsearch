@@ -200,6 +200,19 @@ public class TableTests extends ESTestCase {
 
     }
 
+    public void testAliasMap() {
+        Table table = new Table();
+        table.startHeaders();
+        table.addCell("asdf", "alias:a");
+        table.addCell("ghij", "alias:g,h");
+        table.endHeaders();
+        Map<String, String> aliasMap = table.getAliasMap();
+        assertEquals(5, aliasMap.size());
+        assertEquals("asdf", aliasMap.get("a"));
+        assertEquals("ghij", aliasMap.get("g"));
+        assertEquals("ghij", aliasMap.get("h"));
+    }
+
     private Table getTableWithHeaders() {
         Table table = new Table();
         table.startHeaders();

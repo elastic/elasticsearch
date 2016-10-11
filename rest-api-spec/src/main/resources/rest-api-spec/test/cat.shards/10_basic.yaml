@@ -224,3 +224,40 @@
   - match:
       $body: |
                /^(ba(r|z) \n?){2}$/
+
+---
+"Test cat shards sort":
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: bar
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      index:
+        index: bar
+        type: type
+        body: { test: bar }
+        refresh: true
+
+  - do:
+      cat.shards:
+        h: [index, store]
+        s: [store]
+
+  - match:
+      $body: |
+            /^ foo \s+ (\d+|\d+[.]\d+)(kb|b)\n
+               bar \s+ (\d+|\d+[.]\d+)(kb|b)\n
+            $/

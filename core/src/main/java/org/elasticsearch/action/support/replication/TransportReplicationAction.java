@@ -687,15 +687,21 @@ public abstract class TransportReplicationAction<
         }
 
         private boolean handleBlockExceptions(ClusterState state) {
-            ClusterBlockException blockException = state.blocks().globalBlockedException(globalBlockLevel());
-            if (blockException != null) {
-                handleBlockException(blockException);
-                return true;
+            ClusterBlockLevel globalBlockLevel = globalBlockLevel();
+            if (globalBlockLevel != null) {
+                ClusterBlockException blockException = state.blocks().globalBlockedException(globalBlockLevel);
+                if (blockException != null) {
+                    handleBlockException(blockException);
+                    return true;
+                }
             }
-            blockException = state.blocks().indexBlockedException(indexBlockLevel(), concreteIndex(state));
-            if (blockException != null) {
-                handleBlockException(blockException);
-                return true;
+            ClusterBlockLevel indexBlockLevel = indexBlockLevel();
+            if (indexBlockLevel != null) {
+                ClusterBlockException blockException = state.blocks().indexBlockedException(indexBlockLevel(), concreteIndex(state));
+                if (blockException != null) {
+                    handleBlockException(blockException);
+                    return true;
+                }
             }
             return false;
         }

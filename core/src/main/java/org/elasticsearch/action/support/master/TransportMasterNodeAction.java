@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
@@ -54,6 +55,11 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     protected final TransportService transportService;
     protected final ClusterService clusterService;
 
+    public static final Setting<Boolean> FORCE_LOCAL_SETTING =
+        Setting.boolSetting("action.master.force_local", false, Setting.Property.NodeScope);
+
+    private final boolean forceLocal;
+
     final String executor;
 
     protected TransportMasterNodeAction(Settings settings, String actionName, TransportService transportService,
@@ -71,6 +77,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.executor = executor();
+        this.forceLocal = FORCE_LOCAL_SETTING.get(settings);
     }
 
     protected abstract String executor();
@@ -86,8 +93,8 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         masterOperation(request, state, listener);
     }
 
-    protected boolean localExecute(Request request) {
-        return false;
+    protected final boolean localExecute(Request request) {
+        return forceLocal || (request instanceof MasterNodeReadRequest && ((MasterNodeReadRequest)request).local());
     }
 
     protected abstract ClusterBlockException checkBlock(Request request, ClusterState state);

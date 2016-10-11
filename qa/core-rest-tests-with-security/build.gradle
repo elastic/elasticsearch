@@ -32,7 +32,8 @@ integTest {
      'ingest/70_bulk/*',
      'ingest/10_crud/Check availability of default processors',
      'search/80_date_math_index_names/Missing index with catch',
-     'cat.templates/10_basic/No templates'
+     'cat.templates/10_basic/No templates',
+     'cat.templates/10_basic/Sort templates',
     ].join(',')
 
   cluster {
@@ -53,4 +54,3 @@ integTest {
     }
   }
 }
-

@@ -79,7 +79,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                     responses.set(i, newItemFailure(concreteSingleIndex, item.type(), item.id(), new IllegalArgumentException(message)));
                     continue;
                 }
-            } catch (IllegalArgumentException e) {
+            } catch (Exception e) {
                 responses.set(i, newItemFailure(item.index(), item.type(), item.id(), e));
                 continue;
             }

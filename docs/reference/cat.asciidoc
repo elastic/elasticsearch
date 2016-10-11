@@ -175,6 +175,36 @@ For example:
 --------------------------------------------------
 // NOTCONSOLE
 
+[float]
+[[sort]]
+=== Sort
+
+Each of the commands accepts a query string parameter `s` which sorts the table by
+the columns specified as the parameter value. Columns are specified either by name or by
+alias, and are provided as a comma separated string. By default, sorting is done in
+ascending fashion. Appending `:desc` to a column will invert the ordering for
+that column. `:asc` is also accepted but exhibits the same behavior as the default sort order.
+
+For example, with a sort string `s=column1,column2:desc,column3`, the table will be
+sorted in ascending order by column1, in descending order by column2, and in ascending
+order by column3.
+
+[source,sh]
+--------------------------------------------------
+GET _cat/templates?v&s=order:desc,template
+--------------------------------------------------
+//CONSOLE
+
+returns:
+
+[source,sh]
+--------------------------------------------------
+name                  template     order version
+pizza_pepperoni       *pepperoni*  2
+sushi_california_roll *avocado*    1     1
+pizza_hawaiian        *pineapples* 1
+--------------------------------------------------
+
 --
 
 include::cat/alias.asciidoc[]

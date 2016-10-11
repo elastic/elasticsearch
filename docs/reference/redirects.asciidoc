@@ -10,6 +10,12 @@ The `_shutdown` API has been removed.  Instead, setup Elasticsearch to run as
 a service (see <<rpm>>, <<deb>>,  or <<windows>>) or use the `-p`
 command line option to <<setup-installation-daemon,write the PID to a file>>.
 
+[role="exclude",id="indices-upgrade"]
+=== Upgrade API
+
+The `_upgrade` API is no longer useful and will be removed.  Instead, see
+<<reindex-upgrade>>.
+
 [role="exclude",id="docs-bulk-udp"]
 === Bulk UDP API
 

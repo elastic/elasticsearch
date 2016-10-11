@@ -367,6 +367,7 @@ POST _reindex
 // TEST[s/^/PUT source\n/]
 
 [float]
+[[reindex-from-remote]]
 === Reindex from Remote
 
 Reindex supports reindexing from a remote Elasticsearch cluster:

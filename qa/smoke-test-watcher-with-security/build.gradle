@@ -15,7 +15,6 @@ integTest {
   dependsOn copyWatcherRestTests
   systemProperty 'tests.rest.blacklist',
     ['hijack/10_basic/*',
-     'array_compare_watch/10_basic/Basic array_compare watch',
      'getting_started/10_monitor_cluster_health/Getting started - Monitor cluster health'].join(',')
 
   cluster {

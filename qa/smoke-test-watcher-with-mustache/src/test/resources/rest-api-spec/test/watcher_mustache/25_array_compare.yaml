@@ -1,14 +1,9 @@
 ---
 "Basic array_compare watch":
 
-  - skip:
-      version:     " - "
-      reason:      Remove direct dependency on mustache (or at least it should be using xmustache!!!!)
-
   - do:
       cluster.health:
           wait_for_status: yellow
-
 
   - do:
       xpack.watcher.stats: {}
@@ -31,9 +26,9 @@
                   "indices": [ "test_1" ],
                   "body": {
                     "aggs": {
-                      "top_foos": {
+                      "top_levels": {
                         "terms": {
-                          "field": "foo",
+                          "field": "level",
                           "size": 1
                         }
                       }
@@ -44,7 +39,7 @@
             },
             "condition": {
               "array_compare": {
-                "ctx.payload.aggregations.top_foos.buckets": {
+                "ctx.payload.aggregations.top_levels.buckets": {
                   "path": "doc_count",
                   "gte": {
                     "value": 3,
@@ -61,6 +56,7 @@
               }
             }
           }
+
   - match: { _id: "array-compare-watch" }
   - match: { created: true }
 
@@ -69,28 +65,28 @@
           index:  test_1
           type:   test
           id:     1
-          body:   { foo: bar }
+          body:   { level: 0 }
 
   - do:
       index:
           index:  test_1
           type:   test
           id:     2
-          body:   { foo: bar }
+          body:   { level: 0 }
 
   - do:
       index:
           index:  test_1
           type:   test
           id:     3
-          body:   { foo: bar }
+          body:   { level: 0 }
 
   - do:
       index:
           index:  test_1
           type:   test
           id:     4
-          body:   { foo: baz }
+          body:   { level: 1 }
   - do:
       indices.refresh: {}
 
@@ -98,52 +94,11 @@
       xpack.watcher.stats: {}
   - match: { "watch_count": 1 }
 
-  # Simulate a Thread.sleep()
   - do:
-      catch: request_timeout
-      cluster.health:
-        wait_for_nodes: 99
-        timeout: 10s
-  - match: { "timed_out": true }
-
-  - do:
-      indices.refresh:
-        index: .watcher-history-*
-
-  - do:
-      search:
-        index: .watcher-history-*
-        body: >
-          {
-            "query": {
-              "bool": {
-                "must" : [
-                  {
-                    "term": {
-                      "watch_id": {
-                        "value": "array-compare-watch"
-                      }
-                    }
-                  },
-                  {
-                    "term": {
-                       "result.condition.met": {
-                         "value": "true"
-                       }
-                    }
-                  }
-                ]
-              }
-            }
-          }
-  - gte:  { hits.total: 1 }
-
-  - do:
-      xpack.watcher.delete_watch:
+      xpack.watcher.execute_watch:
         id: "array-compare-watch"
-  - match: { found: true }
 
-
-  - do:
-      xpack.watcher.stats: {}
-  - match: { "watch_count": 0 }
+  - match: { "watch_record.result.input.status": "success" }
+  - match: { "watch_record.result.input.payload.hits.total": 4 }
+  - match: { "watch_record.result.condition.status": "success" }
+  - match: { "watch_record.result.condition.met": true }

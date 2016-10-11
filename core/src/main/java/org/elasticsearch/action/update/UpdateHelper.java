@@ -307,7 +307,7 @@ public class UpdateHelper extends AbstractComponent {
         if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
             sourceRequested = true;
             if (request.fetchSource().includes().length > 0 || request.fetchSource().excludes().length > 0) {
-                Object value = sourceLookup.filter(request.fetchSource().includes(), request.fetchSource().excludes());
+                Object value = sourceLookup.filter(request.fetchSource());
                 try {
                     final int initialCapacity = Math.min(1024, sourceAsBytes.length());
                     BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);

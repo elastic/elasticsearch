@@ -33,6 +33,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  *
@@ -155,6 +156,14 @@ public class XContentMapValues {
      * then {@code a.b} will be kept in the filtered map.
      */
     public static Map<String, Object> filter(Map<String, ?> map, String[] includes, String[] excludes) {
+        return filter(includes, excludes).apply(map);
+    }
+
+    /**
+     * Returns a function that filters a document map based on the given include and exclude rules.
+     * @see #filter(Map, String[], String[]) for details
+     */
+    public static Function<Map<String, ?>, Map<String, Object>> filter(String[] includes, String[] excludes) {
         CharacterRunAutomaton matchAllAutomaton = new CharacterRunAutomaton(Automata.makeAnyString());
 
         CharacterRunAutomaton include;
@@ -178,10 +187,10 @@ public class XContentMapValues {
         // NOTE: We cannot use Operations.minus because of the special case that
         // we want all sub properties to match as soon as an object matches
 
-        return filter(map,
-                include, include.getInitialState(),
-                exclude, exclude.getInitialState(),
-                matchAllAutomaton);
+        return (map) -> filter(map,
+            include, include.getInitialState(),
+            exclude, exclude.getInitialState(),
+            matchAllAutomaton);
     }
 
     /** Make matches on objects also match dots in field names.

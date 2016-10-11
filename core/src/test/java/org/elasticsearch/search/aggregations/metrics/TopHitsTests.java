@@ -107,26 +107,27 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
                 excludes[i] = randomAsciiOfLengthBetween(5, 20);
             }
             switch (branch) {
-            case 0:
-                fetchSourceContext = new FetchSourceContext(randomBoolean());
-                break;
-            case 1:
-                fetchSourceContext = new FetchSourceContext(includes, excludes);
-                break;
-            case 2:
-                fetchSourceContext = new FetchSourceContext(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20));
-                break;
-            case 3:
-                fetchSourceContext = new FetchSourceContext(true, includes, excludes);
-                break;
-            case 4:
-                fetchSourceContext = new FetchSourceContext(includes);
-                break;
-            case 5:
-                fetchSourceContext = new FetchSourceContext(randomAsciiOfLengthBetween(5, 20));
-                break;
-            default:
-                throw new IllegalStateException();
+                case 0:
+                    fetchSourceContext = new FetchSourceContext(randomBoolean());
+                    break;
+                case 1:
+                    fetchSourceContext = new FetchSourceContext(true, includes, excludes);
+                    break;
+                case 2:
+                    fetchSourceContext = new FetchSourceContext(true, new String[]{randomAsciiOfLengthBetween(5, 20)},
+                        new String[]{randomAsciiOfLengthBetween(5, 20)});
+                    break;
+                case 3:
+                    fetchSourceContext = new FetchSourceContext(true, includes, excludes);
+                    break;
+                case 4:
+                    fetchSourceContext = new FetchSourceContext(true, includes, null);
+                    break;
+                case 5:
+                    fetchSourceContext = new FetchSourceContext(true, new String[] {randomAsciiOfLengthBetween(5, 20)}, null);
+                    break;
+                default:
+                    throw new IllegalStateException();
             }
             factory.fetchSource(fetchSourceContext);
         }

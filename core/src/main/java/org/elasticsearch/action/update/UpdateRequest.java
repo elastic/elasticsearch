@@ -400,7 +400,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      *            the returned _source
      */
     public UpdateRequest fetchSource(@Nullable String include, @Nullable String exclude) {
-        this.fetchSourceContext = new FetchSourceContext(include, exclude);
+        FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;
+        this.fetchSourceContext = new FetchSourceContext(context.fetchSource(), new String[] {include}, new String[]{exclude});
         return this;
     }
 
@@ -417,7 +418,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      *            filter the returned _source
      */
     public UpdateRequest fetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
-        this.fetchSourceContext = new FetchSourceContext(includes, excludes);
+        FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;
+        this.fetchSourceContext = new FetchSourceContext(context.fetchSource(), includes, excludes);
         return this;
     }
 
@@ -425,7 +427,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * Indicates whether the response should contain the updated _source.
      */
     public UpdateRequest fetchSource(boolean fetchSource) {
-        this.fetchSourceContext = new FetchSourceContext(fetchSource);
+        FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;
+        this.fetchSourceContext = new FetchSourceContext(fetchSource, context.includes(), context.excludes());
         return this;
     }
 

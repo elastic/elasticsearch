@@ -169,7 +169,7 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
                     new FixedExecutorBuilder(
                             settings,
                             InternalWatchExecutor.THREAD_POOL_NAME,
-                            5 * EsExecutors.boundedNumberOfProcessors(settings),
+                            5 * EsExecutors.numberOfProcessors(settings),
                             1000,
                             "xpack.watcher.thread_pool");
             return Collections.singletonList(builder);

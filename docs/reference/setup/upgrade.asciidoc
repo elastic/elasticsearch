@@ -1,11 +1,13 @@
 [[setup-upgrade]]
-== Upgrading
+== Upgrading Elasticsearch
 
 [IMPORTANT]
 ===========================================
 Before upgrading Elasticsearch:
 
 * Consult the <<breaking-changes,breaking changes>> docs.
+* Use the https://github.com/elastic/elasticsearch-migration/[Elasticsearch Migration Plugin]
+  to detect potential issues before upgrading.
 * Test upgrades in a dev environment before upgrading your production cluster.
 * Always <<modules-snapshots,back up your data>> before upgrading.
   You **cannot roll back** to an earlier version unless you have a backup of your data.
@@ -22,14 +24,34 @@ consult this table:
 [cols="1<m,1<m,3",options="header",]
 |=======================================================================
 |Upgrade From   |Upgrade To     |Supported Upgrade Type
+|1.x            |5.x            |<<reindex-upgrade,Reindex to upgrade>>
 |2.x            |2.y            |<<rolling-upgrades,Rolling upgrade>> (where `y > x`)
-|5.x            |5.y            |<<rolling-upgrades,Rolling upgrade>> (where `y > x`)
 |2.x            |5.x            |<<restart-upgrade,Full cluster restart>>
-|5.0.0-alpha1   |5.y            |<<restart-upgrade,Full cluster restart>>
-|5.0.0-alpha2   |5.y            |<<restart-upgrade,Full cluster restart>>
-|5.0.0-beta1    |5.y            |<<restart-upgrade,Full cluster restart>>
+|5.0.0 pre GA   |5.x            |<<restart-upgrade,Full cluster restart>>
+|5.x            |5.y            |<<rolling-upgrades,Rolling upgrade>> (where `y > x`)
 |=======================================================================
+
+[IMPORTANT]
+.Indices created in Elasticsearch 1.x or before
+===============================================
+
+Elasticsearch is able to read indices created in the *previous major version
+only*.  For instance, Elasticsearch 5.x can use indices created in
+Elasticsearch 2.x, but not those created in Elasticsearch 1.x or before.
+
+This condition also applies to indices backed up with
+<<modules-snapshots,snapshot and restore>>.  If an index was originally
+created in 1.x, it cannot be restored into a 5.x cluster even if the
+snapshot was made by a 2.x cluster.
+
+Elasticsearch 5.x nodes will fail to start in the presence of too old indices.
+
+See <<reindex-upgrade>> for more information about how to upgrade old indices.
+===============================================
+
 
 include::rolling_upgrade.asciidoc[]
 
 include::cluster_restart.asciidoc[]
+
+include::reindex_upgrade.asciidoc[]

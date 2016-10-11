@@ -101,16 +101,19 @@ public class AllocationService extends AbstractComponent {
         final RoutingTable newRoutingTable = new RoutingTable.Builder().updateNodes(oldRoutingTable.version(), newRoutingNodes).build();
         MetaData newMetaData = allocation.updateMetaDataWithRoutingChanges(newRoutingTable);
         assert newRoutingTable.validate(newMetaData); // validates the routing table is coherent with the cluster state metadata
+        final ClusterState.Builder newStateBuilder = ClusterState.builder(oldState)
+            .routingTable(newRoutingTable)
+            .metaData(newMetaData);
         final RestoreInProgress restoreInProgress = allocation.custom(RestoreInProgress.TYPE);
-        RestoreInProgress updatedRestoreInProgress = allocation.updateRestoreInfoWithRoutingChanges(restoreInProgress);
-        ImmutableOpenMap<String, ClusterState.Custom> customs = allocation.getCustoms();
-        if (updatedRestoreInProgress != null && updatedRestoreInProgress != restoreInProgress) {
-            ImmutableOpenMap.Builder<String, ClusterState.Custom> builder = ImmutableOpenMap.builder(customs);
-            builder.put(RestoreInProgress.TYPE, updatedRestoreInProgress);
-            customs = builder.build();
+        if (restoreInProgress != null) {
+            RestoreInProgress updatedRestoreInProgress = allocation.updateRestoreInfoWithRoutingChanges(restoreInProgress);
+            if (updatedRestoreInProgress != restoreInProgress) {
+                ImmutableOpenMap.Builder<String, ClusterState.Custom> customsBuilder = ImmutableOpenMap.builder(allocation.getCustoms());
+                customsBuilder.put(RestoreInProgress.TYPE, updatedRestoreInProgress);
+                newStateBuilder.customs(customsBuilder.build());
+            }
         }
-        final ClusterState newState = ClusterState.builder(oldState)
-            .routingTable(newRoutingTable).metaData(newMetaData).customs(customs).build();
+        final ClusterState newState = newStateBuilder.build();
         logClusterHealthStateChange(
             new ClusterStateHealth(oldState),
             new ClusterStateHealth(newState),

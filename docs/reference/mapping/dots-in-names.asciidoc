@@ -77,7 +77,7 @@ result in the following mapping:
 Indices created in 1.x must be reindexed in 2.4 before being upgraded to 5.x,
 regardless of whether they have fields with dots or not. Alternatively,
 indices from a 1.x cluster can be imported directly into a 5.x cluster using
-https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-reindex.html#_reindex_from_remote[reindex-from-remote].
+https://www.elastic.co/guide/en/elasticsearch/reference/5.0/reindex-upgrade.html#reindex-upgrade-remote[reindex-from-remote].
 
 Indices created in 2.4 can be upgraded to 5.x directly, as long as there are
 no conflicts (see below). If there are dots in field names, the mapping will

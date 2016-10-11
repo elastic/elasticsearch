@@ -26,7 +26,7 @@ There are two ways to migrate 1.x indices to 5.x:
 * Reindex them in an Elasticsearch 2.4.x cluster, or
 * Use reindex-from-remote to import indices from a 1.x cluster into a 5.x cluster directly.
 
-See the https://www.elastic.co/guide/en/elasticsearch/reference/reindex-upgrade.html[Reindex to Upgrade] docs in 5.0 for more information.
+See the https://www.elastic.co/guide/en/elasticsearch/reference/5.0/reindex-upgrade.html[Reindex to Upgrade] docs in 5.0 for more information.
 
 ===================================================
 

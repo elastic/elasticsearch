@@ -138,7 +138,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/indices/shadow-replicas.asciidoc',
   'reference/indices/shard-stores.asciidoc',
   'reference/indices/update-settings.asciidoc',
-  'reference/indices/upgrade.asciidoc',
   'reference/ingest/ingest-node.asciidoc',
   'reference/mapping/dynamic/templates.asciidoc',
   'reference/mapping/fields/all-field.asciidoc',

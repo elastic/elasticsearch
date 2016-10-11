@@ -122,7 +122,7 @@ public class AllocationIdTests extends ESTestCase {
         shard = shard.reinitializePrimaryShard();
         assertThat(shard.allocationId().getId(), notNullValue());
         assertThat(shard.allocationId().getRelocationId(), nullValue());
-        assertThat(shard.allocationId().getId(), not(equalTo(allocationId.getId())));
+        assertThat(shard.allocationId().getId(), equalTo(allocationId.getId()));
     }
 
     public void testSerialization() throws IOException {

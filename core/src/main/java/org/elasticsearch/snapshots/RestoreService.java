@@ -539,7 +539,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     // mark restore entry for this shard as failed when it's due to a file corruption. There is no need wait on retries
                     // to restore this shard on another node if the snapshot files are corrupt. In case where a node just left or crashed,
                     // however, we only want to acknowledge the restore operation once it has been successfully restored on another node.
-                    if (Lucene.isCorruptionException(unassignedInfo.getFailure().getCause())) {
+                    if (unassignedInfo.getFailure() != null && Lucene.isCorruptionException(unassignedInfo.getFailure().getCause())) {
                         changes(snapshot).failedShards.put(failedShard.shardId(), new ShardRestoreStatus(failedShard.currentNodeId(),
                             RestoreInProgress.State.FAILURE, unassignedInfo.getFailure().getCause().getMessage()));
                     }

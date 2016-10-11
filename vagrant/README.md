@@ -22,9 +22,15 @@ Don't feel like compiling the entire box?  No fear, there's a pre-baked box avai
 on S3.  It is ~1.1gb to download:
 
 ```bash
-# must change into the vagrant directory first so that
-# synced folders continue working
-$ cd prelert-legacy/vagrant
+# Change into some random directory to download the box.
+# Doesn't matter where this goes, but *cannot* go into prelert-legacy/vagrant
+$ cd ~/some_directory
+
+# Export the path to your prelert-legacy repo. This is so the box knows where
+# to sync the folders
+$ export PRELERT_SRC_HOME=/path/to/prelert-legacy
+
+# Download the box from S3
 $ s3cmd get s3://prelert-elastic-dump/prelert_env.box
   # ...
   # Downloading...

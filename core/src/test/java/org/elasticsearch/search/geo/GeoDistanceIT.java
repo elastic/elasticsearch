@@ -32,6 +32,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -44,10 +45,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -180,10 +178,13 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         SearchRequestBuilder search = client().prepareSearch("test");
         String name = "TestPosition";
-        search.addAggregation(AggregationBuilders.geoDistance(name, new GeoPoint(tgt_lat, tgt_lon))
-            .field("currentLocation")
+
+        search.setQuery(QueryBuilders.matchAllQuery())
+            .setTypes("type1")
+            .addAggregation(AggregationBuilders.geoDistance(name, new GeoPoint(tgt_lat, tgt_lon))
+            .field("location")
             .unit(DistanceUnit.MILES)
-            .addRange(0, 2000));
+            .addRange(0, 25000));
 
         search.setSize(0); // no hits please
 
@@ -192,5 +193,10 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertNotNull(aggregations);
         InternalGeoDistance geoDistance = aggregations.get(name);
         assertNotNull(geoDistance);
+
+        List<? extends Range.Bucket> buckets = ((Range) geoDistance).getBuckets();
+        assertNotNull("Buckets should not be null", buckets);
+        assertEquals("Unexpected number of buckets",  1, buckets.size());
+        assertEquals("Unexpected document count for geo distance", 1, buckets.get(0).getDocCount());
     }
 }

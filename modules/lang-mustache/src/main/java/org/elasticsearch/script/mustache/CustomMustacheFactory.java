@@ -39,32 +39,60 @@ import java.io.Writer;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class CustomMustacheFactory extends DefaultMustacheFactory {
 
-    private final BiConsumer<String, Writer> encoder;
+    static final String CONTENT_TYPE_PARAM = "content_type";
 
-    public CustomMustacheFactory(boolean escaping) {
+    static final String JSON_MIME_TYPE = "application/json";
+    static final String PLAIN_TEXT_MIME_TYPE = "text/plain";
+    static final String X_WWW_FORM_URLENCODED_MIME_TYPE = "application/x-www-form-urlencoded";
+
+    private static final Map<String, Supplier<Encoder>> ENCODERS;
+    static {
+        Map<String, Supplier<Encoder>> encoders = new HashMap<>();
+        encoders.put(JSON_MIME_TYPE, JsonEscapeEncoder::new);
+        encoders.put(PLAIN_TEXT_MIME_TYPE, DefaultEncoder::new);
+        encoders.put(X_WWW_FORM_URLENCODED_MIME_TYPE, UrlEncoder::new);
+        ENCODERS = Collections.unmodifiableMap(encoders);
+    }
+
+    private final Encoder encoder;
+
+    public CustomMustacheFactory(Map<String, String> params) {
         super();
         setObjectHandler(new CustomReflectionObjectHandler());
-        if (escaping) {
-            this.encoder = new JsonEscapeEncoder();
-        } else {
-            this.encoder = new NoEscapeEncoder();
-        }
+        this.encoder = createEncoder(params);
+    }
+
+    public CustomMustacheFactory() {
+        this(Collections.emptyMap());
     }
 
     @Override
     public void encode(String value, Writer writer) {
-        encoder.accept(value, writer);
+        try {
+            encoder.encode(value, writer);
+        } catch (IOException e) {
+            throw new MustacheException("Unable to encode value", e);
+        }
+    }
+
+    static Encoder createEncoder(Map<String, String> params) {
+        Supplier<Encoder> supplier = ENCODERS.get(params.getOrDefault(CONTENT_TYPE_PARAM, JSON_MIME_TYPE));
+        if (supplier == null) {
+            throw new IllegalArgumentException("No encoder found for MIME type [" + params.get(CONTENT_TYPE_PARAM) + "]");
+        }
+        return supplier.get();
     }
 
     @Override
@@ -265,9 +293,11 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
     static class UrlEncoderCode extends DefaultMustache {
 
         private static final String CODE = "url";
+        private final Encoder encoder;
 
         public UrlEncoderCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String variable) {
             super(tc, df, mustache.getCodes(), variable);
+            this.encoder = new UrlEncoder();
         }
 
         @Override
@@ -279,7 +309,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
                         String s = capture.toString();
                         if (s != null) {
-                            writer.write(URLEncoder.encode(s, StandardCharsets.UTF_8.name()));
+                            encoder.encode(s, writer);
                         }
                     } catch (IOException e) {
                         throw new MustacheException("Exception while parsing mustache function at line " + tc.line(), e);
@@ -294,27 +324,47 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
         }
     }
 
-    class NoEscapeEncoder implements BiConsumer<String, Writer> {
+    @FunctionalInterface
+    interface Encoder {
+        /**
+         * Encodes the {@code s} string and writes it to the {@code writer} {@link Writer}.
+         *
+         * @param s      The string to encode
+         * @param writer The {@link Writer} to which the encoded string will be written to
+         */
+        void encode(final String s, final Writer writer) throws IOException;
+    }
+
+    /**
+     * Encoder that simply writes the string to the writer without encoding.
+     */
+    static class DefaultEncoder implements Encoder {
 
         @Override
-        public void accept(String s, Writer writer) {
-            try {
-                writer.write(s);
-            } catch (IOException e) {
-                throw new MustacheException("Failed to encode value: " + s);
-            }
+        public void encode(String s, Writer writer) throws IOException {
+            writer.write(s);
         }
     }
 
-    class JsonEscapeEncoder implements BiConsumer<String, Writer> {
+    /**
+     * Encoder that escapes JSON string values/fields.
+     */
+    static class JsonEscapeEncoder implements Encoder {
 
         @Override
-        public void accept(String s, Writer writer) {
-            try {
-                writer.write(JsonStringEncoder.getInstance().quoteAsString(s));
-            } catch (IOException e) {
-                throw new MustacheException("Failed to escape and encode value: " + s);
-            }
+        public void encode(String s, Writer writer) throws IOException {
+            writer.write(JsonStringEncoder.getInstance().quoteAsString(s));
+        }
+    }
+
+    /**
+     * Encoder that escapes strings using HTML form encoding
+     */
+    static class UrlEncoder implements Encoder {
+
+        @Override
+        public void encode(String s, Writer writer) throws IOException {
+            writer.write(URLEncoder.encode(s, StandardCharsets.UTF_8.name()));
         }
     }
 }

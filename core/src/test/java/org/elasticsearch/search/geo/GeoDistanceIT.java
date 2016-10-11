@@ -20,9 +20,12 @@
 package org.elasticsearch.search.geo;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -32,10 +35,15 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.range.Range;
+import org.elasticsearch.search.aggregations.bucket.range.geodistance.InternalGeoDistance;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -155,5 +163,34 @@ public class GeoDistanceIT extends ESIntegTestCase {
         Double resultArcDistance6 = searchResponse6.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultArcDistance6,
                 closeTo(GeoUtils.arcDistance(src_lat, src_lon, tgt_lat, tgt_lon)/1000d, 0.01d));
+    }
+
+    public void testGeoDistanceAggregation() throws IOException {
+        client().prepareIndex("test", "type1", "1")
+            .setSource(jsonBuilder().startObject()
+                .field("name", "TestPosition")
+                .startObject("location")
+                .field("lat", src_lat)
+                .field("lon", src_lon)
+                .endObject()
+                .endObject())
+            .get();
+
+        refresh();
+
+        SearchRequestBuilder search = client().prepareSearch("test");
+        String name = "TestPosition";
+        search.addAggregation(AggregationBuilders.geoDistance(name, new GeoPoint(tgt_lat, tgt_lon))
+            .field("currentLocation")
+            .unit(DistanceUnit.MILES)
+            .addRange(0, 2000));
+
+        search.setSize(0); // no hits please
+
+        SearchResponse response = search.get();
+        Aggregations aggregations = response.getAggregations();
+        assertNotNull(aggregations);
+        InternalGeoDistance geoDistance = aggregations.get(name);
+        assertNotNull(geoDistance);
     }
 }

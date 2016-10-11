@@ -60,7 +60,8 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertThat(mgetResponse.getResponses()[1].getIndex(), is("nonExistingIndex"));
         assertThat(mgetResponse.getResponses()[1].isFailed(), is(true));
         assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), is("no such index"));
-        assertThat(((ElasticsearchException) mgetResponse.getResponses()[1].getFailure().getFailure()).getIndex().getName(), is("nonExistingIndex"));
+        assertThat(((ElasticsearchException) mgetResponse.getResponses()[1].getFailure().getFailure()).getIndex().getName(),
+            is("nonExistingIndex"));
 
 
         mgetResponse = client().prepareMultiGet()
@@ -70,7 +71,8 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertThat(mgetResponse.getResponses()[0].getIndex(), is("nonExistingIndex"));
         assertThat(mgetResponse.getResponses()[0].isFailed(), is(true));
         assertThat(mgetResponse.getResponses()[0].getFailure().getMessage(), is("no such index"));
-        assertThat(((ElasticsearchException) mgetResponse.getResponses()[0].getFailure().getFailure()).getIndex().getName(), is("nonExistingIndex"));
+        assertThat(((ElasticsearchException) mgetResponse.getResponses()[0].getFailure().getFailure()).getIndex().getName(),
+            is("nonExistingIndex"));
 
 
     }
@@ -119,9 +121,11 @@ public class SimpleMgetIT extends ESIntegTestCase {
         MultiGetRequestBuilder request = client().prepareMultiGet();
         for (int i = 0; i < 100; i++) {
             if (i % 2 == 0) {
-                request.add(new MultiGetRequest.Item(indexOrAlias(), "type", Integer.toString(i)).fetchSourceContext(new FetchSourceContext("included", "*.hidden_field")));
+                request.add(new MultiGetRequest.Item(indexOrAlias(), "type", Integer.toString(i))
+                    .fetchSourceContext(new FetchSourceContext(true, new String[] {"included"}, new String[] {"*.hidden_field"})));
             } else {
-                request.add(new MultiGetRequest.Item(indexOrAlias(), "type", Integer.toString(i)).fetchSourceContext(new FetchSourceContext(false)));
+                request.add(new MultiGetRequest.Item(indexOrAlias(), "type", Integer.toString(i))
+                    .fetchSourceContext(new FetchSourceContext(false)));
             }
         }
 

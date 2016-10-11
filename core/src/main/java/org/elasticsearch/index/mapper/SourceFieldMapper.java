@@ -45,6 +45,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 
@@ -56,6 +57,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_source";
 
     public static final String CONTENT_TYPE = "_source";
+    private final Function<Map<String, ?>, Map<String, Object>> filter;
 
     public static class Defaults {
         public static final String NAME = SourceFieldMapper.NAME;
@@ -190,6 +192,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.enabled = enabled;
         this.includes = includes;
         this.excludes = excludes;
+        final boolean filtered = (includes != null && includes.length > 0) || (excludes != null && excludes.length > 0);
+        this.filter = enabled && filtered && fieldType().stored() ? XContentMapValues.filter(includes, excludes) : null;
         this.complete = enabled && includes == null && excludes == null;
     }
 
@@ -239,12 +243,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return;
         }
 
-        boolean filtered = (includes != null && includes.length > 0) || (excludes != null && excludes.length > 0);
-        if (filtered) {
+        if (filter != null) {
             // we don't update the context source if we filter, we want to keep it as is...
-
             Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(source, true);
-            Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), includes, excludes);
+            Map<String, Object> filteredSource = filter.apply(mapTuple.v2());
             BytesStreamOutput bStream = new BytesStreamOutput();
             XContentType contentType = mapTuple.v1();
             XContentBuilder builder = XContentFactory.contentBuilder(contentType, bStream).map(filteredSource);

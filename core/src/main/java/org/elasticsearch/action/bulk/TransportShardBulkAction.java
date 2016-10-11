@@ -234,17 +234,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 BytesReference indexSourceAsBytes = indexRequest.source();
                 IndexResponse indexResponse = writeResult.getResponse();
                 UpdateResponse update = new UpdateResponse(indexResponse.getShardInfo(), indexResponse.getShardId(), indexResponse.getType(), indexResponse.getId(), indexResponse.getVersion(), indexResponse.getResult());
-                if (translate.getResponseResult() == DocWriteResponse.Result.CREATED) {
-                    if ((updateRequest.fetchSource() != null && updateRequest.fetchSource().fetchSource()) ||
-                            (updateRequest.fields() != null && updateRequest.fields().length > 0)) {
-                        Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(indexSourceAsBytes, true);
-                        update.setGetResult(updateHelper.extractGetResult(updateRequest, updateRequest.concreteIndex(), indexResponse.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
-                    } else {
-                        update.setGetResult(null);
-                    }
-                } else {
-                    assert translate.getResponseResult() == DocWriteResponse.Result.UPDATED;
-                    update.setGetResult(updateHelper.extractGetResult(updateRequest, updateRequest.concreteIndex(), indexResponse.getVersion(), translate.updatedSourceAsMap(), translate.updateSourceContentType(), indexSourceAsBytes));
+                if ((updateRequest.fetchSource() != null && updateRequest.fetchSource().fetchSource()) ||
+                        (updateRequest.fields() != null && updateRequest.fields().length > 0)) {
+                    Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(indexSourceAsBytes, true);
+                    update.setGetResult(updateHelper.extractGetResult(updateRequest, request.index(), indexResponse.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
                 }
                 // Replace the update request to the translated index request to execute on the replica.
                 request.items()[requestIndex] = new BulkItemRequest(request.items()[requestIndex].id(), indexRequest);

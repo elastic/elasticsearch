@@ -30,12 +30,15 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Context used to fetch the {@code _source}.
@@ -50,6 +53,8 @@ public class FetchSourceContext implements Writeable, ToXContent {
     private boolean fetchSource;
     private String[] includes;
     private String[] excludes;
+    private Function<Map<String, ?>, Map<String, Object>> filter;
+
 
     public static FetchSourceContext parse(XContentParser parser) throws IOException {
         FetchSourceContext fetchSourceContext = new FetchSourceContext();
@@ -264,5 +269,16 @@ public class FetchSourceContext implements Writeable, ToXContent {
         result = 31 * result + (includes != null ? Arrays.hashCode(includes) : 0);
         result = 31 * result + (excludes != null ? Arrays.hashCode(excludes) : 0);
         return result;
+    }
+
+    /**
+     * Returns a filter function that expects the source map as an input and returns
+     * the filtered map.
+     */
+    public Function<Map<String, ?>, Map<String, Object>> getFilter() {
+        if (filter == null) {
+            filter = XContentMapValues.filter(includes, excludes);
+        }
+        return filter;
     }
 }

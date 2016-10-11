@@ -306,11 +306,12 @@ public class S3Repository extends BlobStoreRepository {
 
         String basePath = getValue(metadata.settings(), settings, Repository.BASE_PATH_SETTING, Repositories.BASE_PATH_SETTING);
         if (Strings.hasLength(basePath)) {
-            BlobPath path = new BlobPath();
-            for(String elem : basePath.split("/")) {
-                path = path.add(elem);
+            if (basePath.startsWith("/")) {
+                basePath = basePath.substring(1);
+                deprecationLogger.deprecated("S3 repository base_path trimming the leading `/`, and " +
+                                                 "leading `/` will not be supported for the S3 repository in future releases");
             }
-            this.basePath = path;
+            this.basePath = new BlobPath().add(basePath);
         } else {
             this.basePath = BlobPath.cleanPath();
         }

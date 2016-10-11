@@ -417,6 +417,8 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             .build();
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(insane).get();
 
+        // calls updates settings to reset everything to default, checking that the request
+        // is not blocked by the above inflight circuit breaker
         reset();
 
         assertThat(client().admin().cluster().prepareState().get()

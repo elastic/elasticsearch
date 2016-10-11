@@ -95,7 +95,6 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
 
     @Override
     public void startedPrimaryReinitialized(ShardRouting startedPrimaryShard, ShardRouting initializedShard) {
-        removeAllocationId(startedPrimaryShard);
     }
 
     /**

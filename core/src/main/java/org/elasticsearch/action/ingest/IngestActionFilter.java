@@ -24,7 +24,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.DocumentRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -135,7 +135,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         return Integer.MAX_VALUE;
     }
 
-    static final class BulkRequestModifier implements Iterator<DocumentRequest> {
+    static final class BulkRequestModifier implements Iterator<DocWriteRequest> {
 
         final BulkRequest bulkRequest;
         final Set<Integer> failedSlots;
@@ -151,7 +151,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         }
 
         @Override
-        public DocumentRequest next() {
+        public DocWriteRequest next() {
             return bulkRequest.requests().get(++currentSlot);
         }
 
@@ -172,7 +172,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
                 int slot = 0;
                 originalSlots = new int[bulkRequest.requests().size() - failedSlots.size()];
                 for (int i = 0; i < bulkRequest.requests().size(); i++) {
-                    DocumentRequest request = bulkRequest.requests().get(i);
+                    DocWriteRequest request = bulkRequest.requests().get(i);
                     if (failedSlots.contains(i) == false) {
                         modifiedBulkRequest.add(request);
                         originalSlots[slot++] = i;

@@ -20,7 +20,7 @@ package org.elasticsearch.action.ingest;
  */
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocumentRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -116,7 +116,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         });
 
         List<BulkItemResponse> originalResponses = new ArrayList<>();
-        for (DocumentRequest actionRequest : bulkRequest.requests()) {
+        for (DocWriteRequest actionRequest : bulkRequest.requests()) {
             IndexRequest indexRequest = (IndexRequest) actionRequest;
             IndexResponse indexResponse = new IndexResponse(new ShardId("index", "_na_", 0), indexRequest.type(), indexRequest.id(), 1, true);
             originalResponses.add(new BulkItemResponse(Integer.parseInt(indexRequest.id()), indexRequest.opType(), indexResponse));

@@ -20,7 +20,7 @@
 package org.elasticsearch.action.update;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.DocumentRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
@@ -57,7 +57,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  */
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
-        implements DocumentRequest<UpdateRequest>, WriteRequest<UpdateRequest> {
+        implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest> {
     private static final DeprecationLogger DEPRECATION_LOGGER =
         new DeprecationLogger(Loggers.getLogger(UpdateRequest.class));
 

@@ -19,7 +19,7 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.DocumentRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.unit.TimeValue;
@@ -49,13 +49,13 @@ public class IndexRequestTests extends ESTestCase {
 
         IndexRequest indexRequest = new IndexRequest("");
         indexRequest.opType(create);
-        assertThat(indexRequest.opType() , equalTo(DocumentRequest.OpType.CREATE));
+        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.CREATE));
         indexRequest.opType(createUpper);
-        assertThat(indexRequest.opType() , equalTo(DocumentRequest.OpType.CREATE));
+        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.CREATE));
         indexRequest.opType(index);
-        assertThat(indexRequest.opType() , equalTo(DocumentRequest.OpType.INDEX));
+        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.INDEX));
         indexRequest.opType(indexUpper);
-        assertThat(indexRequest.opType() , equalTo(DocumentRequest.OpType.INDEX));
+        assertThat(indexRequest.opType() , equalTo(DocWriteRequest.OpType.INDEX));
     }
 
     public void testReadBogusString() {

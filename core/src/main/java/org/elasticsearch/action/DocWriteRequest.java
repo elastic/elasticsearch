@@ -33,7 +33,7 @@ import java.util.Locale;
  * Generic interface to group ActionRequest, which perform writes to a single document
  * Action requests implementing this can be part of {@link org.elasticsearch.action.bulk.BulkRequest}
  */
-public interface DocumentRequest<T> extends IndicesRequest {
+public interface DocWriteRequest<T> extends IndicesRequest {
 
     /**
      * Get the index that this request operates on
@@ -164,29 +164,29 @@ public interface DocumentRequest<T> extends IndicesRequest {
     }
 
     /** read a document write (index/delete/update) request */
-    static DocumentRequest readDocumentRequest(StreamInput in) throws IOException {
+    static DocWriteRequest readDocumentRequest(StreamInput in) throws IOException {
         byte type = in.readByte();
-        DocumentRequest documentRequest;
+        DocWriteRequest docWriteRequest;
         if (type == 0) {
             IndexRequest indexRequest = new IndexRequest();
             indexRequest.readFrom(in);
-            documentRequest = indexRequest;
+            docWriteRequest = indexRequest;
         } else if (type == 1) {
             DeleteRequest deleteRequest = new DeleteRequest();
             deleteRequest.readFrom(in);
-            documentRequest = deleteRequest;
+            docWriteRequest = deleteRequest;
         } else if (type == 2) {
             UpdateRequest updateRequest = new UpdateRequest();
             updateRequest.readFrom(in);
-            documentRequest = updateRequest;
+            docWriteRequest = updateRequest;
         } else {
             throw new IllegalStateException("invalid request type [" + type+ " ]");
         }
-        return documentRequest;
+        return docWriteRequest;
     }
 
     /** write a document write (index/delete/update) request*/
-    static void writeDocumentRequest(StreamOutput out, DocumentRequest request)  throws IOException {
+    static void writeDocumentRequest(StreamOutput out, DocWriteRequest request)  throws IOException {
         if (request instanceof IndexRequest) {
             out.writeByte((byte) 0);
             ((IndexRequest) request).writeTo(out);

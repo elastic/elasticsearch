@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -43,6 +42,7 @@ import org.elasticsearch.search.aggregations.bucket.range.geodistance.InternalGe
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.*;
@@ -69,7 +69,6 @@ public class GeoDistanceIT extends ESIntegTestCase {
     public static class CustomScriptPlugin extends MockScriptPlugin {
 
         @Override
-        @SuppressWarnings("unchecked")
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
@@ -89,15 +88,14 @@ public class GeoDistanceIT extends ESIntegTestCase {
             return scripts;
         }
 
-        @SuppressWarnings("unchecked")
         static Double distanceScript(Map<String, Object> vars, Function<ScriptDocValues.GeoPoints, Double> distance) {
             Map<?, ?> doc = (Map) vars.get("doc");
             return distance.apply((ScriptDocValues.GeoPoints) doc.get("location"));
         }
     }
 
-    public void testDistanceScript() throws Exception {
-
+    @Before
+    public void setupTestIndex() throws IOException {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
@@ -108,7 +106,9 @@ public class GeoDistanceIT extends ESIntegTestCase {
         xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
+    }
 
+    public void testDistanceScript() throws Exception {
         client().prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject()
                         .field("name", "TestPosition")
@@ -197,6 +197,6 @@ public class GeoDistanceIT extends ESIntegTestCase {
         List<? extends Range.Bucket> buckets = ((Range) geoDistance).getBuckets();
         assertNotNull("Buckets should not be null", buckets);
         assertEquals("Unexpected number of buckets",  1, buckets.size());
-        assertEquals("Unexpected document count for geo distance", 1, buckets.get(0).getDocCount());
+        assertEquals("Unexpected doc count for geo distance", 1, buckets.get(0).getDocCount());
     }
 }

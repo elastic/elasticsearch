@@ -37,13 +37,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -285,7 +278,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
                 .field("weight", 4)
                 .endObject()
                 .startObject()
-                .field("input", "suggestion4", "suggestion5", "suggestion6")
+                .array("input", "suggestion4", "suggestion5", "suggestion6")
                 .field("weight", 5)
                 .endObject()
                 .endArray()

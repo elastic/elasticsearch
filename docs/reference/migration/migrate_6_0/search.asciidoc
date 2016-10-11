@@ -1,0 +1,7 @@
+[[breaking_60_search_changes]]
+=== Search and Query DSL changes
+
+==== Changes to queries
+
+* The `collect_payloads` parameter of the `span_near` query has been removed. Payloads will be
+  loaded when needed.

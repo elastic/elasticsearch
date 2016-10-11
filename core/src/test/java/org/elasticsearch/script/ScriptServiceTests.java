@@ -429,14 +429,14 @@ public class ScriptServiceTests extends ESTestCase {
         ScriptMetaData scriptMetaData = result.getMetaData().custom(ScriptMetaData.TYPE);
         assertNotNull(scriptMetaData);
         assertEquals("abc", scriptMetaData.getScript("_lang", "_id"));
-        assertEquals(script, scriptMetaData.getScriptAsBytes("_lang", "_id"));
     }
 
     public void testDeleteScript() throws Exception {
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder()
                         .putCustom(ScriptMetaData.TYPE,
-                                new ScriptMetaData.Builder(null).storeScript("_lang", "_id", new BytesArray("abc")).build()))
+                                new ScriptMetaData.Builder(null).storeScript("_lang", "_id",
+                                    new BytesArray("{\"script\":\"abc\"}")).build()))
                 .build();
 
         DeleteStoredScriptRequest request = new DeleteStoredScriptRequest("_lang", "_id");

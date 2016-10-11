@@ -180,7 +180,7 @@ public final class TaskInfo implements Writeable, ToXContent {
         if (description != null) {
             builder.field("description", description);
         }
-        builder.dateValueField("start_time_in_millis", "start_time", startTime);
+        builder.dateField("start_time_in_millis", "start_time", startTime);
         builder.timeValueField("running_time_in_nanos", "running_time", runningTimeNanos, TimeUnit.NANOSECONDS);
         builder.field("cancellable", cancellable);
         if (parentTaskId.isSet()) {

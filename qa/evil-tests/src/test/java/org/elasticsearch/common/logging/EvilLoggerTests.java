@@ -20,7 +20,13 @@
 package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.Appender;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.appender.ConsoleAppender;
+import org.apache.logging.log4j.core.appender.CountingNoOpAppender;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +41,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.vividsolutions.jts.geom.Dimension.L;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EvilLoggerTests extends ESTestCase {
@@ -59,6 +66,13 @@ public class EvilLoggerTests extends ESTestCase {
         deprecationLogger = ESLoggerFactory.getDeprecationLogger("test");
     }
 
+    @Override
+    public void tearDown() throws Exception {
+        LoggerContext context = (LoggerContext) LogManager.getContext(false);
+        Configurator.shutdown(context);
+        super.tearDown();
+    }
+
     public void testLocationInfoTest() throws IOException {
         testLogger.error("This is an error message");
         testLogger.warn("This is a warning message");
@@ -67,14 +81,14 @@ public class EvilLoggerTests extends ESTestCase {
         testLogger.trace("This is a trace message");
         final String path = System.getProperty("es.logs") + ".log";
         final List<String> events = Files.readAllLines(PathUtils.get(path));
-        assertThat(events.size(), equalTo(6)); // the five messages me log plus a warning for unsupported configuration files
+        assertThat(events.size(), equalTo(5));
         final String location = "org.elasticsearch.common.logging.EvilLoggerTests.testLocationInfoTest";
         // the first message is a warning for unsupported configuration files
-        assertLogLine(events.get(1), Level.ERROR, location, "This is an error message");
-        assertLogLine(events.get(2), Level.WARN, location, "This is a warning message");
-        assertLogLine(events.get(3), Level.INFO, location, "This is an info message");
-        assertLogLine(events.get(4), Level.DEBUG, location, "This is a debug message");
-        assertLogLine(events.get(5), Level.TRACE, location, "This is a trace message");
+        assertLogLine(events.get(0), Level.ERROR, location, "This is an error message");
+        assertLogLine(events.get(1), Level.WARN, location, "This is a warning message");
+        assertLogLine(events.get(2), Level.INFO, location, "This is an info message");
+        assertLogLine(events.get(3), Level.DEBUG, location, "This is a debug message");
+        assertLogLine(events.get(4), Level.TRACE, location, "This is a trace message");
     }
 
     private void assertLogLine(final String logLine, final Level level, final String location, final String message) {
@@ -97,17 +111,14 @@ public class EvilLoggerTests extends ESTestCase {
             "This is a deprecation message");
     }
 
-    public void testUnsupportedLoggingConfigurationFiles() throws IOException {
-        // TODO: the warning for unsupported logging configurations can be removed in 6.0.0
-        assert Version.CURRENT.major < 6;
-        final String path = System.getProperty("es.logs") + ".log";
-        final List<String> events = Files.readAllLines(PathUtils.get(path));
-        assertThat(events.size(), equalTo(1));
-        assertLogLine(
-            events.get(0),
-            Level.WARN,
-            "org\\.elasticsearch\\.common\\.logging\\.LogConfigurator.*",
-            "ignoring unsupported logging configuration file \\[.*\\], logging is configured via \\[.*\\]");
+    public void testFindAppender() {
+        final Appender testLoggerConsoleAppender = Loggers.findAppender(testLogger, ConsoleAppender.class);
+        assertNotNull(testLoggerConsoleAppender);
+        assertThat(testLoggerConsoleAppender.getName(), equalTo("console"));
+        final Logger countingNoOpLogger = ESLoggerFactory.getLogger("counting_no_op");
+        assertNull(Loggers.findAppender(countingNoOpLogger, ConsoleAppender.class));
+        final Appender countingNoOpAppender = Loggers.findAppender(countingNoOpLogger, CountingNoOpAppender.class);
+        assertThat(countingNoOpAppender.getName(), equalTo("counting_no_op"));
     }
 
 }

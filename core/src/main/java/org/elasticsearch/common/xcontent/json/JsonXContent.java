@@ -47,30 +47,10 @@ public class JsonXContent implements XContent {
     }
 
     private static final JsonFactory jsonFactory;
-    public static final String JSON_ALLOW_UNQUOTED_FIELD_NAMES = "elasticsearch.json.allow_unquoted_field_names";
     public static final JsonXContent jsonXContent;
-    public static final boolean unquotedFieldNamesSet;
 
     static {
         jsonFactory = new JsonFactory();
-        // TODO: Remove the system property configuration for this in Elasticsearch 6.0.0
-        String jsonUnquoteProp = System.getProperty(JSON_ALLOW_UNQUOTED_FIELD_NAMES);
-        if (jsonUnquoteProp == null) {
-            unquotedFieldNamesSet = false;
-            jsonFactory.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, false);
-        } else {
-            unquotedFieldNamesSet = true;
-            switch (jsonUnquoteProp) {
-                case "true":
-                    jsonFactory.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
-                    break;
-                case "false":
-                    jsonFactory.configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, false);
-                    break;
-                default:
-                    throw new IllegalArgumentException("invalid value for [" + JSON_ALLOW_UNQUOTED_FIELD_NAMES + "]: " + jsonUnquoteProp);
-            }
-        }
         jsonFactory.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true);
         jsonFactory.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
         jsonFactory.configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...

@@ -204,6 +204,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             createdIndex = dummyIndexService.index();
 
             templateBuilder.order(request.order);
+            templateBuilder.version(request.version);
             templateBuilder.template(request.template);
             templateBuilder.settings(request.settings);
 
@@ -288,6 +289,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         final String cause;
         boolean create;
         int order;
+        Integer version;
         String template;
         Settings settings = Settings.Builder.EMPTY_SETTINGS;
         Map<String, String> mappings = new HashMap<>();
@@ -343,6 +345,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
         public PutRequest masterTimeout(TimeValue masterTimeout) {
             this.masterTimeout = masterTimeout;
+            return this;
+        }
+
+        public PutRequest version(Integer version) {
+            this.version = version;
             return this;
         }
     }

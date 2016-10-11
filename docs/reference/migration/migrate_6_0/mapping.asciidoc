@@ -1,0 +1,14 @@
+[[breaking_60_mapping_changes]]
+=== Mapping changes
+
+==== `include_in_all` default changed to false for numeric/date/ip/geo types
+
+The default unset value for numeric types for the `include_in_all` mapping
+option has been changed from true to false.
+
+This includes:
+
+- All regular numeric types such as int, long, float, scaled-float, double
+- IP addresses
+- Dates
+- Geopoints and Geoshapes

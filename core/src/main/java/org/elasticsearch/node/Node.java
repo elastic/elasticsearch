@@ -269,12 +269,6 @@ public class Node implements Closeable {
                 logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
                     environment.configFile(), Arrays.toString(environment.dataFiles()), environment.logsFile(), environment.pluginsFile());
             }
-            // TODO: Remove this in Elasticsearch 6.0.0
-            if (JsonXContent.unquotedFieldNamesSet) {
-                DeprecationLogger dLogger = new DeprecationLogger(logger);
-                dLogger.deprecated("[{}] has been set, but will be removed in Elasticsearch 6.0.0",
-                    JsonXContent.JSON_ALLOW_UNQUOTED_FIELD_NAMES);
-            }
 
             this.pluginsService = new PluginsService(tmpSettings, environment.modulesFile(), environment.pluginsFile(), classpathPlugins);
             this.settings = pluginsService.updatedSettings();
@@ -455,7 +449,7 @@ public class Node implements Closeable {
     /**
      * Start the node. If the node is already started, this method is no-op.
      */
-    public Node start() {
+    public Node start() throws NodeValidationException {
         if (!lifecycle.moveToStarted()) {
             return this;
         }
@@ -740,7 +734,9 @@ public class Node implements Closeable {
      *                              bound and publishing to
      */
     @SuppressWarnings("unused")
-    protected void validateNodeBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress) {
+    protected void validateNodeBeforeAcceptingRequests(
+        final Settings settings,
+        final BoundTransportAddress boundTransportAddress) throws NodeValidationException {
     }
 
     /** Writes a file to the logs dir containing the ports for the given transport type */

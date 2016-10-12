@@ -17,9 +17,6 @@ import org.elasticsearch.xpack.watcher.transform.search.SearchTransformFactory;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- *
- */
 public class TransformModule extends AbstractModule {
 
     private Map<String, Class<? extends TransformFactory>> factories = new HashMap<>();

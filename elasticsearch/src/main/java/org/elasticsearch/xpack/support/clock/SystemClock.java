@@ -9,9 +9,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-/**
- *
- */
 public final class SystemClock implements Clock {
 
     public static final SystemClock INSTANCE = new SystemClock();

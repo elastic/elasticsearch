@@ -23,9 +23,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.joda.time.DateTimeZone.UTC;
 
-/**
- *
- */
 public class VariablesTests extends ESTestCase {
     public void testCreateCtxModel() throws Exception {
         DateTime scheduledTime = DateTime.now(UTC);

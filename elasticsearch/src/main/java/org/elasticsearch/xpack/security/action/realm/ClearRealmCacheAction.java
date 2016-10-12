@@ -8,9 +8,6 @@ package org.elasticsearch.xpack.security.action.realm;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- *
- */
 public class ClearRealmCacheAction extends Action<ClearRealmCacheRequest, ClearRealmCacheResponse, ClearRealmCacheRequestBuilder> {
 
     public static final ClearRealmCacheAction INSTANCE = new ClearRealmCacheAction();

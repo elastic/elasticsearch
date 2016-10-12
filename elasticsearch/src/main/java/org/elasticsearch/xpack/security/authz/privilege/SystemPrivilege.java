@@ -11,9 +11,6 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.security.support.Automatons.patterns;
 
-/**
- *
- */
 public class SystemPrivilege extends Privilege<SystemPrivilege> {
 
     public static SystemPrivilege INSTANCE = new SystemPrivilege();

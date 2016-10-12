@@ -18,9 +18,6 @@ import org.joda.time.DateTime;
 
 import java.io.IOException;
 
-/**
-*
-*/
 public class WatchExecutionResult implements ToXContent {
 
     private final DateTime executionTime;

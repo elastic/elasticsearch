@@ -9,9 +9,6 @@ import com.unboundid.ldap.sdk.SearchScope;
 
 import java.util.Locale;
 
-/**
- *
- */
 public enum LdapSearchScope {
 
     BASE(SearchScope.BASE),

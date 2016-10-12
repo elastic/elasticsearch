@@ -52,8 +52,6 @@ import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequ
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 
-/**
- */
 @SuppressForbidden(reason = "benchmark")
 public class WatcherScheduleEngineBenchmark {
 

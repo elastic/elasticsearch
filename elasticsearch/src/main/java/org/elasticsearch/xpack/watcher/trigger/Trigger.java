@@ -10,9 +10,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-/**
- *
- */
 public interface Trigger extends ToXContent {
 
     String type();

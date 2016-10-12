@@ -32,9 +32,6 @@ import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
 
-/**
- *
- */
 public class Email implements ToXContent {
 
     final String id;

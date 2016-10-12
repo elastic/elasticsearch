@@ -24,9 +24,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public class HourlyScheduleTests extends ScheduleTestCase {
     public void testDefault() throws Exception {
         HourlySchedule schedule = new HourlySchedule();

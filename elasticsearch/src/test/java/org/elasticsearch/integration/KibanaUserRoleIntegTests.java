@@ -39,9 +39,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public class KibanaUserRoleIntegTests extends SecurityIntegTestCase {
 
     protected static final SecuredString USERS_PASSWD = new SecuredString("change_me".toCharArray());

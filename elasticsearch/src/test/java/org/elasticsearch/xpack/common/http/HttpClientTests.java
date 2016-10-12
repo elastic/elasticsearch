@@ -41,8 +41,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
-/**
- */
 public class HttpClientTests extends ESTestCase {
 
     private MockWebServer webServer;

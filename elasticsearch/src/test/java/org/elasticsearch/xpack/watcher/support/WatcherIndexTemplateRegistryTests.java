@@ -24,8 +24,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
 
-/**
- */
 @ESIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false,
         supportsDedicatedMasters = false, numDataNodes = 1)
 public class WatcherIndexTemplateRegistryTests extends AbstractWatcherIntegrationTestCase {

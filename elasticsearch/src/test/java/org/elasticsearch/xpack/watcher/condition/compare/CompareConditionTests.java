@@ -28,8 +28,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
 public class CompareConditionTests extends ESTestCase {
     public void testOpEvalEQ() throws Exception {
         assertThat(Op.EQ.eval(null, null), is(true));

@@ -18,8 +18,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.security.user.XPackUser;
 
-/**
- */
 public class TransportChangePasswordAction extends HandledTransportAction<ChangePasswordRequest, ChangePasswordResponse> {
 
     private final NativeUsersStore nativeUsersStore;

@@ -29,9 +29,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class AccountTests extends ESTestCase {
     static final String USERNAME = "_user";
     static final String PASSWORD = "_passwd";

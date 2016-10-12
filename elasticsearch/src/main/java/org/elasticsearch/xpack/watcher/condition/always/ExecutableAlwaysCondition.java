@@ -12,8 +12,6 @@ import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 
 import java.io.IOException;
 
-/**
- */
 public class ExecutableAlwaysCondition extends ExecutableCondition<AlwaysCondition, AlwaysCondition.Result> {
 
     public ExecutableAlwaysCondition(Logger logger) {

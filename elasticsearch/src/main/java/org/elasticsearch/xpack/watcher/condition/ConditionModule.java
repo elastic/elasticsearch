@@ -21,9 +21,6 @@ import org.elasticsearch.xpack.watcher.condition.script.ScriptConditionFactory;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- *
- */
 public class ConditionModule extends AbstractModule {
 
     private final Map<String, Class<? extends ConditionFactory>> factories = new HashMap<>();

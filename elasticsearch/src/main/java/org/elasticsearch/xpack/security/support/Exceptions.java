@@ -9,9 +9,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.XPackPlugin;
 
-/**
- *
- */
 public class Exceptions {
 
     private Exceptions() {

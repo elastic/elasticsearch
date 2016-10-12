@@ -26,8 +26,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
 
-/**
- */
 public class HttpReadTimeoutTests extends ESTestCase {
 
     private MockWebServer webServer;

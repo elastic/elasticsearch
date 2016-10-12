@@ -22,9 +22,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public class PutWatchTests extends AbstractWatcherIntegrationTestCase {
     public void testPut() throws Exception {
         ensureWatcherStarted();

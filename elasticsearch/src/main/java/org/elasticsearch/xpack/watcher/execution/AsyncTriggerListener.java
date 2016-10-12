@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 
 import static java.util.stream.StreamSupport.stream;
 
-/**
- */
 public class AsyncTriggerListener implements TriggerEngine.Listener {
 
     private final Logger logger;

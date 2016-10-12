@@ -56,9 +56,6 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 
-/**
- *
- */
 public class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener {
 
     private static final Logger logger = Loggers.getLogger(LocalExporter.class);

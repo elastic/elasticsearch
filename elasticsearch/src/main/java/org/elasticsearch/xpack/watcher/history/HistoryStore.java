@@ -28,8 +28,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.ioException;
 
-/**
- */
 public class HistoryStore extends AbstractComponent {
 
     public static final String INDEX_PREFIX = ".watcher-history-";

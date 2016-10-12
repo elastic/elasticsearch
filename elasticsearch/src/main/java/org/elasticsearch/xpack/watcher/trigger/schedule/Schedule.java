@@ -11,9 +11,6 @@ import org.elasticsearch.xpack.scheduler.SchedulerEngine;
 
 import java.io.IOException;
 
-/**
- *
- */
 public interface Schedule extends SchedulerEngine.Schedule, ToXContent {
 
     String type();

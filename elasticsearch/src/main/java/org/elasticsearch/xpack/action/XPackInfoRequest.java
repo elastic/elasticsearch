@@ -14,9 +14,6 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Locale;
 
-/**
- *
- */
 public class XPackInfoRequest extends ActionRequest<XPackInfoRequest> {
 
     public enum Category {

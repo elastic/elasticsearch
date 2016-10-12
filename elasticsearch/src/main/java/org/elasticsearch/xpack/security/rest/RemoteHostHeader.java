@@ -11,9 +11,6 @@ import org.elasticsearch.rest.RestRequest;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 
-/**
- *
- */
 public class RemoteHostHeader {
 
     static final String KEY = "_rest_remote_address";

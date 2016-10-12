@@ -19,9 +19,6 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.util.Map;
 
-/**
- *
- */
 public class ExecutableHipChatAction extends ExecutableAction<HipChatAction> {
 
     private final TextTemplateEngine templateEngine;

@@ -12,9 +12,6 @@ import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.xpack.ssl.SSLService;
 
-/**
- *
- */
 public class ActiveDirectoryRealm extends AbstractLdapRealm {
 
     public static final String TYPE = "active_directory";

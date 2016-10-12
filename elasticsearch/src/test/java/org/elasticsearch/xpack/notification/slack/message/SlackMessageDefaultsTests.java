@@ -10,9 +10,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class SlackMessageDefaultsTests extends ESTestCase {
     public void testConstructor() throws Exception {
         Settings settings = randomSettings();

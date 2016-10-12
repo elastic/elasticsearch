@@ -18,9 +18,6 @@ import org.elasticsearch.xpack.notification.slack.SlackService;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class SlackActionFactory extends ActionFactory<SlackAction, ExecutableSlackAction> {
     private final TextTemplateEngine templateEngine;
     private final SlackService slackService;

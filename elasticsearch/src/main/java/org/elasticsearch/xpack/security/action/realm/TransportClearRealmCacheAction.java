@@ -21,9 +21,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
-/**
- *
- */
 public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRealmCacheRequest, ClearRealmCacheResponse,
         ClearRealmCacheRequest.Node, ClearRealmCacheResponse.Node> {
 

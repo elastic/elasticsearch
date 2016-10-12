@@ -13,9 +13,6 @@ import org.elasticsearch.xpack.common.http.HttpClient;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- *
- */
 public class PagerDutyAccounts {
 
     private final Map<String, PagerDutyAccount> accounts;

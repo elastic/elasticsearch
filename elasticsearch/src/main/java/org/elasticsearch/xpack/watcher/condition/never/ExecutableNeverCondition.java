@@ -12,8 +12,6 @@ import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 
 import java.io.IOException;
 
-/**
- */
 public class ExecutableNeverCondition extends ExecutableCondition<NeverCondition, NeverCondition.Result> {
 
     public ExecutableNeverCondition(Logger logger) {

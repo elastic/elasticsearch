@@ -14,9 +14,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public class AccountsTests extends ESTestCase {
     public void testSingleAccount() throws Exception {
         Settings.Builder builder = Settings.builder()

@@ -27,9 +27,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 public class SecurityRestFilterTests extends ESTestCase {
     private AuthenticationService authcService;
     private RestChannel channel;

@@ -22,9 +22,6 @@ import java.util.List;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.watcher.transform.chain.ChainTransform.TYPE;
 
-/**
- *
- */
 public class ExecutableChainTransform extends ExecutableTransform<ChainTransform, ChainTransform.Result> {
 
     private final List<ExecutableTransform> transforms;

@@ -16,9 +16,6 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
-/**
- *
- */
 public abstract class Privilege<P extends Privilege<P>> {
 
     protected final Name name;

@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authz.privilege;
 
-/**
- *
- */
 public class HealthAndStatsPrivilege extends GeneralPrivilege {
 
     public static final HealthAndStatsPrivilege INSTANCE = new HealthAndStatsPrivilege();

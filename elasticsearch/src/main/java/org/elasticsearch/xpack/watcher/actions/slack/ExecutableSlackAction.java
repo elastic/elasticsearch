@@ -19,9 +19,6 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.util.Map;
 
-/**
- *
- */
 public class ExecutableSlackAction extends ExecutableAction<SlackAction> {
 
     private final TextTemplateEngine templateEngine;

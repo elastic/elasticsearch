@@ -26,8 +26,6 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-/**
- */
 public class RestChangePasswordAction extends BaseRestHandler {
 
     private final SecurityContext securityContext;

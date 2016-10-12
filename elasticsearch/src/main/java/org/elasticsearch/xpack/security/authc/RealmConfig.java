@@ -10,9 +10,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
-/**
- *
- */
 public class RealmConfig {
 
     final String name;

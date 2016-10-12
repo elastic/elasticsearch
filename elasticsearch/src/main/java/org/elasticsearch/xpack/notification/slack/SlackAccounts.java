@@ -13,9 +13,6 @@ import org.elasticsearch.xpack.common.http.HttpClient;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- *
- */
 public class SlackAccounts {
 
     private final Map<String, SlackAccount> accounts;

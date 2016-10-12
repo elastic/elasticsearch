@@ -11,9 +11,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.support.clock.Clock;
 
-/**
- *
- */
 public class ActionThrottler implements Throttler {
 
     private static final AckThrottler ACK_THROTTLER = new AckThrottler();

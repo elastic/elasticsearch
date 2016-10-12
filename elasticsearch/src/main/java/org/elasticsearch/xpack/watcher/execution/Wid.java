@@ -11,9 +11,6 @@ import org.joda.time.format.ISODateTimeFormat;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 
-/**
- *
- */
 public class Wid {
 
     private static final DateTimeFormatter formatter = ISODateTimeFormat.dateTime();

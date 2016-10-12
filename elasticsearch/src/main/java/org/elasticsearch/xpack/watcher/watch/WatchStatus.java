@@ -35,9 +35,6 @@ import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.readO
 import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.writeDate;
 import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.writeOptionalDate;
 
-/**
- *
- */
 public class WatchStatus implements ToXContent, Streamable {
 
     public static final String INCLUDE_VERSION_KEY = "include_version";

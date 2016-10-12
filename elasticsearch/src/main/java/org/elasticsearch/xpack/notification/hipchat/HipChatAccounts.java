@@ -14,9 +14,6 @@ import org.elasticsearch.xpack.notification.hipchat.HipChatAccount.Profile;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- *
- */
 public class HipChatAccounts {
 
     private final Map<String, HipChatAccount> accounts;

@@ -9,9 +9,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-/**
- *
- */
 public abstract class HttpAuthFactory<Auth extends HttpAuth, AAuth extends ApplicableHttpAuth<Auth>> {
 
     public abstract String type();

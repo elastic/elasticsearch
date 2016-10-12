@@ -22,9 +22,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
-/**
- *
- */
 public class SchedulerEngine {
 
     public static class Job {

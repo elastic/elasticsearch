@@ -19,9 +19,6 @@ import static dk.brics.automaton.BasicOperations.minus;
 import static dk.brics.automaton.BasicOperations.union;
 import static dk.brics.automaton.MinimizationOperations.minimize;
 
-/**
- *
- */
 public final class Automatons {
 
     public static final Automaton EMPTY = BasicAutomata.makeEmpty();

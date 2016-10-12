@@ -13,9 +13,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- *
- */
 public class CronSchedule extends CronnableSchedule {
 
     public static final String TYPE = "cron";

@@ -20,9 +20,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 
-/**
- *
- */
 public enum DataAttachment implements ToXContent {
 
     YAML() {

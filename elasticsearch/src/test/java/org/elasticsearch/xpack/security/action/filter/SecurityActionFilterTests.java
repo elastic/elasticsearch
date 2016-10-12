@@ -42,9 +42,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 public class SecurityActionFilterTests extends ESTestCase {
     private AuthenticationService authcService;
     private AuthorizationService authzService;

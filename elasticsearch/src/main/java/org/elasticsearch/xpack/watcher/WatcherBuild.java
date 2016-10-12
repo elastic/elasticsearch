@@ -14,8 +14,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
 
-/**
- */
 public class WatcherBuild {
 
     public static final WatcherBuild CURRENT;

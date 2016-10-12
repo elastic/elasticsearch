@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.security.action.user;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class ChangePasswordAction extends Action<ChangePasswordRequest, ChangePasswordResponse, ChangePasswordRequestBuilder> {
 
     public static final ChangePasswordAction INSTANCE = new ChangePasswordAction();

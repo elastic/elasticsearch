@@ -19,9 +19,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-/**
- *
- */
 public class ChainTransform implements Transform {
 
     public static final String TYPE = "chain";

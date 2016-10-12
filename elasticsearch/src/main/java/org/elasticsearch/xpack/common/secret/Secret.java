@@ -12,9 +12,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 
-/**
- *
- */
 public class Secret implements ToXContent {
 
     protected final char[] text;

@@ -21,9 +21,6 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 
-/**
- *
- */
 public class HourlySchedule extends CronnableSchedule {
 
     public static final String TYPE = "hourly";

@@ -18,9 +18,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
-/**
- *
- */
 public class TransportClearRolesCacheAction extends TransportNodesAction<ClearRolesCacheRequest, ClearRolesCacheResponse,
         ClearRolesCacheRequest.Node, ClearRolesCacheResponse.Node> {
 

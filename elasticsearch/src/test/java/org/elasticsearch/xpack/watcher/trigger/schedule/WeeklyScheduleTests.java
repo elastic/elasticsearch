@@ -26,9 +26,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public class WeeklyScheduleTests extends ScheduleTestCase {
     public void testDefault() throws Exception {
         WeeklySchedule schedule = new WeeklySchedule();

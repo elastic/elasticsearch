@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.watcher.execution;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 
-/**
- */
 public class ExecutionModule extends AbstractModule {
 
     private final Class<? extends WatchExecutor> executorClass;

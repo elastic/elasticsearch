@@ -17,9 +17,6 @@ import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentsPar
 
 import java.io.IOException;
 
-/**
- *
- */
 public class EmailActionFactory extends ActionFactory<EmailAction, ExecutableEmailAction> {
 
     private final EmailService emailService;

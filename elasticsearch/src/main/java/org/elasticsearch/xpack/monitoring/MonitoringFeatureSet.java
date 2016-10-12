@@ -21,9 +21,6 @@ import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 
-/**
- *
- */
 public class MonitoringFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;

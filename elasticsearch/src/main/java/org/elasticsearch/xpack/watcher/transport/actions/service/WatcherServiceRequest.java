@@ -14,8 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Locale;
 
-/**
- */
 public class WatcherServiceRequest extends MasterNodeRequest<WatcherServiceRequest> {
 
     enum Command { START, STOP, RESTART }

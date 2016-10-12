@@ -21,8 +21,6 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends SecurityIntegTestCase {
 
     protected static final SecuredString USERS_PASSWD = new SecuredString("change_me".toCharArray());

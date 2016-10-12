@@ -27,9 +27,6 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interva
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.monthly;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.weekly;
 
-/**
- *
- */
 public abstract class ScheduleTestCase extends ESTestCase {
 
     protected static String[] expressions(CronnableSchedule schedule) {

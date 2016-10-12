@@ -8,9 +8,6 @@ package org.elasticsearch.xpack.action;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- *
- */
 public class XPackUsageAction extends Action<XPackUsageRequest, XPackUsageResponse, XPackUsageRequestBuilder> {
 
     public static final String NAME = "cluster:monitor/xpack/usage";

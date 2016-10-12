@@ -17,9 +17,6 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- *
- */
 public class ScheduleModule extends AbstractModule {
 
     private final Map<String, Class<? extends Schedule.Parser>> parsers = new HashMap<>();

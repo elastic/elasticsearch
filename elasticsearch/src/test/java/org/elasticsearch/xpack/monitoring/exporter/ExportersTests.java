@@ -51,9 +51,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 public class ExportersTests extends ESTestCase {
     private Exporters exporters;
     private Map<String, Exporter.Factory> factories;

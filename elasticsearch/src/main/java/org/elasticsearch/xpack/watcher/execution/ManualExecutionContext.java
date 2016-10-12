@@ -20,8 +20,6 @@ import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
 
-/**
- */
 public class ManualExecutionContext extends WatchExecutionContext {
 
     private final Map<String, ActionExecutionMode> actionModes;

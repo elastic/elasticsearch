@@ -8,9 +8,6 @@ package org.elasticsearch.xpack.watcher.support;
 import java.lang.reflect.Array;
 import java.util.Iterator;
 
-/**
- *
- */
 public class ArrayObjectIterator implements Iterator<Object> {
 
     private final Object array;

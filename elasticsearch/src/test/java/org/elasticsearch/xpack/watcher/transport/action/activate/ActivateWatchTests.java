@@ -37,8 +37,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
 public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
     @Override
     protected boolean timeWarped() {

@@ -12,9 +12,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequest> {
 
     String[] realms;

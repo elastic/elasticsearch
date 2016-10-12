@@ -13,9 +13,6 @@ import org.elasticsearch.xpack.security.crypto.CryptoService;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class BasicAuthFactory extends HttpAuthFactory<BasicAuth, ApplicableBasicAuth> {
 
     private final CryptoService cryptoService;

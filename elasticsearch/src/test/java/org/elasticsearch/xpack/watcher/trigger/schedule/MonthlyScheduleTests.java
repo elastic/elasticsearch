@@ -21,9 +21,6 @@ import static org.hamcrest.Matchers.hasItemInArray;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public class MonthlyScheduleTests extends ScheduleTestCase {
     public void testDefault() throws Exception {
         MonthlySchedule schedule = new MonthlySchedule();

@@ -24,9 +24,6 @@ import java.security.PrivilegedAction;
 import java.util.Map;
 import java.util.Properties;
 
-/**
- *
- */
 public class Account {
 
     static final String SMTP_PROTOCOL = "smtp";

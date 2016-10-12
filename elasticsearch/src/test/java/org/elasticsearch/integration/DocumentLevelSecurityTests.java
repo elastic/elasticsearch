@@ -46,8 +46,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-/**
- */
 public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     protected static final SecuredString USERS_PASSWD = new SecuredString("change_me".toCharArray());

@@ -15,9 +15,6 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 import java.io.IOException;
 import java.util.Locale;
 
-/**
- *
- */
 public interface Transform extends ToXContent {
 
     String type();

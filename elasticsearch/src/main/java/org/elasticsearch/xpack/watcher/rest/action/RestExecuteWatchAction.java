@@ -35,8 +35,6 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction.Field.IGNORE_CONDITION;
 import static org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction.Field.RECORD_EXECUTION;
 
-/**
- */
 public class RestExecuteWatchAction extends WatcherRestHandler {
 
     final TriggerService triggerService;

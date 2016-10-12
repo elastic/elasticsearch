@@ -32,9 +32,6 @@ import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestCase {
     @Override
     protected boolean timeWarped() {

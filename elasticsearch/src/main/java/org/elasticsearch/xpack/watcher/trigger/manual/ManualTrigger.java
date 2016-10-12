@@ -12,8 +12,6 @@ import org.elasticsearch.xpack.watcher.trigger.Trigger;
 
 import java.io.IOException;
 
-/**
- */
 public class ManualTrigger implements Trigger {
 
     @Override

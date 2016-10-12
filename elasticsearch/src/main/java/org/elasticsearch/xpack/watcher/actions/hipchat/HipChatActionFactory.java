@@ -17,9 +17,6 @@ import org.elasticsearch.xpack.notification.hipchat.HipChatService;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class HipChatActionFactory extends ActionFactory<HipChatAction, ExecutableHipChatAction> {
 
     private final TextTemplateEngine templateEngine;

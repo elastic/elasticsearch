@@ -41,9 +41,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 public class IPFilterTests extends ESTestCase {
     private IPFilter ipFilter;
     private XPackLicenseState licenseState;

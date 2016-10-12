@@ -9,9 +9,6 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 
 import java.util.regex.Pattern;
 
-/**
- *
- */
 public class Validation {
 
     private static final Pattern NO_WS_PATTERN = Pattern.compile("\\S+");

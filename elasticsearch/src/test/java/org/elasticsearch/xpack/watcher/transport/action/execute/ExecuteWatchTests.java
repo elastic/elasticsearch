@@ -42,9 +42,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
     public void testExecuteInvalidWatchId() throws Exception {
         DateTime now = DateTime.now(DateTimeZone.UTC);

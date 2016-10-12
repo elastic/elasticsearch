@@ -7,8 +7,6 @@ package org.elasticsearch.xpack.watcher.execution;
 
 import java.util.Locale;
 
-/**
- */
 public enum ExecutionPhase {
 
     AWAITS_EXECUTION(false),

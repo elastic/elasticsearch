@@ -8,9 +8,6 @@ package org.elasticsearch.xpack.watcher.trigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 
-/**
- *
- */
 public final class TriggerBuilders {
 
     private TriggerBuilders() {

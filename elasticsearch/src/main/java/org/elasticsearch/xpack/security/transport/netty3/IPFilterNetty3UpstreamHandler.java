@@ -13,9 +13,6 @@ import org.jboss.netty.handler.ipfilter.IpFilteringHandlerImpl;
 
 import java.net.InetSocketAddress;
 
-/**
- *
- */
 @ChannelHandler.Sharable
 public class IPFilterNetty3UpstreamHandler extends IpFilteringHandlerImpl {
 

@@ -18,8 +18,6 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.util.Map;
 
-/**
- */
 public class ExecutableWebhookAction extends ExecutableAction<WebhookAction> {
 
     private final HttpClient httpClient;

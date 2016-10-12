@@ -21,9 +21,6 @@ import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 public class WatchExecutionContextMockBuilder {
 
     private final WatchExecutionContext ctx;

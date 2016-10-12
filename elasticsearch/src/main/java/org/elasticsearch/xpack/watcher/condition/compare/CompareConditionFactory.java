@@ -14,9 +14,6 @@ import org.elasticsearch.xpack.support.clock.Clock;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class CompareConditionFactory extends ConditionFactory<CompareCondition, CompareCondition.Result, ExecutableCompareCondition> {
 
     private final Clock clock;

@@ -25,9 +25,6 @@ import java.util.Set;
 
 import static java.util.Collections.unmodifiableSet;
 
-/**
- *
- */
 public class HttpInput implements Input {
 
     public static final String TYPE = "http";

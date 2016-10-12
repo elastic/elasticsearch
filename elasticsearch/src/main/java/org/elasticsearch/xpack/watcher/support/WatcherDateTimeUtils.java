@@ -23,9 +23,6 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-/**
- *
- */
 public class WatcherDateTimeUtils {
 
     public static final FormatDateTimeFormatter dateTimeFormatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;

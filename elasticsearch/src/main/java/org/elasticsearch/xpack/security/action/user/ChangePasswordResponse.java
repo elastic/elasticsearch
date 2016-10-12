@@ -7,8 +7,6 @@ package org.elasticsearch.xpack.security.action.user;
 
 import org.elasticsearch.action.ActionResponse;
 
-/**
- */
 public class ChangePasswordResponse extends ActionResponse {
 
     public ChangePasswordResponse() {}

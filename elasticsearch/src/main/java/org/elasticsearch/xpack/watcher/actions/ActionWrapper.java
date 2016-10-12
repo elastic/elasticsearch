@@ -35,9 +35,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
-/**
- *
- */
 public class ActionWrapper implements ToXContent {
 
     private String id;

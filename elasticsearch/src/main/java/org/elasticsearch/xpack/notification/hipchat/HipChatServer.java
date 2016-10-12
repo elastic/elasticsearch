@@ -8,9 +8,6 @@ package org.elasticsearch.xpack.notification.hipchat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 
-/**
- *
- */
 public class HipChatServer {
 
     public static final String HOST_SETTING = "host";

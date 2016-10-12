@@ -13,9 +13,6 @@ import org.elasticsearch.transport.TransportMessage;
 
 import java.net.InetAddress;
 
-/**
- *
- */
 public interface AuditTrail {
 
     String name();

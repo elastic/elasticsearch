@@ -17,9 +17,6 @@ import static org.hamcrest.Matchers.hasItemInArray;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class CronScheduleTests extends ScheduleTestCase {
     public void testInvalid() throws Exception {
         try {

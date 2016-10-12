@@ -14,9 +14,6 @@ import org.elasticsearch.xpack.security.authc.support.RefreshListener;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.user.User;
 
-/**
- *
- */
 public class FileRealm extends CachingUsernamePasswordRealm {
 
     public static final String TYPE = "file";

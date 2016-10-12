@@ -12,8 +12,6 @@ import org.elasticsearch.xpack.security.user.User;
 
 import java.io.IOException;
 
-/**
- */
 public class AuthenticateResponse extends ActionResponse {
 
     private User user;

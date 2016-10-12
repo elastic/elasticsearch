@@ -14,9 +14,6 @@ import static org.elasticsearch.xpack.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.security.support.Automatons.wildcard;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class AutomatonsTests extends ESTestCase {
     public void testPatternsUnionOfMultiplePatterns() throws Exception {
         assertMatch(patterns("/fo.*/", "ba*"), "foo");

@@ -15,9 +15,6 @@ import javax.mail.internet.MimeBodyPart;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
-/**
- *
- */
 public abstract class BodyPartSource implements ToXContent {
 
     protected static FileTypeMap fileTypeMap;

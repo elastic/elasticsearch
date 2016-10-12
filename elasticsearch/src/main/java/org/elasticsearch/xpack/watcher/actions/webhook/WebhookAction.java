@@ -16,9 +16,6 @@ import org.elasticsearch.xpack.common.http.HttpResponse;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class WebhookAction implements Action {
 
     public static final String TYPE = "webhook";

@@ -13,9 +13,6 @@ import org.elasticsearch.xpack.security.support.Automatons;
 
 import java.util.function.Predicate;
 
-/**
- *
- */
 public final class AuthorizationUtils {
 
     private static final Predicate<String> INTERNAL_PREDICATE = new AutomatonPredicate(Automatons.patterns("internal:*"));

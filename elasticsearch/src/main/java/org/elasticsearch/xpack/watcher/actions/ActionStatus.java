@@ -24,9 +24,6 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.dateTimeFormatter;
 
-/**
- *
- */
 public class ActionStatus implements ToXContent {
 
     private AckStatus ackStatus;

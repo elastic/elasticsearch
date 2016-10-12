@@ -31,9 +31,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public class HttpResponseTests extends ESTestCase {
 
     public void testParseSelfGenerated() throws Exception {

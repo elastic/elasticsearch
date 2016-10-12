@@ -26,9 +26,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 public class AuditTrailServiceTests extends ESTestCase {
     private List<AuditTrail> auditTrails;
     private AuditTrailService service;

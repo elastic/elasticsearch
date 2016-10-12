@@ -26,8 +26,6 @@ import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
 
-/**
- */
 public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequest, PutWatchResponse> {
 
     private final WatcherService watcherService;

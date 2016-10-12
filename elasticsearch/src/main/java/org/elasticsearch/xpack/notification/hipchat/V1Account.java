@@ -25,9 +25,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class V1Account extends HipChatAccount {
 
     public static final String TYPE = "v1";

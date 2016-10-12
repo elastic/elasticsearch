@@ -11,9 +11,6 @@ import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
-/**
- *
- */
 public class ExecutableNoneInput extends ExecutableInput<NoneInput, NoneInput.Result> {
 
     public ExecutableNoneInput(Logger logger) {

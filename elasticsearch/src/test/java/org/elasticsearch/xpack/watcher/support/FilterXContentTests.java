@@ -26,8 +26,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
-/**
- */
 public class FilterXContentTests extends ESTestCase {
     public void testPayloadFiltering() throws Exception {
         Map<String, Object> data = new HashMap<>();

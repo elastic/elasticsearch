@@ -18,9 +18,6 @@ import java.util.function.Predicate;
 import static org.elasticsearch.xpack.security.support.Automatons.minusAndDeterminize;
 import static org.elasticsearch.xpack.security.support.Automatons.patterns;
 
-/**
- *
- */
 public class ClusterPrivilege extends AbstractAutomatonPrivilege<ClusterPrivilege> {
 
     // shared automatons

@@ -62,9 +62,6 @@ import java.util.function.Predicate;
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.support.Exceptions.authorizationError;
 
-/**
- *
- */
 public class AuthorizationService extends AbstractComponent {
 
     public static final Setting<Boolean> ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING =

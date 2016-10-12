@@ -22,9 +22,6 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 public class PeriodThrottlerTests extends ESTestCase {
     public void testBelowPeriodSuccessful() throws Exception {
         PeriodType periodType = randomFrom(PeriodType.millis(), PeriodType.seconds(), PeriodType.minutes());

@@ -30,9 +30,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class IntegrationAccount extends HipChatAccount {
 
     public static final String TYPE = "integration";

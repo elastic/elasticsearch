@@ -17,9 +17,6 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.util.Map;
 
-/**
- *
- */
 public class ExecutableLoggingAction extends ExecutableAction<LoggingAction> {
 
     private final Logger textLogger;

@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.watcher.transport.actions.service;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 
 public class WatcherServiceAction extends Action<WatcherServiceRequest, WatcherServiceResponse, WatcherServiceRequestBuilder> {
 

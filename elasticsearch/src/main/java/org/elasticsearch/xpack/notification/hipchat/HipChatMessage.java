@@ -433,9 +433,6 @@ public class HipChatMessage implements ToXContent {
         }
     }
 
-    /**
-     *
-     */
     public enum Format implements ToXContent {
 
         TEXT,

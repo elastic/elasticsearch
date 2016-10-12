@@ -22,9 +22,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 
-/**
- *
- */
 public class TriggerService extends AbstractComponent {
 
     private final Listeners listeners;

@@ -16,9 +16,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- *
- */
 public class WeeklySchedule extends CronnableSchedule {
 
     public static final String TYPE = "weekly";

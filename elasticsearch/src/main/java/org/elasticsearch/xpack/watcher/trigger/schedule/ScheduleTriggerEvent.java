@@ -18,9 +18,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class ScheduleTriggerEvent extends TriggerEvent {
 
     private final DateTime scheduledTime;

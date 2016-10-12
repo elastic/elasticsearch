@@ -11,9 +11,6 @@ import org.elasticsearch.xpack.security.authz.privilege.GeneralPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.Privilege.Name;
 import org.elasticsearch.xpack.security.support.MetadataUtils;
 
-/**
- *
- */
 public class SuperuserRole extends Role {
 
     public static final String NAME = "superuser";

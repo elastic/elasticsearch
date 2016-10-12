@@ -13,9 +13,6 @@ import org.elasticsearch.xpack.watcher.condition.ConditionFactory;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class NeverConditionFactory extends ConditionFactory<NeverCondition, NeverCondition.Result, ExecutableNeverCondition> {
 
     private final ExecutableNeverCondition condition;

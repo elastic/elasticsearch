@@ -17,9 +17,6 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- *
- */
 public class CompareCondition implements Condition {
 
     public static final String TYPE = "compare";

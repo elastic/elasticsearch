@@ -61,8 +61,8 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
@@ -84,6 +84,7 @@ import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -388,7 +389,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         } catch (FileNotFoundException | NoSuchFileException ex) {
             logger.info("Failed to open / find files while reading metadata snapshot");
         } catch (ShardLockObtainFailedException ex) {
-            logger.info("{}: failed to obtain shard lock", ex, shardId);
+            logger.info((Supplier<?>) () -> new ParameterizedMessage("{}: failed to obtain shard lock", shardId), ex);
         }
         return MetadataSnapshot.EMPTY;
     }
@@ -420,7 +421,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             SegmentInfos segInfo = Lucene.readSegmentInfos(dir);
             logger.trace("{} loaded segment info [{}]", shardId, segInfo);
         } catch (ShardLockObtainFailedException ex) {
-            logger.error("{} unable to acquire shard lock", ex, shardId);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("{} unable to acquire shard lock", shardId), ex);
             throw new IOException(ex);
         }
     }
@@ -1373,8 +1374,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             for (String file : files) {
                 try {
                     estimatedSize += directory.fileLength(file);
-                } catch (NoSuchFileException | FileNotFoundException e) {
-                    // ignore, the file is not there no more
+                } catch (NoSuchFileException | FileNotFoundException | AccessDeniedException e) {
+                    // ignore, the file is not there no more; on Windows, if one thread concurrently deletes a file while
+                    // calling Files.size, you can also sometimes hit AccessDeniedException
                 }
             }
             return estimatedSize;

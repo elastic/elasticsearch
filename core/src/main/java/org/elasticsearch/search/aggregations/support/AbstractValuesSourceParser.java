@@ -32,9 +32,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- *
- */
 public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
         implements Aggregator.Parser {
     static final ParseField TIME_ZONE = new ParseField("time_zone");

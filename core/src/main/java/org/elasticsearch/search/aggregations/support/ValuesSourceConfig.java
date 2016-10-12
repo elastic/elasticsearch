@@ -22,9 +22,6 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
 
-/**
- *
- */
 public class ValuesSourceConfig<VS extends ValuesSource> {
 
     private final ValuesSourceType valueSourceType;

@@ -32,8 +32,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- */
 public class SearchStats implements Streamable, ToXContent {
 
     public static class Stats implements Streamable, ToXContent {

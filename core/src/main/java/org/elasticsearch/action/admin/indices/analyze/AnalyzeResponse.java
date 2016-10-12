@@ -32,9 +32,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeResponse.AnalyzeToken>, ToXContent {
 
     public static class AnalyzeToken implements Streamable, ToXContent {

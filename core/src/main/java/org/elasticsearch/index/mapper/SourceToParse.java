@@ -25,9 +25,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 
-/**
- *
- */
 public class SourceToParse {
 
     public static SourceToParse source(String index, String type, String id, BytesReference source) {

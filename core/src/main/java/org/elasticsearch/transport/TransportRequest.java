@@ -26,8 +26,6 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 
-/**
- */
 public abstract class TransportRequest extends TransportMessage {
     public static class Empty extends TransportRequest {
         public static final Empty INSTANCE = new Empty();

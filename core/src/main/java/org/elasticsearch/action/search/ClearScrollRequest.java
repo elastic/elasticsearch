@@ -31,8 +31,6 @@ import java.util.List;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-/**
- */
 public class ClearScrollRequest extends ActionRequest<ClearScrollRequest> {
 
     private List<String> scrollIds;

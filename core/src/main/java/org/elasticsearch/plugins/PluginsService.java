@@ -66,9 +66,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
-/**
- *
- */
 public class PluginsService extends AbstractComponent {
 
     /**
@@ -245,7 +242,7 @@ public class PluginsService extends AbstractComponent {
                         try {
                             reference.onModuleMethod.invoke(plugin.v2(), module);
                         } catch (IllegalAccessException | InvocationTargetException e) {
-                            logger.warn("plugin {}, failed to invoke custom onModule method", e, plugin.v1().getName());
+                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("plugin {}, failed to invoke custom onModule method", plugin.v1().getName()), e);
                             throw new ElasticsearchException("failed to invoke onModule", e);
                         } catch (Exception e) {
                             logger.warn((Supplier<?>) () -> new ParameterizedMessage("plugin {}, failed to invoke custom onModule method", plugin.v1().getName()), e);

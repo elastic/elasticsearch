@@ -26,9 +26,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class InvalidAliasNameException extends ElasticsearchException {
 
     public InvalidAliasNameException(Index index, String name, String desc) {

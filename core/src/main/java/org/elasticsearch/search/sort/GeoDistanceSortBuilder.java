@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -46,6 +47,7 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointDVIndexFieldData.LatLonPointDVIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -243,7 +245,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     /**
-     * The distance unit to use. Defaults to {@link org.elasticsearch.common.unit.DistanceUnit#KILOMETERS}
+     * The distance unit to use. Defaults to {@link org.elasticsearch.common.unit.DistanceUnit#METERS}
      */
     public GeoDistanceSortBuilder unit(DistanceUnit unit) {
         this.unit = unit;
@@ -251,7 +253,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     /**
-     * Returns the distance unit to use. Defaults to {@link org.elasticsearch.common.unit.DistanceUnit#KILOMETERS}
+     * Returns the distance unit to use. Defaults to {@link org.elasticsearch.common.unit.DistanceUnit#METERS}
      */
     public DistanceUnit unit() {
         return this.unit;
@@ -550,12 +552,23 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             throw new IllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
         }
         final IndexGeoPointFieldData geoIndexFieldData = context.getForField(fieldType);
-        final FixedSourceDistance[] distances = new FixedSourceDistance[localPoints.size()];
-        for (int i = 0; i< localPoints.size(); i++) {
-            distances[i] = geoDistance.fixedSourceDistance(localPoints.get(i).lat(), localPoints.get(i).lon(), unit);
+        final Nested nested = resolveNested(context, nestedPath, nestedFilter);
+
+        if (geoIndexFieldData.getClass() == LatLonPointDVIndexFieldData.class // only works with 5.x geo_point
+                && nested == null
+                && finalSortMode == MultiValueMode.MIN // LatLonDocValuesField internally picks the closest point
+                && unit == DistanceUnit.METERS
+                && reverse == false
+                && localPoints.size() == 1) {
+            return new SortFieldAndFormat(
+                    LatLonDocValuesField.newDistanceSort(fieldName, localPoints.get(0).lat(), localPoints.get(0).lon()),
+                    DocValueFormat.RAW);
         }
 
-        final Nested nested = resolveNested(context, nestedPath, nestedFilter);
+        final FixedSourceDistance[] distances = new FixedSourceDistance[localPoints.size()];
+        for (int i = 0; i < localPoints.size(); i++) {
+            distances[i] = geoDistance.fixedSourceDistance(localPoints.get(i).lat(), localPoints.get(i).lon(), unit);
+        }
 
         IndexFieldData.XFieldComparatorSource geoDistanceComparatorSource = new IndexFieldData.XFieldComparatorSource() {
 
@@ -573,11 +586,11 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                         final SortedNumericDoubleValues distanceValues = GeoDistance.distanceValues(geoPointValues, distances);
                         final NumericDoubleValues selectedValues;
                         if (nested == null) {
-                            selectedValues = finalSortMode.select(distanceValues, Double.MAX_VALUE);
+                            selectedValues = finalSortMode.select(distanceValues, Double.POSITIVE_INFINITY);
                         } else {
                             final BitSet rootDocs = nested.rootDocs(context);
                             final DocIdSetIterator innerDocs = nested.innerDocs(context);
-                            selectedValues = finalSortMode.select(distanceValues, Double.MAX_VALUE, rootDocs, innerDocs,
+                            selectedValues = finalSortMode.select(distanceValues, Double.POSITIVE_INFINITY, rootDocs, innerDocs,
                                     context.reader().maxDoc());
                         }
                         return selectedValues.getRawDoubleValues();

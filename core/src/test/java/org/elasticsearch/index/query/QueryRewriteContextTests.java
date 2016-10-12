@@ -42,11 +42,12 @@ public class QueryRewriteContextTests extends ESTestCase {
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 1)
         );
+        final long nowInMills = randomPositiveLong();
         IndicesQueriesRegistry indicesQueriesRegistry = new SearchModule(Settings.EMPTY, false, emptyList()).getQueryParserRegistry();
         IndexSettings indexSettings = new IndexSettings(indexMetadata.build(),
                 Settings.builder().put(ScriptSettings.LEGACY_SCRIPT_SETTING, defaultLegacyScriptLanguage).build());
         QueryRewriteContext queryRewriteContext =
-                new QueryRewriteContext(indexSettings, null, null, indicesQueriesRegistry, null, null, null);;
+                new QueryRewriteContext(indexSettings, null, null, indicesQueriesRegistry, null, null, null, () -> nowInMills);
 
         // verify that the default script language in the query parse context is equal to defaultLegacyScriptLanguage variable:
         QueryParseContext queryParseContext =

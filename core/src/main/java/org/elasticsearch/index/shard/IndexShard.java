@@ -336,8 +336,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void updatePrimaryTerm(final long newTerm) {
         synchronized (mutex) {
             if (newTerm != primaryTerm) {
-                assert shardRouting.primary() == false : "a primary shard should never update it's term. shard: " + shardRouting
-                    + " current term [" + primaryTerm + "] new term [" + newTerm + "]";
+                // Note that due to cluster state batching an initializing primary shard term can failed and re-assigned
+                // in one state causing it's term to be incremented. Note that if both current shard state and new
+                // shard state are initializing, we could replace the current shard and reinitialize it. It is however
+                // possible that this shard is being started. This can happen if:
+                // 1) Shard is post recovery and sends shard started to the master
+                // 2) Node gets disconnected and rejoins
+                // 3) Master assigns the shard back to the node
+                // 4) Master processes the shard started and starts the shard
+                // 5) The node process the cluster state where the shard is both started and primary term is incremented.
+                //
+                // We could fail the shard in that case, but this will cause it to be removed from the insync allocations list
+                // potentially preventing re-allocation.
+                assert shardRouting.primary() == false || shardRouting.initializing() == false :
+                    "a started primary shard should never update it's term. shard: " + shardRouting
+                        + " current term [" + primaryTerm + "] new term [" + newTerm + "]";
                 assert newTerm > primaryTerm : "primary terms can only go up. current [" + primaryTerm + "], new [" + newTerm + "]";
                 primaryTerm = newTerm;
             }
@@ -730,7 +743,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.SyncedFlushResult syncFlush(String syncId, Engine.CommitId expectedCommitId) {
         verifyStartedOrRecovering();
         logger.trace("trying to sync flush. sync id [{}]. expected commit id [{}]]", syncId, expectedCommitId);
-        return getEngine().syncFlush(syncId, expectedCommitId);
+        Engine engine = getEngine();
+        if (engine.isRecovering()) {
+            throw new IllegalIndexShardStateException(shardId(), state, "syncFlush is only allowed if the engine is not recovery" +
+                " from translog");
+        }
+        return engine.syncFlush(syncId, expectedCommitId);
     }
 
     public Engine.CommitId flush(FlushRequest request) throws ElasticsearchException {
@@ -741,11 +759,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         // we allows flush while recovering, since we allow for operations to happen
         // while recovering, and we want to keep the translog at bay (up to deletes, which
-        // we don't gc).
+        // we don't gc). Yet, we don't use flush internally to clear deletes and flush the indexwriter since
+        // we use #writeIndexingBuffer for this now.
         verifyStartedOrRecovering();
-
+        Engine engine = getEngine();
+        if (engine.isRecovering()) {
+            throw new IllegalIndexShardStateException(shardId(), state, "flush is only allowed if the engine is not recovery" +
+                " from translog");
+        }
         long time = System.nanoTime();
-        Engine.CommitId commitId = getEngine().flush(force, waitIfOngoing);
+        Engine.CommitId commitId = engine.flush(force, waitIfOngoing);
         flushMetric.inc(System.nanoTime() - time);
         return commitId;
 
@@ -1165,7 +1188,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             boolean wasActive = active.getAndSet(false);
             if (wasActive) {
                 logger.debug("shard is now inactive");
-                indexEventListener.onShardInactive(this);
+                try {
+                    indexEventListener.onShardInactive(this);
+                } catch (Exception e) {
+                    logger.warn("failed to notify index event listener", e);
+                }
             }
         }
     }

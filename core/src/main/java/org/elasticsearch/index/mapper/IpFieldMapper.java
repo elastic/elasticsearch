@@ -178,7 +178,7 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             failIfNotIndexed();
             InetAddress lower;
             if (lowerTerm == null) {
@@ -231,7 +231,7 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Object valueForSearch(Object value) {
+        public Object valueForDisplay(Object value) {
             if (value == null) {
                 return null;
             }
@@ -285,10 +285,7 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext originalContext, List<Field> fields) throws IOException {
-        // IP fields, by default, will not be included in _all
-        final ParseContext context = originalContext.setIncludeInAllDefault(false);
-
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         Object addressAsObject;
         if (context.externalValueSet()) {
             addressAsObject = context.externalValue();

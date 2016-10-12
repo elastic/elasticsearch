@@ -25,9 +25,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class QueryExplanation  implements Streamable {
 
     private String index;

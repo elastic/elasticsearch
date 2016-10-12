@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
@@ -42,7 +41,7 @@ import static junit.framework.TestCase.fail;
 public class ClusterServiceUtils {
 
     public static ClusterService createClusterService(ThreadPool threadPool) {
-        DiscoveryNode discoveryNode = new DiscoveryNode("node", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
+        DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
                                                            new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())),Version.CURRENT);
         return createClusterService(threadPool, discoveryNode);
     }

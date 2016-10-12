@@ -41,10 +41,12 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.gateway.NoopGatewayAllocator;
+import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.hamcrest.Matchers;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -71,7 +73,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), replicaBalance);
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), balanceTreshold);
 
-        AllocationService strategy = createAllocationService(settings.build());
+        AllocationService strategy = createAllocationService(settings.build(), new NoopGatewayAllocator());
 
         ClusterState clusterState = initCluster(strategy);
         assertIndexBalance(clusterState.getRoutingTable(), clusterState.getRoutingNodes(), numberOfNodes, numberOfIndices, numberOfReplicas, numberOfShards, balanceTreshold);
@@ -95,7 +97,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), replicaBalance);
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), balanceTreshold);
 
-        AllocationService strategy = createAllocationService(settings.build());
+        AllocationService strategy = createAllocationService(settings.build(), new NoopGatewayAllocator());
 
         ClusterState clusterState = initCluster(strategy);
         assertReplicaBalance(logger, clusterState.getRoutingNodes(), numberOfNodes, numberOfIndices, numberOfReplicas, numberOfShards, balanceTreshold);
@@ -254,7 +256,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         Settings.Builder settings = Settings.builder();
         AllocationService strategy = new AllocationService(settings.build(), randomAllocationDeciders(settings.build(),
                 new ClusterSettings(Settings.Builder.EMPTY_SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
-                NoopGatewayAllocator.INSTANCE, new ShardsAllocator() {
+                new TestGatewayAllocator(), new ShardsAllocator() {
 
                     public Map<DiscoveryNode, Float> weighShard(RoutingAllocation allocation, ShardRouting shard) {
                         return new HashMap<DiscoveryNode, Float>();
@@ -351,7 +353,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
                 assertThat(shardRouting.state(), Matchers.equalTo(ShardRoutingState.INITIALIZING));
             }
         }
-        strategy = createAllocationService(settings.build());
+        strategy = createAllocationService(settings.build(), new NoopGatewayAllocator());
 
         logger.info("use the new allocator and check if it moves shards");
         routingNodes = clusterState.getRoutingNodes();
@@ -385,7 +387,26 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
                 assertThat(shardRouting.state(), Matchers.equalTo(ShardRoutingState.STARTED));
             }
         }
-
     }
 
+    private class NoopGatewayAllocator extends GatewayAllocator {
+
+        public NoopGatewayAllocator() {
+            super(Settings.EMPTY, null, null);
+        }
+
+        @Override
+        public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
+            // noop
+        }
+
+        @Override
+        public void applyFailedShards(RoutingAllocation allocation, List<FailedShard> failedShards) {
+            // noop
+        }
+        @Override
+        public void allocateUnassigned(RoutingAllocation allocation) {
+            // noop
+        }
+    }
 }

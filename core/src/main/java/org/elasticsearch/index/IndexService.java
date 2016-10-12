@@ -28,9 +28,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -43,7 +45,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
@@ -70,9 +72,12 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -89,6 +94,7 @@ import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongSupplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -97,12 +103,11 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 public class IndexService extends AbstractIndexComponent implements IndicesClusterStateService.AllocatedIndex<IndexShard> {
 
     private final IndexEventListener eventListener;
-    private final AnalysisService analysisService;
+    private final IndexAnalyzers indexAnalyzers;
     private final IndexFieldDataService indexFieldData;
     private final BitsetFilterCache bitsetFilterCache;
     private final NodeEnvironment nodeEnv;
     private final ShardStoreDeleter shardStoreDeleter;
-    private final NodeServicesProvider nodeServicesProvider;
     private final IndexStore indexStore;
     private final IndexSearcherWrapper searcherWrapper;
     private final IndexCache indexCache;
@@ -120,13 +125,23 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile AsyncTranslogFSync fsyncTask;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
+    private final ScriptService scriptService;
+    private final IndicesQueriesRegistry queryRegistry;
+    private final ClusterService clusterService;
+    private final Client client;
 
     public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
                         SimilarityService similarityService,
                         ShardStoreDeleter shardStoreDeleter,
                         AnalysisRegistry registry,
                         @Nullable EngineFactory engineFactory,
-                        NodeServicesProvider nodeServicesProvider,
+                        CircuitBreakerService circuitBreakerService,
+                        BigArrays bigArrays,
+                        ThreadPool threadPool,
+                        ScriptService scriptService,
+                        IndicesQueriesRegistry queryRegistry,
+                        ClusterService clusterService,
+                        Client client,
                         QueryCache queryCache,
                         IndexStore indexStore,
                         IndexEventListener eventListener,
@@ -137,18 +152,20 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         List<IndexingOperationListener> indexingOperationListeners) throws IOException {
         super(indexSettings);
         this.indexSettings = indexSettings;
-        this.analysisService = registry.build(indexSettings);
+        this.indexAnalyzers = registry.build(indexSettings);
         this.similarityService = similarityService;
-        this.mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry,
+        this.mapperService = new MapperService(indexSettings, indexAnalyzers, similarityService, mapperRegistry,
             IndexService.this::newQueryShardContext);
-        this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache,
-            nodeServicesProvider.getCircuitBreakerService(), mapperService);
+        this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
         this.shardStoreDeleter = shardStoreDeleter;
-        this.bigArrays = nodeServicesProvider.getBigArrays();
-        this.threadPool = nodeServicesProvider.getThreadPool();
+        this.bigArrays = bigArrays;
+        this.threadPool = threadPool;
+        this.scriptService = scriptService;
+        this.queryRegistry = queryRegistry;
+        this.clusterService = clusterService;
+        this.client = client;
         this.eventListener = eventListener;
         this.nodeEnv = nodeEnv;
-        this.nodeServicesProvider = nodeServicesProvider;
         this.indexStore = indexStore;
         indexFieldData.setListener(new FieldDataCacheListener(this));
         this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
@@ -214,8 +231,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return indexFieldData;
     }
 
-    public AnalysisService analysisService() {
-        return this.analysisService;
+    public IndexAnalyzers getIndexAnalyzers() {
+        return this.indexAnalyzers;
     }
 
     public MapperService mapperService() {
@@ -239,7 +256,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     }
                 }
             } finally {
-                IOUtils.close(bitsetFilterCache, indexCache, indexFieldData, analysisService, refreshTask, fsyncTask);
+                IOUtils.close(bitsetFilterCache, indexCache, indexFieldData, indexAnalyzers, refreshTask, fsyncTask);
             }
         }
     }
@@ -435,10 +452,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    public NodeServicesProvider getIndexServices() {
-        return nodeServicesProvider;
-    }
-
     @Override
     public IndexSettings getIndexSettings() {
         return indexSettings;
@@ -448,13 +461,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * Creates a new QueryShardContext. The context has not types set yet, if types are required set them via
      * {@link QueryShardContext#setTypes(String...)}
      */
-    public QueryShardContext newQueryShardContext(IndexReader indexReader) {
+    public QueryShardContext newQueryShardContext(int shardId, IndexReader indexReader, LongSupplier nowInMillis) {
         return new QueryShardContext(
-                indexSettings, indexCache.bitsetFilterCache(), indexFieldData, mapperService(),
-                similarityService(), nodeServicesProvider.getScriptService(), nodeServicesProvider.getIndicesQueriesRegistry(),
-                nodeServicesProvider.getClient(), indexReader,
-                nodeServicesProvider.getClusterService().state()
-        );
+            shardId, indexSettings, indexCache.bitsetFilterCache(), indexFieldData, mapperService(),
+                similarityService(), scriptService, queryRegistry,
+                client, indexReader,
+                clusterService.state(),
+            nowInMillis);
     }
 
     /**
@@ -463,15 +476,28 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * used for rewriting since it does not know about the current {@link IndexReader}.
      */
     public QueryShardContext newQueryShardContext() {
-        return newQueryShardContext(null);
+        return newQueryShardContext(0, null, threadPool::estimatedTimeInMillis);
     }
 
+    /**
+     * The {@link ThreadPool} to use for this index.
+     */
     public ThreadPool getThreadPool() {
         return threadPool;
     }
 
+    /**
+     * The {@link BigArrays} to use for this index.
+     */
     public BigArrays getBigArrays() {
         return bigArrays;
+    }
+
+    /**
+     * The {@link ScriptService} to use for this index.
+     */
+    public ScriptService getScriptService() {
+        return scriptService;
     }
 
     List<IndexingOperationListener> getIndexOperationListeners() { // pkg private for testing

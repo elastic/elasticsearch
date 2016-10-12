@@ -80,7 +80,7 @@ public class ReusePeerRecoverySharedTest {
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("30s").get();
         // just wait for merges
         client().admin().indices().prepareForceMerge("test").setMaxNumSegments(100).get();
-        client().admin().indices().prepareFlush().setWaitIfOngoing(true).setForce(true).get();
+        client().admin().indices().prepareFlush().setForce(true).get();
 
         if (useSyncIds == false) {
             logger.info("--> disabling allocation while the cluster is shut down");

@@ -66,9 +66,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- *
- */
 public class IndicesStore extends AbstractComponent implements ClusterStateListener, Closeable {
 
     // TODO this class can be foled into either IndicesService and partially into IndicesClusterStateService there is no need for a separate public service
@@ -94,12 +91,17 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         this.threadPool = threadPool;
         transportService.registerRequestHandler(ACTION_SHARD_EXISTS, ShardActiveRequest::new, ThreadPool.Names.SAME, new ShardActiveRequestHandler());
         this.deleteShardTimeout = INDICES_STORE_DELETE_SHARD_TIMEOUT.get(settings);
-        clusterService.addLast(this);
+        // Doesn't make sense to delete shards on non-data nodes
+        if (DiscoveryNode.isDataNode(settings)) {
+            clusterService.add(this);
+        }
     }
 
     @Override
     public void close() {
-        clusterService.remove(this);
+        if (DiscoveryNode.isDataNode(settings)) {
+            clusterService.remove(this);
+        }
     }
 
     @Override

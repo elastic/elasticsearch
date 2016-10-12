@@ -26,9 +26,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class IndexAlreadyExistsException extends ElasticsearchException {
 
     public IndexAlreadyExistsException(Index index) {

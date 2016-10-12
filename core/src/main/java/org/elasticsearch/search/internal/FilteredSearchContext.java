@@ -27,7 +27,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -155,11 +154,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    protected long nowInMillisImpl() {
-        return in.nowInMillisImpl();
-    }
-
-    @Override
     public ScrollContext scrollContext() {
         return in.scrollContext();
     }
@@ -260,18 +254,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public AnalysisService analysisService() {
-        return in.analysisService();
-    }
-
-    @Override
     public SimilarityService similarityService() {
         return in.similarityService();
-    }
-
-    @Override
-    public ScriptService scriptService() {
-        return in.scriptService();
     }
 
     @Override

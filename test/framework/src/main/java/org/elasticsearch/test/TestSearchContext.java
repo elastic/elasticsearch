@@ -27,7 +27,6 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -38,7 +37,6 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -78,7 +76,6 @@ public class TestSearchContext extends SearchContext {
     final Counter timeEstimateCounter = Counter.newCounter();
     final QuerySearchResult queryResult = new QuerySearchResult();
     final QueryShardContext queryShardContext;
-    ScriptService scriptService;
     ParsedQuery originalQuery;
     ParsedQuery postFilter;
     Query query;
@@ -92,7 +89,7 @@ public class TestSearchContext extends SearchContext {
     private final long originNanoTime = System.nanoTime();
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 
-    public TestSearchContext(ThreadPool threadPool, BigArrays bigArrays, ScriptService scriptService, IndexService indexService) {
+    public TestSearchContext(ThreadPool threadPool, BigArrays bigArrays, IndexService indexService) {
         super(ParseFieldMatcher.STRICT);
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.indexService = indexService;
@@ -100,7 +97,6 @@ public class TestSearchContext extends SearchContext {
         this.fixedBitSetFilterCache = indexService.cache().bitsetFilterCache();
         this.threadPool = threadPool;
         this.indexShard = indexService.getShardOrNull(0);
-        this.scriptService = scriptService;
         queryShardContext = indexService.newQueryShardContext();
     }
 
@@ -112,7 +108,6 @@ public class TestSearchContext extends SearchContext {
         this.threadPool = null;
         this.fixedBitSetFilterCache = null;
         this.indexShard = null;
-        scriptService = null;
         this.queryShardContext = queryShardContext;
     }
 
@@ -168,11 +163,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public long getOriginNanoTime() {
         return originNanoTime;
-    }
-
-    @Override
-    protected long nowInMillisImpl() {
-        return 0;
     }
 
     @Override
@@ -296,16 +286,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public AnalysisService analysisService() { return indexService.analysisService();}
-
-    @Override
     public SimilarityService similarityService() {
         return null;
-    }
-
-    @Override
-    public ScriptService scriptService() {
-        return scriptService;
     }
 
     @Override
@@ -529,11 +511,6 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public void keepAlive(long keepAlive) {
-    }
-
-    @Override
-    public SearchLookup lookup() {
-        return new SearchLookup(mapperService(), fieldData(), null);
     }
 
     @Override

@@ -26,8 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -47,41 +46,37 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
     /**Average precision observed when issuing query intents with this specification.*/
     private double qualityLevel;
     /**Mapping from intent id to all documents seen for this intent that were not annotated.*/
-    private Map<String, Collection<RatedDocumentKey>> unknownDocs;
+    private Map<String, EvalQueryQuality> details;
 
     public RankEvalResponse() {
     }
 
-    public RankEvalResponse(double qualityLevel, Map<String, Collection<RatedDocumentKey>> unknownDocs) {
+    public RankEvalResponse(double qualityLevel, Map<String, EvalQueryQuality> partialResults) {
         this.qualityLevel = qualityLevel;
-        this.unknownDocs = unknownDocs;
+        this.details = partialResults;
     }
 
     public double getQualityLevel() {
         return qualityLevel;
     }
 
-    public Map<String, Collection<RatedDocumentKey>> getUnknownDocs() {
-        return unknownDocs;
+    public Map<String, EvalQueryQuality> getPartialResults() {
+        return Collections.unmodifiableMap(details);
     }
 
     @Override
     public String toString() {
-        return "RankEvalResponse, quality: " + qualityLevel + ", unknown docs: " + unknownDocs;
+        return "RankEvalResponse, quality: " + qualityLevel + ", partial results: " + details;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeDouble(qualityLevel);
-        out.writeVInt(unknownDocs.size());
-        for (String queryId : unknownDocs.keySet()) {
+        out.writeVInt(details.size());
+        for (String queryId : details.keySet()) {
             out.writeString(queryId);
-            Collection<RatedDocumentKey> collection = unknownDocs.get(queryId);
-            out.writeVInt(collection.size());
-            for (RatedDocumentKey key : collection) {
-                key.writeTo(out);
-            }
+            details.get(queryId).writeTo(out);
         }
     }
 
@@ -89,16 +84,12 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         this.qualityLevel = in.readDouble();
-        int unknownDocumentSets = in.readVInt();
-        this.unknownDocs = new HashMap<>(unknownDocumentSets);
-        for (int i = 0; i < unknownDocumentSets; i++) {
+        int partialResultSize = in.readVInt();
+        this.details = new HashMap<>(partialResultSize);
+        for (int i = 0; i < partialResultSize; i++) {
             String queryId = in.readString();
-            int numberUnknownDocs = in.readVInt();
-            Collection<RatedDocumentKey> collection = new ArrayList<>(numberUnknownDocs);
-            for (int d = 0; d < numberUnknownDocs; d++) {
-                collection.add(new RatedDocumentKey(in));
-            }
-            this.unknownDocs.put(queryId, collection);
+            EvalQueryQuality partial = new EvalQueryQuality(in);
+            this.details.put(queryId, partial);
         }
     }
 
@@ -106,18 +97,9 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("rank_eval");
         builder.field("quality_level", qualityLevel);
-        builder.startObject("unknown_docs");
-        for (String key : unknownDocs.keySet()) {
-            Collection<RatedDocumentKey> keys = unknownDocs.get(key);
-            builder.startArray(key);
-            for (RatedDocumentKey docKey : keys) {
-                builder.startObject();
-                builder.field(RatedDocument.INDEX_FIELD.getPreferredName(), docKey.getIndex());
-                builder.field(RatedDocument.TYPE_FIELD.getPreferredName(), docKey.getType());
-                builder.field(RatedDocument.DOC_ID_FIELD.getPreferredName(), docKey.getDocID());
-                builder.endObject();
-            }
-            builder.endArray();
+        builder.startObject("details");
+        for (String key : details.keySet()) {
+            details.get(key).toXContent(builder, params);
         }
         builder.endObject();
         builder.endObject();
@@ -134,11 +116,11 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
         }
         RankEvalResponse other = (RankEvalResponse) obj;
         return Objects.equals(qualityLevel, other.qualityLevel) &&
-                Objects.equals(unknownDocs, other.unknownDocs);
+                Objects.equals(details, other.details);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), qualityLevel, unknownDocs);
+        return Objects.hash(qualityLevel, details);
     }
 }

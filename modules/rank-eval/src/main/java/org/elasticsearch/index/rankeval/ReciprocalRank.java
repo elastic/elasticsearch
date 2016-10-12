@@ -30,7 +30,6 @@ import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -114,7 +113,7 @@ public class ReciprocalRank extends RankedListQualityMetric {
      * @return reciprocal Rank for above {@link SearchResult} list.
      **/
     @Override
-    public EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs) {
+    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
         Set<RatedDocumentKey> relevantDocIds = new HashSet<>();
         Set<RatedDocumentKey> irrelevantDocIds = new HashSet<>();
         for (RatedDocument doc : ratedDocs) {
@@ -125,7 +124,7 @@ public class ReciprocalRank extends RankedListQualityMetric {
             }
         }
 
-        Collection<RatedDocumentKey> unknownDocIds = new ArrayList<>();
+        List<RatedDocumentKey> unknownDocIds = new ArrayList<>();
         int firstRelevant = -1;
         boolean found = false;
         for (int i = 0; i < hits.length; i++) {
@@ -141,7 +140,9 @@ public class ReciprocalRank extends RankedListQualityMetric {
         }
 
         double reciprocalRank = (firstRelevant == -1) ? 0 : 1.0d / firstRelevant;
-        return new EvalQueryQuality(reciprocalRank, unknownDocIds);
+        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, reciprocalRank, unknownDocIds);
+        evalQueryQuality.addMetricDetails(new Breakdown(firstRelevant));
+        return evalQueryQuality;
     }
 
     @Override
@@ -184,9 +185,58 @@ public class ReciprocalRank extends RankedListQualityMetric {
         ReciprocalRank other = (ReciprocalRank) obj;
         return Objects.equals(maxAcceptableRank, other.maxAcceptableRank);
     }
-    
+
     @Override
     public final int hashCode() {
         return Objects.hash(maxAcceptableRank);
+    }
+
+    public static class Breakdown implements MetricDetails {
+
+        private int firstRelevantRank;
+
+        public Breakdown(int firstRelevantRank) {
+            this.firstRelevantRank = firstRelevantRank;
+        }
+
+        public Breakdown(StreamInput in) throws IOException {
+            this.firstRelevantRank = in.readVInt();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field("first_relevant", firstRelevantRank);
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(firstRelevantRank);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        public int getFirstRelevantRank() {
+            return firstRelevantRank;
+        }
+        @Override
+        public final boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            ReciprocalRank.Breakdown other = (ReciprocalRank.Breakdown) obj;
+            return Objects.equals(firstRelevantRank, other.firstRelevantRank);
+        }
+
+        @Override
+        public final int hashCode() {
+            return Objects.hash(firstRelevantRank);
+        }
     }
 }

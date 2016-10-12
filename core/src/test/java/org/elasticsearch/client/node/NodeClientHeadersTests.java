@@ -35,9 +35,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.HashMap;
 
-/**
- *
- */
 public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
 
     private static final ActionFilters EMPTY_FILTERS = new ActionFilters(Collections.<ActionFilter>emptySet());

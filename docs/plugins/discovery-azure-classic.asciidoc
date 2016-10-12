@@ -22,7 +22,7 @@ The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
 This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/discovery-azure-classic/{version}/discovery-azure-classic-{version}.zip.
+{plugin_url}/discovery-azure-classic/discovery-azure-classic-{version}.zip.
 
 [[discovery-azure-classic-remove]]
 [float]
@@ -378,6 +378,7 @@ curl -s https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticse
 # Prepare Elasticsearch installation
 sudo dpkg -i elasticsearch-{version}.deb
 ----
+// NOTCONSOLE
 
 Check that elasticsearch is running:
 

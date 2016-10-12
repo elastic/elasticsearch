@@ -153,19 +153,20 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
                     fetchSourceContext = new FetchSourceContext(randomBoolean());
                     break;
                 case 1:
-                    fetchSourceContext = new FetchSourceContext(includes, excludes);
+                    fetchSourceContext = new FetchSourceContext(true, includes, excludes);
                     break;
                 case 2:
-                    fetchSourceContext = new FetchSourceContext(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20));
+                    fetchSourceContext = new FetchSourceContext(true, new String[]{randomAsciiOfLengthBetween(5, 20)},
+                        new String[]{randomAsciiOfLengthBetween(5, 20)});
                     break;
                 case 3:
                     fetchSourceContext = new FetchSourceContext(true, includes, excludes);
                     break;
                 case 4:
-                    fetchSourceContext = new FetchSourceContext(includes);
+                    fetchSourceContext = new FetchSourceContext(true, includes, null);
                     break;
                 case 5:
-                    fetchSourceContext = new FetchSourceContext(randomAsciiOfLengthBetween(5, 20));
+                    fetchSourceContext = new FetchSourceContext(true, new String[] {randomAsciiOfLengthBetween(5, 20)}, null);
                     break;
                 default:
                     throw new IllegalStateException();

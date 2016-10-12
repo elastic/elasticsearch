@@ -34,14 +34,13 @@ import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
-import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -50,12 +49,6 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public class NetworkModuleTests extends ModuleTestCase {
-
-    static class FakeTransport extends AssertingLocalTransport {
-        public FakeTransport() {
-            super(null, null, null, null);
-        }
-    }
 
     static class FakeHttpTransport extends AbstractLifecycleComponent implements HttpServerTransport {
         public FakeHttpTransport() {
@@ -89,7 +82,7 @@ public class NetworkModuleTests extends ModuleTestCase {
             super(null);
         }
         @Override
-        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {}
+        public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException { return channel -> {}; }
     }
 
     static class FakeCatRestHandler extends AbstractCatAction {
@@ -97,7 +90,7 @@ public class NetworkModuleTests extends ModuleTestCase {
             super(null);
         }
         @Override
-        protected void doRequest(RestRequest request, RestChannel channel, NodeClient client) {}
+        protected RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) { return channel -> {}; }
         @Override
         protected void documentation(StringBuilder sb) {}
         @Override
@@ -110,7 +103,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "custom")
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
             .build();
-        Supplier<Transport> custom = FakeTransport::new;
+        Supplier<Transport> custom = () -> null; // content doesn't matter we check reference equality
         NetworkPlugin plugin = new NetworkPlugin() {
             @Override
             public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
@@ -166,7 +159,7 @@ public class NetworkModuleTests extends ModuleTestCase {
             .put(NetworkModule.HTTP_DEFAULT_TYPE_SETTING.getKey(), "default_custom")
             .put(NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.getKey(), "local")
             .put(NetworkModule.TRANSPORT_TYPE_KEY, "default_custom").build();
-        Supplier<Transport> customTransport = FakeTransport::new;
+        Supplier<Transport> customTransport = () -> null;  // content doesn't matter we check reference equality
         Supplier<HttpServerTransport> custom = FakeHttpTransport::new;
         Supplier<HttpServerTransport> def = FakeHttpTransport::new;
         NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
@@ -200,7 +193,7 @@ public class NetworkModuleTests extends ModuleTestCase {
             .put(NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.getKey(), "default_custom").build();
         Supplier<HttpServerTransport> custom = FakeHttpTransport::new;
         Supplier<HttpServerTransport> def = FakeHttpTransport::new;
-        Supplier<Transport> customTransport = FakeTransport::new;
+        Supplier<Transport> customTransport = () -> null;
         NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
             @Override
             public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
@@ -236,7 +229,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         };
         NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
                 @Override
-                public List<TransportInterceptor> getTransportInterceptors() {
+                public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry) {
                     return Collections.singletonList(interceptor);
                 }
             });
@@ -249,7 +242,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         NullPointerException nullPointerException = expectThrows(NullPointerException.class, () -> {
             newNetworkModule(settings, false, new NetworkPlugin() {
                 @Override
-                public List<TransportInterceptor> getTransportInterceptors() {
+                public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry) {
                     return Collections.singletonList(null);
                 }
             });

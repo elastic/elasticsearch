@@ -330,9 +330,11 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/20318")
     public void testLoggerLevelUpdate() {
         assertAcked(prepareCreate("test"));
+
+        final Level level = ESLoggerFactory.getRootLogger().getLevel();
+
         final IllegalArgumentException e =
             expectThrows(
                 IllegalArgumentException.class,
@@ -352,8 +354,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                 final Settings.Builder defaultSettings = Settings.builder().putNull("logger.*");
                 client().admin().cluster().prepareUpdateSettings().setTransientSettings(defaultSettings).execute().actionGet();
             }
-            assertEquals(ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(Settings.EMPTY), ESLoggerFactory.getLogger("test").getLevel());
-            assertEquals(ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(Settings.EMPTY), ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(level, ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
         }
     }
 

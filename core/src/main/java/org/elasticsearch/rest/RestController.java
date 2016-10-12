@@ -39,9 +39,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-/**
- *
- */
 public class RestController extends AbstractLifecycleComponent {
     private final PathTrie<RestHandler> getHandlers = new PathTrie<>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> postHandlers = new PathTrie<>(RestUtils.REST_DECODER);
@@ -220,10 +217,11 @@ public class RestController extends AbstractLifecycleComponent {
      */
     boolean checkRequestParameters(final RestRequest request, final RestChannel channel) {
         // error_trace cannot be used when we disable detailed errors
-        if (channel.detailedErrorsEnabled() == false && request.paramAsBoolean("error_trace", false)) {
+        // we consume the error_trace parameter first to ensure that it is always consumed
+        if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
             try {
                 XContentBuilder builder = channel.newErrorBuilder();
-                builder.startObject().field("error","error traces in responses are disabled.").endObject().string();
+                builder.startObject().field("error", "error traces in responses are disabled.").endObject().string();
                 RestResponse response = new BytesRestResponse(BAD_REQUEST, builder);
                 response.addHeader("Content-Type", "application/json");
                 channel.sendResponse(response);

@@ -46,9 +46,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase
 public abstract class AbstractGeoTestCase extends ESIntegTestCase {
 

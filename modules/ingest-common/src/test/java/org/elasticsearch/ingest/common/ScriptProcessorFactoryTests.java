@@ -56,7 +56,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
             () -> factory.create(null, randomAsciiOfLength(10), configMap));
-        assertThat(exception.getMessage(), is("[null] Only one of [file], [id], or [inline] may be configured"));
+        assertThat(exception.getMessage(), is("Only one of [file], [id], or [inline] may be configured"));
     }
 
     public void testFactoryValidationAtLeastOneScriptingType() throws Exception {
@@ -66,6 +66,6 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
             () -> factory.create(null, randomAsciiOfLength(10), configMap));
 
-        assertThat(exception.getMessage(), is("[null] Need [file], [id], or [inline] parameter to refer to scripts"));
+        assertThat(exception.getMessage(), is("Need [file], [id], or [inline] parameter to refer to scripts"));
     }
 }

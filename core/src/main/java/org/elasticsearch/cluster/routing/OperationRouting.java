@@ -126,7 +126,7 @@ public class OperationRouting extends AbstractComponent {
             Preference preferenceType = Preference.parse(preference);
             if (preferenceType == Preference.SHARDS) {
                 // starts with _shards, so execute on specific ones
-                int index = preference.indexOf(';');
+                int index = preference.indexOf('|');
 
                 String shards;
                 if (index == -1) {

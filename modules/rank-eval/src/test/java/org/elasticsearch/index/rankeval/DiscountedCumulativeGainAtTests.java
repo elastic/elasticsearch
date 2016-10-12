@@ -60,7 +60,7 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0)));
         }
         DiscountedCumulativeGainAt dcg = new DiscountedCumulativeGainAt(6);
-        assertEquals(13.84826362927298, dcg.evaluate(hits, rated).getQualityLevel(), 0.00001);
+        assertEquals(13.84826362927298, dcg.evaluate("id", hits, rated).getQualityLevel(), 0.00001);
 
         /**
          * Check with normalization: to get the maximal possible dcg, sort documents by relevance in descending order
@@ -77,7 +77,7 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
          * idcg = 14.595390756454922 (sum of last column)
          */
         dcg.setNormalize(true);
-        assertEquals(13.84826362927298 / 14.595390756454922, dcg.evaluate(hits, rated).getQualityLevel(), 0.00001);
+        assertEquals(13.84826362927298 / 14.595390756454922, dcg.evaluate("id", hits, rated).getQualityLevel(), 0.00001);
     }
 
     /**
@@ -89,26 +89,45 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
      * 2    | 2        | 3.0              | 1.5849625007211563 | 1.8927892607143721
      * 3    | 3        | 7.0              | 2.0                | 3.5
      * 4    | n/a      | n/a              | n/a                | n/a
-     * 5    | n/a      | n/a              | n/a                | n/a
+     * 5    | 1        | 1.0              | 2.584962500721156  | 0.38685280723454163
      * 6    | n/a      | n/a              | n/a                | n/a
      *
-     * dcg = 13.84826362927298 (sum of last column)
+     * dcg = 12.779642067948913 (sum of last column)
      */
     public void testDCGAtSixMissingRatings() throws IOException, InterruptedException, ExecutionException {
         List<RatedDocument> rated = new ArrayList<>();
-        int[] relevanceRatings = new int[] { 3, 2, 3};
+        Integer[] relevanceRatings = new Integer[] { 3, 2, 3, null, 1};
         InternalSearchHit[] hits = new InternalSearchHit[6];
         for (int i = 0; i < 6; i++) {
             if (i < relevanceRatings.length) {
-                rated.add(new RatedDocument("index", "type", Integer.toString(i), relevanceRatings[i]));
+                if (relevanceRatings[i] != null) {
+                    rated.add(new RatedDocument("index", "type", Integer.toString(i), relevanceRatings[i]));
+                }
             }
             hits[i] = new InternalSearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0)));
         }
         DiscountedCumulativeGainAt dcg = new DiscountedCumulativeGainAt(6);
-        EvalQueryQuality result = dcg.evaluate(hits, rated);
-        assertEquals(12.392789260714371, result.getQualityLevel(), 0.00001);
-        assertEquals(3, result.getUnknownDocs().size());
+        EvalQueryQuality result = dcg.evaluate("id", hits, rated);
+        assertEquals(12.779642067948913, result.getQualityLevel(), 0.00001);
+        assertEquals(2, result.getUnknownDocs().size());
+
+        /**
+         * Check with normalization: to get the maximal possible dcg, sort documents by relevance in descending order
+         *
+         * rank | rel_rank | 2^(rel_rank) - 1 | log_2(rank + 1)    | (2^(rel_rank) - 1) / log_2(rank + 1)
+         * -------------------------------------------------------------------------------------------
+         * 1    | 3        | 7.0              | 1.0                | 7.0
+         * 2    | 3        | 7.0              | 1.5849625007211563 | 4.416508275000202
+         * 3    | 2        | 3.0              | 2.0                | 1.5
+         * 4    | 1        | 1.0              | 2.321928094887362   | 0.43067655807339
+         * 5    | n.a        | n.a              | n.a.  | n.a.
+         * 6    | n.a        | n.a              | n.a  | n.a
+         *
+         * idcg = 13.347184833073591 (sum of last column)
+         */
+        dcg.setNormalize(true);
+        assertEquals(12.779642067948913 / 13.347184833073591, dcg.evaluate("id", hits, rated).getQualityLevel(), 0.00001);
     }
 
     public void testParseFromXContent() throws IOException {
@@ -131,7 +150,7 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
     }
     public void testXContentRoundtrip() throws IOException {
         DiscountedCumulativeGainAt testItem = createTestItem();
-        XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
+        XContentParser itemParser = RankEvalTestHelper.roundtrip(testItem);
         itemParser.nextToken();
         itemParser.nextToken();
         DiscountedCumulativeGainAt parsedItem = DiscountedCumulativeGainAt.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);

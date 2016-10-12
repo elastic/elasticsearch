@@ -30,9 +30,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import java.io.IOException;
 import java.util.Map;
 
-/**
- *
- */
 public class GeoPointParser {
 
     private final InternalAggregation.Type aggType;

@@ -51,9 +51,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
-/**
- *
- */
 public class GceUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
 
     /**

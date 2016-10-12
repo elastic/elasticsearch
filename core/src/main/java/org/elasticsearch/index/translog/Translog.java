@@ -384,31 +384,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return newFile;
     }
 
-
-    /**
-     * Read the Operation object from the given location. This method will try to read the given location from
-     * the current or from the currently committing translog file. If the location is in a file that has already
-     * been closed or even removed the method will return <code>null</code> instead.
-     */
-    Translog.Operation read(Location location) { // TODO this is only here for testing - we can remove it?
-        try (ReleasableLock lock = readLock.acquire()) {
-            final BaseTranslogReader reader;
-            final long currentGeneration = current.getGeneration();
-            if (currentGeneration == location.generation) {
-                reader = current;
-            } else if (readers.isEmpty() == false && readers.get(readers.size() - 1).getGeneration() == location.generation) {
-                reader = readers.get(readers.size() - 1);
-            } else if (currentGeneration < location.generation) {
-                throw new IllegalStateException("location generation [" + location.generation + "] is greater than the current generation [" + currentGeneration + "]");
-            } else {
-                return null;
-            }
-            return reader.read(location);
-        } catch (IOException e) {
-            throw new ElasticsearchException("failed to read source from translog location " + location, e);
-        }
-    }
-
     /**
      * Adds a delete / index operations to the transaction log.
      *
@@ -432,7 +407,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             try (ReleasableLock lock = readLock.acquire()) {
                 ensureOpen();
                 Location location = current.add(bytes);
-                assert assertBytesAtLocation(location, bytes);
                 return location;
             }
         } catch (AlreadyClosedException | IOException ex) {
@@ -469,12 +443,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    boolean assertBytesAtLocation(Translog.Location location, BytesReference expectedBytes) throws IOException {
-        // tests can override this
-        ByteBuffer buffer = ByteBuffer.allocate(location.size);
-        current.readBytes(buffer, location.translogLocation);
-        return new BytesArray(buffer.array()).equals(expectedBytes);
-    }
 
     /**
      * Snapshots the current transaction log allowing to safely iterate over the snapshot.

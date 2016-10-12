@@ -22,7 +22,6 @@ package org.elasticsearch.transport;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.transport.TransportAddressSerializers;
 
 import java.io.IOException;
 
@@ -39,11 +38,7 @@ public class ActionTransportException extends TransportException {
 
     public ActionTransportException(StreamInput in) throws IOException {
         super(in);
-        if (in.readBoolean()) {
-            address = TransportAddressSerializers.addressFromStream(in);
-        } else {
-            address = null;
-        }
+        address = in.readOptionalWriteable(TransportAddress::new);
         action = in.readOptionalString();
     }
 
@@ -62,12 +57,7 @@ public class ActionTransportException extends TransportException {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (address != null) {
-            out.writeBoolean(true);
-            TransportAddressSerializers.addressToStream(out, address);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalWriteable(address);
         out.writeOptionalString(action);
     }
 

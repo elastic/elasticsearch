@@ -63,17 +63,19 @@ public class ReciprocalRankTests extends ESTestCase {
         }
 
         int rankAtFirstRelevant = relevantAt + 1;
-        EvalQueryQuality evaluation = reciprocalRank.evaluate(hits, ratedDocs);
+        EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
         if (rankAtFirstRelevant <= maxRank) {
             assertEquals(1.0 / rankAtFirstRelevant, evaluation.getQualityLevel(), Double.MIN_VALUE);
+            assertEquals(rankAtFirstRelevant, ((ReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
 
             // check that if we lower maxRank by one, we don't find any result and get 0.0 quality level
             reciprocalRank = new ReciprocalRank(rankAtFirstRelevant - 1);
-            evaluation = reciprocalRank.evaluate(hits, ratedDocs);
+            evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
             assertEquals(0.0, evaluation.getQualityLevel(), Double.MIN_VALUE);
 
         } else {
             assertEquals(0.0, evaluation.getQualityLevel(), Double.MIN_VALUE);
+            assertEquals(-1, ((ReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
         }
     }
 
@@ -95,8 +97,9 @@ public class ReciprocalRankTests extends ESTestCase {
             }
         }
 
-        EvalQueryQuality evaluation = reciprocalRank.evaluate(hits, ratedDocs);
+        EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
         assertEquals(1.0 / (relevantAt + 1), evaluation.getQualityLevel(), Double.MIN_VALUE);
+        assertEquals(relevantAt + 1, ((ReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
     }
 
     /**
@@ -119,15 +122,17 @@ public class ReciprocalRankTests extends ESTestCase {
 
         ReciprocalRank reciprocalRank = new ReciprocalRank();
         reciprocalRank.setRelevantRatingThreshhold(2);
-        assertEquals((double) 1 / 3, reciprocalRank.evaluate(hits, rated).getQualityLevel(), 0.00001);
+        EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, rated);
+        assertEquals((double) 1 / 3, evaluation.getQualityLevel(), 0.00001);
+        assertEquals(3, ((ReciprocalRank.Breakdown) evaluation.getMetricDetails()).getFirstRelevantRank());
     }
 
     public void testCombine() {
         ReciprocalRank reciprocalRank = new ReciprocalRank();
         Vector<EvalQueryQuality> partialResults = new Vector<>(3);
-        partialResults.add(new EvalQueryQuality(0.5, emptyList()));
-        partialResults.add(new EvalQueryQuality(1.0, emptyList()));
-        partialResults.add(new EvalQueryQuality(0.75, emptyList()));
+        partialResults.add(new EvalQueryQuality("id1", 0.5, emptyList()));
+        partialResults.add(new EvalQueryQuality("id2", 1.0, emptyList()));
+        partialResults.add(new EvalQueryQuality("id3", 0.75, emptyList()));
         assertEquals(0.75, reciprocalRank.combine(partialResults), Double.MIN_VALUE);
     }
 
@@ -139,7 +144,7 @@ public class ReciprocalRankTests extends ESTestCase {
             hits[i].shard(new SearchShardTarget("testnode", new Index("test", "uuid"), 0));
         }
         List<RatedDocument> ratedDocs = new ArrayList<>();
-        EvalQueryQuality evaluation = reciprocalRank.evaluate(hits, ratedDocs);
+        EvalQueryQuality evaluation = reciprocalRank.evaluate("id", hits, ratedDocs);
         assertEquals(0.0, evaluation.getQualityLevel(), Double.MIN_VALUE);
     }
 
@@ -147,7 +152,7 @@ public class ReciprocalRankTests extends ESTestCase {
         int position = randomIntBetween(0, 1000);
 
         ReciprocalRank testItem = new ReciprocalRank(position);
-        XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
+        XContentParser itemParser = RankEvalTestHelper.roundtrip(testItem);
         itemParser.nextToken();
         itemParser.nextToken();
         ReciprocalRank parsedItem = ReciprocalRank.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
@@ -155,5 +160,4 @@ public class ReciprocalRankTests extends ESTestCase {
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());
     }
-
 }

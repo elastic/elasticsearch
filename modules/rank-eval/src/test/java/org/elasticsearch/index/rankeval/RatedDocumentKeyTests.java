@@ -23,45 +23,43 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
 public class RatedDocumentKeyTests extends ESTestCase {
 
-    public void testEqualsAndHash() throws IOException {
+    static RatedDocumentKey createRandomRatedDocumentKey() {
         String index = randomAsciiOfLengthBetween(0, 10);
         String type = randomAsciiOfLengthBetween(0, 10);
         String docId = randomAsciiOfLengthBetween(0, 10);
+        return  new RatedDocumentKey(index, type, docId);
+    }
 
-        RatedDocumentKey testItem = new RatedDocumentKey(index, type, docId);
+    public RatedDocumentKey createRandomTestItem() {
+        return createRandomRatedDocumentKey();
+    }
 
-        assertFalse("key is equal to null", testItem.equals(null));
-        assertFalse("key is equal to incompatible type", testItem.equals(""));
-        assertTrue("key is not equal to self", testItem.equals(testItem));
-        assertThat("same key's hashcode returns different values if called multiple times", testItem.hashCode(),
-                equalTo(testItem.hashCode()));
-
-        RatedDocumentKey mutation;
+    public RatedDocumentKey mutateTestItem(RatedDocumentKey original) {
+        String index = original.getIndex();
+        String type = original.getType();
+        String docId = original.getDocID();
         switch (randomIntBetween(0, 2)) {
         case 0:
-            mutation = new RatedDocumentKey(testItem.getIndex() + "_foo", testItem.getType(), testItem.getDocID());
+            index = index + "_";
             break;
         case 1:
-            mutation = new RatedDocumentKey(testItem.getIndex(), testItem.getType()  + "_foo", testItem.getDocID());
+            type = type + "_";
             break;
         case 2:
-            mutation = new RatedDocumentKey(testItem.getIndex(), testItem.getType(), testItem.getDocID()  + "_foo");
+            docId = docId + "_";
             break;
         default:
             throw new IllegalStateException("The test should only allow three parameters mutated");
         }
+        return new RatedDocumentKey(index, type, docId);
+    }
 
-        assertThat("different keys should not be equal", mutation, not(equalTo(testItem)));
-
-        RatedDocumentKey secondEqualKey = new RatedDocumentKey(index, type, docId);
-        assertTrue("key is not equal to its copy", testItem.equals(secondEqualKey));
-        assertTrue("equals is not symmetric", secondEqualKey.equals(testItem));
-        assertThat("key copy's hashcode is different from original hashcode", secondEqualKey.hashCode(),
-                equalTo(testItem.hashCode()));
+    public void testEqualsAndHash() throws IOException {
+        RatedDocumentKey testItem = createRandomRatedDocumentKey();
+        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
+                new RatedDocumentKey(testItem.getIndex(), testItem.getType(), testItem.getDocID()));
     }
 }

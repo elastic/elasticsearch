@@ -76,7 +76,7 @@ public class RatedRequestsTests extends ESTestCase {
         List<RatedDocument> ratedDocs = new ArrayList<>();
         int size = randomIntBetween(0, 2);
         for (int i = 0; i < size; i++) {
-            ratedDocs.add(RatedDocumentTests.createTestItem());
+            ratedDocs.add(RatedDocumentTests.createRatedDocument());
         }
 
         return new RatedRequest(specId, testRequest, indices, types, ratedDocs);
@@ -96,7 +96,7 @@ public class RatedRequestsTests extends ESTestCase {
         }
 
         RatedRequest testItem = createTestItem(indices, types);
-        XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
+        XContentParser itemParser = RankEvalTestHelper.roundtrip(testItem);
         itemParser.nextToken();
 
         QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, itemParser, ParseFieldMatcher.STRICT);

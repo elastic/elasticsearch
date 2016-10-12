@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -91,7 +90,6 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
     private final RecoveriesCollection onGoingRecoveries;
 
-    @Inject
     public PeerRecoveryTargetService(Settings settings, ThreadPool threadPool, TransportService transportService, RecoverySettings
             recoverySettings, ClusterService clusterService) {
         super(settings);

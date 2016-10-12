@@ -32,9 +32,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.search.dfs.AggregatedDfs.readAggregatedDfs;
 
-/**
- *
- */
 public class QuerySearchRequest extends TransportRequest implements IndicesRequest {
 
     private long id;

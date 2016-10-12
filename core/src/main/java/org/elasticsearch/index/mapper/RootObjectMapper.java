@@ -40,9 +40,6 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
-/**
- *
- */
 public class RootObjectMapper extends ObjectMapper {
 
     public static class Defaults {

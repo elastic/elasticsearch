@@ -29,9 +29,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- *
- */
 public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
     private BulkItemRequest[] items;
@@ -45,7 +42,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
         setRefreshPolicy(refreshPolicy);
     }
 
-    BulkItemRequest[] items() {
+    public BulkItemRequest[] items() {
         return items;
     }
 

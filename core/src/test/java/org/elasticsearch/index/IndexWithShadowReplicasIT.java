@@ -142,7 +142,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("foo", "doc", ""+i).setSource("foo", "bar").get();
         }
-        assertNoFailures(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
+        assertNoFailures(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
 
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.builder()
@@ -599,7 +599,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
     // deleting the index and hence, deleting all the shard data for the index, the test
     // failure still showed some Lucene files in the data directory for that index. Not sure
     // why that is, so turning on more logging here.
-    @TestLogging("org.elasticsearch.indices:TRACE,org.elasticsearch.env:TRACE")
+    @TestLogging("org.elasticsearch.indices:TRACE,org.elasticsearch.env:TRACE,_root:DEBUG")
     public void testShadowReplicaNaturalRelocation() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);

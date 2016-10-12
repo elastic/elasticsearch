@@ -29,8 +29,6 @@ import org.elasticsearch.index.IndexSettings;
 
 import java.util.Set;
 
-/**
- */
 public class KuromojiAnalyzerProvider extends AbstractIndexAnalyzerProvider<JapaneseAnalyzer> {
 
     private final JapaneseAnalyzer analyzer;

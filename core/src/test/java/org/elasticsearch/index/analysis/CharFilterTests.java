@@ -26,10 +26,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
-import static org.elasticsearch.test.ESTestCase.createAnalysisService;
+import static org.elasticsearch.test.ESTestCase.createTestAnalysis;
 
-/**
- */
 public class CharFilterTests extends ESTokenStreamTestCase {
     public void testMappingCharFilter() throws Exception {
         Settings settings = Settings.builder()
@@ -41,8 +39,8 @@ public class CharFilterTests extends ESTokenStreamTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        AnalysisService analysisService = createAnalysisService(idxSettings, settings);
-        NamedAnalyzer analyzer1 = analysisService.analyzer("custom_with_char_filter");
+        IndexAnalyzers indexAnalyzers = createTestAnalysis(idxSettings, settings).indexAnalyzers;
+        NamedAnalyzer analyzer1 = indexAnalyzers.get("custom_with_char_filter");
 
         assertTokenStreamContents(analyzer1.tokenStream("test", "jeff quit phish"), new String[]{"jeff", "qit", "fish"});
 
@@ -58,9 +56,9 @@ public class CharFilterTests extends ESTokenStreamTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        AnalysisService analysisService = createAnalysisService(idxSettings, settings);
 
-        NamedAnalyzer analyzer1 = analysisService.analyzer("custom_with_char_filter");
+        IndexAnalyzers indexAnalyzers = createTestAnalysis(idxSettings, settings).indexAnalyzers;
+        NamedAnalyzer analyzer1 = indexAnalyzers.get("custom_with_char_filter");
 
         assertTokenStreamContents(analyzer1.tokenStream("test", "<b>hello</b>!"), new String[]{"hello"});
 
@@ -80,8 +78,8 @@ public class CharFilterTests extends ESTokenStreamTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        AnalysisService analysisService = createAnalysisService(idxSettings, settings);
-        NamedAnalyzer analyzer1 = analysisService.analyzer("custom_with_char_filter");
+        IndexAnalyzers indexAnalyzers = createTestAnalysis(idxSettings, settings).indexAnalyzers;
+        NamedAnalyzer analyzer1 = indexAnalyzers.get("custom_with_char_filter");
 
         assertTokenStreamContents(analyzer1.tokenStream("test", "faBBbBB aBbbbBf"), new String[]{"foo", "oof"});
     }

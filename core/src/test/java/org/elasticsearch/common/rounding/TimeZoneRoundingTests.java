@@ -42,8 +42,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-/**
- */
 public class TimeZoneRoundingTests extends ESTestCase {
 
     public void testUTCTimeUnitRounding() {

@@ -32,9 +32,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, InternalDateRange> {
     public static final Factory FACTORY = new Factory();
 

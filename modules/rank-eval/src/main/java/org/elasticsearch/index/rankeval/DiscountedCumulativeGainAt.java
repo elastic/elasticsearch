@@ -30,8 +30,8 @@ import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -139,13 +139,13 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
     }
 
     @Override
-    public EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs) {
+    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
         Map<RatedDocumentKey, RatedDocument> ratedDocsByKey = new HashMap<>();
         for (RatedDocument doc : ratedDocs) {
             ratedDocsByKey.put(doc.getKey(), doc);
         }
 
-        Collection<RatedDocumentKey> unknownDocIds = new ArrayList<>();
+        List<RatedDocumentKey> unknownDocIds = new ArrayList<>();
         List<Integer> ratings = new ArrayList<>();
         for (int i = 0; (i < position && i < hits.length); i++) {
             RatedDocumentKey id = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].getId());
@@ -156,24 +156,29 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
                 unknownDocIds.add(id);
                 if (unknownDocRating != null) {
                     ratings.add(unknownDocRating);
+                } else {
+                    // we add null here so that the later computation knows this position had no rating
+                    ratings.add(null);
                 }
             }
         }
         double dcg = computeDCG(ratings);
 
         if (normalize) {
-            Collections.sort(ratings, Collections.reverseOrder());
+            Collections.sort(ratings, Comparator.nullsLast(Collections.reverseOrder()));
             double idcg = computeDCG(ratings);
             dcg = dcg / idcg;
         }
-        return new EvalQueryQuality(dcg, unknownDocIds);
+        return new EvalQueryQuality(taskId, dcg, unknownDocIds);
     }
 
     private static double computeDCG(List<Integer> ratings) {
         int rank = 1;
         double dcg = 0;
-        for (int rating : ratings) {
-            dcg += (Math.pow(2, rating) - 1) / ((Math.log(rank + 1) / LOG2));
+        for (Integer rating : ratings) {
+            if (rating != null) {
+                dcg += (Math.pow(2, rating) - 1) / ((Math.log(rank + 1) / LOG2));
+            }
             rank++;
         }
         return dcg;
@@ -208,7 +213,7 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
         builder.endObject();
         return builder;
     }
-    
+
     @Override
     public final boolean equals(Object obj) {
         if (this == obj) {
@@ -222,9 +227,11 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
                 Objects.equals(normalize, other.normalize) &&
                 Objects.equals(unknownDocRating, other.unknownDocRating);
     }
-    
+
     @Override
     public final int hashCode() {
         return Objects.hash(position, normalize, unknownDocRating);
     }
+
+    // TODO maybe also add debugging breakdown here
 }

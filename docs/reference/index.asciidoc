@@ -3,6 +3,12 @@
 
 :version:        6.0.0-alpha1
 :major-version:  6.x
+
+//////////
+release-state can be: released | prerelease | unreleased
+//////////
+
+:release-state:  unreleased
 :lucene_version: 6.2.0
 :branch:         master
 :jdk:            1.8.0_73

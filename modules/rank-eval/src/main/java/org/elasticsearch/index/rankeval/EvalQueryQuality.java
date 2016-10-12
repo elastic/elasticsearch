@@ -19,29 +19,107 @@
 
 package org.elasticsearch.index.rankeval;
 
-import java.util.Collection;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;;
 
 /**
- * Returned for each search specification. Summarizes the measured quality
- * metric for this search request and adds the document ids found that were in
- * the search result but not annotated in the original request.
+ * This class represents the partial information from running the ranking evaluation metric on one
+ * request alone. It contains all information necessary to render the response for this part of the
+ * overall evaluation.
  */
-public class EvalQueryQuality {
+public class EvalQueryQuality implements ToXContent, Writeable {
+
+    /** documents seen as result for one request that were not annotated.*/
+    private List<RatedDocumentKey> unknownDocs;
+    private String id;
     private double qualityLevel;
+    private MetricDetails optionalMetricDetails;
 
-    private Collection<RatedDocumentKey> unknownDocs;
-
-    public EvalQueryQuality (double qualityLevel, Collection<RatedDocumentKey> unknownDocs) {
-       this.qualityLevel = qualityLevel;
-       this.unknownDocs = unknownDocs;
+    public EvalQueryQuality(String id, double qualityLevel, List<RatedDocumentKey> unknownDocs) {
+        this.id = id;
+        this.unknownDocs = unknownDocs;
+        this.qualityLevel = qualityLevel;
     }
 
-    public Collection<RatedDocumentKey> getUnknownDocs() {
-        return unknownDocs;
+    public EvalQueryQuality(StreamInput in) throws IOException {
+        this(in.readString(), in.readDouble(), in.readList(RatedDocumentKey::new));
+        this.optionalMetricDetails = in.readOptionalNamedWriteable(MetricDetails.class);
+    }
+
+    public String getId() {
+        return id;
     }
 
     public double getQualityLevel() {
         return qualityLevel;
     }
 
+    public List<RatedDocumentKey> getUnknownDocs() {
+        return Collections.unmodifiableList(this.unknownDocs);
+    }
+
+    public void addMetricDetails(MetricDetails breakdown) {
+        this.optionalMetricDetails = breakdown;
+    }
+
+    public MetricDetails getMetricDetails() {
+        return this.optionalMetricDetails;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(id);
+        out.writeDouble(qualityLevel);
+        out.writeVInt(unknownDocs.size());
+        for (RatedDocumentKey key : unknownDocs) {
+            key.writeTo(out);
+        }
+        out.writeOptionalNamedWriteable(this.optionalMetricDetails);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(id);
+        builder.field("quality_level", this.qualityLevel);
+        builder.startArray("unknown_docs");
+        for (RatedDocumentKey key : unknownDocs) {
+            key.toXContent(builder, params);
+        }
+        builder.endArray();
+        if (optionalMetricDetails != null) {
+            builder.startObject("metric_details");
+            optionalMetricDetails.toXContent(builder, params);
+            builder.endObject();
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
+    public final boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        EvalQueryQuality other = (EvalQueryQuality) obj;
+        return Objects.equals(id, other.id) &&
+                Objects.equals(qualityLevel, other.qualityLevel) &&
+                Objects.equals(unknownDocs, other.unknownDocs) &&
+                Objects.equals(optionalMetricDetails, other.optionalMetricDetails);
+    }
+
+    @Override
+    public final int hashCode() {
+        return Objects.hash(id, qualityLevel, unknownDocs, optionalMetricDetails);
+    }
 }

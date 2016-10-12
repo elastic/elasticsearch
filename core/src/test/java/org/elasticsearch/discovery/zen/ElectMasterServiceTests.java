@@ -22,7 +22,6 @@ package org.elasticsearch.discovery.zen;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.discovery.zen.ElectMasterService.MasterCandidate;
 import org.elasticsearch.test.ESTestCase;
 
@@ -50,7 +49,7 @@ public class ElectMasterServiceTests extends ESTestCase {
             if (randomBoolean()) {
                 roles.add(DiscoveryNode.Role.MASTER);
             }
-            DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
+            DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, buildNewFakeTransportAddress(), Collections.emptyMap(),
                     roles, Version.CURRENT);
             nodes.add(node);
         }
@@ -65,7 +64,7 @@ public class ElectMasterServiceTests extends ESTestCase {
         for (int i = 0; i < count; i++) {
             Set<DiscoveryNode.Role> roles = new HashSet<>();
             roles.add(DiscoveryNode.Role.MASTER);
-            DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
+            DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, buildNewFakeTransportAddress(), Collections.emptyMap(),
                 roles, Version.CURRENT);
             candidates.add(new MasterCandidate(node, randomBoolean() ? MasterCandidate.UNRECOVERED_CLUSTER_VERSION : randomPositiveLong()));
         }

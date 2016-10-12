@@ -3,6 +3,11 @@
 
 experimental[The reindex API is new and should still be considered experimental.  The API may change in ways that are not backwards compatible]
 
+IMPORTANT: Reindex does not attempt to set up the destination index.  It does
+not copy the settings of the source index.  You should set up the destination
+index prior to running a `_reindex` action, including setting up mappings, shard
+counts, replicas, etc.
+
 The most basic form of `_reindex` just copies documents from one index to another.
 This will copy documents from the `twitter` index into the `new_twitter` index:
 
@@ -362,6 +367,7 @@ POST _reindex
 // TEST[s/^/PUT source\n/]
 
 [float]
+[[reindex-from-remote]]
 === Reindex from Remote
 
 Reindex supports reindexing from a remote Elasticsearch cluster:
@@ -595,7 +601,7 @@ Any Reindex can be canceled using the <<tasks,Task Cancel API>>:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/taskid:1/_cancel
+POST _tasks/task_id:1/_cancel
 --------------------------------------------------
 // CONSOLE
 
@@ -614,7 +620,7 @@ the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _reindex/taskid:1/_rethrottle?requests_per_second=-1
+POST _reindex/task_id:1/_rethrottle?requests_per_second=-1
 --------------------------------------------------
 // CONSOLE
 
@@ -694,6 +700,65 @@ and it'll look like:
 
 Or you can search by `tag` or whatever you want.
 
+[float]
+=== Manually slicing
+
+Reindex supports <<sliced-scroll>> allowing you to manually parallelize the
+process relatively easily:
+
+[source,js]
+----------------------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "twitter",
+    "slice": {
+      "id": 0,
+      "max": 2
+    }
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+POST _reindex
+{
+  "source": {
+    "index": "twitter",
+    "slice": {
+      "id": 1,
+      "max": 2
+    }
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
+
+Which you can verify works with:
+
+[source,js]
+----------------------------------------------------------------
+GET _refresh
+POST new_twitter/_search?size=0&filter_path=hits.total
+----------------------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Which results in a sensible `total` like this one:
+
+[source,js]
+----------------------------------------------------------------
+{
+  "hits": {
+    "total": 120
+  }
+}
+----------------------------------------------------------------
+// TESTRESPONSE
 
 [float]
 === Reindex daily indices

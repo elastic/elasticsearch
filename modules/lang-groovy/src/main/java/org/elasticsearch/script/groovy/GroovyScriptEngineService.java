@@ -315,7 +315,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 }
                 throw ae;
             } catch (Exception | NoClassDefFoundError e) {
-                logger.trace("failed to run {}", e, compiledScript);
+                logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to run {}", compiledScript), e);
                 throw new ScriptException("Error evaluating " + compiledScript.name(), e, emptyList(), "", compiledScript.lang());
             }
         }

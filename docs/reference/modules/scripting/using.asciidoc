@@ -13,7 +13,7 @@ the same pattern:
   }
 -------------------------------------
 <1> The language the script is written in, which defaults to `painless`.
-<2> The script itself which may be specfied as `inline`, `id`, or `file`.
+<2> The script itself which may be specified as `inline`, `id`, or `file`.
 <3> Any named parameters that should be passed into the script.
 
 For example, the following script is used in a search request to return a

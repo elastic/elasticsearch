@@ -32,16 +32,14 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-/**
- */
 public class PolishAnalysisTests extends ESTestCase {
     public void testDefaultsPolishAnalysis() throws IOException {
-        final AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), Settings.EMPTY,
+        final TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY,
                 new AnalysisStempelPlugin());
-        TokenFilterFactory tokenizerFactory = analysisService.tokenFilter("polish_stem");
+        TokenFilterFactory tokenizerFactory = analysis.tokenFilter.get("polish_stem");
         MatcherAssert.assertThat(tokenizerFactory, instanceOf(PolishStemTokenFilterFactory.class));
 
-        Analyzer analyzer = analysisService.analyzer("polish").analyzer();
+        Analyzer analyzer = analysis.indexAnalyzers.get("polish").analyzer();
         MatcherAssert.assertThat(analyzer, instanceOf(PolishAnalyzer.class));
     }
 }

@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
@@ -52,7 +51,7 @@ public class RestClearScrollAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String scrollIds = request.param("scroll_id");
         ClearScrollRequest clearRequest = new ClearScrollRequest();
         clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
@@ -68,7 +67,7 @@ public class RestClearScrollAction extends BaseRestHandler {
            }
         }
 
-        client.clearScroll(clearRequest, new RestStatusToXContentListener<ClearScrollResponse>(channel));
+        return channel -> client.clearScroll(clearRequest, new RestStatusToXContentListener<ClearScrollResponse>(channel));
     }
 
     public static String[] splitScrollIds(String scrollIds) {

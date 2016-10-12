@@ -40,7 +40,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreadsTests;
 import org.elasticsearch.common.util.set.Sets;
@@ -373,11 +373,12 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testActionTransportException() throws IOException {
+        TransportAddress transportAddress = buildNewFakeTransportAddress();
         ActionTransportException ex = serialize(
-                new ActionTransportException("name?", new LocalTransportAddress("dead.end:666"), "ACTION BABY!", "message?", null));
+                new ActionTransportException("name?", transportAddress, "ACTION BABY!", "message?", null));
         assertEquals("ACTION BABY!", ex.action());
-        assertEquals(new LocalTransportAddress("dead.end:666"), ex.address());
-        assertEquals("[name?][local[dead.end:666]][ACTION BABY!] message?", ex.getMessage());
+        assertEquals(transportAddress, ex.address());
+        assertEquals("[name?][" + transportAddress.toString() +"][ACTION BABY!] message?", ex.getMessage());
     }
 
     public void testSearchContextMissingException() throws IOException {
@@ -440,16 +441,17 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testConnectTransportException() throws IOException {
-        DiscoveryNode node = new DiscoveryNode("thenode", new LocalTransportAddress("dead.end:666"),
+        TransportAddress transportAddress = buildNewFakeTransportAddress();
+        DiscoveryNode node = new DiscoveryNode("thenode", transportAddress,
                 emptyMap(), emptySet(), Version.CURRENT);
         ConnectTransportException ex = serialize(new ConnectTransportException(node, "msg", "action", null));
-        assertEquals("[][local[dead.end:666]][action] msg", ex.getMessage());
+        assertEquals("[][" + transportAddress.toString() + "][action] msg", ex.getMessage());
         assertEquals(node, ex.node());
         assertEquals("action", ex.action());
         assertNull(ex.getCause());
 
         ex = serialize(new ConnectTransportException(node, "msg", "action", new NullPointerException()));
-        assertEquals("[][local[dead.end:666]][action] msg", ex.getMessage());
+        assertEquals("[]["+ transportAddress+ "][action] msg", ex.getMessage());
         assertEquals(node, ex.node());
         assertEquals("action", ex.action());
         assertTrue(ex.getCause() instanceof NullPointerException);
@@ -757,7 +759,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(107, org.elasticsearch.repositories.RepositoryMissingException.class);
         ids.put(108, null);
         ids.put(109, org.elasticsearch.index.engine.DocumentSourceMissingException.class);
-        ids.put(110, org.elasticsearch.index.engine.FlushNotAllowedEngineException.class);
+        ids.put(110, null); // FlushNotAllowedEngineException was removed in 5.0
         ids.put(111, org.elasticsearch.common.settings.NoClassSettingsException.class);
         ids.put(112, org.elasticsearch.transport.BindTransportException.class);
         ids.put(113, org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException.class);

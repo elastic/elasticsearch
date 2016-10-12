@@ -22,9 +22,6 @@ package org.elasticsearch.discovery.zen.ping;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 
-/**
- *
- */
 public interface PingContextProvider extends DiscoveryNodesProvider {
 
     /** return the current cluster state of the node */

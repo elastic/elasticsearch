@@ -59,7 +59,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = createDefaultFieldType();
         // current impl ignores args and should always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomDouble(), randomDouble(),
-                randomBoolean(), randomBoolean(), null, null));
+                randomBoolean(), randomBoolean(), null, null, null));
     }
 
     public void testTermQuery() {
@@ -78,11 +78,11 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
-        assertEquals(LongPoint.newRangeQuery("field", 1, 3), ft.rangeQuery("1", "3", true, true));
+        assertEquals(LongPoint.newRangeQuery("field", 1, 3), ft.rangeQuery("1", "3", true, true, null));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> ft.rangeQuery("1", "3", true, true));
+                () -> ft.rangeQuery("1", "3", true, true, null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 

@@ -33,9 +33,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-/**
- *
- */
 public class TransportShardFlushAction extends TransportReplicationAction<ShardFlushRequest, ShardFlushRequest, ReplicationResponse> {
 
     public static final String NAME = FlushAction.NAME + "[s]";
@@ -54,18 +51,16 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     }
 
     @Override
-    protected PrimaryResult shardOperationOnPrimary(ShardFlushRequest shardRequest) {
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId().getIndex()).getShard(shardRequest.shardId().id());
-        indexShard.flush(shardRequest.getRequest());
-        logger.trace("{} flush request executed on primary", indexShard.shardId());
+    protected PrimaryResult shardOperationOnPrimary(ShardFlushRequest shardRequest, IndexShard primary) {
+        primary.flush(shardRequest.getRequest());
+        logger.trace("{} flush request executed on primary", primary.shardId());
         return new PrimaryResult(shardRequest, new ReplicationResponse());
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(ShardFlushRequest request) {
-        IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
-        indexShard.flush(request.getRequest());
-        logger.trace("{} flush request executed on replica", indexShard.shardId());
+    protected ReplicaResult shardOperationOnReplica(ShardFlushRequest request, IndexShard replica) {
+        replica.flush(request.getRequest());
+        logger.trace("{} flush request executed on replica", replica.shardId());
         return new ReplicaResult();
     }
 

@@ -25,9 +25,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 
 import java.io.IOException;
 
-/**
- *
- */
 public enum VersionType implements Writeable {
     INTERNAL((byte) 0) {
         @Override

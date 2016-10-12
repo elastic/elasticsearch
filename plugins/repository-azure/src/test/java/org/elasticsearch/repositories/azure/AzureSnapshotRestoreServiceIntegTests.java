@@ -28,11 +28,14 @@ import org.elasticsearch.cloud.azure.AbstractAzureRepositoryServiceIntegTestCase
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(
         scope = ESIntegTestCase.Scope.SUITE,
@@ -70,14 +73,20 @@ public class AzureSnapshotRestoreServiceIntegTests extends AbstractAzureReposito
         assertThat(client.prepareSearch("test-idx-3").setSize(0).get().getHits().totalHits(), equalTo(100L));
 
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-3").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster()
+                .prepareCreateSnapshot("test-repo", "test-snap")
+                .setWaitForCompletion(true)
+                .setIndices("test-idx-*", "-test-idx-3")
+                .get();
 
-        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots().get(0).state(),
-            equalTo(SnapshotState.SUCCESS));
+        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        if (snapshotInfo.shardFailures() != null) {
+            for (SnapshotShardFailure shardFailure : snapshotInfo.shardFailures()) {
+                logger.warn("shard failure during snapshot: {}", shardFailure::toString);
+            }
+        }
+        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+        assertEquals(snapshotInfo.failedShards(), 0);
 
         logger.info("--> delete some data");
         for (int i = 0; i < 50; i++) {

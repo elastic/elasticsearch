@@ -23,10 +23,8 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
@@ -53,10 +51,10 @@ public class Netty4PipeliningEnabledIT extends ESNetty4IntegTestCase {
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         TransportAddress[] boundAddresses = httpServerTransport.boundAddress().boundAddresses();
-        InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) randomFrom(boundAddresses);
+        TransportAddress transportAddress = (TransportAddress) randomFrom(boundAddresses);
 
         try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
-            Collection<FullHttpResponse> responses = nettyHttpClient.get(inetSocketTransportAddress.address(), requests);
+            Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests);
             assertThat(responses, hasSize(5));
 
             Collection<String> opaqueIds = Netty4HttpClient.returnOpaqueIds(responses);

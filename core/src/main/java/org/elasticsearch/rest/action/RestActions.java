@@ -51,9 +51,6 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.List;
 
-/**
- *
- */
 public class RestActions {
 
     public static long parseVersion(RestRequest request) {

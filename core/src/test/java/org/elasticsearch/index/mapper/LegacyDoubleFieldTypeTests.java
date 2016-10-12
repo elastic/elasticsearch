@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.LegacyDoubleFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.LegacyDoubleFieldMapper.DoubleFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.junit.Before;
@@ -41,11 +39,11 @@ public class LegacyDoubleFieldTypeTests extends FieldTypeTestCase {
         DoubleFieldType ft = new DoubleFieldType();
         // current impl ignores args and shourd always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomDouble(), randomDouble(),
-                randomBoolean(), randomBoolean(), null, null));
+                randomBoolean(), randomBoolean(), null, null, null));
     }
 
     public void testValueForSearch() {
         MappedFieldType ft = createDefaultFieldType();
-        assertEquals(Double.valueOf(1.2), ft.valueForSearch(1.2));
+        assertEquals(Double.valueOf(1.2), ft.valueForDisplay(1.2));
     }
 }

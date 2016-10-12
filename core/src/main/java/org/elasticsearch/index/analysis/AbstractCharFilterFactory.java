@@ -22,9 +22,6 @@ package org.elasticsearch.index.analysis;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public abstract class AbstractCharFilterFactory extends AbstractIndexComponent implements CharFilterFactory {
 
     private final String name;

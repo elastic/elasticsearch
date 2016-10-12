@@ -24,13 +24,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- */
 public class DiscoveryNodeFilters {
 
     public enum OpType {
@@ -82,8 +80,8 @@ public class DiscoveryNodeFilters {
             if ("_ip".equals(attr)) {
                 // We check both the host_ip or the publish_ip
                 String publishAddress = null;
-                if (node.getAddress() instanceof InetSocketTransportAddress) {
-                    publishAddress = NetworkAddress.format(((InetSocketTransportAddress) node.getAddress()).address().getAddress());
+                if (node.getAddress() instanceof TransportAddress) {
+                    publishAddress = NetworkAddress.format(node.getAddress().address().getAddress());
                 }
 
                 boolean match = matchByIP(values, node.getHostAddress(), publishAddress);
@@ -116,8 +114,8 @@ public class DiscoveryNodeFilters {
             } else if ("_publish_ip".equals(attr)) {
                 // We check explicitly only the publish_ip
                 String address = null;
-                if (node.getAddress() instanceof InetSocketTransportAddress) {
-                    address = NetworkAddress.format(((InetSocketTransportAddress) node.getAddress()).address().getAddress());
+                if (node.getAddress() instanceof TransportAddress) {
+                    address = NetworkAddress.format(node.getAddress().address().getAddress());
                 }
 
                 boolean match = matchByIP(values, address, null);

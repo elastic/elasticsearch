@@ -180,17 +180,17 @@ public class MapperQueryParser extends QueryParser {
             if (queryText.charAt(0) == '>') {
                 if (queryText.length() > 2) {
                     if (queryText.charAt(1) == '=') {
-                        return getRangeQuerySingle(field, queryText.substring(2), null, true, true);
+                        return getRangeQuerySingle(field, queryText.substring(2), null, true, true, context);
                     }
                 }
-                return getRangeQuerySingle(field, queryText.substring(1), null, false, true);
+                return getRangeQuerySingle(field, queryText.substring(1), null, false, true, context);
             } else if (queryText.charAt(0) == '<') {
                 if (queryText.length() > 2) {
                     if (queryText.charAt(1) == '=') {
-                        return getRangeQuerySingle(field, null, queryText.substring(2), true, true);
+                        return getRangeQuerySingle(field, null, queryText.substring(2), true, true, context);
                     }
                 }
-                return getRangeQuerySingle(field, null, queryText.substring(1), true, false);
+                return getRangeQuerySingle(field, null, queryText.substring(1), true, false, context);
             }
         }
         currentFieldType = null;
@@ -290,19 +290,19 @@ public class MapperQueryParser extends QueryParser {
         Collection<String> fields = extractMultiFields(field);
 
         if (fields == null) {
-            return getRangeQuerySingle(field, part1, part2, startInclusive, endInclusive);
+            return getRangeQuerySingle(field, part1, part2, startInclusive, endInclusive, context);
         }
 
 
         if (fields.size() == 1) {
-            return getRangeQuerySingle(fields.iterator().next(), part1, part2, startInclusive, endInclusive);
+            return getRangeQuerySingle(fields.iterator().next(), part1, part2, startInclusive, endInclusive, context);
         }
 
         if (settings.useDisMax()) {
             List<Query> queries = new ArrayList<>();
             boolean added = false;
             for (String mField : fields) {
-                Query q = getRangeQuerySingle(mField, part1, part2, startInclusive, endInclusive);
+                Query q = getRangeQuerySingle(mField, part1, part2, startInclusive, endInclusive, context);
                 if (q != null) {
                     added = true;
                     queries.add(applyBoost(mField, q));
@@ -315,7 +315,7 @@ public class MapperQueryParser extends QueryParser {
         } else {
             List<BooleanClause> clauses = new ArrayList<>();
             for (String mField : fields) {
-                Query q = getRangeQuerySingle(mField, part1, part2, startInclusive, endInclusive);
+                Query q = getRangeQuerySingle(mField, part1, part2, startInclusive, endInclusive, context);
                 if (q != null) {
                     clauses.add(new BooleanClause(applyBoost(mField, q), BooleanClause.Occur.SHOULD));
                 }
@@ -326,7 +326,7 @@ public class MapperQueryParser extends QueryParser {
     }
 
     private Query getRangeQuerySingle(String field, String part1, String part2,
-                                      boolean startInclusive, boolean endInclusive) {
+            boolean startInclusive, boolean endInclusive, QueryShardContext context) {
         currentFieldType = context.fieldMapper(field);
         if (currentFieldType != null) {
             if (lowercaseExpandedTerms && currentFieldType.tokenized()) {
@@ -338,12 +338,12 @@ public class MapperQueryParser extends QueryParser {
                 Query rangeQuery;
                 if (currentFieldType instanceof LegacyDateFieldMapper.DateFieldType && settings.timeZone() != null) {
                     LegacyDateFieldMapper.DateFieldType dateFieldType = (LegacyDateFieldMapper.DateFieldType) this.currentFieldType;
-                    rangeQuery = dateFieldType.rangeQuery(part1, part2, startInclusive, endInclusive, settings.timeZone(), null);
+                    rangeQuery = dateFieldType.rangeQuery(part1, part2, startInclusive, endInclusive, settings.timeZone(), null, context);
                 } else if (currentFieldType instanceof DateFieldMapper.DateFieldType && settings.timeZone() != null) {
                     DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) this.currentFieldType;
-                    rangeQuery = dateFieldType.rangeQuery(part1, part2, startInclusive, endInclusive, settings.timeZone(), null);
+                    rangeQuery = dateFieldType.rangeQuery(part1, part2, startInclusive, endInclusive, settings.timeZone(), null, context);
                 } else {
-                    rangeQuery = currentFieldType.rangeQuery(part1, part2, startInclusive, endInclusive);
+                    rangeQuery = currentFieldType.rangeQuery(part1, part2, startInclusive, endInclusive, context);
                 }
                 return rangeQuery;
             } catch (RuntimeException e) {

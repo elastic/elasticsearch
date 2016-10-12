@@ -44,10 +44,12 @@ public abstract class RankedListQualityMetric extends ToXContentToBytes implemen
      * Returns a single metric representing the ranking quality of a set of returned documents
      * wrt. to a set of document Ids labeled as relevant for this search.
      *
+     * @param taskId the id of the query for which the ranking is currently evaluated
      * @param hits the result hits as returned by some search
+     * @param ratedDocs the documents that were ranked by human annotators for this query case
      * @return some metric representing the quality of the result hit list wrt. to relevant doc ids.
      * */
-    public abstract EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs);
+    public abstract EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs);
 
     public static RankedListQualityMetric fromXContent(XContentParser parser, ParseFieldMatcherSupplier context) throws IOException {
         RankedListQualityMetric rc;

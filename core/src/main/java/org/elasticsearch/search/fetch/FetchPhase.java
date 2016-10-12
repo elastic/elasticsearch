@@ -99,11 +99,9 @@ public class FetchPhase implements SearchPhase {
         } else {
             for (String fieldName : context.storedFieldsContext().fieldNames()) {
                 if (fieldName.equals(SourceFieldMapper.NAME)) {
-                    if (context.hasFetchSourceContext()) {
-                        context.fetchSourceContext().fetchSource(true);
-                    } else {
-                        context.fetchSourceContext(new FetchSourceContext(true));
-                    }
+                    FetchSourceContext fetchSourceContext = context.hasFetchSourceContext() ? context.fetchSourceContext()
+                        : FetchSourceContext.FETCH_SOURCE;
+                    context.fetchSourceContext(new FetchSourceContext(true, fetchSourceContext.includes(), fetchSourceContext.excludes()));
                     continue;
                 }
                 if (Regex.isSimpleMatchPattern(fieldName)) {

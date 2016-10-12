@@ -29,7 +29,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,17 +36,18 @@ import java.util.Map;
 public class RankEvalResponseTests extends ESTestCase {
 
     private static RankEvalResponse createRandomResponse() {
-        Map<String, Collection<RatedDocumentKey>> unknownDocs = new HashMap<>();
-        int numberOfSets = randomIntBetween(0, 5);
-        for (int i = 0; i < numberOfSets; i++) {
-            List<RatedDocumentKey> ids = new ArrayList<>();
+        int numberOfRequests = randomIntBetween(0, 5);
+        Map<String, EvalQueryQuality> partials = new HashMap<>(numberOfRequests);
+        for (int i = 0; i < numberOfRequests; i++) {
+            String id = randomAsciiOfLengthBetween(3, 10);
             int numberOfUnknownDocs = randomIntBetween(0, 5);
+            List<RatedDocumentKey> unknownDocs = new ArrayList<>(numberOfUnknownDocs);
             for (int d = 0; d < numberOfUnknownDocs; d++) {
-                ids.add(new RatedDocumentKey(randomAsciiOfLength(5), randomAsciiOfLength(5), randomAsciiOfLength(5)));
+                unknownDocs.add(RatedDocumentKeyTests.createRandomRatedDocumentKey());
             }
-            unknownDocs.put(randomAsciiOfLength(5), ids);
+            partials.put(id, new EvalQueryQuality(id, randomDoubleBetween(0.0, 1.0, true), unknownDocs));
         }
-        return new RankEvalResponse(randomDouble(), unknownDocs );
+        return new RankEvalResponse(randomDouble(), partials);
     }
 
     public void testSerialization() throws IOException {

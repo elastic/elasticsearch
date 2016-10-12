@@ -39,9 +39,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-/**
- *
- */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
 public class FullRollingRestartIT extends ESIntegTestCase {
     protected void assertTimeout(ClusterHealthRequestBuilder requestBuilder) {

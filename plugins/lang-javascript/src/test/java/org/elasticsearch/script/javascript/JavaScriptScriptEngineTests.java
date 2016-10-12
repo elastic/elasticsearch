@@ -39,9 +39,6 @@ import org.junit.Before;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-/**
- *
- */
 public class JavaScriptScriptEngineTests extends ESTestCase {
     private JavaScriptScriptEngineService se;
 

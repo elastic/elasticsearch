@@ -24,8 +24,9 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -39,7 +40,6 @@ import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * A sort builder to sort based on a document field.
@@ -327,67 +327,24 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      *        in '{ "foo": { "order" : "asc"} }'. When parsing the inner object, the field name can be passed in via this argument
      */
     public static FieldSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
-        XContentParser parser = context.parser();
+        return PARSER.parse(context.parser(), new FieldSortBuilder(fieldName), context);
+    }
 
-        Optional<QueryBuilder> nestedFilter = Optional.empty();
-        String nestedPath = null;
-        Object missing = null;
-        SortOrder order = null;
-        SortMode sortMode = null;
-        String unmappedType = null;
+    private static ObjectParser<FieldSortBuilder, QueryParseContext> PARSER = new ObjectParser<>(NAME);
 
-        String currentFieldName = null;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (context.getParseFieldMatcher().match(currentFieldName, NESTED_FILTER)) {
-                    nestedFilter = context.parseInnerQueryBuilder();
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(), "Expected " + NESTED_FILTER.getPreferredName() + " element.");
-                }
-            } else if (token.isValue()) {
-                if (context.getParseFieldMatcher().match(currentFieldName, NESTED_PATH)) {
-                    nestedPath = parser.text();
-                } else if (context.getParseFieldMatcher().match(currentFieldName, MISSING)) {
-                    missing = parser.objectText();
-                } else if (context.getParseFieldMatcher().match(currentFieldName, ORDER)) {
-                    String sortOrder = parser.text();
-                    if ("asc".equals(sortOrder)) {
-                        order = SortOrder.ASC;
-                    } else if ("desc".equals(sortOrder)) {
-                        order = SortOrder.DESC;
-                    } else {
-                        throw new ParsingException(parser.getTokenLocation(), "Sort order [{}] not supported.", sortOrder);
-                    }
-                } else if (context.getParseFieldMatcher().match(currentFieldName, SORT_MODE)) {
-                    sortMode = SortMode.fromString(parser.text());
-                } else if (context.getParseFieldMatcher().match(currentFieldName, UNMAPPED_TYPE)) {
-                    unmappedType = parser.text();
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(), "Option [{}] not supported.", currentFieldName);
-                }
-            }
-        }
-
-        FieldSortBuilder builder = new FieldSortBuilder(fieldName);
-        nestedFilter.ifPresent(builder::setNestedFilter);
-        if (nestedPath != null) {
-            builder.setNestedPath(nestedPath);
-        }
-        if (missing != null) {
-            builder.missing(missing);
-        }
-        if (order != null) {
-            builder.order(order);
-        }
-        if (sortMode != null) {
-            builder.sortMode(sortMode);
-        }
-        if (unmappedType != null) {
-            builder.unmappedType(unmappedType);
-        }
-        return builder;
+    static {
+        PARSER.declareField(FieldSortBuilder::missing, p -> p.objectText(),  MISSING, ValueType.VALUE);
+        PARSER.declareString(FieldSortBuilder::setNestedPath , NESTED_PATH);
+        PARSER.declareString(FieldSortBuilder::unmappedType , UNMAPPED_TYPE);
+        PARSER.declareField(FieldSortBuilder::order, p -> SortOrder.fromString(p.text()), ORDER_FIELD, ValueType.STRING);
+        PARSER.declareField(FieldSortBuilder::sortMode, p -> SortMode.fromString(p.text()), SORT_MODE, ValueType.STRING);
+        PARSER.declareObject(FieldSortBuilder::setNestedFilter,  (p, c) -> {
+            try {
+                QueryBuilder builder = c.parseInnerQueryBuilder().orElseThrow(
+                        () -> new ParsingException(p.getTokenLocation(), "Expected " + NESTED_FILTER.getPreferredName() + " element."));
+                return builder;
+            } catch (Exception e) {
+                throw new ParsingException(p.getTokenLocation(), "Expected " + NESTED_FILTER.getPreferredName() + " element.", e);
+            }}, NESTED_FILTER);
     }
 }

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
@@ -90,7 +91,7 @@ public class MonitoringBulkRequest extends ActionRequest<MonitoringBulkRequest> 
         // instead of duplicating the parsing logic here we use a new BulkRequest instance to parse the content.
         BulkRequest bulkRequest = Requests.bulkRequest().add(content, null, defaultType);
 
-        for (ActionRequest request : bulkRequest.requests()) {
+        for (DocWriteRequest request : bulkRequest.requests()) {
             if (request instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) request;
 

@@ -13,6 +13,7 @@ import com.squareup.okhttp.mockwebserver.RecordedRequest;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -638,7 +639,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     private void assertBulkRequest(Buffer requestBody, int numberOfActions) throws Exception {
         BulkRequest bulkRequest = Requests.bulkRequest().add(new BytesArray(requestBody.readByteArray()), null, null);
         assertThat(bulkRequest.numberOfActions(), equalTo(numberOfActions));
-        for (ActionRequest actionRequest : bulkRequest.requests()) {
+        for (DocWriteRequest actionRequest : bulkRequest.requests()) {
             assertThat(actionRequest, instanceOf(IndexRequest.class));
         }
     }

@@ -41,9 +41,6 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.common.Strings.cleanPath;
 
-/**
- *
- */
 public class InternalSettingsPreparer {
 
     private static final String[] ALLOWED_SUFFIXES = {".yml", ".yaml", ".json"};

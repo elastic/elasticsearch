@@ -46,9 +46,6 @@ import java.util.Optional;
 
 import static java.util.Collections.unmodifiableMap;
 
-/**
- *
- */
 public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentToBytes implements NamedWriteable {
 
     protected SortOrder order = SortOrder.ASC;

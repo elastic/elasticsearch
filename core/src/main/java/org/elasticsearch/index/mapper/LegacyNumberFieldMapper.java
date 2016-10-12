@@ -37,9 +37,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
 
-/**
- *
- */
 public abstract class LegacyNumberFieldMapper extends FieldMapper {
     // this is private since it has a different default
     private static final Setting<Boolean> COERCE_SETTING =

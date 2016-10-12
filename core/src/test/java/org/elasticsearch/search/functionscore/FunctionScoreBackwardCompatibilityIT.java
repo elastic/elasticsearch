@@ -43,8 +43,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
-/**
- */
 public class FunctionScoreBackwardCompatibilityIT extends ESBackcompatTestCase {
     /**
      * Simple upgrade test for function score.

@@ -24,9 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class WhitespaceAnalyzerProvider extends AbstractIndexAnalyzerProvider<WhitespaceAnalyzer> {
 
     private final WhitespaceAnalyzer analyzer;

@@ -31,9 +31,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 
-/**
- *
- */
 public enum ValueType implements Writeable {
 
     STRING((byte) 1, "string", "string", ValuesSourceType.BYTES,

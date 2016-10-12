@@ -28,9 +28,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.search.query.QuerySearchResult.readQuerySearchResult;
 
-/**
- *
- */
 public class ScrollQuerySearchResult extends TransportResponse {
 
     private QuerySearchResult queryResult;

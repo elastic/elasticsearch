@@ -34,9 +34,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
     public void testDoubleIndexingSameDoc() throws Exception {
         Directory dir = newDirectory();

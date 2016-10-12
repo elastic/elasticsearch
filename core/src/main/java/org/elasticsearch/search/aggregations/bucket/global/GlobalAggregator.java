@@ -31,9 +31,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class GlobalAggregator extends SingleBucketAggregator {
 
     public GlobalAggregator(String name, AggregatorFactories subFactories, AggregationContext aggregationContext, List<PipelineAggregator> pipelineAggregators,

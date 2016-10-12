@@ -19,9 +19,6 @@
 
 package org.elasticsearch.common.component;
 
-/**
- *
- */
 public abstract class LifecycleListener {
 
     public void beforeStart() {

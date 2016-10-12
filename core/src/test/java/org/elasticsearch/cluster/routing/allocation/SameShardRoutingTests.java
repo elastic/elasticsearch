@@ -40,8 +40,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.allocation.RoutingNodesUtils.numberOfShardsOfType;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class SameShardRoutingTests extends ESAllocationTestCase {
     private final Logger logger = Loggers.getLogger(SameShardRoutingTests.class);
 

@@ -34,8 +34,6 @@ import java.nio.file.Path;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-/**
- */
 public class ShardPathTests extends ESTestCase {
     public void testLoadShardPath() throws IOException {
         try (final NodeEnvironment env = newNodeEnvironment(Settings.builder().build())) {

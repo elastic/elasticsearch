@@ -69,9 +69,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     private final Logger logger = Loggers.getLogger(NodeVersionAllocationDeciderTests.class);
 

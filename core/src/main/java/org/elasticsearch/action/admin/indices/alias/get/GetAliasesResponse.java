@@ -31,8 +31,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- */
 public class GetAliasesResponse extends ActionResponse {
 
     private ImmutableOpenMap<String, List<AliasMetaData>> aliases = ImmutableOpenMap.of();

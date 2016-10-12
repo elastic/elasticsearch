@@ -30,9 +30,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
 
     public HDRPercentilesAggregator(String name, Numeric valuesSource, AggregationContext context, Aggregator parent, double[] percents,

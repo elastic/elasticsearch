@@ -85,9 +85,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
-/**
- *
- */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexRecoveryIT extends ESIntegTestCase {
 

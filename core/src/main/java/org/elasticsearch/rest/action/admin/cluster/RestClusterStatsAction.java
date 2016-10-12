@@ -30,9 +30,6 @@ import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class RestClusterStatsAction extends BaseRestHandler {
 
     @Inject

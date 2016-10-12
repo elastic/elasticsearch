@@ -30,9 +30,6 @@ import org.elasticsearch.index.IndexSettings;
 
 import java.util.regex.Pattern;
 
-/**
- *
- */
 public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {
 
     private final PatternAnalyzer analyzer;

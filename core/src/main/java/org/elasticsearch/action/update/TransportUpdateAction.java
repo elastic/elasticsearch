@@ -64,8 +64,6 @@ import java.util.Map;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 
-/**
- */
 public class TransportUpdateAction extends TransportInstanceSingleOperationAction<UpdateRequest, UpdateResponse> {
 
     private final TransportDeleteAction deleteAction;

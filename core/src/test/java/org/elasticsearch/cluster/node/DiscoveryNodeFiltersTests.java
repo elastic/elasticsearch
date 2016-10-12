@@ -41,8 +41,6 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class DiscoveryNodeFiltersTests extends ESTestCase {
 
     private static TransportAddress localAddress;

@@ -39,9 +39,6 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import java.io.IOException;
 import java.util.Collection;
 
-/**
- *
- */
 // LUCENE MONITOR
 // TODO: remove me!
 public class CustomFieldQuery extends FieldQuery {

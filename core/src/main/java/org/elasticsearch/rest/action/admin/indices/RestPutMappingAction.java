@@ -37,9 +37,6 @@ import static org.elasticsearch.client.Requests.putMappingRequest;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-/**
- *
- */
 public class RestPutMappingAction extends BaseRestHandler {
 
 

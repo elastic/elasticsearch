@@ -43,9 +43,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class RebalanceAfterActiveTests extends ESAllocationTestCase {
     private final Logger logger = Loggers.getLogger(RebalanceAfterActiveTests.class);
 

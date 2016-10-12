@@ -31,9 +31,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.List;
 
-/**
- *
- */
 public class NodesStatsResponse extends BaseNodesResponse<NodeStats> implements ToXContent {
 
     NodesStatsResponse() {

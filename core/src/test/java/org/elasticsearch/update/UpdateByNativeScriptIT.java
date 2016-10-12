@@ -42,9 +42,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 @ClusterScope(scope= Scope.SUITE, numDataNodes =1)
 public class UpdateByNativeScriptIT extends ESIntegTestCase {
 

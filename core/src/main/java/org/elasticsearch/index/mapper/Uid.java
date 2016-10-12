@@ -28,9 +28,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-/**
- *
- */
 public final class Uid {
 
     public static final char DELIMITER = '#';

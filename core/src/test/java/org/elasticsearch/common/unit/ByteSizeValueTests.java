@@ -31,9 +31,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class ByteSizeValueTests extends ESTestCase {
     public void testActualPeta() {
         MatcherAssert.assertThat(new ByteSizeValue(4, ByteSizeUnit.PB).getBytes(), equalTo(4503599627370496L));

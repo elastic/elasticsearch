@@ -20,8 +20,6 @@
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 
-/**
- */
 public enum SnapshotIndexShardStage {
 
     /**

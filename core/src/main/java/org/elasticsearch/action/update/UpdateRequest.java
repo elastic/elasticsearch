@@ -54,8 +54,6 @@ import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-/**
- */
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         implements DocumentRequest<UpdateRequest>, WriteRequest<UpdateRequest> {
     private static final DeprecationLogger DEPRECATION_LOGGER =

@@ -28,9 +28,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.tartarus.snowball.ext.FrenchStemmer;
 
-/**
- *
- */
 public class FrenchStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final CharArraySet exclusions;

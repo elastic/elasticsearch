@@ -36,8 +36,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- */
 final class LocalShardSnapshot implements Closeable {
     private final IndexShard shard;
     private final Store store;

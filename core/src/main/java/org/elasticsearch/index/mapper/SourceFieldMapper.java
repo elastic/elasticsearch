@@ -49,9 +49,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 
-/**
- *
- */
 public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_source";

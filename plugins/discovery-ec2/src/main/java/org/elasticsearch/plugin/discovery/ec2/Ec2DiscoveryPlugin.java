@@ -53,9 +53,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-/**
- *
- */
 public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
     private static Logger logger = Loggers.getLogger(Ec2DiscoveryPlugin.class);

@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.open;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class OpenIndexAction extends Action<OpenIndexRequest, OpenIndexResponse, OpenIndexRequestBuilder> {
 
     public static final OpenIndexAction INSTANCE = new OpenIndexAction();

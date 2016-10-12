@@ -149,7 +149,7 @@
           "description" : "How many suggestions to return in response"
         },
         "suggest_text": {
-          "type" : "text",
+          "type" : "string",
           "description" : "The source text for which the suggestions should be returned"
         },
         "timeout": {

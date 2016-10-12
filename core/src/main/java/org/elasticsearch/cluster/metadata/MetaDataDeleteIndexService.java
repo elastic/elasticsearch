@@ -39,6 +39,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotsService;
 
+import java.util.Arrays;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toSet;
@@ -65,7 +66,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
             throw new IllegalArgumentException("Index name is required");
         }
 
-        clusterService.submitStateUpdateTask("delete-index " + request.indices(),
+        clusterService.submitStateUpdateTask("delete-index " + Arrays.toString(request.indices()),
             new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
 
             @Override

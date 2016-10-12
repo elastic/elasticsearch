@@ -32,13 +32,19 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TieredMergePolicy;
@@ -51,10 +57,13 @@ import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -87,6 +96,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.mapper.internal.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
@@ -141,6 +151,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -297,6 +308,13 @@ public class InternalEngineTests extends ESTestCase {
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
                                long maxUnsafeAutoIdTimestamp, ReferenceManager.RefreshListener refreshListener) {
+        return config(indexSettings, store, translogPath, mergePolicy, createSnapshotDeletionPolicy(),
+                      maxUnsafeAutoIdTimestamp, refreshListener);
+    }
+
+    public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
+                               SnapshotDeletionPolicy deletionPolicy, long maxUnsafeAutoIdTimestamp,
+                               ReferenceManager.RefreshListener refreshListener) {
         IndexWriterConfig iwc = newIndexWriterConfig();
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         final EngineConfig.OpenMode openMode;
@@ -315,7 +333,7 @@ public class InternalEngineTests extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         };
-        EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings, null, store, createSnapshotDeletionPolicy(),
+        EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings, null, store, deletionPolicy,
                 mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,
                 new TranslogHandler(shardId.getIndexName(), logger), IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5), refreshListener,
@@ -1746,6 +1764,118 @@ public class InternalEngineTests extends ESTestCase {
         } finally {
             IOUtils.close(recoveringEngine);
         }
+    }
+
+    // this test writes documents to the engine while concurrently flushing/commit
+    // and ensuring that the commit points contain the correct sequence number data
+    public void testConcurrentWritesAndCommits() throws Exception {
+        try (final Store store = createStore();
+             final InternalEngine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(),
+                                                                     new SnapshotDeletionPolicy(NoDeletionPolicy.INSTANCE),
+                                                                     IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null))) {
+
+            final int numIndexingThreads = randomIntBetween(4, 7);
+            final int numDocsPerThread = randomIntBetween(500, 1000);
+            final CyclicBarrier barrier = new CyclicBarrier(numIndexingThreads + 1);
+            final List<Thread> indexingThreads = new ArrayList<>();
+            final List<AtomicBoolean> threadStatuses = new ArrayList<>();
+            for (int i = 0; i < numIndexingThreads; i++) {
+                threadStatuses.add(new AtomicBoolean());
+            }
+            // create N indexing threads to index documents simultaneously
+            for (int threadNum = 0; threadNum < numIndexingThreads; threadNum++) {
+                final int threadIdx = threadNum;
+                Thread indexingThread = new Thread() {
+                    @Override
+                    public void run() {
+                        try {
+                            barrier.await(); // wait for both threads to start at the same time
+                            // index a random number of docs
+                            for (int i = 0; i < numDocsPerThread; i++) {
+                                final String id = "thread" + threadIdx + "#" + i;
+                                ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocument(), B_1, null);
+                                engine.index(new Engine.Index(newUid(id), doc));
+                            }
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        } finally {
+                            threadStatuses.get(threadIdx).set(true); // signal that this thread is done indexing
+                        }
+                    }
+                };
+                indexingThreads.add(indexingThread);
+            }
+
+            // start the indexing threads
+            for (Thread thread : indexingThreads) {
+                thread.start();
+            }
+            barrier.await(); // wait for indexing threads to all be ready to start
+
+            // create random commit points
+            boolean doneIndexing;
+            do {
+                doneIndexing = threadStatuses.stream().filter(status -> status.get() == false).count() == 0;
+                engine.flush(); // flush and commit
+            } while (doneIndexing == false);
+
+            // now, verify all the commits have the correct docs according to the user commit data
+            long prevLocalCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
+            for (IndexCommit commit : DirectoryReader.listCommits(store.directory())) {
+                Map<String, String> userData = commit.getUserData();
+                long localCheckpoint = userData.containsKey(InternalEngine.LOCAL_CHECKPOINT_KEY) ?
+                                           Long.parseLong(userData.get(InternalEngine.LOCAL_CHECKPOINT_KEY)) :
+                                           SequenceNumbersService.NO_OPS_PERFORMED;
+                long maxSeqNo = userData.containsKey(InternalEngine.MAX_SEQ_NO) ?
+                                    Long.parseLong(userData.get(InternalEngine.MAX_SEQ_NO)) :
+                                    SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                assertThat(localCheckpoint, greaterThanOrEqualTo(prevLocalCheckpoint)) ; // local checkpoint shouldn't go backwards
+                try (IndexReader reader = DirectoryReader.open(commit)) {
+                    FieldStats stats = SeqNoFieldMapper.Defaults.FIELD_TYPE.stats(reader);
+                    final long highestSeqNo;
+                    if (stats != null) {
+                        highestSeqNo = (long) stats.getMaxValue();
+                    } else {
+                        highestSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
+                    }
+                    // make sure localCheckpoint <= highest seq no found <= maxSeqNo
+                    assertThat(highestSeqNo, greaterThanOrEqualTo(localCheckpoint));
+                    assertThat(highestSeqNo, lessThanOrEqualTo(maxSeqNo));
+                    // make sure all sequence numbers up to and including the local checkpoint are in the index
+                    FixedBitSet seqNosBitSet = getSeqNosSet(reader, highestSeqNo);
+                    for (int i = 0; i <= localCheckpoint; i++) {
+                        assertTrue("local checkpoint [" + localCheckpoint + "], _seq_no [" + i + "] should be indexed",
+                                   seqNosBitSet.get(i));
+                    }
+                }
+                prevLocalCheckpoint = localCheckpoint;
+            }
+        }
+    }
+
+    private static FixedBitSet getSeqNosSet(final IndexReader reader, final long highestSeqNo) throws IOException {
+        // _seq_no are stored as doc values for the time being, so this is how we get them
+        // (as opposed to using an IndexSearcher or IndexReader)
+        final FixedBitSet bitSet = new FixedBitSet((int) highestSeqNo + 1);
+        final List<LeafReaderContext> leaves = reader.leaves();
+        if (leaves.isEmpty()) {
+            return bitSet;
+        }
+
+        for (int i = 0; i < leaves.size(); i++) {
+            final LeafReader leaf = leaves.get(i).reader();
+            final NumericDocValues values = leaf.getNumericDocValues(SeqNoFieldMapper.NAME);
+            if (values == null) {
+                continue;
+            }
+            final Bits bits = leaf.getLiveDocs();
+            for (int docID = 0; docID < leaf.maxDoc(); docID++) {
+                if (bits == null || bits.get(docID)) {
+                    bitSet.set((int) values.get(docID));
+                }
+            }
+        }
+        return bitSet;
     }
 
     // #8603: make sure we can separately log IFD's messages

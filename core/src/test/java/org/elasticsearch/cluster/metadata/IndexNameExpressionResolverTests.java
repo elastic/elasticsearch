@@ -305,7 +305,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(1, results.length);
         assertEquals("bar", results[0]);
 
-        results = indexNameExpressionResolver.concreteIndexNames(context, "-foo*");
+        results = indexNameExpressionResolver.concreteIndexNames(context, "*", "-foo*");
         assertEquals(1, results.length);
         assertEquals("bar", results[0]);
 
@@ -583,6 +583,35 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testX*")), equalTo(newHashSet("testXYY")));
         context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, true, true, true));
         assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testX*")), equalTo(newHashSet("testXXX", "testXXY", "testXYY")));
+    }
+
+    public void testConcreteIndicesWildcardWithNegation() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder("testXXX").state(State.OPEN))
+                .put(indexBuilder("testXXY").state(State.OPEN))
+                .put(indexBuilder("testXYY").state(State.OPEN))
+                .put(indexBuilder("-testXYZ").state(State.OPEN))
+                .put(indexBuilder("-testXZZ").state(State.OPEN))
+                .put(indexBuilder("testYYY").state(State.OPEN))
+                .put(indexBuilder("testYYX").state(State.OPEN));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
+                IndicesOptions.fromOptions(true, true, true, true));
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testX*")),
+                equalTo(newHashSet("testXXX", "testXXY", "testXYY")));
+
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "test*", "-testX*")),
+                equalTo(newHashSet("testYYY", "testYYX")));
+
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "-testX*")),
+                equalTo(newHashSet("-testXYZ", "-testXZZ")));
+
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testXXY", "-testX*")),
+                equalTo(newHashSet("testXXY", "-testXYZ", "-testXZZ")));
+
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "*", "--testX*")),
+                equalTo(newHashSet("testXXX", "testXXY", "testXYY", "testYYX", "testYYY")));
     }
 
     /**

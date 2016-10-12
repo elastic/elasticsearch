@@ -88,7 +88,7 @@ You must enclose date math index name expressions within angle brackets. For exa
 
 [source,js]
 ----------------------------------------------------------------------
-GET /<logstash-{now/d}>/_search
+GET /<logstash-{now%2Fd}>/_search
 {
   "query" : {
     "match": {

@@ -417,24 +417,21 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
     private TransportAddress bindAddress(final InetAddress hostAddress) {
         final AtomicReference<Exception> lastException = new AtomicReference<>();
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
-        boolean success = port.iterate(new PortsRange.PortCallback() {
-            @Override
-            public boolean onPortNumber(int portNumber) {
-                try {
-                    synchronized (serverChannels) {
-                        ChannelFuture future = serverBootstrap.bind(new InetSocketAddress(hostAddress, portNumber)).sync();
-                        serverChannels.add(future.channel());
-                        boundSocket.set((InetSocketAddress) future.channel().localAddress());
-                    }
-                } catch (Exception e) {
-                    lastException.set(e);
-                    return false;
+        boolean success = port.iterate(portNumber -> {
+            try {
+                synchronized (serverChannels) {
+                    ChannelFuture future = serverBootstrap.bind(new InetSocketAddress(hostAddress, portNumber)).sync();
+                    serverChannels.add(future.channel());
+                    boundSocket.set((InetSocketAddress) future.channel().localAddress());
                 }
-                return true;
+            } catch (Exception e) {
+                lastException.set(e);
+                return false;
             }
+            return true;
         });
         if (!success) {
-            throw new BindHttpException("Failed to bind to [" + port + "]", lastException.get());
+            throw new BindHttpException("Failed to bind to [" + port.getPortRangeString() + "]", lastException.get());
         }
 
         if (logger.isDebugEnabled()) {

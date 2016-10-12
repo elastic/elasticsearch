@@ -24,9 +24,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 
-/**
- * Unit tests for the CacheBuilder
- */
 public class CacheBuilderTests extends ESTestCase {
 
     public void testSettingExpireAfterAccess() {
@@ -37,7 +34,7 @@ public class CacheBuilderTests extends ESTestCase {
         assertThat(iae.getMessage(), containsString("expireAfterAccess <="));
         final TimeValue timeValue = TimeValue.parseTimeValue(randomPositiveTimeValue(), "");
         Cache<Object, Object> cache = CacheBuilder.builder().setExpireAfterAccess(timeValue).build();
-        assertEquals(timeValue.getNanos(), cache.getExpireAfterAccess());
+        assertEquals(timeValue.getNanos(), cache.getExpireAfterAccessNanos());
     }
 
     public void testSettingExpireAfterWrite() {
@@ -48,6 +45,6 @@ public class CacheBuilderTests extends ESTestCase {
         assertThat(iae.getMessage(), containsString("expireAfterWrite <="));
         final TimeValue timeValue = TimeValue.parseTimeValue(randomPositiveTimeValue(), "");
         Cache<Object, Object> cache = CacheBuilder.builder().setExpireAfterWrite(timeValue).build();
-        assertEquals(timeValue.getNanos(), cache.getExpireAfterWrite());
+        assertEquals(timeValue.getNanos(), cache.getExpireAfterWriteNanos());
     }
 }

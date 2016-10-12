@@ -26,8 +26,8 @@ import java.util.function.ToLongBiFunction;
 
 public class CacheBuilder<K, V> {
     private long maximumWeight = -1;
-    private long expireAfterAccess = -1;
-    private long expireAfterWrite = -1;
+    private long expireAfterAccessNanos = -1;
+    private long expireAfterWriteNanos = -1;
     private ToLongBiFunction<K, V> weigher;
     private RemovalListener<K, V> removalListener;
 
@@ -46,23 +46,35 @@ public class CacheBuilder<K, V> {
         return this;
     }
 
+    /**
+     * Sets the amount of time before an entry in the cache expires after it was last accessed.
+     *
+     * @param expireAfterAccess The amount of time before an entry expires after it was last accessed. Must not be {@code null} and must
+     *                          be greater than or equal to 0.
+     */
     public CacheBuilder<K, V> setExpireAfterAccess(TimeValue expireAfterAccess) {
         Objects.requireNonNull(expireAfterAccess);
         final long expireAfterAccessNanos = expireAfterAccess.getNanos();
         if (expireAfterAccessNanos <= 0) {
             throw new IllegalArgumentException("expireAfterAccess <= 0");
         }
-        this.expireAfterAccess = expireAfterAccessNanos;
+        this.expireAfterAccessNanos = expireAfterAccessNanos;
         return this;
     }
 
+    /**
+     * Sets the amount of time before an entry in the cache expires after it was written.
+     *
+     * @param expireAfterWrite The amount of time before an entry expires after it was written. Must not be {@code null} and must be
+     *                         greater than or equal to 0.
+     */
     public CacheBuilder<K, V> setExpireAfterWrite(TimeValue expireAfterWrite) {
         Objects.requireNonNull(expireAfterWrite);
         final long expireAfterWriteNanos = expireAfterWrite.getNanos();
         if (expireAfterWriteNanos <= 0) {
             throw new IllegalArgumentException("expireAfterWrite <= 0");
         }
-        this.expireAfterWrite = expireAfterWriteNanos;
+        this.expireAfterWriteNanos = expireAfterWriteNanos;
         return this;
     }
 
@@ -83,11 +95,11 @@ public class CacheBuilder<K, V> {
         if (maximumWeight != -1) {
             cache.setMaximumWeight(maximumWeight);
         }
-        if (expireAfterAccess != -1) {
-            cache.setExpireAfterAccess(expireAfterAccess);
+        if (expireAfterAccessNanos != -1) {
+            cache.setExpireAfterAccessNanos(expireAfterAccessNanos);
         }
-        if (expireAfterWrite != -1) {
-            cache.setExpireAfterWrite(expireAfterWrite);
+        if (expireAfterWriteNanos != -1) {
+            cache.setExpireAfterWriteNanos(expireAfterWriteNanos);
         }
         if (weigher != null) {
             cache.setWeigher(weigher);

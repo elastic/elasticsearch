@@ -228,7 +228,7 @@ public class CacheTests extends ESTestCase {
                 return now.get();
             }
         };
-        cache.setExpireAfterAccess(1);
+        cache.setExpireAfterAccessNanos(1);
         List<Integer> evictedKeys = new ArrayList<>();
         cache.setRemovalListener(notification -> {
             assertEquals(RemovalNotification.RemovalReason.EVICTED, notification.getRemovalReason());
@@ -265,7 +265,7 @@ public class CacheTests extends ESTestCase {
                 return now.get();
             }
         };
-        cache.setExpireAfterWrite(1);
+        cache.setExpireAfterWriteNanos(1);
         List<Integer> evictedKeys = new ArrayList<>();
         cache.setRemovalListener(notification -> {
             assertEquals(RemovalNotification.RemovalReason.EVICTED, notification.getRemovalReason());
@@ -307,7 +307,7 @@ public class CacheTests extends ESTestCase {
                 return now.get();
             }
         };
-        cache.setExpireAfterAccess(1);
+        cache.setExpireAfterAccessNanos(1);
         now.set(0);
         for (int i = 0; i < numberOfEntries; i++) {
             cache.put(i, Integer.toString(i));

@@ -54,7 +54,7 @@
           "description" : "Explicit timestamp for the document"
         },
         "ttl": {
-          "type" : "duration",
+          "type" : "time",
           "description" : "Expiration time for the document"
         },
         "version" : {

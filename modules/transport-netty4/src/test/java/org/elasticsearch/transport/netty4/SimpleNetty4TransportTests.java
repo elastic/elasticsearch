@@ -89,9 +89,8 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
             .put("transport.tcp.port", port)
             .build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
-            MockTransportService transportService = nettyFromThreadPool(settings, threadPool, Version.CURRENT, clusterSettings);
+            MockTransportService transportService = nettyFromThreadPool(settings, threadPool, Version.CURRENT);
             try {
                 transportService.start();
             } finally {

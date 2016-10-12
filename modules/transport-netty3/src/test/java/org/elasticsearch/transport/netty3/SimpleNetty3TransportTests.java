@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
@@ -89,9 +90,8 @@ public class SimpleNetty3TransportTests extends AbstractSimpleTransportTestCase 
             .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
             .put("transport.tcp.port", port)
             .build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
-            MockTransportService transportService = nettyFromThreadPool(settings, threadPool, Version.CURRENT, clusterSettings);
+            MockTransportService transportService = nettyFromThreadPool(settings, threadPool, Version.CURRENT);
             try {
                 transportService.start();
             } finally {

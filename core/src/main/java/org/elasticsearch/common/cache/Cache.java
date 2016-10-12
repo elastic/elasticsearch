@@ -106,12 +106,20 @@ public class Cache<K, V> {
         this.entriesExpireAfterAccess = true;
     }
 
+    long getExpireAfterAccess() {
+        return this.expireAfterAccess;
+    }
+
     void setExpireAfterWrite(long expireAfterWrite) {
         if (expireAfterWrite <= 0) {
             throw new IllegalArgumentException("expireAfterWrite <= 0");
         }
         this.expireAfterWrite = expireAfterWrite;
         this.entriesExpireAfterWrite = true;
+    }
+
+    long getExpireAfterWrite() {
+        return this.expireAfterWrite;
     }
 
     void setMaximumWeight(long maximumWeight) {

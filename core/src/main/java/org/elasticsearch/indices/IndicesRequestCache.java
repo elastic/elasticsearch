@@ -47,7 +47,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeUnit;
 
 /**
  * The indices request cache allows to cache a shard level request stage responses, helping with improving
@@ -90,7 +89,7 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
         CacheBuilder<Key, Value> cacheBuilder = CacheBuilder.<Key, Value>builder()
             .setMaximumWeight(sizeInBytes).weigher((k, v) -> k.ramBytesUsed() + v.ramBytesUsed()).removalListener(this);
         if (expire != null) {
-            cacheBuilder.setExpireAfterAccess(TimeUnit.MILLISECONDS.toNanos(expire.millis()));
+            cacheBuilder.setExpireAfterAccess(expire);
         }
         cache = cacheBuilder.build();
     }

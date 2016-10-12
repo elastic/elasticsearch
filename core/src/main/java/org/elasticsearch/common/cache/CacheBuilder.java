@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.cache;
 
+import org.elasticsearch.common.unit.TimeValue;
+
 import java.util.Objects;
 import java.util.function.ToLongBiFunction;
 
@@ -44,19 +46,23 @@ public class CacheBuilder<K, V> {
         return this;
     }
 
-    public CacheBuilder<K, V> setExpireAfterAccess(long expireAfterAccess) {
-        if (expireAfterAccess <= 0) {
+    public CacheBuilder<K, V> setExpireAfterAccess(TimeValue expireAfterAccess) {
+        Objects.requireNonNull(expireAfterAccess);
+        final long expireAfterAccessNanos = expireAfterAccess.getNanos();
+        if (expireAfterAccessNanos <= 0) {
             throw new IllegalArgumentException("expireAfterAccess <= 0");
         }
-        this.expireAfterAccess = expireAfterAccess;
+        this.expireAfterAccess = expireAfterAccessNanos;
         return this;
     }
 
-    public CacheBuilder<K, V> setExpireAfterWrite(long expireAfterWrite) {
-        if (expireAfterWrite <= 0) {
+    public CacheBuilder<K, V> setExpireAfterWrite(TimeValue expireAfterWrite) {
+        Objects.requireNonNull(expireAfterWrite);
+        final long expireAfterWriteNanos = expireAfterWrite.getNanos();
+        if (expireAfterWriteNanos <= 0) {
             throw new IllegalArgumentException("expireAfterWrite <= 0");
         }
-        this.expireAfterWrite = expireAfterWrite;
+        this.expireAfterWrite = expireAfterWriteNanos;
         return this;
     }
 

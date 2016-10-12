@@ -285,40 +285,48 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
 
     @Override
     protected void doStart() {
-        this.serverOpenChannels = new Netty4OpenChannelsHandler(logger);
+        boolean success = false;
+        try {
+            this.serverOpenChannels = new Netty4OpenChannelsHandler(logger);
 
-        serverBootstrap = new ServerBootstrap();
-        if (blockingServer) {
-            serverBootstrap.group(new OioEventLoopGroup(workerCount, daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
-            serverBootstrap.channel(OioServerSocketChannel.class);
-        } else {
-            serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
-            serverBootstrap.channel(NioServerSocketChannel.class);
+            serverBootstrap = new ServerBootstrap();
+            if (blockingServer) {
+                serverBootstrap.group(new OioEventLoopGroup(workerCount, daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
+                serverBootstrap.channel(OioServerSocketChannel.class);
+            } else {
+                serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
+                serverBootstrap.channel(NioServerSocketChannel.class);
+            }
+
+            serverBootstrap.childHandler(configureServerChannelHandler());
+
+            serverBootstrap.childOption(ChannelOption.TCP_NODELAY, SETTING_HTTP_TCP_NO_DELAY.get(settings));
+            serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, SETTING_HTTP_TCP_KEEP_ALIVE.get(settings));
+
+            final ByteSizeValue tcpSendBufferSize = SETTING_HTTP_TCP_SEND_BUFFER_SIZE.get(settings);
+            if (tcpSendBufferSize.getBytes() > 0) {
+                serverBootstrap.childOption(ChannelOption.SO_SNDBUF, Math.toIntExact(tcpSendBufferSize.getBytes()));
+            }
+
+            final ByteSizeValue tcpReceiveBufferSize = SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE.get(settings);
+            if (tcpReceiveBufferSize.getBytes() > 0) {
+                serverBootstrap.childOption(ChannelOption.SO_RCVBUF, Math.toIntExact(tcpReceiveBufferSize.getBytes()));
+            }
+
+            serverBootstrap.option(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
+            serverBootstrap.childOption(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
+
+            final boolean reuseAddress = SETTING_HTTP_TCP_REUSE_ADDRESS.get(settings);
+            serverBootstrap.option(ChannelOption.SO_REUSEADDR, reuseAddress);
+            serverBootstrap.childOption(ChannelOption.SO_REUSEADDR, reuseAddress);
+
+            this.boundAddress = createBoundHttpAddress();
+            success = true;
+        } finally {
+            if (success == false) {
+                doStop(); // otherwise we leak threads since we never moved to started
+            }
         }
-
-        serverBootstrap.childHandler(configureServerChannelHandler());
-
-        serverBootstrap.childOption(ChannelOption.TCP_NODELAY, SETTING_HTTP_TCP_NO_DELAY.get(settings));
-        serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, SETTING_HTTP_TCP_KEEP_ALIVE.get(settings));
-
-        final ByteSizeValue tcpSendBufferSize = SETTING_HTTP_TCP_SEND_BUFFER_SIZE.get(settings);
-        if (tcpSendBufferSize.getBytes() > 0) {
-            serverBootstrap.childOption(ChannelOption.SO_SNDBUF, Math.toIntExact(tcpSendBufferSize.getBytes()));
-        }
-
-        final ByteSizeValue tcpReceiveBufferSize = SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE.get(settings);
-        if (tcpReceiveBufferSize.getBytes() > 0) {
-            serverBootstrap.childOption(ChannelOption.SO_RCVBUF, Math.toIntExact(tcpReceiveBufferSize.getBytes()));
-        }
-
-        serverBootstrap.option(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
-        serverBootstrap.childOption(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
-
-        final boolean reuseAddress = SETTING_HTTP_TCP_REUSE_ADDRESS.get(settings);
-        serverBootstrap.option(ChannelOption.SO_REUSEADDR, reuseAddress);
-        serverBootstrap.childOption(ChannelOption.SO_REUSEADDR, reuseAddress);
-
-        this.boundAddress = createBoundHttpAddress();
     }
 
     private BoundTransportAddress createBoundHttpAddress() {

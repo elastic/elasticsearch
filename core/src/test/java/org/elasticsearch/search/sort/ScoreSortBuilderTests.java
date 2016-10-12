@@ -22,7 +22,6 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -93,7 +92,7 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
         try {
           ScoreSortBuilder.fromXContent(context, "_score");
           fail("adding reverse sorting option should fail with an exception");
-        } catch (ParsingException e) {
+        } catch (IllegalArgumentException e) {
             // all good
         }
     }

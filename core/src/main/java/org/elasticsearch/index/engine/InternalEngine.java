@@ -1341,7 +1341,7 @@ public class InternalEngine extends Engine {
                 }
                 commitData.put(MAX_SEQ_NO, Long.toString(seqNoService().getMaxSeqNo()));
                 if (logger.isTraceEnabled()) {
-                    logger.trace("committed writer with commit data [{}]", commitData);
+                    logger.trace("committing writer with commit data [{}]", commitData);
                 }
                 return commitData.entrySet().iterator();
             });

@@ -1699,19 +1699,6 @@ public class InternalEngineTests extends ESTestCase {
                 initialEngine.seqNoService().updateLocalCheckpointForShard("primary", initialEngine.seqNoService().getLocalCheckpoint());
                 initialEngine.seqNoService().updateLocalCheckpointForShard("replica", replicaLocalCheckpoint);
 
-                // make sure the max seq no in the latest commit hasn't advanced due to more documents having been added;
-                // the first time the commit data iterable gets an iterator, the max seq no from that point in time should
-                // remain from any subsequent call to IndexWriter#getLiveCommitData unless the commit data is overwritten by a
-                // subsequent call to IndexWriter#setLiveCommitData.
-                assertThat(
-                    initialEngine.seqNoService().getMaxSeqNo(),
-                    // its possible we haven't indexed any documents yet, or its possible that right after a commit, a version conflict
-                    // exception happened so the max seq no was not updated, so here we check greater than or equal to
-                    initialEngine.seqNoService().getMaxSeqNo() != SequenceNumbersService.NO_OPS_PERFORMED || versionConflict ?
-                        greaterThanOrEqualTo(initialEngine.loadSeqNoStatsFromCommit().getMaxSeqNo()) :
-                        greaterThan(initialEngine.loadSeqNoStatsFromCommit().getMaxSeqNo())
-                );
-
                 if (rarely()) {
                     localCheckpoint = primarySeqNo;
                     maxSeqNo = primarySeqNo;
@@ -1774,14 +1761,10 @@ public class InternalEngineTests extends ESTestCase {
                                                                      new SnapshotDeletionPolicy(NoDeletionPolicy.INSTANCE),
                                                                      IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null))) {
 
-            final int numIndexingThreads = randomIntBetween(4, 7);
+            final int numIndexingThreads = scaledRandomIntBetween(3, 6);
             final int numDocsPerThread = randomIntBetween(500, 1000);
             final CyclicBarrier barrier = new CyclicBarrier(numIndexingThreads + 1);
             final List<Thread> indexingThreads = new ArrayList<>();
-            final List<AtomicBoolean> threadStatuses = new ArrayList<>();
-            for (int i = 0; i < numIndexingThreads; i++) {
-                threadStatuses.add(new AtomicBoolean());
-            }
             // create N indexing threads to index documents simultaneously
             for (int threadNum = 0; threadNum < numIndexingThreads; threadNum++) {
                 final int threadIdx = threadNum;
@@ -1798,8 +1781,6 @@ public class InternalEngineTests extends ESTestCase {
                             }
                         } catch (Exception e) {
                             throw new RuntimeException(e);
-                        } finally {
-                            threadStatuses.get(threadIdx).set(true); // signal that this thread is done indexing
                         }
                     }
                 };
@@ -1815,12 +1796,13 @@ public class InternalEngineTests extends ESTestCase {
             // create random commit points
             boolean doneIndexing;
             do {
-                doneIndexing = threadStatuses.stream().filter(status -> status.get() == false).count() == 0;
-                engine.flush(); // flush and commit
+                doneIndexing = indexingThreads.stream().filter(Thread::isAlive).count() == 0;
+                //engine.flush(); // flush and commit
             } while (doneIndexing == false);
 
             // now, verify all the commits have the correct docs according to the user commit data
             long prevLocalCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
+            long prevMaxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
             for (IndexCommit commit : DirectoryReader.listCommits(store.directory())) {
                 Map<String, String> userData = commit.getUserData();
                 long localCheckpoint = userData.containsKey(InternalEngine.LOCAL_CHECKPOINT_KEY) ?
@@ -1829,7 +1811,9 @@ public class InternalEngineTests extends ESTestCase {
                 long maxSeqNo = userData.containsKey(InternalEngine.MAX_SEQ_NO) ?
                                     Long.parseLong(userData.get(InternalEngine.MAX_SEQ_NO)) :
                                     SequenceNumbersService.UNASSIGNED_SEQ_NO;
-                assertThat(localCheckpoint, greaterThanOrEqualTo(prevLocalCheckpoint)) ; // local checkpoint shouldn't go backwards
+                // local checkpoint and max seq no shouldn't go backwards
+                assertThat(localCheckpoint, greaterThanOrEqualTo(prevLocalCheckpoint));
+                assertThat(maxSeqNo, greaterThanOrEqualTo(prevMaxSeqNo));
                 try (IndexReader reader = DirectoryReader.open(commit)) {
                     FieldStats stats = SeqNoFieldMapper.Defaults.FIELD_TYPE.stats(reader);
                     final long highestSeqNo;
@@ -1849,6 +1833,7 @@ public class InternalEngineTests extends ESTestCase {
                     }
                 }
                 prevLocalCheckpoint = localCheckpoint;
+                prevMaxSeqNo = maxSeqNo;
             }
         }
     }
@@ -1871,7 +1856,9 @@ public class InternalEngineTests extends ESTestCase {
             final Bits bits = leaf.getLiveDocs();
             for (int docID = 0; docID < leaf.maxDoc(); docID++) {
                 if (bits == null || bits.get(docID)) {
-                    bitSet.set((int) values.get(docID));
+                    final long seqNo = values.get(docID);
+                    assertFalse("should not have more than one document with the same seq_no[" + seqNo + "]", bitSet.get((int) seqNo));
+                    bitSet.set((int) seqNo);
                 }
             }
         }

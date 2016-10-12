@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsAction;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
@@ -612,6 +613,32 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizationService.authorize(createAuthentication(superuser), action, request);
             verify(auditTrail).accessGranted(superuser, action, request);
         }
+    }
+
+    public void testAnonymousRolesAreAppliedToOtherUsers() {
+        TransportRequest request = new ClusterHealthRequest();
+        ClusterState state = mock(ClusterState.class);
+        Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous_user_role").build();
+        final AnonymousUser anonymousUser = new AnonymousUser(settings);
+        authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
+                new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser);
+
+        when(rolesStore.role("anonymous_user_role"))
+                .thenReturn(Role.builder("anonymous_user_role")
+                        .cluster(ClusterPrivilege.ALL)
+                        .add(IndexPrivilege.ALL, "a")
+                        .build());
+        when(clusterService.state()).thenReturn(state);
+        when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
+
+        // sanity check the anonymous user
+        authorizationService.authorize(createAuthentication(anonymousUser), ClusterHealthAction.NAME, request);
+        authorizationService.authorize(createAuthentication(anonymousUser), IndicesExistsAction.NAME, new IndicesExistsRequest("a"));
+
+        // test the no role user
+        final User userWithNoRoles = new User("no role user");
+        authorizationService.authorize(createAuthentication(userWithNoRoles), ClusterHealthAction.NAME, request);
+        authorizationService.authorize(createAuthentication(userWithNoRoles), IndicesExistsAction.NAME, new IndicesExistsRequest("a"));
     }
 
     private Authentication createAuthentication(User user) {

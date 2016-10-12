@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.security.user.XPackUser;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -308,19 +309,20 @@ public class AuthorizationService extends AbstractComponent {
     }
 
     private GlobalPermission permission(String[] roleNames) {
+        final String[] anonymousRoles = isAnonymousEnabled ? anonymousUser.roles() : Strings.EMPTY_ARRAY;
         if (roleNames.length == 0) {
-            return DefaultRole.INSTANCE;
-        }
-
-        if (roleNames.length == 1) {
-            Role role = rolesStore.role(roleNames[0]);
-            return role == null ? DefaultRole.INSTANCE : GlobalPermission.Compound.builder().add(DefaultRole.INSTANCE).add(role).build();
+            if (anonymousRoles.length == 0) {
+                assert isAnonymousEnabled == false : "anonymous is only enabled when the anonymous user has roles";
+                return DefaultRole.INSTANCE;
+            }
         }
 
         // we'll take all the roles and combine their associated permissions
+        final Set<String> uniqueNames = new HashSet<>(Arrays.asList(roleNames));
+        uniqueNames.addAll(Arrays.asList(anonymousRoles));
 
         GlobalPermission.Compound.Builder roles = GlobalPermission.Compound.builder().add(DefaultRole.INSTANCE);
-        for (String roleName : roleNames) {
+        for (String roleName : uniqueNames) {
             Role role = rolesStore.role(roleName);
             if (role != null) {
                 roles.add(role);

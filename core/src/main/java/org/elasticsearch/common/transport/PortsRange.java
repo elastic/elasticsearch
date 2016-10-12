@@ -80,4 +80,11 @@ public class PortsRange {
     public interface PortCallback {
         boolean onPortNumber(int portNumber);
     }
+
+    @Override
+    public String toString() {
+        return "PortsRange{" +
+            "portRange='" + portRange + '\'' +
+            '}';
+    }
 }

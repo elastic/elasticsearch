@@ -281,34 +281,42 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
 
     @Override
     protected void doStart() {
-        this.serverOpenChannels = new Netty3OpenChannelsHandler(logger);
-        if (blockingServer) {
-            serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_BOSS_THREAD_NAME_PREFIX)),
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX))
-            ));
-        } else {
-            serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_BOSS_THREAD_NAME_PREFIX)),
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)),
-                workerCount));
-        }
-        serverBootstrap.setPipelineFactory(configureServerChannelPipelineFactory());
+        boolean success = false;
+        try {
+            this.serverOpenChannels = new Netty3OpenChannelsHandler(logger);
+            if (blockingServer) {
+                serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_BOSS_THREAD_NAME_PREFIX)),
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX))
+                ));
+            } else {
+                serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_BOSS_THREAD_NAME_PREFIX)),
+                    Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)),
+                    workerCount));
+            }
+            serverBootstrap.setPipelineFactory(configureServerChannelPipelineFactory());
 
-        serverBootstrap.setOption("child.tcpNoDelay", tcpNoDelay);
-        serverBootstrap.setOption("child.keepAlive", tcpKeepAlive);
-        if (tcpSendBufferSize.getBytes() > 0) {
+            serverBootstrap.setOption("child.tcpNoDelay", tcpNoDelay);
+            serverBootstrap.setOption("child.keepAlive", tcpKeepAlive);
+            if (tcpSendBufferSize.getBytes() > 0) {
 
-            serverBootstrap.setOption("child.sendBufferSize", tcpSendBufferSize.getBytes());
+                serverBootstrap.setOption("child.sendBufferSize", tcpSendBufferSize.getBytes());
+            }
+            if (tcpReceiveBufferSize.getBytes() > 0) {
+                serverBootstrap.setOption("child.receiveBufferSize", tcpReceiveBufferSize.getBytes());
+            }
+            serverBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
+            serverBootstrap.setOption("child.receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
+            serverBootstrap.setOption("reuseAddress", reuseAddress);
+            serverBootstrap.setOption("child.reuseAddress", reuseAddress);
+            this.boundAddress = createBoundHttpAddress();
+            success = true;
+        } finally {
+            if (success == false) {
+                doStop();  // otherwise we leak threads since we never moved to started
+            }
         }
-        if (tcpReceiveBufferSize.getBytes() > 0) {
-            serverBootstrap.setOption("child.receiveBufferSize", tcpReceiveBufferSize.getBytes());
-        }
-        serverBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
-        serverBootstrap.setOption("child.receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
-        serverBootstrap.setOption("reuseAddress", reuseAddress);
-        serverBootstrap.setOption("child.reuseAddress", reuseAddress);
-        this.boundAddress = createBoundHttpAddress();
     }
 
     private BoundTransportAddress createBoundHttpAddress() {
@@ -402,24 +410,21 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
     private TransportAddress bindAddress(final InetAddress hostAddress) {
         final AtomicReference<Exception> lastException = new AtomicReference<>();
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
-        boolean success = port.iterate(new PortsRange.PortCallback() {
-            @Override
-            public boolean onPortNumber(int portNumber) {
-                try {
-                    synchronized (serverChannels) {
-                        Channel channel = serverBootstrap.bind(new InetSocketAddress(hostAddress, portNumber));
-                        serverChannels.add(channel);
-                        boundSocket.set((InetSocketAddress) channel.getLocalAddress());
-                    }
-                } catch (Exception e) {
-                    lastException.set(e);
-                    return false;
+        boolean success = port.iterate(portNumber -> {
+            try {
+                synchronized (serverChannels) {
+                    Channel channel = serverBootstrap.bind(new InetSocketAddress(hostAddress, portNumber));
+                    serverChannels.add(channel);
+                    boundSocket.set((InetSocketAddress) channel.getLocalAddress());
                 }
-                return true;
+            } catch (Exception e) {
+                lastException.set(e);
+                return false;
             }
+            return true;
         });
         if (!success) {
-            throw new BindHttpException("Failed to bind to [" + port + "]", lastException.get());
+            throw new BindHttpException("Failed to bind to [" + port.getPortRangeString() + "]", lastException.get());
         }
 
         if (logger.isDebugEnabled()) {

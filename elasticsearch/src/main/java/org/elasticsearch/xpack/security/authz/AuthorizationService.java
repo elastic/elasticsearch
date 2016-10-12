@@ -138,7 +138,7 @@ public class AuthorizationService extends AbstractComponent {
             }
         }
 
-        if (XPackUser.is(user) == false) {
+        if (XPackUser.is(user) == false && Arrays.binarySearch(user.roles(), SuperuserRole.NAME) < 0) {
             // we should filter out the .security index from wildcards
             if (indicesAndAliases.remove(SecurityTemplateService.SECURITY_INDEX_NAME)) {
                 logger.debug("removed [{}] from user [{}] list of authorized indices",

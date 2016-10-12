@@ -56,6 +56,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -77,10 +78,12 @@ import org.elasticsearch.xpack.security.user.XPackUser;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthorizationException;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -543,6 +546,11 @@ public class AuthorizationServiceTests extends ESTestCase {
         request = new ClusterHealthRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "foo", "bar");
         authorizationService.authorize(createAuthentication(user), ClusterHealthAction.NAME, request);
         verify(auditTrail).accessGranted(user, ClusterHealthAction.NAME, request);
+
+        SearchRequest searchRequest = new SearchRequest("_all");
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
+                () -> authorizationService.authorize(createAuthentication(user), SearchAction.NAME, searchRequest));
+        assertThat(e.getMessage(), containsString("no such index"));
     }
 
     public void testGrantedNonXPackUserCanExecuteMonitoringOperationsAgainstSecurityIndex() {
@@ -589,29 +597,29 @@ public class AuthorizationServiceTests extends ESTestCase {
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build());
 
-        List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
-        requests.add(new Tuple<>(DeleteAction.NAME, new DeleteRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(UpdateAction.NAME, new UpdateRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(IndexAction.NAME, new IndexRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(SecurityTemplateService.SECURITY_INDEX_NAME)));
-        requests.add(new Tuple<>(TermVectorsAction.NAME,
-                new TermVectorsRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(GetAction.NAME, new GetRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(TermVectorsAction.NAME,
-                new TermVectorsRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(IndicesAliasesAction.NAME, new IndicesAliasesRequest()
-                .addAliasAction(AliasActions.add().alias("security_alias").index(SecurityTemplateService.SECURITY_INDEX_NAME))));
-        requests.add(new Tuple<>(ClusterHealthAction.NAME, new ClusterHealthRequest(SecurityTemplateService.SECURITY_INDEX_NAME)));
-        requests.add(new Tuple<>(ClusterHealthAction.NAME,
-                new ClusterHealthRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "foo", "bar")));
+        for (User user : Arrays.asList(XPackUser.INSTANCE, superuser)) {
+            List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
+            requests.add(new Tuple<>(DeleteAction.NAME, new DeleteRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+            requests.add(new Tuple<>(UpdateAction.NAME, new UpdateRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+            requests.add(new Tuple<>(IndexAction.NAME, new IndexRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+            requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(SecurityTemplateService.SECURITY_INDEX_NAME)));
+            requests.add(new Tuple<>(TermVectorsAction.NAME,
+                    new TermVectorsRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+            requests.add(new Tuple<>(GetAction.NAME, new GetRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+            requests.add(new Tuple<>(TermVectorsAction.NAME,
+                    new TermVectorsRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+            requests.add(new Tuple<>(IndicesAliasesAction.NAME, new IndicesAliasesRequest()
+                    .addAliasAction(AliasActions.add().alias("security_alias").index(SecurityTemplateService.SECURITY_INDEX_NAME))));
+            requests.add(new Tuple<>(ClusterHealthAction.NAME, new ClusterHealthRequest(SecurityTemplateService.SECURITY_INDEX_NAME)));
+            requests.add(new Tuple<>(ClusterHealthAction.NAME,
+                    new ClusterHealthRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "foo", "bar")));
 
-        for (Tuple<String, TransportRequest> requestTuple : requests) {
-            String action = requestTuple.v1();
-            TransportRequest request = requestTuple.v2();
-            authorizationService.authorize(createAuthentication(XPackUser.INSTANCE), action, request);
-            verify(auditTrail).accessGranted(XPackUser.INSTANCE, action, request);
-            authorizationService.authorize(createAuthentication(superuser), action, request);
-            verify(auditTrail).accessGranted(superuser, action, request);
+            for (Tuple<String, TransportRequest> requestTuple : requests) {
+                String action = requestTuple.v1();
+                TransportRequest request = requestTuple.v2();
+                authorizationService.authorize(createAuthentication(user), action, request);
+                verify(auditTrail).accessGranted(user, action, request);
+            }
         }
     }
 
@@ -639,6 +647,29 @@ public class AuthorizationServiceTests extends ESTestCase {
         final User userWithNoRoles = new User("no role user");
         authorizationService.authorize(createAuthentication(userWithNoRoles), ClusterHealthAction.NAME, request);
         authorizationService.authorize(createAuthentication(userWithNoRoles), IndicesExistsAction.NAME, new IndicesExistsRequest("a"));
+    }
+
+    public void testXPackUserAndSuperusersCanExecuteOperationAgainstSecurityIndexWithWildcard() {
+        final User superuser = new User("custom_admin", SuperuserRole.NAME);
+        when(rolesStore.role(SuperuserRole.NAME)).thenReturn(Role.builder(SuperuserRole.DESCRIPTOR).build());
+        ClusterState state = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(state);
+        when(state.metaData()).thenReturn(MetaData.builder()
+                .put(new IndexMetaData.Builder(SecurityTemplateService.SECURITY_INDEX_NAME)
+                        .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                        .numberOfShards(1).numberOfReplicas(0).build(), true)
+                .build());
+
+        String action = SearchAction.NAME;
+        SearchRequest request = new SearchRequest("_all");
+        authorizationService.authorize(createAuthentication(XPackUser.INSTANCE), action, request);
+        verify(auditTrail).accessGranted(XPackUser.INSTANCE, action, request);
+        assertThat(request.indices(), arrayContaining(".security"));
+
+        request = new SearchRequest("_all");
+        authorizationService.authorize(createAuthentication(superuser), action, request);
+        verify(auditTrail).accessGranted(superuser, action, request);
+        assertThat(request.indices(), arrayContaining(".security"));
     }
 
     private Authentication createAuthentication(User user) {

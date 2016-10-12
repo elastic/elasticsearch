@@ -82,6 +82,13 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
+     * Gets the maximum sequence number seen so far.  See {@link LocalCheckpointService#getMaxSeqNo()} for details.
+     */
+    public long getMaxSeqNo() {
+        return localCheckpointService.getMaxSeqNo();
+    }
+
+    /**
      * marks the given seqNo as completed. See {@link LocalCheckpointService#markSeqNoAsCompleted(long)}
      * more details
      */

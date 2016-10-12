@@ -142,14 +142,23 @@ threadpool:
 [[processors]]
 === Processors setting
 The number of processors is automatically detected, and the thread pool
-settings are automatically set based on it. Sometimes, the number of processors
-are wrongly detected, in such cases, the number of processors can be
-explicitly set using the `processors` setting.
+settings are automatically set based on it. However, the number of
+processors is by default bounded to 32. This means that on systems that
+have more than 32 processors, Elasticsearch will size its thread pools
+as if there are only 32 processors present. This limitation was added to
+avoid creating too many threads on systems that have not properly
+adjusted the `ulimit` for max number of processes. In cases where you've
+adjusted the `ulimit` appropriately, you can override this bound by
+explicitly setting the `processors` setting.
 
 [source,yaml]
 --------------------------------------------------
-processors: 2
+processors: 36
 --------------------------------------------------
+
+Additionally, sometimes the number of processors is wrongly detected and
+in such cases explicitly setting the `processors` setting will
+workaround such issues.
 
 In order to check the number of processors detected, use the nodes info
 API with the `os` flag.

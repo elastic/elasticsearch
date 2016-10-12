@@ -50,7 +50,7 @@ public class CacheBuilder<K, V> {
      * Sets the amount of time before an entry in the cache expires after it was last accessed.
      *
      * @param expireAfterAccess The amount of time before an entry expires after it was last accessed. Must not be {@code null} and must
-     *                          be greater than or equal to 0.
+     *                          be greater than 0.
      */
     public CacheBuilder<K, V> setExpireAfterAccess(TimeValue expireAfterAccess) {
         Objects.requireNonNull(expireAfterAccess);
@@ -66,7 +66,7 @@ public class CacheBuilder<K, V> {
      * Sets the amount of time before an entry in the cache expires after it was written.
      *
      * @param expireAfterWrite The amount of time before an entry expires after it was written. Must not be {@code null} and must be
-     *                         greater than or equal to 0.
+     *                         greater than 0.
      */
     public CacheBuilder<K, V> setExpireAfterWrite(TimeValue expireAfterWrite) {
         Objects.requireNonNull(expireAfterWrite);

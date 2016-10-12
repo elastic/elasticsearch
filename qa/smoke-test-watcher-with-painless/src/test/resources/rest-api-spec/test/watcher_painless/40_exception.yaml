@@ -1,0 +1,36 @@
+---
+"Test awesome painless exceptions are returned including the script_stack field":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      catch: request
+      xpack.watcher.put_watch:
+        id: "my_exe_watch"
+        body:  >
+          {
+            "trigger" : {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input" : {
+              "simple" : {}
+            },
+            "condition" : {
+              "script" : {
+                "inline" : "FOO == 1",
+                "lang" : "painless"
+              }
+            },
+            "actions" : {
+              "email_admin" : {
+                "email" : {
+                  "to" : "someone@domain.host.com",
+                  "subject" : "404 recently encountered"
+                }
+              }
+            }
+          }
+
+  - is_true: error.script_stack
+  - match: { status: 500 }

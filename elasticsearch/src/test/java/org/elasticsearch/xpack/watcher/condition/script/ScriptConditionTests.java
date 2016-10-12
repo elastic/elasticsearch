@@ -171,7 +171,7 @@ public class ScriptConditionTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         ScriptCondition scriptCondition = conditionParser.parseCondition("_watch", parser, false);
-        expectThrows(GeneralScriptException.class,
+        expectThrows(IllegalArgumentException.class,
                 () -> conditionParser.createExecutable(scriptCondition));
     }
 
@@ -182,9 +182,9 @@ public class ScriptConditionTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         ScriptCondition scriptCondition = conditionParser.parseCondition("_watch", parser, false);
-        GeneralScriptException exception = expectThrows(GeneralScriptException.class,
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> conditionParser.createExecutable(scriptCondition));
-        assertThat(exception.getMessage(), containsString("script_lang not supported [not_a_valid_lang]]"));
+        assertThat(exception.getMessage(), containsString("script_lang not supported [not_a_valid_lang]"));
     }
 
     public void testScriptConditionThrowException() throws Exception {

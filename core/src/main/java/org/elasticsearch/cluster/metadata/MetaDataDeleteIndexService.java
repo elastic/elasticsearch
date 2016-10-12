@@ -63,7 +63,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
             throw new IllegalArgumentException("Index name is required");
         }
 
-        clusterService.submitStateUpdateTask("delete-index " + request.indices(),
+        clusterService.submitStateUpdateTask("delete-index " + Arrays.toString(request.indices()),
             new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
 
             @Override

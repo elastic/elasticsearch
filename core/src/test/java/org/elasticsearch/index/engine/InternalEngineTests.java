@@ -1743,7 +1743,9 @@ public class InternalEngineTests extends ESTestCase {
                 equalTo(globalCheckpoint));
             assertThat(
                 Long.parseLong(recoveringEngine.commitStats().getUserData().get(InternalEngine.MAX_SEQ_NO)),
-                // after recovering from translog, all docs have been flushed to Lucene segments, so check against primarySeqNo
+                // after recovering from translog, all docs have been flushed to Lucene segments, so here we will assert
+                // that the committed max seq no is equivalent to what the current primary seq no is, as all data
+                // we have assigned sequence numbers to should be in the commit
                 equalTo(primarySeqNo));
             assertThat(recoveringEngine.seqNoService().stats().getLocalCheckpoint(), equalTo(primarySeqNo));
             assertThat(recoveringEngine.seqNoService().stats().getMaxSeqNo(), equalTo(primarySeqNo));

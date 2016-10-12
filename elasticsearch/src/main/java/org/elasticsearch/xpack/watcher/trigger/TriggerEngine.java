@@ -12,9 +12,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 
-/**
- *
- */
 public interface TriggerEngine<T extends Trigger, E extends TriggerEvent> {
 
     String type();

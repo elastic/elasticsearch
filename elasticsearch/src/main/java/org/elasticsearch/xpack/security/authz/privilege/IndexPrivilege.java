@@ -31,9 +31,6 @@ import java.util.function.Predicate;
 import static org.elasticsearch.xpack.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.security.support.Automatons.unionAndDeterminize;
 
-/**
- *
- */
 public class IndexPrivilege extends AbstractAutomatonPrivilege<IndexPrivilege> {
 
     private static final Automaton ALL_AUTOMATON = patterns("indices:*");

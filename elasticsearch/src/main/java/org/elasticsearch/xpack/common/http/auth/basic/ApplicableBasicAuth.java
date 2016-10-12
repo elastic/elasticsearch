@@ -12,8 +12,6 @@ import java.util.Base64;
 import org.elasticsearch.xpack.common.http.auth.ApplicableHttpAuth;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 
-/**
- */
 public class ApplicableBasicAuth extends ApplicableHttpAuth<BasicAuth> {
 
     private final String basicAuth;

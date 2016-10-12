@@ -13,9 +13,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
-/**
- *
- */
 public class ScheduleRegistry {
     private final Map<String, Schedule.Parser> parsers;
 

@@ -8,9 +8,6 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- *
- */
 public class LicensingClient {
 
     private final ElasticsearchClient client;

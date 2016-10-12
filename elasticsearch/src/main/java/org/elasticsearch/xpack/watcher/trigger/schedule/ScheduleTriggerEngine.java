@@ -19,9 +19,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 
-/**
- *
- */
 public abstract class ScheduleTriggerEngine extends AbstractTriggerEngine<ScheduleTrigger, ScheduleTriggerEvent> {
 
     public static final String TYPE = ScheduleTrigger.TYPE;

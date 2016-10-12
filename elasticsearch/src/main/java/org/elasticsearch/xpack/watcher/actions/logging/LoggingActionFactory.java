@@ -14,9 +14,6 @@ import org.elasticsearch.xpack.watcher.actions.ActionFactory;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class LoggingActionFactory extends ActionFactory<LoggingAction, ExecutableLoggingAction> {
 
     private final Settings settings;

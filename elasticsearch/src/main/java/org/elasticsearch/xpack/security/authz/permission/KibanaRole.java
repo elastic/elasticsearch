@@ -11,9 +11,6 @@ import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.Privilege.Name;
 import org.elasticsearch.xpack.security.support.MetadataUtils;
 
-/**
- *
- */
 public class KibanaRole extends Role {
 
     private static final String[] CLUSTER_PRIVILEGES = new String[] { "monitor", MonitoringBulkAction.NAME};

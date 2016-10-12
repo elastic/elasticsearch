@@ -20,9 +20,6 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- *
- */
 public abstract class HipChatAccount  {
 
     public static final String AUTH_TOKEN_SETTING = "auth_token";

@@ -26,9 +26,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 public class PagerDutyAccountsTests extends ESTestCase {
 
     private HttpClient httpClient;

@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.security.action.user;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class AuthenticateRequestBuilder
         extends ActionRequestBuilder<AuthenticateRequest, AuthenticateResponse, AuthenticateRequestBuilder> {
 

@@ -13,9 +13,6 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Locale;
 
-/**
- *
- */
 public enum DayOfWeek implements ToXContent {
 
     SUNDAY("SUN"),

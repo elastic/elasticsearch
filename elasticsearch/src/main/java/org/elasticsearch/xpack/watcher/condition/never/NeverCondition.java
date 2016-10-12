@@ -12,9 +12,6 @@ import org.elasticsearch.xpack.watcher.condition.Condition;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class NeverCondition implements Condition {
 
     public static final String TYPE = "never";

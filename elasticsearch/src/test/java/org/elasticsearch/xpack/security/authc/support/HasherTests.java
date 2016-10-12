@@ -9,9 +9,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.sameInstance;
 
-/**
- *
- */
 public class HasherTests extends ESTestCase {
     public void testBcryptFamilySelfGenerated() throws Exception {
         testHasherSelfGenerated(Hasher.BCRYPT);

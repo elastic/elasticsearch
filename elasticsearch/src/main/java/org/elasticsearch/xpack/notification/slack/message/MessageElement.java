@@ -8,9 +8,6 @@ package org.elasticsearch.xpack.notification.slack.message;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
 
-/**
- *
- */
 public interface MessageElement extends ToXContent {
 
     interface XField {

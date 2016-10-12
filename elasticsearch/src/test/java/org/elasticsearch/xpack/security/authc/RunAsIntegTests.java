@@ -32,9 +32,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class RunAsIntegTests extends SecurityIntegTestCase {
     static final String RUN_AS_USER = "run_as_user";
     static final String TRANSPORT_CLIENT_USER = "transport_user";

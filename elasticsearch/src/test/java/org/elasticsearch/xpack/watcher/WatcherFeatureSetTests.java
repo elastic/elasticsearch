@@ -26,9 +26,6 @@ import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 public class WatcherFeatureSetTests extends ESTestCase {
 
     private XPackLicenseState licenseState;

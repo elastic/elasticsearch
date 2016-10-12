@@ -9,9 +9,6 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.license.XPackInfoResponse;
 
-/**
- *
- */
 public class XPackInfoAction extends Action<XPackInfoRequest, XPackInfoResponse, XPackInfoRequestBuilder> {
 
     public static final String NAME = "cluster:monitor/xpack/info";

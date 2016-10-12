@@ -20,9 +20,6 @@ import java.util.Set;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.xpack.watcher.support.Strings.join;
 
-/**
- *
- */
 public class WeekTimes implements Times {
 
     public static final EnumSet<DayOfWeek> DEFAULT_DAYS = EnumSet.of(DayOfWeek.MONDAY);

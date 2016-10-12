@@ -57,9 +57,6 @@ import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.indices;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestContent;
 
-/**
- *
- */
 public class LoggingAuditTrail extends AbstractComponent implements AuditTrail {
 
     public static final String NAME = "logfile";

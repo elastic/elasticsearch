@@ -11,9 +11,6 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.equalTo;
 
 
-/**
- *
- */
 public class HtmlSanitizerTests extends ESTestCase {
     public void testDefaultWithTemplatePlaceholders() {
         String blockTag = randomFrom(HtmlSanitizer.BLOCK_TAGS);

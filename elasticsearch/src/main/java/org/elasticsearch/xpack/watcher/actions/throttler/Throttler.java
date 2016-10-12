@@ -9,9 +9,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 
-/**
- *
- */
 public interface Throttler {
 
     Result throttle(String actionId, WatchExecutionContext ctx);

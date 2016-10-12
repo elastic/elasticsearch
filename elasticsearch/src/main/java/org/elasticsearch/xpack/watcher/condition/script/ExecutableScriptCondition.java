@@ -31,13 +31,9 @@ public class ExecutableScriptCondition extends ExecutableCondition<ScriptConditi
     public ExecutableScriptCondition(ScriptCondition condition, Logger logger, ScriptService scriptService) {
         super(condition, logger);
         this.scriptService = scriptService;
-        try {
-            Script script = new Script(condition.script.getScript(), condition.script.getType(),
-                                       condition.script.getLang(), condition.script.getParams());
-            compiledScript = scriptService.compile(script, Watcher.SCRIPT_CONTEXT, Collections.emptyMap());
-        } catch (Exception e) {
-            throw invalidScript("failed to compile script [{}]", e, condition.script, e);
-        }
+        Script script = new Script(condition.script.getScript(), condition.script.getType(),
+                                   condition.script.getLang(), condition.script.getParams());
+        compiledScript = scriptService.compile(script, Watcher.SCRIPT_CONTEXT, Collections.emptyMap());
     }
 
     @Override

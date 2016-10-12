@@ -13,9 +13,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class ExecutableActions implements Iterable<ActionWrapper>, ToXContent {
 
     private final List<ActionWrapper> actions;

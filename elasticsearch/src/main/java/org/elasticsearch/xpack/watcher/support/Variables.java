@@ -11,9 +11,6 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- *
- */
 public final class Variables {
 
     public static final String CTX = "ctx";

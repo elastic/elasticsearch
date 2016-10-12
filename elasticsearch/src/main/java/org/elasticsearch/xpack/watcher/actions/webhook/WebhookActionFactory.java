@@ -16,9 +16,6 @@ import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class WebhookActionFactory extends ActionFactory<WebhookAction, ExecutableWebhookAction> {
 
     private final HttpClient httpClient;

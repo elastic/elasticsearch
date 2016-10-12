@@ -31,9 +31,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 
-/**
- *
- */
 @SuppressForbidden(reason = "benchmark")
 public class ScheduleEngineTriggerBenchmark {
 

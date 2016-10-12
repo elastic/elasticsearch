@@ -9,9 +9,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Objects;
 
-/**
- *
- */
 public abstract class CronnableSchedule implements Schedule {
 
     private static final Comparator<Cron> CRON_COMPARATOR = new Comparator<Cron>() {

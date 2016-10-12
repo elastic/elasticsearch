@@ -27,8 +27,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.watcher.input.http.HttpInput.TYPE;
 
-/**
- */
 public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Result> {
 
     private final HttpClient client;

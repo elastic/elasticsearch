@@ -22,9 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-/**
- *
- */
 public class SentEvent implements ToXContent {
 
     final IncidentEvent event;

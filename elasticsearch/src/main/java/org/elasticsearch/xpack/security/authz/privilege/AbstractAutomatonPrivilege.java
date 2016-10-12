@@ -14,9 +14,6 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.security.support.Automatons.patterns;
 
-/**
- *
- */
 @SuppressWarnings("unchecked")
 abstract class AbstractAutomatonPrivilege<P extends AbstractAutomatonPrivilege<P>> extends Privilege<P> {
 

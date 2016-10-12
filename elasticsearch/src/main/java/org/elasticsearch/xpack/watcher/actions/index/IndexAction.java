@@ -21,9 +21,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
-/**
- *
- */
 public class IndexAction implements Action {
 
     public static final String TYPE = "index";

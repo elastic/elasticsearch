@@ -15,9 +15,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-/**
- *
- */
 public class AuthenticateRequest extends ActionRequest<AuthenticateRequest> implements UserRequest {
 
     private String username;

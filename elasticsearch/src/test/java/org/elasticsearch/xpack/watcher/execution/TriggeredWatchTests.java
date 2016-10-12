@@ -18,8 +18,6 @@ import org.joda.time.DateTimeZone;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class TriggeredWatchTests extends AbstractWatcherIntegrationTestCase {
     public void testParser() throws Exception {
         Watch watch = WatcherTestUtils.createTestWatch("fired_test", watcherHttpClient(), noopEmailService(),

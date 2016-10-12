@@ -11,9 +11,6 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/**
- *
- */
 public abstract class AbstractTriggerEngine<T extends Trigger, E extends TriggerEvent> extends AbstractComponent implements
         TriggerEngine<T, E> {
 

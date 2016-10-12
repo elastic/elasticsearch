@@ -13,9 +13,6 @@ import org.elasticsearch.xpack.watcher.input.InputFactory;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class SimpleInputFactory extends InputFactory<SimpleInput, SimpleInput.Result, ExecutableSimpleInput> {
 
     @Inject

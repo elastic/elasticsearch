@@ -13,9 +13,6 @@ import org.elasticsearch.xpack.security.crypto.CryptoService;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- *
- */
 public class Accounts {
 
     private final String defaultAccountName;

@@ -9,9 +9,6 @@ import org.elasticsearch.xpack.common.secret.Secret;
 
 import java.util.Objects;
 
-/**
-*
-*/
 public class Authentication {
 
     private final String user;

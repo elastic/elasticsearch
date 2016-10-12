@@ -9,9 +9,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class SystemUserTests extends ESTestCase {
 
     public void testIsAuthorized() throws Exception {

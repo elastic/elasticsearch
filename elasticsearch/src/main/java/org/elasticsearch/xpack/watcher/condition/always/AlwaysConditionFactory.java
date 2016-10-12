@@ -13,9 +13,6 @@ import org.elasticsearch.xpack.watcher.condition.ConditionFactory;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class AlwaysConditionFactory extends ConditionFactory<AlwaysCondition, AlwaysCondition.Result, ExecutableAlwaysCondition> {
 
     private final ExecutableAlwaysCondition condition;

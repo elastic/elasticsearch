@@ -12,9 +12,6 @@ import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 
 import java.io.IOException;
 
-/**
- *
- */
 public abstract class ExecutableCondition<C extends Condition, R extends Condition.Result> implements ToXContent {
 
     protected final C condition;

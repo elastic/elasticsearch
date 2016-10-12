@@ -14,9 +14,6 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleModule;
 import java.util.HashSet;
 import java.util.Set;
 
-/**
- *
- */
 public class TriggerModule extends AbstractModule {
 
     private final Settings settings;

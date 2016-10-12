@@ -8,9 +8,6 @@ package org.elasticsearch.xpack.watcher.execution;
 import java.util.concurrent.BlockingQueue;
 import java.util.stream.Stream;
 
-/**
- *
- */
 public interface WatchExecutor {
 
     BlockingQueue<Runnable> queue();

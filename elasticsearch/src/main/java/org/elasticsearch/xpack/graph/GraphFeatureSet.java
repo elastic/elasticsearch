@@ -16,9 +16,6 @@ import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 
-/**
- *
- */
 public class GraphFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;

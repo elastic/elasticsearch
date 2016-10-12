@@ -23,9 +23,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
-/**
- *
- */
 public class XPackClient {
 
     private final Client client;

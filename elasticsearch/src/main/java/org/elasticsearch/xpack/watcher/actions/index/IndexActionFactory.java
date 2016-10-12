@@ -16,9 +16,6 @@ import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class IndexActionFactory extends ActionFactory<IndexAction, ExecutableIndexAction> {
 
     private final WatcherClientProxy client;

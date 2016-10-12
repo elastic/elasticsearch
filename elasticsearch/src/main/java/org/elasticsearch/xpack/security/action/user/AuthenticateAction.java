@@ -8,9 +8,6 @@ package org.elasticsearch.xpack.security.action.user;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- *
- */
 public class AuthenticateAction extends Action<AuthenticateRequest, AuthenticateResponse, AuthenticateRequestBuilder> {
 
     public static final String NAME = "cluster:admin/xpack/security/user/authenticate";

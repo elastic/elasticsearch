@@ -31,9 +31,6 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-/**
- *
- */
 public class WatchSourceBuilder implements ToXContent {
 
     private Trigger trigger;

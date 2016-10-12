@@ -13,9 +13,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-/**
- *
- */
 public interface XPackFeatureSet {
 
     String name();

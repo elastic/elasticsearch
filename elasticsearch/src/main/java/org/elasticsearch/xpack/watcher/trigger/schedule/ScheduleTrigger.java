@@ -10,9 +10,6 @@ import org.elasticsearch.xpack.watcher.trigger.Trigger;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class ScheduleTrigger implements Trigger {
 
     public static final String TYPE = "schedule";

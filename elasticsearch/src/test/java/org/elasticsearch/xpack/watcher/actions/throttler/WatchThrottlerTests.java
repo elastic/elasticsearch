@@ -15,9 +15,6 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 public class WatchThrottlerTests extends ESTestCase {
     public void testThrottleDueToAck() throws Exception {
         PeriodThrottler periodThrottler = mock(PeriodThrottler.class);

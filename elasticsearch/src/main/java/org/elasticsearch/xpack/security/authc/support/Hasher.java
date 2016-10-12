@@ -14,9 +14,6 @@ import java.util.Base64;
 import java.util.Locale;
 import java.util.Random;
 
-/**
- *
- */
 public enum Hasher {
 
     BCRYPT() {

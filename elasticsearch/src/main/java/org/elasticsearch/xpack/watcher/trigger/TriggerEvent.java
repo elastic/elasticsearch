@@ -15,9 +15,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- *
- */
 public abstract class TriggerEvent implements ToXContent {
 
     private final String jobName;

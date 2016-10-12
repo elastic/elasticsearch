@@ -44,8 +44,6 @@ import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsRespo
 
 import java.util.Map;
 
-/**
- */
 public class WatcherClient {
 
     private final Client client;

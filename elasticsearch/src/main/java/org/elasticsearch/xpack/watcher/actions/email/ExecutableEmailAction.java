@@ -23,8 +23,6 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- */
 public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
 
     final EmailService emailService;

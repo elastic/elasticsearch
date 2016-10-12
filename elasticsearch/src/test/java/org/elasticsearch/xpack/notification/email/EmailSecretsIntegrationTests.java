@@ -39,9 +39,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTestCase {
     static final String USERNAME = "_user";
     static final String PASSWORD = "_passwd";

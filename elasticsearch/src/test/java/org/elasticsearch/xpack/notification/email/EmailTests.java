@@ -20,8 +20,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class EmailTests extends ESTestCase {
     public void testEmailParserSelfGenerated() throws Exception {
         String id = "test-id";

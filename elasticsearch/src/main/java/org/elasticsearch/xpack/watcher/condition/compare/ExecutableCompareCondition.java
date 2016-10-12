@@ -12,9 +12,6 @@ import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import java.util.Map;
 
 
-/**
- *
- */
 public class ExecutableCompareCondition extends AbstractExecutableCompareCondition<CompareCondition, CompareCondition.Result> {
     public ExecutableCompareCondition(CompareCondition condition, Logger logger, Clock clock) {
         super(condition, logger, clock);

@@ -10,9 +10,6 @@ import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 
-/**
- *
- */
 public abstract class UsernamePasswordRealm extends Realm {
 
     public UsernamePasswordRealm(String type, RealmConfig config) {

@@ -11,9 +11,6 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class IncidentEventDefaultsTests extends ESTestCase {
 
     public void testConstructor() throws Exception {

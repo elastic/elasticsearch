@@ -23,8 +23,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
 public class TriggeredWatchStoreLifeCycleTests extends AbstractWatcherIntegrationTestCase {
     public void testPutLoadUpdate() throws Exception {
         ExecutableCondition condition = new ExecutableAlwaysCondition(logger);

@@ -13,9 +13,6 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class SimpleInput implements Input {
 
     public static final String TYPE = "simple";

@@ -30,9 +30,6 @@ import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.OBJE
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.search;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.searchForEntry;
 
-/**
- *
- */
 public class ActiveDirectoryGroupsResolver implements GroupsResolver {
 
     private final String baseDn;

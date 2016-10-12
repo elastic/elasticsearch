@@ -13,9 +13,6 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;
 
-/**
- *
- */
 public abstract class ExecutableTransform<T extends Transform, R extends Transform.Result> implements ToXContent {
 
     protected final T transform;

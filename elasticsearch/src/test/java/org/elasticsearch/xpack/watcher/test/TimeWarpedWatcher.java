@@ -23,9 +23,6 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.stream.Stream;
 
-/**
- *
- */
 public class TimeWarpedWatcher extends Watcher {
 
     public TimeWarpedWatcher(Settings settings) {

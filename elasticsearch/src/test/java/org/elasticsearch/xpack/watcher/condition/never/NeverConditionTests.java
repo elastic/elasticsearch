@@ -18,8 +18,6 @@ import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
-/**
- */
 public class NeverConditionTests extends ESTestCase {
     public void testExecute() throws Exception {
         ExecutableCondition executable = new ExecutableNeverCondition(logger);

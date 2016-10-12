@@ -9,9 +9,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-/**
- *
- */
 public interface Clock {
 
     long millis();

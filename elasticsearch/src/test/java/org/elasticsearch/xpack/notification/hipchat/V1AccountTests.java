@@ -24,9 +24,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 public class V1AccountTests extends ESTestCase {
     public void testSettings() throws Exception {
         String accountName = "_name";

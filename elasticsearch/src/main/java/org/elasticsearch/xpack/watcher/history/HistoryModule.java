@@ -9,8 +9,6 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
 
-/**
- */
 public class HistoryModule extends AbstractModule {
 
     public HistoryModule() {

@@ -21,9 +21,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class UsernamePasswordTokenTests extends ESTestCase {
     @Rule
     public ExpectedException thrown = ExpectedException.none();

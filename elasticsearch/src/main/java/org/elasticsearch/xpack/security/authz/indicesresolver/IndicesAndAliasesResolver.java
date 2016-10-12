@@ -11,9 +11,6 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.util.Set;
 
-/**
- *
- */
 public interface IndicesAndAliasesResolver<Request extends TransportRequest> {
 
     Class<Request> requestType();

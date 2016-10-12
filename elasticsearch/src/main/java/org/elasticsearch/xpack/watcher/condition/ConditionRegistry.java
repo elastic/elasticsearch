@@ -15,9 +15,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
-/**
- *
- */
 public class ConditionRegistry {
 
     private final Map<String, ConditionFactory> factories;

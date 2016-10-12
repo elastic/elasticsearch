@@ -13,9 +13,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Locale;
 
-/**
- *
- */
 public enum LoggingLevel implements ToXContent {
 
     ERROR() {

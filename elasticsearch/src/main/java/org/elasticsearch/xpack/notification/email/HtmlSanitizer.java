@@ -19,9 +19,6 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 
-/**
- *
- */
 public class HtmlSanitizer {
 
     static final String[] FORMATTING_TAGS = new String[] {

@@ -17,9 +17,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
-/**
- *
- */
 public class SentMessages implements ToXContent, Iterable<SentMessages.SentMessage> {
 
     private String accountName;

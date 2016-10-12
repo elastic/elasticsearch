@@ -27,8 +27,6 @@ import org.elasticsearch.xpack.watcher.watch.WatchStore;
 
 import java.util.concurrent.CountDownLatch;
 
-/**
- */
 public class WatcherLifeCycleService extends AbstractComponent implements ClusterStateListener {
 
     private final ThreadPool threadPool;

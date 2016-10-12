@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.support;
 
-/**
- *
- */
 public interface RefreshListener {
 
     RefreshListener NOOP = () -> {};

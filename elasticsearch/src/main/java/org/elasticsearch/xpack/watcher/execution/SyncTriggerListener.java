@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 
 import static java.util.stream.StreamSupport.stream;
 
-/**
- */
 public class SyncTriggerListener implements TriggerEngine.Listener {
 
     private final ExecutionService executionService;

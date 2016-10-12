@@ -36,9 +36,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 
-/**
- *
- */
 public class ChainTransformTests extends ESTestCase {
     public void testExecute() throws Exception {
         ChainTransform transform = new ChainTransform(

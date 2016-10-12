@@ -20,9 +20,6 @@ import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 
-/**
- *
- */
 public class SlackAccountsTests extends ESTestCase {
     private HttpClient httpClient;
 

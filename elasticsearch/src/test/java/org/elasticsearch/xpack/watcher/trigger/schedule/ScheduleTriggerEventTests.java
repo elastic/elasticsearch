@@ -15,8 +15,6 @@ import org.elasticsearch.xpack.support.clock.SystemClock;
 
 import static org.hamcrest.Matchers.is;
 
-/**
- */
 public class ScheduleTriggerEventTests extends ESTestCase {
     public void testParserRandomDateMath() throws Exception {
         String triggeredTime = randomFrom("now", "now+5m", "2015-05-07T22:24:41.254Z", "2015-05-07T22:24:41.254Z||-5m");

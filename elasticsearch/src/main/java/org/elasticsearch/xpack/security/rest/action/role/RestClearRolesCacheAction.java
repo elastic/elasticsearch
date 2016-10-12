@@ -19,9 +19,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-/**
- *
- */
 public class RestClearRolesCacheAction extends BaseRestHandler {
 
     @Inject

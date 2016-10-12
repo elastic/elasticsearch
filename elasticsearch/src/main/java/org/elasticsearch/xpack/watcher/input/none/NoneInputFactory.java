@@ -13,9 +13,6 @@ import org.elasticsearch.xpack.watcher.input.InputFactory;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class NoneInputFactory extends InputFactory<NoneInput, NoneInput.Result, ExecutableNoneInput> {
 
     @Inject

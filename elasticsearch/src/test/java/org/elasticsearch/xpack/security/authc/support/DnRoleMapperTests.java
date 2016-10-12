@@ -47,9 +47,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public class DnRoleMapperTests extends ESTestCase {
 
     private static final String[] STARK_GROUP_DNS = new String[] {

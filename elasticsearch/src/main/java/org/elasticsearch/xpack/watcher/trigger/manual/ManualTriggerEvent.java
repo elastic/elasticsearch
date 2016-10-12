@@ -12,8 +12,6 @@ import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 
 import java.io.IOException;
 
-/**
- */
 public class ManualTriggerEvent extends TriggerEvent {
 
     private final TriggerEvent triggerEvent;

@@ -28,9 +28,6 @@ import java.nio.file.Path;
 import static javax.mail.Part.ATTACHMENT;
 import static javax.mail.Part.INLINE;
 
-/**
-*
-*/
 public abstract class Attachment extends BodyPartSource {
 
     private final boolean inline;

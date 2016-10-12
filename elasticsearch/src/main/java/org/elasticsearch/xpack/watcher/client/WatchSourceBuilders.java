@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.client;
 
-/**
- *
- */
 public final class WatchSourceBuilders {
 
     private WatchSourceBuilders() {

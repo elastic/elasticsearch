@@ -34,9 +34,6 @@ import java.security.cert.X509Certificate;
 
 import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
 
-/**
- *
- */
 public class SecurityRestFilter extends RestFilter {
 
     private final AuthenticationService service;

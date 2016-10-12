@@ -15,9 +15,6 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class PagerDutyAccount {
 
     public static final String SERVICE_KEY_SETTING = "service_api_key";

@@ -21,8 +21,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 
-/**
- */
 public class TransportWatcherServiceAction extends WatcherTransportAction<WatcherServiceRequest, WatcherServiceResponse> {
 
     private final WatcherLifeCycleService lifeCycleService;

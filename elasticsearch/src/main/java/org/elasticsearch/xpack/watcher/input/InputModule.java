@@ -21,9 +21,6 @@ import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- *
- */
 public class InputModule extends AbstractModule {
 
     private final Map<String, Class<? extends InputFactory>> parsers = new HashMap<>();

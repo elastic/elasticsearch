@@ -10,9 +10,6 @@ import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
 import org.mockito.Matchers;
 
-/**
- *
- */
 public final class WatcherMatchers {
 
     private WatcherMatchers() {

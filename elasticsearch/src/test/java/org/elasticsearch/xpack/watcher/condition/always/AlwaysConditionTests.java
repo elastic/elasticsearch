@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.watcher.condition.ExecutableCondition;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
-/**
- */
 public class AlwaysConditionTests extends ESTestCase {
     public void testExecute() throws Exception {
         ExecutableCondition alwaysTrue = new ExecutableAlwaysCondition(logger);

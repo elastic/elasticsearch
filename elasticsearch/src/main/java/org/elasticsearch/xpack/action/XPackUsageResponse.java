@@ -14,8 +14,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- */
 public class XPackUsageResponse extends ActionResponse {
 
     private List<XPackFeatureSet.Usage> usages;

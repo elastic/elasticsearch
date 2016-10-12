@@ -9,9 +9,6 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.Arrays;
 
-/**
- *
- */
 public class SlackMessageDefaults {
 
     public static final String FROM_SETTING = SlackMessage.XField.FROM.getPreferredName();

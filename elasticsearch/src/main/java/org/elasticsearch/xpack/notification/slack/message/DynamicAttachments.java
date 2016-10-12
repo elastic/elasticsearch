@@ -18,9 +18,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class DynamicAttachments implements MessageElement {
 
     private String listPath;

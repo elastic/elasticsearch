@@ -25,8 +25,6 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interva
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-/**
- */
 public class ForceDeleteWatchTests extends AbstractWatcherIntegrationTestCase {
     //Disable time warping for the force delete long running watch test
     @Override

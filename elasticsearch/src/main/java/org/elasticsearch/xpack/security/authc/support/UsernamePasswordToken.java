@@ -15,9 +15,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;
 
-/**
- *
- */
 public class UsernamePasswordToken implements AuthenticationToken {
 
     public static final String BASIC_AUTH_HEADER = "Authorization";

@@ -34,8 +34,6 @@ import java.util.regex.Pattern;
 
 import static java.util.Collections.unmodifiableMap;
 
-/**
- */
 public class WatcherIndexTemplateRegistry extends AbstractComponent implements ClusterStateListener {
 
     private static final String FORBIDDEN_INDEX_SETTING = "index.mapper.dynamic";

@@ -10,9 +10,6 @@ import dk.brics.automaton.RunAutomaton;
 
 import java.util.function.Predicate;
 
-/**
-*
-*/
 public class AutomatonPredicate implements Predicate<String> {
 
     private final RunAutomaton automaton;

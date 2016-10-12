@@ -18,9 +18,6 @@ import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class PagerDutyActionFactory extends ActionFactory<PagerDutyAction, ExecutablePagerDutyAction> {
 
     private final TextTemplateEngine templateEngine;

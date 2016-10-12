@@ -8,9 +8,6 @@ package org.elasticsearch.xpack.security.authz.privilege;
 import dk.brics.automaton.Automaton;
 import dk.brics.automaton.BasicAutomata;
 
-/**
- *
- */
 public class GeneralPrivilege extends AbstractAutomatonPrivilege<GeneralPrivilege> {
 
     public static final GeneralPrivilege NONE = new GeneralPrivilege(Name.NONE, BasicAutomata.makeEmpty());

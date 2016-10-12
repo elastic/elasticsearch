@@ -22,8 +22,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
-/**
- */
 public class WatchLockServiceTests extends ESTestCase {
     public void testLockingNotStarted() {
         WatchLockService lockService = new WatchLockService(new TimeValue(1, TimeUnit.SECONDS));

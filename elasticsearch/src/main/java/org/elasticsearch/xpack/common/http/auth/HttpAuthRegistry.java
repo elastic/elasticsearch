@@ -14,9 +14,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 
-/**
- *
- */
 public class HttpAuthRegistry {
 
     private final Map<String, HttpAuthFactory> factories;

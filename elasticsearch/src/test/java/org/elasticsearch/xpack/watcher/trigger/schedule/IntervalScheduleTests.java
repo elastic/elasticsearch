@@ -18,9 +18,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public class IntervalScheduleTests extends ESTestCase {
     public void testParseNumber() throws Exception {
         long value = randomIntBetween(0, Integer.MAX_VALUE);

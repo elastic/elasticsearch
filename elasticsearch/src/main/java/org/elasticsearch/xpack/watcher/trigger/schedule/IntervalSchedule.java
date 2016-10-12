@@ -16,9 +16,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 
-/**
- *
- */
 public class IntervalSchedule implements Schedule {
 
     public static final String TYPE = "interval";

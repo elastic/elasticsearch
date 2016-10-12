@@ -16,9 +16,6 @@ import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 
 import java.io.IOException;
 
-/**
- *
- */
 public final class HttpInputFactory extends InputFactory<HttpInput, HttpInput.Result, ExecutableHttpInput> {
 
     private final HttpClient httpClient;

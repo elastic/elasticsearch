@@ -17,8 +17,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 
-/**
- */
 public class WatchExecutionSnapshot implements Streamable, ToXContent {
 
     private String watchId;

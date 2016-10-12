@@ -24,8 +24,6 @@ import org.elasticsearch.license.XPackInfoResponse.LicenseInfo;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- */
 public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRequest, XPackInfoResponse> {
 
     private final LicenseService licenseService;

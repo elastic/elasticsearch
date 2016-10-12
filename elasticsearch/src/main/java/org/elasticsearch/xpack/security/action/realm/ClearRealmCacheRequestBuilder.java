@@ -8,9 +8,6 @@ package org.elasticsearch.xpack.security.action.realm;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- *
- */
 public class ClearRealmCacheRequestBuilder extends NodesOperationRequestBuilder<ClearRealmCacheRequest, ClearRealmCacheResponse,
         ClearRealmCacheRequestBuilder> {
 

@@ -19,9 +19,6 @@ import java.util.List;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.xpack.watcher.support.Strings.join;
 
-/**
- *
- */
 public class DayTimes implements Times {
 
     public static final DayTimes NOON = new DayTimes("noon", new int[] { 12 }, new int[] { 0 });

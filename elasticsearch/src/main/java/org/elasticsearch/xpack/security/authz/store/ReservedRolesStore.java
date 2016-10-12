@@ -27,9 +27,6 @@ import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 
-/**
- *
- */
 public class ReservedRolesStore implements RolesStore {
 
     private static final User DEFAULT_ENABLED_KIBANA_USER = new KibanaUser(true);

@@ -9,9 +9,6 @@ import java.util.Locale;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 
-/**
- *
- */
 public enum ActionExecutionMode {
 
     /**

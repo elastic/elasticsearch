@@ -7,9 +7,6 @@ package org.elasticsearch.xpack.watcher.client;
 
 import org.elasticsearch.common.inject.AbstractModule;
 
-/**
- *
- */
 public class WatcherClientModule extends AbstractModule {
 
     @Override

@@ -17,8 +17,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 
-/**
- */
 public class ManualTriggerEngine implements TriggerEngine<ManualTrigger, ManualTriggerEvent> {
 
     static final String TYPE = "manual";

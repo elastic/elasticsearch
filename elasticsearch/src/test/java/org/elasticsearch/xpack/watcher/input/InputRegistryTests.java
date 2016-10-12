@@ -15,9 +15,6 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
-/**
- *
- */
 public class InputRegistryTests extends ESTestCase {
 
     public void testParseEmptyInput() throws Exception {

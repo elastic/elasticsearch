@@ -11,9 +11,6 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.XPackSettings;
 
-/**
- *
- */
 public abstract class AbstractSecurityModule extends AbstractModule {
 
     protected final Settings settings;

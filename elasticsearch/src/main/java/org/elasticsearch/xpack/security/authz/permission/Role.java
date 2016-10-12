@@ -15,9 +15,6 @@ import org.elasticsearch.xpack.security.authz.privilege.Privilege;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- *
- */
 public class Role extends GlobalPermission {
 
     private final String name;

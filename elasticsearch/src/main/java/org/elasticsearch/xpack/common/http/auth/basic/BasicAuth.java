@@ -16,9 +16,6 @@ import org.elasticsearch.xpack.watcher.support.xcontent.WatcherXContentParser;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class BasicAuth implements HttpAuth {
 
     public static final String TYPE = "basic";

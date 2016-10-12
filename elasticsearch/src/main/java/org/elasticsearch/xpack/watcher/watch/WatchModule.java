@@ -8,9 +8,6 @@ package org.elasticsearch.xpack.watcher.watch;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.xpack.watcher.WatcherService;
 
-/**
- *
- */
 public class WatchModule extends AbstractModule {
 
     @Override

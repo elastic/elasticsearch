@@ -20,9 +20,6 @@ import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 
-/**
- *
- */
 public class WatcherFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;

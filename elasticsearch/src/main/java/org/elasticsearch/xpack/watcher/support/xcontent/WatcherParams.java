@@ -13,9 +13,6 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
-/**
- *
- */
 public class WatcherParams extends ToXContent.DelegatingMapParams {
 
     public static final WatcherParams HIDE_SECRETS = WatcherParams.builder().hideSecrets(true).build();

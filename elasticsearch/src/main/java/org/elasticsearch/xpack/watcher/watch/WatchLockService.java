@@ -18,9 +18,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
 
-/**
- *
- */
 public class WatchLockService extends AbstractComponent {
 
     private final KeyedLock<String> watchLocks = new KeyedLock<>(true);

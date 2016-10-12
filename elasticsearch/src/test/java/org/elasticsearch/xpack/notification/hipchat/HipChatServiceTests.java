@@ -23,9 +23,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
-/**
- *
- */
 public class HipChatServiceTests extends ESTestCase {
     private HttpClient httpClient;
 

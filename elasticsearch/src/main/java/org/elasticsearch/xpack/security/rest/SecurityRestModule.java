@@ -8,9 +8,6 @@ package org.elasticsearch.xpack.security.rest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.support.AbstractSecurityModule;
 
-/**
- *
- */
 public class SecurityRestModule extends AbstractSecurityModule.Node {
 
     public SecurityRestModule(Settings settings) {

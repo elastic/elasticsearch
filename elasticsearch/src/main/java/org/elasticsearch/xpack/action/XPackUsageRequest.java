@@ -8,9 +8,6 @@ package org.elasticsearch.xpack.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 
-/**
- *
- */
 public class XPackUsageRequest extends MasterNodeRequest<XPackUsageRequest> {
 
     @Override

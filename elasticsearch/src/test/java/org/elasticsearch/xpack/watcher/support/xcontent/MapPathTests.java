@@ -17,9 +17,6 @@ import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class MapPathTests extends ESTestCase {
     public void testEval() throws Exception {
         Map<String, Object> map = singletonMap("key", "value");

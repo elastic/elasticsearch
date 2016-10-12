@@ -13,8 +13,6 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;
 
-/**
- */
 public abstract class ExecutableAction<A extends Action> implements ToXContent {
 
     protected final A action;

@@ -30,9 +30,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.SortedMap;
 
-/**
- *
- */
 public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolver<TransportRequest> {
 
     private final AuthorizationService authzService;

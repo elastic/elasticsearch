@@ -11,9 +11,6 @@ import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 
 import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.formatDate;
 
-/**
- *
- */
 public class AckThrottler implements Throttler {
 
     @Override

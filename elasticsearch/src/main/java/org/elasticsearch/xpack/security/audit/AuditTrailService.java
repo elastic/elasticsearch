@@ -22,9 +22,6 @@ import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.elasticsearch.xpack.security.user.User;
 
-/**
- *
- */
 public class AuditTrailService extends AbstractComponent implements AuditTrail {
 
     public static final Map<String, Object> DISABLED_USAGE_STATS = Collections.singletonMap("enabled", false);

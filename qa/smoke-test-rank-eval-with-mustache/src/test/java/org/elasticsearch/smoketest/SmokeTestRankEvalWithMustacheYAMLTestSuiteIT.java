@@ -30,7 +30,7 @@ import java.io.IOException;
 
 public class SmokeTestRankEvalWithMustacheYAMLTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    public SmokeTestRankEvalWithMustacheYAMLTestSuiteIT.java(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+    public SmokeTestRankEvalWithMustacheYAMLTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

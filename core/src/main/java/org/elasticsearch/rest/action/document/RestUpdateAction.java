@@ -40,8 +40,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-/**
- */
 public class RestUpdateAction extends BaseRestHandler {
     private static final DeprecationLogger DEPRECATION_LOGGER =
         new DeprecationLogger(Loggers.getLogger(RestUpdateAction.class));

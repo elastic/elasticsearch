@@ -32,9 +32,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class ToAndFromJsonMetaDataTests extends ESTestCase {
     public void testSimpleJsonFromAndTo() throws IOException {
         MetaData metaData = MetaData.builder()

@@ -35,6 +35,7 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCan
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class DirectCandidateGeneratorTests extends ESTestCase{
@@ -151,12 +152,12 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
         // test missing fieldname
         String directGenerator = "{ }";
         assertIllegalXContent(directGenerator, IllegalArgumentException.class,
-                "[direct_generator] expects exactly one field parameter, but found []");
+                "Required [field]");
 
         // test two fieldnames
         directGenerator = "{ \"field\" : \"f1\", \"field\" : \"f2\" }";
-        assertIllegalXContent(directGenerator, IllegalArgumentException.class,
-                "[direct_generator] expects exactly one field parameter, but found [f2, f1]");
+        assertIllegalXContent(directGenerator, ParsingException.class,
+                "[direct_generator] failed to parse field [field]");
 
         // test unknown field
         directGenerator = "{ \"unknown_param\" : \"f1\" }";

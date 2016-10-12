@@ -31,9 +31,6 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class JsonVsSmileTests extends ESTestCase {
     public void testCompareParsingTokens() throws IOException {
         BytesStreamOutput xsonOs = new BytesStreamOutput();

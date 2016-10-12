@@ -25,9 +25,6 @@ import org.elasticsearch.tasks.TaskManager;
 import java.io.IOException;
 import java.util.function.Supplier;
 
-/**
- *
- */
 public class RequestHandlerRegistry<Request extends TransportRequest> {
 
     private final String action;

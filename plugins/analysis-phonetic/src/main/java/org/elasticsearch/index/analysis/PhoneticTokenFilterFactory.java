@@ -45,9 +45,6 @@ import org.elasticsearch.index.analysis.phonetic.HaasePhonetik;
 import org.elasticsearch.index.analysis.phonetic.KoelnerPhonetik;
 import org.elasticsearch.index.analysis.phonetic.Nysiis;
 
-/**
- *
- */
 public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Encoder encoder;

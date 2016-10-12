@@ -30,8 +30,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- */
 public class FieldStatsResponse extends BroadcastResponse {
     private Map<String, Map<String, FieldStats>> indicesMergedFieldStats;
     private Map<String, String> conflicts;

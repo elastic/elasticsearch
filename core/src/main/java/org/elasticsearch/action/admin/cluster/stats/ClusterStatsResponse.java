@@ -33,9 +33,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
-/**
- *
- */
 public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResponse> implements ToXContent {
 
     ClusterStatsNodes nodesStats;

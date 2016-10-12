@@ -24,9 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class GreekAnalyzerProvider extends AbstractIndexAnalyzerProvider<GreekAnalyzer> {
 
     private final GreekAnalyzer analyzer;

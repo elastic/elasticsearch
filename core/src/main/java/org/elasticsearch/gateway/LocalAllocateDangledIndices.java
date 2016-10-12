@@ -50,8 +50,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
-/**
- */
 public class LocalAllocateDangledIndices extends AbstractComponent {
 
     public static final String ACTION_NAME = "internal:gateway/local/allocate_dangled";

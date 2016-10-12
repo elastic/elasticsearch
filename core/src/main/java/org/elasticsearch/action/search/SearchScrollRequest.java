@@ -31,9 +31,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-/**
- *
- */
 public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
 
     private String scrollId;

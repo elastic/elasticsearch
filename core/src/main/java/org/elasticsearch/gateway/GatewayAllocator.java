@@ -42,9 +42,6 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 
-/**
- *
- */
 public class GatewayAllocator extends AbstractComponent {
 
     private RoutingService routingService;

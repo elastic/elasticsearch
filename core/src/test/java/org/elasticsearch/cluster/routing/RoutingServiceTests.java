@@ -27,8 +27,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class RoutingServiceTests extends ESAllocationTestCase {
 
     private TestRoutingService routingService;

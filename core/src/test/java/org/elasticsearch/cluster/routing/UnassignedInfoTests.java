@@ -53,8 +53,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- */
 public class UnassignedInfoTests extends ESAllocationTestCase {
     public void testReasonOrdinalOrder() {
         UnassignedInfo.Reason[] order = new UnassignedInfo.Reason[]{

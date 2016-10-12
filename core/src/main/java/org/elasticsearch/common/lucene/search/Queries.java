@@ -35,9 +35,6 @@ import org.elasticsearch.index.mapper.TypeFieldMapper;
 import java.util.List;
 import java.util.regex.Pattern;
 
-/**
- *
- */
 public class Queries {
 
     public static Query newMatchAllQuery() {

@@ -36,9 +36,6 @@ import org.junit.Before;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-/**
- *
- */
 public class PythonScriptEngineTests extends ESTestCase {
     private PythonScriptEngineService se;
 

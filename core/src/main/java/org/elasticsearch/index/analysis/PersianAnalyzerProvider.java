@@ -24,9 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class PersianAnalyzerProvider extends AbstractIndexAnalyzerProvider<PersianAnalyzer> {
 
     private final PersianAnalyzer analyzer;

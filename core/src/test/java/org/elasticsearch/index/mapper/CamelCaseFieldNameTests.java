@@ -25,9 +25,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-/**
- *
- */
 public class CamelCaseFieldNameTests extends ESSingleNodeTestCase {
     public void testCamelCaseFieldNameStaysAsIs() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")

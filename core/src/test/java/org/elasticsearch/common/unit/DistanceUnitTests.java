@@ -28,9 +28,6 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class DistanceUnitTests extends ESTestCase {
     public void testSimpleDistanceUnit() {
         assertThat(DistanceUnit.KILOMETERS.convert(10, DistanceUnit.MILES), closeTo(16.09344, 0.001));

@@ -24,9 +24,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-/**
- *
- */
 public enum SpatialStrategy implements Writeable {
 
     TERM("term"),

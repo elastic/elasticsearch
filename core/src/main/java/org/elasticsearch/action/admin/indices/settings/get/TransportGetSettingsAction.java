@@ -40,8 +40,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
 
-/**
- */
 public class TransportGetSettingsAction extends TransportMasterNodeReadAction<GetSettingsRequest, GetSettingsResponse> {
 
     private final SettingsFilter settingsFilter;

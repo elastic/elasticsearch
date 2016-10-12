@@ -46,8 +46,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
 
-/**
- */
 public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
 

@@ -26,9 +26,6 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import java.util.Collection;
 import java.util.Collections;
 
-/**
- *
- */
 public final class Uid {
 
     public static final char DELIMITER = '#';

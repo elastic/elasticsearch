@@ -31,9 +31,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public abstract class AbstractXContentParser implements XContentParser {
 
     // Currently this is not a setting that can be changed and is a policy

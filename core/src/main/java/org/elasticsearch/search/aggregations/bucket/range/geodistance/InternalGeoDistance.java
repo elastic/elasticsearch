@@ -31,9 +31,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucket, InternalGeoDistance> {
     public static final Factory FACTORY = new Factory();
 
@@ -118,5 +115,10 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
     @Override
     public InternalRange.Factory<Bucket, InternalGeoDistance> getFactory() {
         return FACTORY;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return GeoDistanceAggregationBuilder.NAME;
     }
 }

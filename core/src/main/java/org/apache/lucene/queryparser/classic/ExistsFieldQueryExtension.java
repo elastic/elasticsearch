@@ -24,9 +24,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 
-/**
- *
- */
 public class ExistsFieldQueryExtension implements FieldQueryExtension {
 
     public static final String NAME = "_exists_";

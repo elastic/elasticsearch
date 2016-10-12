@@ -66,9 +66,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
-/**
- *
- */
 public class PublishClusterStateAction extends AbstractComponent {
 
     public static final String SEND_ACTION_NAME = "internal:discovery/zen/publish/send";

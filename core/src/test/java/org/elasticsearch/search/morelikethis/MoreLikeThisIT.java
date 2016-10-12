@@ -56,9 +56,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThro
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public class MoreLikeThisIT extends ESIntegTestCase {
     public void testSimpleMoreLikeThis() throws Exception {
         logger.info("Creating index test");

@@ -30,8 +30,6 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- */
 public class MetaStateServiceTests extends ESTestCase {
     private static Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)

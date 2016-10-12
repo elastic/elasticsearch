@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index;
 
-/**
- *
- */
 public interface IndexComponent {
 
     Index index();

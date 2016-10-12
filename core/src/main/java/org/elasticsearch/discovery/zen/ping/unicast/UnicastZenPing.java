@@ -86,9 +86,6 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.discovery.zen.ping.ZenPing.PingResponse.readPingResponse;
 
-/**
- *
- */
 public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPing {
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";

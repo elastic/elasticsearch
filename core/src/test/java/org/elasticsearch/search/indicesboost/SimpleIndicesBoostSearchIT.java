@@ -31,9 +31,6 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class SimpleIndicesBoostSearchIT extends ESIntegTestCase {
     public void testIndicesBoost() throws Exception {
         assertHitCount(client().prepareSearch().setQuery(termQuery("test", "value")).get(), 0);

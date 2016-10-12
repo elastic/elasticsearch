@@ -23,9 +23,6 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class SizeValueTests extends ESTestCase {
     public void testThatConversionWorks() {
         SizeValue sizeValue = new SizeValue(1000);

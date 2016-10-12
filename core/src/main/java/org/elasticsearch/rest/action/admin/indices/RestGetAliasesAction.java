@@ -45,8 +45,6 @@ import java.util.Locale;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-/**
- */
 public class RestGetAliasesAction extends BaseRestHandler {
 
     @Inject

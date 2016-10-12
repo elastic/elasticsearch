@@ -44,9 +44,6 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.Locale;
 
-/**
- *
- */
 public class Joda {
 
     public static FormatDateTimeFormatter forPattern(String input) {

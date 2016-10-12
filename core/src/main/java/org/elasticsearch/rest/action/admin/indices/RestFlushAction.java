@@ -41,9 +41,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
-/**
- *
- */
 public class RestFlushAction extends BaseRestHandler {
 
     @Inject

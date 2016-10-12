@@ -25,9 +25,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class RecoveryEngineException extends EngineException {
 
     private final int phase;

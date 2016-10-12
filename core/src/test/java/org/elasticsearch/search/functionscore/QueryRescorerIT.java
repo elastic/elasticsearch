@@ -69,9 +69,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public class QueryRescorerIT extends ESIntegTestCase {
     public void testEnforceWindowSize() {
         createIndex("test");

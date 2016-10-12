@@ -33,8 +33,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
-/**
- */
 public class RestIndexDeleteAliasesAction extends BaseRestHandler {
 
     @Inject

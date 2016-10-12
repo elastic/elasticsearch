@@ -33,7 +33,7 @@ import java.util.Collection;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.contains;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyCollectionOf;
+import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -45,7 +45,7 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
 
     public MetaDataIndexAliasesServiceTests() {
         // Mock any deletes so we don't need to worry about how MetaDataDeleteIndexService does its job
-        when(deleteIndexService.deleteIndices(any(ClusterState.class), anyCollectionOf(Index.class))).then(i -> {
+        when(deleteIndexService.deleteIndices(any(ClusterState.class), anySetOf(Index.class))).then(i -> {
             ClusterState state = (ClusterState) i.getArguments()[0];
             @SuppressWarnings("unchecked")
             Collection<Index> indices = (Collection<Index>) i.getArguments()[1];

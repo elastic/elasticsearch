@@ -52,9 +52,6 @@ import static java.util.Collections.disjoint;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
-/**
- *
- */
 public class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
 
     private final TransportService transportService;

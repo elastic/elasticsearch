@@ -47,9 +47,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIn
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 
-/**
- *
- */
 public class TypeParsers {
 
     public static final String DOC_VALUES = "doc_values";

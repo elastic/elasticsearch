@@ -16,16 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.common;
 
-package org.elasticsearch.search;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.test.ESTestCase;
 
-import org.elasticsearch.common.io.stream.Streamable;
+import java.util.concurrent.atomic.AtomicInteger;
 
-public interface SearchPhaseResult extends Streamable {
+public class ReleasablesTests extends ESTestCase {
 
-    long id();
-
-    SearchShardTarget shardTarget();
-
-    void shardTarget(SearchShardTarget shardTarget);
+    public void testReleaseOnce() {
+        AtomicInteger count = new AtomicInteger(0);
+        Releasable releasable = Releasables.releaseOnce(count::incrementAndGet, count::incrementAndGet);
+        assertEquals(0, count.get());
+        releasable.close();
+        assertEquals(2, count.get());
+        releasable.close();
+        assertEquals(2, count.get());
+    }
 }

@@ -55,8 +55,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class NestedAggregatorTests extends ESSingleNodeTestCase {
     public void testResetRootDocId() throws Exception {
         Directory directory = newDirectory();

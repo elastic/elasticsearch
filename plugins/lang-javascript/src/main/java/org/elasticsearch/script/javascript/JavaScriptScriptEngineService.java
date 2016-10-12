@@ -61,9 +61,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- *
- */
 public class JavaScriptScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     public static final String NAME = "javascript";

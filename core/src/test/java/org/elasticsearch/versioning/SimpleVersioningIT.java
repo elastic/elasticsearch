@@ -47,9 +47,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThro
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-/**
- *
- */
 public class SimpleVersioningIT extends ESIntegTestCase {
     public void testExternalVersioningInitialDelete() throws Exception {
         createIndex("test");

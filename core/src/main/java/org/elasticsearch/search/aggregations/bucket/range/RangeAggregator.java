@@ -48,9 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- *
- */
 public class RangeAggregator extends BucketsAggregator {
 
     public static final ParseField RANGES_FIELD = new ParseField("ranges");

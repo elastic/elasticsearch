@@ -29,8 +29,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
 
-/**
- */
 public class Version {
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA
@@ -96,6 +94,15 @@ public class Version {
     public static final int V_6_0_0_alpha1_ID = 6000001;
     public static final Version V_6_0_0_alpha1 = new Version(V_6_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_6_2_0);
     public static final Version CURRENT = V_6_0_0_alpha1;
+
+    /* NOTE: don't add unreleased version to this list except of the version assigned to CURRENT.
+     * If you need a version that doesn't exist here for instance V_5_1_0 then go and create such a version
+     * as a constant where you need it:
+     * <pre>
+     *   public static final Version V_5_1_0_UNRELEASED = new Version(5010099, Version.CURRENT.luceneVersion);
+     * </pre>
+     * Then go to VersionsTest.java and add a test for this constant VersionTests#testUnknownVersions().
+     * This is particularly useful if you are building a feature that needs a BWC layer for this unreleased version etc.*/
 
     static {
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["

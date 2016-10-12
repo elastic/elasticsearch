@@ -51,9 +51,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public class MinIT extends AbstractNumericTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

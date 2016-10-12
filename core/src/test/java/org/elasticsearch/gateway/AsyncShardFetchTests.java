@@ -41,8 +41,6 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
-/**
- */
 public class AsyncShardFetchTests extends ESTestCase {
     private final DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
             Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT);

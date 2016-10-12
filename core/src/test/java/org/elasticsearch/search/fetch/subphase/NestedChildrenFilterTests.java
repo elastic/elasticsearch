@@ -46,8 +46,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class NestedChildrenFilterTests extends ESTestCase {
     public void testNestedChildrenFilter() throws Exception {
         int numParentDocs = scaledRandomIntBetween(0, 32);

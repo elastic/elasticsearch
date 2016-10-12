@@ -34,8 +34,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- */
 public class AllocationIdTests extends ESTestCase {
     public void testShardToStarted() {
         logger.info("-- create unassigned shard");

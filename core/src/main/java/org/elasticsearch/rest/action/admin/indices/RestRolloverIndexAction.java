@@ -31,9 +31,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class RestRolloverIndexAction extends BaseRestHandler {
 
     @Inject

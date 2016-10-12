@@ -44,9 +44,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomDouble;
 
-/**
- *
- */
 public class TestAmazonS3 extends AmazonS3Wrapper {
 
     protected final Logger logger = Loggers.getLogger(getClass());

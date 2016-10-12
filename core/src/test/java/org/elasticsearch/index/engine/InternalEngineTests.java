@@ -1789,8 +1789,8 @@ public class InternalEngineTests extends ESTestCase {
                     @Override
                     public void run() {
                         try {
-                            barrier.await(); // wait for both threads to start at the same time
-                            // index a random number of docs
+                            barrier.await(); // wait for all threads to start at the same time
+                            // index random number of docs
                             for (int i = 0; i < numDocsPerThread; i++) {
                                 final String id = "thread" + threadIdx + "#" + i;
                                 ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocument(), B_1, null);

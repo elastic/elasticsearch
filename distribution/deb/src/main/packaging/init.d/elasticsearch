@@ -118,7 +118,7 @@ case "$1" in
 
 	# Ensure that the PID_DIR exists (it is cleaned at OS startup time)
 	if [ -n "$PID_DIR" ] && [ ! -e "$PID_DIR" ]; then
-		mkdir -p "$PID_DIR" && chown "$ES_USER":"$ES_GROUP" "$PID_DIR"
+		mkdir -p "$PID_DIR" && chown -R "$ES_USER":"$ES_GROUP" "$PID_DIR"
 	fi
 	if [ -n "$PID_FILE" ] && [ ! -e "$PID_FILE" ]; then
 		touch "$PID_FILE" && chown "$ES_USER":"$ES_GROUP" "$PID_FILE"

@@ -464,7 +464,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * used for rewriting since it does not know about the current {@link IndexReader}.
      */
     public QueryShardContext newQueryShardContext() {
-        return newQueryShardContext(null, threadPool::estimatedTimeInMillis);
+        return newQueryShardContext(null, System::currentTimeMillis);
     }
 
     public ThreadPool getThreadPool() {

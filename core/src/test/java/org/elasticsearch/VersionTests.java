@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
+import org.junit.Assert;
 
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
@@ -278,5 +279,17 @@ public class VersionTests extends ESTestCase {
                 }
             }
         }
+    }
+    private  static final Version V_20_0_0_UNRELEASED = new Version(20000099, Version.CURRENT.luceneVersion);
+
+    // see comment in Version.java about this test
+    public void testUnknownVersions() {
+        assertUnknownVersion(V_20_0_0_UNRELEASED);
+        expectThrows(AssertionError.class, () -> assertUnknownVersion(Version.CURRENT));
+    }
+
+    public static void assertUnknownVersion(Version version) {
+        assertFalse("Version " + version + " has been releaed don't use a new instance of this version",
+            VersionUtils.allVersions().contains(version));
     }
 }

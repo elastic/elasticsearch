@@ -52,9 +52,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-/**
- *
- */
 public class IndexActionIT extends ESIntegTestCase {
     /**
      * This test tries to simulate load while creating an index and indexing documents

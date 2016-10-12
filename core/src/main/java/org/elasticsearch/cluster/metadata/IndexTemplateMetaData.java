@@ -42,9 +42,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/**
- *
- */
 public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaData> {
 
     public static final IndexTemplateMetaData PROTO = IndexTemplateMetaData.builder("").build();

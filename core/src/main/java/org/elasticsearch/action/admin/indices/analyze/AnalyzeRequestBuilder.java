@@ -23,9 +23,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 
 import java.util.Map;
 
-/**
- *
- */
 public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<AnalyzeRequest, AnalyzeResponse, AnalyzeRequestBuilder> {
 
     public AnalyzeRequestBuilder(ElasticsearchClient client, AnalyzeAction action) {

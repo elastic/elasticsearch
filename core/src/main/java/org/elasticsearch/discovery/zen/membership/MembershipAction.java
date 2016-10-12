@@ -38,9 +38,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-/**
- *
- */
 public class MembershipAction extends AbstractComponent {
 
     public static final String DISCOVERY_JOIN_ACTION_NAME = "internal:discovery/zen/join";

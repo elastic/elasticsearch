@@ -26,9 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
 
-/**
- *
- */
 public final class ProcessService extends AbstractComponent {
 
     private final ProcessProbe probe;

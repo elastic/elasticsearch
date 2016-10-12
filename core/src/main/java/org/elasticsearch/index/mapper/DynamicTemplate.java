@@ -34,9 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-/**
- *
- */
 public class DynamicTemplate implements ToXContent {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(DynamicTemplate.class));

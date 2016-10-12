@@ -68,9 +68,6 @@ import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
 import java.util.Locale;
 
-/**
- *
- */
 public enum PreBuiltAnalyzers {
 
     STANDARD(CachingStrategy.ELASTICSEARCH) {

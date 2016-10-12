@@ -53,8 +53,6 @@ import static org.elasticsearch.Version.CURRENT;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 
-/**
- */
 public class IndicesStoreTests extends ESTestCase {
     private static final ShardRoutingState[] NOT_STARTED_STATES;
 

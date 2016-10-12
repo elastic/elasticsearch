@@ -51,9 +51,6 @@ import java.util.List;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
-/**
- *
- */
 public class AzureUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
 
     public enum HostType {

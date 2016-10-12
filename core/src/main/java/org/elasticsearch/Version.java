@@ -29,8 +29,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
 
-/**
- */
 public class Version {
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA
@@ -91,6 +89,8 @@ public class Version {
     public static final Version V_5_0_0_beta1 = new Version(V_5_0_0_beta1_ID, org.apache.lucene.util.Version.LUCENE_6_2_0);
     public static final int V_5_0_0_rc1_ID = 5000051;
     public static final Version V_5_0_0_rc1 = new Version(V_5_0_0_rc1_ID, org.apache.lucene.util.Version.LUCENE_6_2_0);
+    public static final int V_5_0_0_rc2_ID = 5000052;
+    public static final Version V_5_0_0_rc2 = new Version(V_5_0_0_rc2_ID, org.apache.lucene.util.Version.LUCENE_6_2_0);
     public static final int V_6_0_0_alpha1_ID = 6000001;
     public static final Version V_6_0_0_alpha1 = new Version(V_6_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_6_2_0);
     public static final Version CURRENT = V_6_0_0_alpha1;
@@ -108,6 +108,8 @@ public class Version {
         switch (id) {
             case V_6_0_0_alpha1_ID:
                 return V_6_0_0_alpha1;
+            case V_5_0_0_rc2_ID:
+                return V_5_0_0_rc2;
             case V_5_0_0_rc1_ID:
                 return V_5_0_0_rc1;
             case V_5_0_0_beta1_ID:

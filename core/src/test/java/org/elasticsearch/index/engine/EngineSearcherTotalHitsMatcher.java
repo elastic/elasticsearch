@@ -27,9 +27,6 @@ import org.hamcrest.TypeSafeMatcher;
 
 import java.io.IOException;
 
-/**
- *
- */
 public final class EngineSearcherTotalHitsMatcher extends TypeSafeMatcher<Engine.Searcher> {
 
     private final Query query;

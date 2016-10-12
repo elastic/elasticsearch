@@ -21,7 +21,7 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-The `.zip` archive for Elastisearch v{version} can be downloaded and installed as follows:
+The `.zip` archive for Elasticsearch v{version} can be downloaded and installed as follows:
 
 
 ["source","sh",subs="attributes"]
@@ -49,7 +49,7 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-The `.tar.gz` archive for Elastisearch v{version} can be downloaded and installed as follows:
+The `.tar.gz` archive for Elasticsearch v{version} can be downloaded and installed as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.transport.support;
 
-/**
- */
 public class TransportStatus {
 
     private static final byte STATUS_REQRES = 1 << 0;

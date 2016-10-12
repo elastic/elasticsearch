@@ -68,9 +68,6 @@ import static org.jboss.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import static org.jboss.netty.util.CharsetUtil.UTF_8;
 
-/**
- *
- */
 public class HttpPipeliningHandlerTests extends ESTestCase {
 
     private static final long RESPONSE_TIMEOUT = 10000L;

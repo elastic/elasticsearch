@@ -93,11 +93,6 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
         removeAllocationId(removedRelocationSource);
     }
 
-    @Override
-    public void startedPrimaryReinitialized(ShardRouting startedPrimaryShard, ShardRouting initializedShard) {
-        removeAllocationId(startedPrimaryShard);
-    }
-
     /**
      * Updates the current {@link MetaData} based on the changes of this RoutingChangesObserver. Specifically
      * we update {@link IndexMetaData#getInSyncAllocationIds()} and {@link IndexMetaData#primaryTerm(int)} based on

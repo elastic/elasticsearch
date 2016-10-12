@@ -573,6 +573,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     /**
+     * Whether the queries produced by this builder are expected to be cacheable.
+     */
+    protected boolean builderGeneratesCacheableQueries() {
+        return true;
+    }
+
+    /**
      * Test creates the {@link Query} from the {@link QueryBuilder} under test and delegates the
      * assertions being made on the result to the implementing subclass.
      */
@@ -583,8 +590,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             context.setAllowUnmappedFields(true);
             QB firstQuery = createTestQueryBuilder();
             QB controlQuery = copyQuery(firstQuery);
-            SearchContext searchContext = getSearchContext(randomTypes, context);// only set search context for toQuery to be more realistic
-/* we use a private rewrite context here since we want the most realistic way of asserting that we are cachabel or not.
+            SearchContext searchContext = getSearchContext(randomTypes, context);
+            /* we use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not.
              * We do it this way in SearchService where
              * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
             QueryBuilder rewritten = rewriteQuery(firstQuery, new QueryShardContext(context));
@@ -618,8 +625,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             assertNotNull("toQuery should not return null", secondLuceneQuery);
             assertLuceneQuery(secondQuery, secondLuceneQuery, searchContext);
 
-            assertEquals("two equivalent query builders lead to different lucene queries",
-                    rewrite(secondLuceneQuery), rewrite(firstLuceneQuery));
+            if (builderGeneratesCacheableQueries()) {
+                assertEquals("two equivalent query builders lead to different lucene queries",
+                        rewrite(secondLuceneQuery), rewrite(firstLuceneQuery));
+            }
 
             if (supportsBoostAndQueryName()) {
                 secondQuery.boost(firstQuery.boost() + 1f + randomFloat());

@@ -26,8 +26,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 
 import java.util.Iterator;
 
-/**
- */
 public final class HppcMaps {
 
     private HppcMaps() {

@@ -25,8 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/**
- */
 public interface Compressor {
 
     boolean isCompressed(BytesReference bytes);

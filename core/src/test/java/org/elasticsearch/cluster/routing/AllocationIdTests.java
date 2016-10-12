@@ -34,8 +34,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- */
 public class AllocationIdTests extends ESTestCase {
     public void testShardToStarted() {
         logger.info("-- create unassigned shard");
@@ -122,7 +120,7 @@ public class AllocationIdTests extends ESTestCase {
         shard = shard.reinitializePrimaryShard();
         assertThat(shard.allocationId().getId(), notNullValue());
         assertThat(shard.allocationId().getRelocationId(), nullValue());
-        assertThat(shard.allocationId().getId(), not(equalTo(allocationId.getId())));
+        assertThat(shard.allocationId().getId(), equalTo(allocationId.getId()));
     }
 
     public void testSerialization() throws IOException {

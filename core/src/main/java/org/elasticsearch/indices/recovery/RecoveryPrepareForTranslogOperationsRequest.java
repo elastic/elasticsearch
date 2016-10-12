@@ -27,9 +27,6 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
 
     private long maxUnsafeAutoIdTimestamp = IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;

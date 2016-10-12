@@ -31,8 +31,6 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-/**
- */
 public class SimplePhoneticAnalysisTests extends ESTestCase {
     public void testPhoneticTokenFilterFactory() throws IOException {
         String yaml = "/org/elasticsearch/index/analysis/phonetic-1.yml";

@@ -28,9 +28,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class PathTrieTests extends ESTestCase {
 
     public static final PathTrie.Decoder NO_DECODER = new PathTrie.Decoder() {

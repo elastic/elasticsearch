@@ -24,9 +24,6 @@ import com.carrotsearch.hppc.IntArrayList;
 
 import java.util.StringTokenizer;
 
-/**
- *
- */
 public class PortsRange {
 
     private final String portRange;

@@ -35,8 +35,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
-/**
- */
 public class TransportPendingClusterTasksAction extends TransportMasterNodeReadAction<PendingClusterTasksRequest, PendingClusterTasksResponse> {
 
     private final ClusterService clusterService;

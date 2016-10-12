@@ -24,9 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/**
- *
- */
 public abstract class AbstractLifecycleComponent extends AbstractComponent implements LifecycleComponent {
 
     protected final Lifecycle lifecycle = new Lifecycle();

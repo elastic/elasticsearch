@@ -45,9 +45,6 @@ import java.util.TreeSet;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
-/**
- *
- */
 public class Strings {
 
     public static final String[] EMPTY_ARRAY = new String[0];

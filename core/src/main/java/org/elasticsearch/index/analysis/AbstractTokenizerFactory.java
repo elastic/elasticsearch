@@ -24,9 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public abstract class AbstractTokenizerFactory extends AbstractIndexComponent implements TokenizerFactory {
 
     private final String name;

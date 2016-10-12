@@ -47,8 +47,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
-/**
- */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class NoMasterNodeIT extends ESIntegTestCase {
 

@@ -41,9 +41,6 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class TenShardsOneReplicaRoutingTests extends ESAllocationTestCase {
     private final Logger logger = Loggers.getLogger(TenShardsOneReplicaRoutingTests.class);
 

@@ -30,9 +30,6 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class XContentFactoryTests extends ESTestCase {
     public void testGuessJson() throws IOException {
         testGuessType(XContentType.JSON);

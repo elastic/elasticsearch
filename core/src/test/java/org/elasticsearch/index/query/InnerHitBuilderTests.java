@@ -236,7 +236,7 @@ public class InnerHitBuilderTests extends ESTestCase {
         if (randomBoolean()) {
             randomFetchSourceContext = new FetchSourceContext(randomBoolean());
         } else {
-            randomFetchSourceContext = new FetchSourceContext(
+            randomFetchSourceContext = new FetchSourceContext(true,
                     generateRandomStringArray(12, 16, false),
                     generateRandomStringArray(12, 16, false)
             );
@@ -322,7 +322,7 @@ public class InnerHitBuilderTests extends ESTestCase {
                     if (randomBoolean()) {
                         randomFetchSourceContext = new FetchSourceContext(randomBoolean());
                     } else {
-                        randomFetchSourceContext = new FetchSourceContext(
+                        randomFetchSourceContext = new FetchSourceContext(true,
                                 generateRandomStringArray(12, 16, false),
                                 generateRandomStringArray(12, 16, false)
                         );

@@ -38,9 +38,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class GeoDistanceParser extends GeoPointValuesSourceParser {
 
     static final ParseField ORIGIN_FIELD = new ParseField("origin", "center", "point", "por");

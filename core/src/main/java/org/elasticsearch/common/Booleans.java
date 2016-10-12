@@ -19,9 +19,6 @@
 
 package org.elasticsearch.common;
 
-/**
- *
- */
 public class Booleans {
 
     /**

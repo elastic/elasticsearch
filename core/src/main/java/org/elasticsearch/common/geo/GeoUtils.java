@@ -30,8 +30,6 @@ import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 
 import java.io.IOException;
 
-/**
- */
 public class GeoUtils {
 
     /** Maximum valid latitude in degrees. */

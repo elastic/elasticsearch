@@ -32,9 +32,6 @@ import java.util.Set;
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableSet;
 
-/**
- *
- */
 public class DeadlockAnalyzer {
 
     private static final Deadlock NULL_RESULT[] = new Deadlock[0];

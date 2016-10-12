@@ -25,9 +25,6 @@ import org.apache.lucene.analysis.Tokenizer;
 
 import java.io.Reader;
 
-/**
- *
- */
 public final class CustomAnalyzer extends Analyzer {
 
     private final TokenizerFactory tokenizerFactory;

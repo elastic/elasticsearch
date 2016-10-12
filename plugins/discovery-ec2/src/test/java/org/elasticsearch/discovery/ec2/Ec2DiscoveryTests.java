@@ -52,9 +52,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class Ec2DiscoveryTests extends ESTestCase {
 
     protected static ThreadPool threadPool;

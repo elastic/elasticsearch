@@ -51,8 +51,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public abstract class AbstractNumberNestedSortingTestCase extends AbstractFieldDataTestCase {
 
     @Override

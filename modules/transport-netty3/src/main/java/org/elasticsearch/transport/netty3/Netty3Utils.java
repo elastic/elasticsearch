@@ -37,8 +37,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
 
-/**
- */
 public class Netty3Utils {
 
     /**

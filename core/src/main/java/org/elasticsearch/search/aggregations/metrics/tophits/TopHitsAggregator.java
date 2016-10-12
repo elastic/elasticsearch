@@ -50,8 +50,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- */
 public class TopHitsAggregator extends MetricsAggregator {
 
     /** Simple wrapper around a top-level collector and the current leaf collector. */

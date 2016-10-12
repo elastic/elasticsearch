@@ -58,8 +58,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class NestedSortingTests extends AbstractFieldDataTestCase {
     @Override
     protected String getFieldDataType() {

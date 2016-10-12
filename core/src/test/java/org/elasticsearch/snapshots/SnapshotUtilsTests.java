@@ -26,8 +26,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-/**
- */
 public class SnapshotUtilsTests extends ESTestCase {
     public void testIndexNameFiltering() {
         assertIndexNameFiltering(new String[]{"foo", "bar", "baz"}, new String[]{}, new String[]{"foo", "bar", "baz"});

@@ -29,8 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-/**
- */
 public class QueryCacheStats implements Streamable, ToXContent {
 
     long ramBytesUsed;

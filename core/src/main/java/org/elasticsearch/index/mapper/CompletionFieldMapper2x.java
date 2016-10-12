@@ -55,9 +55,6 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseMultiField;
 
-/**
- *
- */
 public class CompletionFieldMapper2x extends FieldMapper {
 
     public static final String CONTENT_TYPE = "completion";

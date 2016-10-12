@@ -20,8 +20,6 @@ package org.apache.lucene.store;
 
 import java.util.Arrays;
 
-/**
- */
 public final class StoreUtils {
 
     private StoreUtils() {

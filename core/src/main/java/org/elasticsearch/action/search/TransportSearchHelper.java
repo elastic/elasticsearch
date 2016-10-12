@@ -30,9 +30,6 @@ import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import java.io.IOException;
 import java.util.Base64;
 
-/**
- *
- */
 final class TransportSearchHelper {
 
     static ShardSearchTransportRequest internalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchRequest request,

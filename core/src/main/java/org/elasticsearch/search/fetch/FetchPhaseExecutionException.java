@@ -25,9 +25,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class FetchPhaseExecutionException extends SearchContextException {
 
     public FetchPhaseExecutionException(SearchContext context, String msg, Throwable t) {

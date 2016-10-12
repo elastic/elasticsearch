@@ -44,8 +44,6 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
 public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override

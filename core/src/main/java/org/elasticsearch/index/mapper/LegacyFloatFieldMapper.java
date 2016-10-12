@@ -50,9 +50,6 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
 import static org.elasticsearch.index.mapper.TypeParsers.parseNumberField;
 
-/**
- *
- */
 public class LegacyFloatFieldMapper extends LegacyNumberFieldMapper {
 
     public static final String CONTENT_TYPE = "float";

@@ -138,9 +138,8 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     static class ScriptQuery extends Query {
 
-        private final Script script;
-
-        private final SearchScript searchScript;
+        final Script script;
+        final SearchScript searchScript;
 
         public ScriptQuery(Script script, SearchScript searchScript) {
             this.script = script;
@@ -158,17 +157,23 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj)
+            // TODO: Do this if/when we can assume scripts are pure functions
+            // and they have a reliable equals impl
+            /*if (this == obj)
                 return true;
             if (sameClassAs(obj) == false)
                 return false;
             ScriptQuery other = (ScriptQuery) obj;
-            return Objects.equals(script, other.script);
+            return Objects.equals(script, other.script);*/
+            return this == obj;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(classHash(), script);
+            // TODO: Do this if/when we can assume scripts are pure functions
+            // and they have a reliable equals impl
+            // return Objects.hash(classHash(), script);
+            return System.identityHashCode(this);
         }
 
         @Override

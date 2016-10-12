@@ -22,9 +22,6 @@ package org.elasticsearch.cluster.block;
 
 import java.util.EnumSet;
 
-/**
- *
- */
 public enum ClusterBlockLevel {
     READ(0),
     WRITE(1),

@@ -194,7 +194,12 @@
         "requests_per_second": {
           "type": "float",
           "default": 0,
-          "description": "The throttle for this request in sub-requests per second. -1 means set no throttle."
+          "description": "The throttle to set on this request in sub-requests per second. -1 means set no throttle."
+        },
+        "max_reported_bulk_failures": {
+          "type": "integer",
+          "default": 50,
+          "description": "The maximum number of bulk deleting failures that are returned with the response in the case of failure. Additional failures are logged but not returned so the client isn't overwhelmed with failures."
         }
       }
     },

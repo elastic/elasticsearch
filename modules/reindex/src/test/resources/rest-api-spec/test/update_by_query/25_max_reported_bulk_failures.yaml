@@ -1,0 +1,112 @@
+---
+"max_reported_bulk_failures limits number of returned failures":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.refresh_interval: -1
+  - do:
+      index:
+        index:   test
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   test
+        type:    foo
+        id:      2
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+  # Creates a new version for reindex to miss on scan.
+  - do:
+      index:
+        index:   test
+        type:    foo
+        id:      1
+        body:    { "text": "test2" }
+  - do:
+      index:
+        index:   test
+        type:    foo
+        id:      2
+        body:    { "text": "test2" }
+
+  - do:
+      catch: conflict
+      update_by_query:
+        max_reported_bulk_failures: 1
+        index: test
+  - length: {failures: 1}
+  - match: {failures.0.index:  test}
+  - match: {failures.0.type:   foo}
+  - match: {failures.0.id:     /\d+/}
+  - match: {failures.0.status: 409}
+  - match: {failures.0.cause.type:   version_conflict_engine_exception}
+  # Use a regex so we don't mind if the version isn't always 1. Sometimes it comes out 2.
+  - match: {failures.0.cause.reason: "/\\[foo\\]\\[\\d+\\]:.version.conflict,.current.version.\\[\\d+\\].is.different.than.the.one.provided.\\[\\d+\\]/"}
+  - match: {failures.0.cause.shard:  /\d+/}
+  - match: {failures.0.cause.index:  test}
+
+---
+"max_reported_bulk_failures=-1 means all failures":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.refresh_interval: -1
+  - do:
+      index:
+        index:   test
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   test
+        type:    foo
+        id:      2
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+  # Creates a new version for reindex to miss on scan.
+  - do:
+      index:
+        index:   test
+        type:    foo
+        id:      1
+        body:    { "text": "test2" }
+  - do:
+      index:
+        index:   test
+        type:    foo
+        id:      2
+        body:    { "text": "test2" }
+
+  - do:
+      catch: conflict
+      update_by_query:
+        max_reported_bulk_failures: -1
+        index: test
+  - length: {failures: 2}
+  - match: {failures.0.index:  test}
+  - match: {failures.0.type:   foo}
+  - match: {failures.0.id:     /\d+/}
+  - match: {failures.0.status: 409}
+  - match: {failures.0.cause.type:   version_conflict_engine_exception}
+  # Use a regex so we don't mind if the version isn't always 1. Sometimes it comes out 2.
+  - match: {failures.0.cause.reason: "/\\[foo\\]\\[\\d+\\]:.version.conflict,.current.version.\\[\\d+\\].is.different.than.the.one.provided.\\[\\d+\\]/"}
+  - match: {failures.0.cause.shard:  /\d+/}
+  - match: {failures.0.cause.index:  test}
+  - match: {failures.1.index:  test}
+  - match: {failures.1.type:   foo}
+  - match: {failures.1.id:     /\d+/}
+  - match: {failures.1.status: 409}
+  - match: {failures.1.cause.type:   version_conflict_engine_exception}
+  # Use a regex so we don't mind if the version isn't always 1. Sometimes it comes out 2.
+  - match: {failures.1.cause.reason: "/\\[foo\\]\\[\\d+\\]:.version.conflict,.current.version.\\[\\d+\\].is.different.than.the.one.provided.\\[\\d+\\]/"}
+  - match: {failures.1.cause.shard:  /\d+/}
+  - match: {failures.1.cause.index:  test}

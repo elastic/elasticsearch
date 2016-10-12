@@ -198,6 +198,18 @@
             index: dest
 
 ---
+"max_reported_bulk_failures >= -1":
+  - do:
+      catch: /\[max_reported_bulk_failures\] must be >= -1 but was \[-12\]/
+      reindex:
+        max_reported_bulk_failures: -12
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
 "reindex without source gives useful error message":
   - do:
       indices.create:

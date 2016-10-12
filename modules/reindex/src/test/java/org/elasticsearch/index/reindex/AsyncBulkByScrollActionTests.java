@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -110,6 +111,9 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class AsyncBulkByScrollActionTests extends ESTestCase {
     private MyMockClient client;
@@ -356,14 +360,37 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      * Mimicks bulk indexing failures.
      */
     public void testBulkFailuresAbortRequest() throws Exception {
-        Failure failure = new Failure("index", "type", "id", new RuntimeException("test"));
-        DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction();
-        BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[] {new BulkItemResponse(0, "index", failure)}, randomLong());
+        testRequest.setMaxReportedBulkFailures(randomBoolean() ? Integer.MAX_VALUE : between(3, 10));
+        int failureCount = between(1, 10);
+        BulkItemResponse[] responses = new BulkItemResponse[failureCount + between(1, 5)];
+        List<Failure> expectedReturnedFailures = new ArrayList<>();
+        List<Failure> expectedLoggedFailures = new ArrayList<>();
+        for (int i = 0; i < responses.length; i++) {
+            if (i < failureCount) {
+                Failure failure = new Failure("index", "type", Integer.toString(i), new RuntimeException("test"));
+                if (i < testRequest.getMaxReportedBulkFailures()) {
+                    expectedReturnedFailures.add(failure);
+                } else {
+                    expectedLoggedFailures.add(failure);
+                }
+                responses[i] = new BulkItemResponse(0, "index", failure);
+            } else {
+                ShardId shardId = new ShardId(new Index("name", "uid"), 0);
+                responses[i] = new BulkItemResponse(0, "index", new IndexResponse(shardId, "type", Integer.toString(i), 1, false));
+            }
+        }
+        Logger logger = mock(Logger.class);
+        DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction(logger);
+        BulkResponse bulkResponse = new BulkResponse(responses, randomLong());
         action.onBulkResponse(timeValueNanos(System.nanoTime()), bulkResponse);
         BulkIndexByScrollResponse response = listener.get();
-        assertThat(response.getBulkFailures(), contains(failure));
+        assertEquals(expectedReturnedFailures, response.getBulkFailures());
         assertThat(response.getSearchFailures(), empty());
         assertNull(response.getReasonCancelled());
+        for (Failure failure : expectedLoggedFailures) {
+            verify(logger).warn("Reindexing failure that can't be returned for [{}] {}", testTask.getId(), failure);
+        }
+        verifyNoMoreInteractions(logger);
     }
 
     /**
@@ -653,9 +680,13 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
     private class DummyAbstractAsyncBulkByScrollAction
             extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest> {
-        public DummyAbstractAsyncBulkByScrollAction() {
-            super(testTask, AsyncBulkByScrollActionTests.this.logger, new ParentTaskAssigningClient(client, localNode, testTask),
+        public DummyAbstractAsyncBulkByScrollAction(Logger logger) {
+            super(testTask, logger, new ParentTaskAssigningClient(client, localNode, testTask),
                     AsyncBulkByScrollActionTests.this.threadPool, testRequest, listener);
+        }
+
+        public DummyAbstractAsyncBulkByScrollAction() {
+            this(AsyncBulkByScrollActionTests.this.logger);
         }
 
         @Override

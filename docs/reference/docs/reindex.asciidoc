@@ -425,8 +425,8 @@ is sent directly to the remote host without validation or modification.
 === URL Parameters
 
 In addition to the standard parameters like `pretty`, the Reindex API also
-supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`, and
-`requests_per_second`.
+supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`,
+`requests_per_second`, and `max_reported_indexing_failures`.
 
 Sending the `refresh` url parameter will cause all indexes to which the request
 wrote to be refreshed. This is different than the Index API's `refresh`
@@ -455,6 +455,13 @@ the time `requests_per_second * requests_in_the_batch`. Since the batch isn't
 broken into multiple bulk requests large batch sizes will cause Elasticsearch
 to create many requests and then wait for a while before starting the next set.
 This is "bursty" instead of "smooth". The default is `-1`.
+
+`max_reported_bulk_failures` is the maximum number of indexing error that
+are returned when a bulk operation fails. This defaults to `50` to prevent
+interactive users of `_reindex` from being buried under an avalanche
+of errors if the entire request fails. Extra errors are logged. Clients should
+set this to a `-1` to have all errors returned if they can handle as many
+errors as the request batch size which defaults to `1000`.
 
 [float]
 [[docs-reindex-response-body]]

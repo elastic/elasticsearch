@@ -109,3 +109,14 @@
         body:
           query:
             match_all: {}
+
+---
+"max_reported_bulk_failures >= 0":
+  - do:
+      catch: /\[max_reported_bulk_failures\] must be >= -1 but was \[-12\]/
+      delete_by_query:
+        max_reported_bulk_failures: -12
+        index: test
+        body:
+          query:
+            match_all: {}

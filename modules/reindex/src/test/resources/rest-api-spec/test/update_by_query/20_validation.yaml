@@ -102,5 +102,16 @@
   - do:
       catch: /\[requests_per_second\] must be a float greater than 0. Use -1 to disable throttling./
       update_by_query:
-        requests_per_second: 0
+        requests_per_second: unlimited
         index: test
+
+---
+"max_reported_bulk_failures >= 0":
+  - do:
+      catch: /\[max_reported_bulk_failures\] must be >= -1 but was \[-12\]/
+      update_by_query:
+        max_reported_bulk_failures: -12
+        index: test
+        body:
+          query:
+            match_all: {}

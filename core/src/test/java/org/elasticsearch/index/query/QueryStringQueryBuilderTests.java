@@ -45,6 +45,7 @@ import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -151,6 +152,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         if (randomBoolean()) {
             queryStringQueryBuilder.timeZone(randomDateTimeZone().getID());
         }
+        queryStringQueryBuilder.splitOnWhitespace(randomBoolean());
         return queryStringQueryBuilder;
     }
 
@@ -532,6 +534,128 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(phraseQuery.getTerms().length, equalTo(2));
     }
 
+    public void testToQuerySplitOnWhitespace() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        // splitOnWhitespace=false
+        {
+            QueryStringQueryBuilder queryBuilder =
+                new QueryStringQueryBuilder("foo bar")
+                    .field(STRING_FIELD_NAME).field(STRING_FIELD_NAME_2)
+                    .splitOnWhitespace(false);
+            Query query = queryBuilder.toQuery(createShardContext());
+            BooleanQuery bq1 =
+                new BooleanQuery.Builder()
+                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "foo")), BooleanClause.Occur.SHOULD))
+                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "bar")), BooleanClause.Occur.SHOULD))
+                    .build();
+            List<Query> disjuncts = new ArrayList<>();
+            disjuncts.add(bq1);
+            disjuncts.add(new TermQuery(new Term(STRING_FIELD_NAME_2, "foo bar")));
+            DisjunctionMaxQuery expectedQuery = new DisjunctionMaxQuery(disjuncts, 0.0f);
+            assertThat(query, equalTo(expectedQuery));
+        }
+
+        {
+            QueryStringQueryBuilder queryBuilder =
+                new QueryStringQueryBuilder("mapped_string:other foo bar")
+                    .field(STRING_FIELD_NAME).field(STRING_FIELD_NAME_2)
+                    .splitOnWhitespace(false);
+            Query query = queryBuilder.toQuery(createShardContext());
+            BooleanQuery bq1 =
+                new BooleanQuery.Builder()
+                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "foo")), BooleanClause.Occur.SHOULD))
+                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "bar")), BooleanClause.Occur.SHOULD))
+                    .build();
+            List<Query> disjuncts = new ArrayList<>();
+            disjuncts.add(bq1);
+            disjuncts.add(new TermQuery(new Term(STRING_FIELD_NAME_2, "foo bar")));
+            DisjunctionMaxQuery disjunctionMaxQuery = new DisjunctionMaxQuery(disjuncts, 0.0f);
+            BooleanQuery expectedQuery =
+                new BooleanQuery.Builder()
+                    .add(disjunctionMaxQuery, BooleanClause.Occur.SHOULD)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "other")), BooleanClause.Occur.SHOULD)
+                    .build();
+            assertThat(query, equalTo(expectedQuery));
+        }
+
+        {
+            QueryStringQueryBuilder queryBuilder =
+                new QueryStringQueryBuilder("foo OR bar")
+                    .field(STRING_FIELD_NAME).field(STRING_FIELD_NAME_2)
+                    .splitOnWhitespace(false);
+            Query query = queryBuilder.toQuery(createShardContext());
+
+            List<Query> disjuncts1 = new ArrayList<>();
+            disjuncts1.add(new TermQuery(new Term(STRING_FIELD_NAME, "foo")));
+            disjuncts1.add(new TermQuery(new Term(STRING_FIELD_NAME_2, "foo")));
+            DisjunctionMaxQuery maxQuery1 = new DisjunctionMaxQuery(disjuncts1, 0.0f);
+
+            List<Query> disjuncts2 = new ArrayList<>();
+            disjuncts2.add(new TermQuery(new Term(STRING_FIELD_NAME, "bar")));
+            disjuncts2.add(new TermQuery(new Term(STRING_FIELD_NAME_2, "bar")));
+            DisjunctionMaxQuery maxQuery2 = new DisjunctionMaxQuery(disjuncts2, 0.0f);
+
+            BooleanQuery expectedQuery =
+                new BooleanQuery.Builder()
+                    .add(new BooleanClause(maxQuery1, BooleanClause.Occur.SHOULD))
+                    .add(new BooleanClause(maxQuery2, BooleanClause.Occur.SHOULD))
+                    .build();
+            assertThat(query, equalTo(expectedQuery));
+        }
+
+        // split_on_whitespace=false breaks range query with simple syntax
+        {
+            // throws an exception when lenient is set to false
+            QueryStringQueryBuilder queryBuilder =
+                new QueryStringQueryBuilder(">10 foo")
+                    .field(INT_FIELD_NAME)
+                    .splitOnWhitespace(false);
+            IllegalArgumentException exc =
+                expectThrows(IllegalArgumentException.class, () -> queryBuilder.toQuery(createShardContext()));
+            assertThat(exc.getMessage(), equalTo("For input string: \"10 foo\""));
+        }
+
+        {
+            // returns an empty boolean query when lenient is set to true
+            QueryStringQueryBuilder queryBuilder =
+                new QueryStringQueryBuilder(">10 foo")
+                    .field(INT_FIELD_NAME)
+                    .splitOnWhitespace(false)
+                    .lenient(true);
+            Query query = queryBuilder.toQuery(createShardContext());
+            BooleanQuery bq = new BooleanQuery.Builder().build();
+            assertThat(bq, equalTo(query));
+        }
+
+        // splitOnWhitespace=true
+        {
+            QueryStringQueryBuilder queryBuilder =
+                new QueryStringQueryBuilder("foo bar")
+                    .field(STRING_FIELD_NAME).field(STRING_FIELD_NAME_2)
+                    .splitOnWhitespace(true);
+            Query query = queryBuilder.toQuery(createShardContext());
+
+            List<Query> disjuncts1 = new ArrayList<>();
+            disjuncts1.add(new TermQuery(new Term(STRING_FIELD_NAME, "foo")));
+            disjuncts1.add(new TermQuery(new Term(STRING_FIELD_NAME_2, "foo")));
+            DisjunctionMaxQuery maxQuery1 = new DisjunctionMaxQuery(disjuncts1, 0.0f);
+
+            List<Query> disjuncts2 = new ArrayList<>();
+            disjuncts2.add(new TermQuery(new Term(STRING_FIELD_NAME, "bar")));
+            disjuncts2.add(new TermQuery(new Term(STRING_FIELD_NAME_2, "bar")));
+            DisjunctionMaxQuery maxQuery2 = new DisjunctionMaxQuery(disjuncts2, 0.0f);
+
+            BooleanQuery expectedQuery =
+                new BooleanQuery.Builder()
+                    .add(new BooleanClause(maxQuery1, BooleanClause.Occur.SHOULD))
+                    .add(new BooleanClause(maxQuery2, BooleanClause.Occur.SHOULD))
+                    .build();
+            assertThat(query, equalTo(expectedQuery));
+        }
+
+
+    }
+
     public void testFromJson() throws IOException {
         String json =
                 "{\n" +
@@ -552,6 +676,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "    \"phrase_slop\" : 0,\n" +
                 "    \"locale\" : \"und\",\n" +
                 "    \"escape\" : false,\n" +
+                "    \"split_on_whitespace\" : true,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";

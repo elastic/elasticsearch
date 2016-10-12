@@ -72,6 +72,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     public static final Fuzziness DEFAULT_FUZZINESS = Fuzziness.AUTO;
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
     public static final Locale DEFAULT_LOCALE = Locale.ROOT;
+    public static final boolean DEFAULT_SPLIT_ON_WHITESPACE = true;
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
@@ -98,6 +99,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
     private static final ParseField LOCALE_FIELD = new ParseField("locale");
     private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
+    private static final ParseField SPLIT_ON_WHITESPACE = new ParseField("split_on_whitespace");
 
 
     private final String queryString;
@@ -159,6 +161,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     /** To limit effort spent determinizing regexp queries. */
     private int maxDeterminizedStates = DEFAULT_MAX_DETERMINED_STATES;
 
+    private boolean splitOnWhitespace = DEFAULT_SPLIT_ON_WHITESPACE;
+
     public QueryStringQueryBuilder(String queryString) {
         if (queryString == null) {
             throw new IllegalArgumentException("query text missing");
@@ -200,6 +204,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         timeZone = in.readOptionalTimeZone();
         escape = in.readBoolean();
         maxDeterminizedStates = in.readVInt();
+        splitOnWhitespace = in.readBoolean();
     }
 
     @Override
@@ -234,6 +239,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         out.writeOptionalTimeZone(timeZone);
         out.writeBoolean(this.escape);
         out.writeVInt(this.maxDeterminizedStates);
+        out.writeBoolean(this.splitOnWhitespace);
     }
 
     public String queryString() {
@@ -570,6 +576,19 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         return this.escape;
     }
 
+    /**
+     * Whether query text should be split on whitespace prior to analysis.
+     * Default is <code>{@value #DEFAULT_SPLIT_ON_WHITESPACE}</code>.
+     */
+    public QueryStringQueryBuilder splitOnWhitespace(boolean value) {
+        this.splitOnWhitespace = value;
+        return this;
+    }
+
+    public boolean splitOnWhitespace() {
+        return splitOnWhitespace;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -626,6 +645,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             builder.field(TIME_ZONE_FIELD.getPreferredName(), this.timeZone.getID());
         }
         builder.field(ESCAPE_FIELD.getPreferredName(), this.escape);
+        builder.field(SPLIT_ON_WHITESPACE.getPreferredName(), this.splitOnWhitespace);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -661,6 +681,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         Fuzziness fuzziness = QueryStringQueryBuilder.DEFAULT_FUZZINESS;
         String fuzzyRewrite = null;
         String rewrite = null;
+        boolean splitOnWhitespace = DEFAULT_SPLIT_ON_WHITESPACE;
         Map<String, Float> fieldsAndWeights = new HashMap<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -750,6 +771,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                     }
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, SPLIT_ON_WHITESPACE)) {
+                    splitOnWhitespace = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME +
                             "] query does not support [" + currentFieldName + "]");
@@ -791,6 +814,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         queryStringQuery.locale(locale);
         queryStringQuery.boost(boost);
         queryStringQuery.queryName(queryName);
+        queryStringQuery.splitOnWhitespace(splitOnWhitespace);
         return Optional.of(queryStringQuery);
     }
 
@@ -827,7 +851,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 timeZone == null ? other.timeZone == null : other.timeZone != null &&
                 Objects.equals(timeZone.getID(), other.timeZone.getID()) &&
                 Objects.equals(escape, other.escape) &&
-                Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates);
+                Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&
+                Objects.equals(splitOnWhitespace, other.splitOnWhitespace);
     }
 
     @Override
@@ -836,7 +861,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 quoteFieldSuffix, autoGeneratePhraseQueries, allowLeadingWildcard, lowercaseExpandedTerms,
                 enablePositionIncrements, analyzeWildcard, locale.toLanguageTag(), fuzziness, fuzzyPrefixLength,
                 fuzzyMaxExpansions, fuzzyRewrite, phraseSlop, useDisMax, tieBreaker, rewrite, minimumShouldMatch, lenient,
-                timeZone == null ? 0 : timeZone.getID(), escape, maxDeterminizedStates);
+                timeZone == null ? 0 : timeZone.getID(), escape, maxDeterminizedStates, splitOnWhitespace);
     }
 
     @Override
@@ -904,6 +929,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         qpSettings.lenient(lenient == null ? context.queryStringLenient() : lenient);
         qpSettings.timeZone(timeZone);
         qpSettings.maxDeterminizedStates(maxDeterminizedStates);
+        qpSettings.splitOnWhitespace(splitOnWhitespace);
 
         MapperQueryParser queryParser = context.queryParser(qpSettings);
         Query query;

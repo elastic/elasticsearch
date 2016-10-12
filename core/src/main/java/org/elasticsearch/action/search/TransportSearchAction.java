@@ -74,7 +74,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        final long startTimeInMillis = threadPool.estimatedTimeInMillis();
+        // pure paranoia if time goes backwards we are at least positive
+        final long startTimeInMillis = Math.max(0, System.currentTimeMillis());
         ClusterState clusterState = clusterService.state();
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
 

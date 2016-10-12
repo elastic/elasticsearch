@@ -635,6 +635,43 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("ultimate1"));
     }
 
+    /**
+     * Test for edge case where field level boosting is applied to field that doesn't exist on documents on
+     * one shard. There was an issue reported in https://github.com/elastic/elasticsearch/issues/18710 where a
+     * `multi_match` query using the fuzziness parameter with a boost on one of two fields returns the
+     * same document score if both documents are placed on different shard. This test recreates that scenario
+     * and checks that the returned scores are different.
+     */
+    public void testFuzzyFieldLevelBoosting() throws InterruptedException, ExecutionException {
+        String idx = "test18710";
+        CreateIndexRequestBuilder builder = prepareCreate(idx).setSettings(Settings.builder()
+                .put(indexSettings())
+                .put(SETTING_NUMBER_OF_SHARDS, 3)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                );
+        assertAcked(builder.addMapping("type", "title", "type=string", "body", "type=string"));
+        ensureGreen();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex(idx, "type", "1").setSource(
+                "title", "foo",
+                "body", "bar"));
+        builders.add(client().prepareIndex(idx, "type", "2").setSource(
+                "title", "bar",
+                "body", "foo"));
+        indexRandom(true, false, builders);
+
+        SearchResponse searchResponse = client().prepareSearch(idx)
+                .setExplain(true)
+                .setQuery(multiMatchQuery("foo").field("title", 100).field("body")
+                        .fuzziness(0)
+                        ).get();
+        SearchHit[] hits = searchResponse.getHits().getHits();
+        assertNotEquals("both documents should be on different shards", hits[0].getShard().getShardId(), hits[1].getShard().getShardId());
+        assertEquals("1", hits[0].getId());
+        assertEquals("2", hits[1].getId());
+        assertThat(hits[0].getScore(), greaterThan(hits[1].score()));
+    }
+
     private static void assertEquivalent(String query, SearchResponse left, SearchResponse right) {
         assertNoFailures(left);
         assertNoFailures(right);

@@ -1385,8 +1385,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * checks whether the global checkpoint can be updated based on current knowledge of local checkpoints on the different
-     * shard copies. The checkpoint is updated or more information is required from the replica, a globack checkpoint sync
+     * Checks whether the global checkpoint can be updated based on current knowledge of local checkpoints on the different
+     * shard copies. The checkpoint is updated or more information is required from the replica, a global checkpoint sync
      * is initiated.
      */
     public void updateGlobalCheckpointOnPrimary() {

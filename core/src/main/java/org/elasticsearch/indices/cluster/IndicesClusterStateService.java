@@ -570,8 +570,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     /**
      * Finds the routing source node for peer recovery, return null if its not found. Note, this method expects the shard
-     * routing to *require* peer recovery, use {@link ShardRouting#recoverySource()} to
-     * check if its needed or not.
+     * routing to *require* peer recovery, use {@link ShardRouting#recoverySource()} to check if its needed or not.
      */
     private static DiscoveryNode findSourceNodeForPeerRecovery(Logger logger, RoutingTable routingTable, DiscoveryNodes nodes,
                                                                ShardRouting shardRouting) {
@@ -610,29 +609,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         @Override
         public void onRecoveryDone(RecoveryState state) {
-            if (state.getRecoverySource().getType() == Type.SNAPSHOT) {
-                SnapshotRecoverySource snapshotRecoverySource = (SnapshotRecoverySource) state.getRecoverySource();
-                restoreService.indexShardRestoreCompleted(snapshotRecoverySource.snapshot(), shardRouting.shardId());
-            }
             shardStateAction.shardStarted(shardRouting, "after " + state.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
         }
 
         @Override
         public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
-            if (state.getRecoverySource().getType() == Type.SNAPSHOT) {
-                try {
-                    if (Lucene.isCorruptionException(e.getCause())) {
-                        SnapshotRecoverySource snapshotRecoverySource = (SnapshotRecoverySource) state.getRecoverySource();
-                        restoreService.failRestore(snapshotRecoverySource.snapshot(), shardRouting.shardId());
-                    }
-                } catch (Exception inner) {
-                    e.addSuppressed(inner);
-                } finally {
-                    handleRecoveryFailure(shardRouting, sendShardFailure, e);
-                }
-            } else {
-                handleRecoveryFailure(shardRouting, sendShardFailure, e);
-            }
+            handleRecoveryFailure(shardRouting, sendShardFailure, e);
         }
     }
 

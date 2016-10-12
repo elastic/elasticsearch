@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
@@ -30,6 +31,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -76,8 +79,9 @@ public class RoutingAllocation {
 
     private final IndexMetaDataUpdater indexMetaDataUpdater = new IndexMetaDataUpdater();
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
+    private final RestoreInProgressUpdater restoreInProgressUpdater = new RestoreInProgressUpdater();
     private final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
-        nodesChangedObserver, indexMetaDataUpdater
+        nodesChangedObserver, indexMetaDataUpdater, restoreInProgressUpdater
     );
 
 
@@ -152,6 +156,10 @@ public class RoutingAllocation {
 
     public <T extends ClusterState.Custom> T custom(String key) {
         return (T)customs.get(key);
+    }
+
+    public ImmutableOpenMap<String, ClusterState.Custom> getCustoms() {
+        return customs;
     }
 
     /**
@@ -232,6 +240,13 @@ public class RoutingAllocation {
      */
     public MetaData updateMetaDataWithRoutingChanges(RoutingTable newRoutingTable) {
         return indexMetaDataUpdater.applyChanges(metaData, newRoutingTable);
+    }
+
+    /**
+     * Returns updated {@link RestoreInProgress} based on the changes that were made to the routing nodes
+     */
+    public RestoreInProgress updateRestoreInfoWithRoutingChanges(RestoreInProgress restoreInProgress) {
+        return restoreInProgressUpdater.applyChanges(restoreInProgress);
     }
 
     /**

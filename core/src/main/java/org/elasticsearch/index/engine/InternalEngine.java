@@ -322,11 +322,6 @@ public class InternalEngine extends Engine {
         return null;
     }
 
-    // package private for testing
-    SeqNoStats loadSeqNoStatsFromCommit() throws IOException {
-        return loadSeqNoStatsFromCommit(indexWriter);
-    }
-
     private SeqNoStats loadSeqNoStatsFromCommit(IndexWriter writer) throws IOException {
         long maxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
         long localCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;

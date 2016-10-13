@@ -53,11 +53,11 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
     private final SearchPhaseController searchPhaseController;
 
     SearchDfsQueryThenFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
-                                       Function<String, DiscoveryNode> nodeLookup, Map<String, String[]> perIndexFilteringAliases,
-                                       SearchPhaseController searchPhaseController, Executor executor,
-                                       SearchRequest request, ActionListener<SearchResponse> listener,
+                                       Function<String, DiscoveryNode> nodeIdToDiscoveryNode,
+                                       Map<String, String[]> perIndexFilteringAliases, SearchPhaseController searchPhaseController,
+                                       Executor executor, SearchRequest request, ActionListener<SearchResponse> listener,
                                        GroupShardsIterator shardsIts, long startTime, long clusterStateVersion) {
-        super(logger, searchTransportService, nodeLookup, perIndexFilteringAliases, executor,
+        super(logger, searchTransportService, nodeIdToDiscoveryNode, perIndexFilteringAliases, executor,
                 request, listener, shardsIts, startTime, clusterStateVersion);
         this.searchPhaseController = searchPhaseController;
         queryResults = new AtomicArray<>(firstResults.length());
@@ -82,7 +82,7 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
         final AtomicInteger counter = new AtomicInteger(firstResults.asList().size());
         for (final AtomicArray.Entry<DfsSearchResult> entry : firstResults.asList()) {
             DfsSearchResult dfsResult = entry.value;
-            DiscoveryNode node = nodeIdToDiscsoveryNode.apply(dfsResult.shardTarget().nodeId());
+            DiscoveryNode node = nodeIdToDiscoveryNode.apply(dfsResult.shardTarget().nodeId());
             QuerySearchRequest querySearchRequest = new QuerySearchRequest(request, dfsResult.id(), dfs);
             executeQuery(entry.index, dfsResult, counter, querySearchRequest, node);
         }
@@ -153,7 +153,7 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
         final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
         for (final AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
             QuerySearchResult queryResult = queryResults.get(entry.index);
-            DiscoveryNode node = nodeIdToDiscsoveryNode.apply(queryResult.shardTarget().nodeId());
+            DiscoveryNode node = nodeIdToDiscoveryNode.apply(queryResult.shardTarget().nodeId());
             ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult, entry, lastEmittedDocPerShard);
             executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
         }

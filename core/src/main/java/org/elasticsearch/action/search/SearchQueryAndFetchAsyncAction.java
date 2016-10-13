@@ -38,11 +38,11 @@ class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetc
     private final SearchPhaseController searchPhaseController;
 
     SearchQueryAndFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
-                                   Function<String, DiscoveryNode> nodeLookup, Map<String, String[]> perIndexFilteringAliases,
+                                   Function<String, DiscoveryNode> nodeIdToDiscoveryNode, Map<String, String[]> perIndexFilteringAliases,
                                    SearchPhaseController searchPhaseController, Executor executor,
                                    SearchRequest request, ActionListener<SearchResponse> listener,
                                    GroupShardsIterator shardsIts, long startTime, long clusterStateVersion) {
-        super(logger, searchTransportService, nodeLookup, perIndexFilteringAliases, executor,
+        super(logger, searchTransportService, nodeIdToDiscoveryNode, perIndexFilteringAliases, executor,
                 request, listener, shardsIts, startTime, clusterStateVersion);
         this.searchPhaseController = searchPhaseController;
     }

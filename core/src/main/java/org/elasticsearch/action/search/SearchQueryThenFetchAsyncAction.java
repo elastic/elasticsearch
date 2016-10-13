@@ -49,11 +49,11 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
     private final SearchPhaseController searchPhaseController;
 
     SearchQueryThenFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
-                                    Function<String, DiscoveryNode> nodeLookup, Map<String, String[]> perIndexFilteringAliases,
+                                    Function<String, DiscoveryNode> nodeIdToDiscoveryNode, Map<String, String[]> perIndexFilteringAliases,
                                     SearchPhaseController searchPhaseController, Executor executor,
                                     SearchRequest request, ActionListener<SearchResponse> listener,
                                     GroupShardsIterator shardsIts, long startTime, long clusterStateVersion) {
-        super(logger, searchTransportService, nodeLookup, perIndexFilteringAliases, executor, request, listener,
+        super(logger, searchTransportService, nodeIdToDiscoveryNode, perIndexFilteringAliases, executor, request, listener,
             shardsIts, startTime, clusterStateVersion);
         this.searchPhaseController = searchPhaseController;
         fetchResults = new AtomicArray<>(firstResults.length());
@@ -87,7 +87,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
         final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
         for (AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
             QuerySearchResultProvider queryResult = firstResults.get(entry.index);
-            DiscoveryNode node = nodeIdToDiscsoveryNode.apply(queryResult.shardTarget().nodeId());
+            DiscoveryNode node = nodeIdToDiscoveryNode.apply(queryResult.shardTarget().nodeId());
             ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult(), entry, lastEmittedDocPerShard);
             executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
         }

@@ -40,7 +40,6 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.Map;
@@ -59,7 +58,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     private final GroupShardsIterator shardsIts;
     protected final SearchRequest request;
     /** Used by subclasses to resolve node ids to DiscoveryNodes. **/
-    protected final Function<String, DiscoveryNode> nodeIdToDiscsoveryNode;
+    protected final Function<String, DiscoveryNode> nodeIdToDiscoveryNode;
     protected final int expectedSuccessfulOps;
     private final int expectedTotalOps;
     protected final AtomicInteger successfulOps = new AtomicInteger();
@@ -72,8 +71,8 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     protected volatile ScoreDoc[] sortedShardDocs;
 
     protected AbstractSearchAsyncAction(Logger logger, SearchTransportService searchTransportService,
-                                        Function<String, DiscoveryNode> nodeIdToDiscsoveryNode, Map<String, String[]> perIndexFilteringAliases,
-                                        Executor executor, SearchRequest request,
+                                        Function<String, DiscoveryNode> nodeIdToDiscoveryNode,
+                                        Map<String, String[]> perIndexFilteringAliases, Executor executor, SearchRequest request,
                                         ActionListener<SearchResponse> listener, GroupShardsIterator shardsIts, long startTime,
                                         long clusterStateVersion) {
         super(startTime);
@@ -83,7 +82,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         this.request = request;
         this.listener = listener;
         this.perIndexFilteringAliases = perIndexFilteringAliases;
-        this.nodeIdToDiscsoveryNode = nodeIdToDiscsoveryNode;
+        this.nodeIdToDiscoveryNode = nodeIdToDiscoveryNode;
         this.clusterStateVersion = clusterStateVersion;
         this.shardsIts = shardsIts;
         expectedSuccessfulOps = shardsIts.size();
@@ -120,7 +119,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
             // no more active shards... (we should not really get here, but just for safety)
             onFirstPhaseResult(shardIndex, null, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
         } else {
-            final DiscoveryNode node = nodeIdToDiscsoveryNode.apply(shard.currentNodeId());
+            final DiscoveryNode node = nodeIdToDiscoveryNode.apply(shard.currentNodeId());
             if (node == null) {
                 onFirstPhaseResult(shardIndex, shard, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
             } else {
@@ -286,7 +285,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     private void raiseEarlyFailure(Exception e) {
         for (AtomicArray.Entry<FirstResult> entry : firstResults.asList()) {
             try {
-                DiscoveryNode node = nodeIdToDiscsoveryNode.apply(entry.value.shardTarget().nodeId());
+                DiscoveryNode node = nodeIdToDiscoveryNode.apply(entry.value.shardTarget().nodeId());
                 sendReleaseSearchContext(entry.value.id(), node);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
@@ -311,7 +310,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                 if (queryResult.hasHits()
                     && docIdsToLoad.get(entry.index) == null) { // but none of them made it to the global top docs
                     try {
-                        DiscoveryNode node = nodeIdToDiscsoveryNode.apply(entry.value.queryResult().shardTarget().nodeId());
+                        DiscoveryNode node = nodeIdToDiscoveryNode.apply(entry.value.queryResult().shardTarget().nodeId());
                         sendReleaseSearchContext(entry.value.queryResult().id(), node);
                     } catch (Exception e) {
                         logger.trace("failed to release context", e);

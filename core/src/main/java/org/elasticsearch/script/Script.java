@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
@@ -187,6 +189,14 @@ public final class Script implements ToXContent, Writeable {
 
     public static Script parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
         return parse(parser, parseFieldMatcher, null);
+    }
+
+    public static Script parse(XContentParser parser, QueryParseContext context) {
+        try {
+            return parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+        } catch (IOException e) {
+            throw new ParsingException(parser.getTokenLocation(), "Error parsing [" + ScriptField.SCRIPT.getPreferredName() + "] field", e);
+        }
     }
 
     public static Script parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, @Nullable String lang) throws IOException {

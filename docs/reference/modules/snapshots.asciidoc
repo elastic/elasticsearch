@@ -1,9 +1,20 @@
 [[modules-snapshots]]
 == Snapshot And Restore
 
-The snapshot and restore module allows to create snapshots of individual indices or an entire cluster into a remote
-repository. At the time of the initial release only shared file system repository was supported, but now a range of
-backends are available via officially supported repository plugins.
+The snapshot and restore module allows to create snapshots of individual
+indices or an entire cluster into a remote repository like shared file system,
+S3, or HDFS. These snapshots are great for backups because they can be restored
+relatively quickly but they are not archival because they can only be restored
+to versions of Elasticsearch that can read the index. That means that:
+
+* A snapshot of an index created in 2.x can be restored to 5.x.
+* A snapshot of an index created in 1.x can be restored to 2.x.
+* A snapshot of an index created in 1.x can **not** be restored to 5.x.
+
+To restore a snapshot of an index created in 1.x to 5.x you can restore it to
+a 2.x cluster and use <<reindex-from-remote,reindex-from-remote>> to rebuild
+the index in a 5.x cluster. This is as time consuming as restoring from
+archival copies of the original data.
 
 [float]
 === Repositories
@@ -516,5 +527,3 @@ well as the global metadata were readable. The restore operation requires the gl
 the index level blocks are ignored during restore because indices are essentially recreated during restore.
 Please note that a repository content is not part of the cluster and therefore cluster blocks don't affect internal
 repository operations such as listing or deleting snapshots from an already registered repository.
-
-

@@ -91,7 +91,7 @@ public class Version {
     public static final Version V_5_0_0_beta1 = new Version(V_5_0_0_beta1_ID, org.apache.lucene.util.Version.LUCENE_6_2_0);
     public static final int V_5_0_0_rc1_ID = 5000051;
     public static final Version V_5_0_0_rc1 = new Version(V_5_0_0_rc1_ID, org.apache.lucene.util.Version.LUCENE_6_2_0);
-    public static final int V_5_0_0_ID = 5000052;
+    public static final int V_5_0_0_ID = 5000099;
     public static final Version V_5_0_0 = new Version(V_5_0_0_ID, org.apache.lucene.util.Version.LUCENE_6_2_0);
     public static final int V_5_1_0_ID = 5010099;
     public static final Version V_5_1_0 = new Version(V_5_1_0_ID, org.apache.lucene.util.Version.LUCENE_6_2_0);

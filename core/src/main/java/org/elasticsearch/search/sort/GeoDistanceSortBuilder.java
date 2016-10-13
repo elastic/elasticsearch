@@ -452,7 +452,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     geoDistance = GeoDistance.fromString(parser.text());
                 } else if (parseFieldMatcher.match(currentName, COERCE_FIELD)) {
                     coerce = parser.booleanValue();
-                    if (coerce == true) {
+                    if (coerce) {
                         ignoreMalformed = true;
                     }
                 } else if (parseFieldMatcher.match(currentName, IGNORE_MALFORMED_FIELD)) {

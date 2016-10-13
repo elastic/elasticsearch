@@ -19,6 +19,20 @@ If you are running an Elasticsearch 2.x cluster or older, you have two options:
 * Create a new 6.x cluster and use reindex-from-remote to import indices
   directly from the 2.x cluster. See <<reindex-upgrade-remote>>.
 
+.Time-based indices and retention periods
+*******************************************
+
+For many use cases with time-based indices, you will not need to worry about
+carrying old 2.x indices with you to 6.x.  Data in time-based indices usually
+becomes less interesting as time passes. Old indices can be deleted once they
+fall outside of your retention period.
+
+Users in this position can continue to use 5.x until all old 2.x indices have
+been deleted, then upgrade to 6.x directly.
+
+*******************************************
+
+
 [[reindex-upgrade-inplace]]
 ==== Reindex in place
 

@@ -43,6 +43,8 @@ import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.script.mustache.CustomMustacheFactory.CONTENT_TYPE_PARAM;
+
 /**
  * Main entry point handling template registration, compilation and
  * execution.
@@ -54,10 +56,6 @@ import java.util.Map;
 public final class MustacheScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     public static final String NAME = "mustache";
-
-    static final String CONTENT_TYPE_PARAM = "content_type";
-    static final String JSON_CONTENT_TYPE = "application/json";
-    static final String PLAIN_TEXT_CONTENT_TYPE = "text/plain";
 
     /** Thread local UTF8StreamWriter to store template execution results in, thread local to save object creation.*/
     private static ThreadLocal<SoftReference<UTF8StreamWriter>> utf8StreamWriter = new ThreadLocal<>();
@@ -91,13 +89,16 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
      * */
     @Override
     public Object compile(String templateName, String templateSource, Map<String, String> params) {
-        final MustacheFactory factory = new CustomMustacheFactory(isJsonEscapingEnabled(params));
+        final MustacheFactory factory = createMustacheFactory(params);
         Reader reader = new FastStringReader(templateSource);
         return factory.compile(reader, "query-template");
     }
 
-    private boolean isJsonEscapingEnabled(Map<String, String> params) {
-        return JSON_CONTENT_TYPE.equals(params.getOrDefault(CONTENT_TYPE_PARAM, JSON_CONTENT_TYPE));
+    private CustomMustacheFactory createMustacheFactory(Map<String, String> params) {
+        if (params == null || params.isEmpty() || params.containsKey(CONTENT_TYPE_PARAM) == false) {
+            return new CustomMustacheFactory();
+        }
+        return new CustomMustacheFactory(params.get(CONTENT_TYPE_PARAM));
     }
 
     @Override

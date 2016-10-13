@@ -30,6 +30,7 @@ import com.github.mustachejava.TemplateContext;
 import com.github.mustachejava.codes.DefaultMustache;
 import com.github.mustachejava.codes.IterableCode;
 import com.github.mustachejava.codes.WriteCode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -57,6 +58,8 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
     static final String PLAIN_TEXT_MIME_TYPE = "text/plain";
     static final String X_WWW_FORM_URLENCODED_MIME_TYPE = "application/x-www-form-urlencoded";
 
+    private static final String DEFAULT_MIME_TYPE = JSON_MIME_TYPE;
+
     private static final Map<String, Supplier<Encoder>> ENCODERS;
     static {
         Map<String, Supplier<Encoder>> encoders = new HashMap<>();
@@ -68,14 +71,14 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
     private final Encoder encoder;
 
-    public CustomMustacheFactory(Map<String, String> params) {
+    public CustomMustacheFactory(String mimeType) {
         super();
         setObjectHandler(new CustomReflectionObjectHandler());
-        this.encoder = createEncoder(params);
+        this.encoder = createEncoder(mimeType);
     }
 
     public CustomMustacheFactory() {
-        this(Collections.emptyMap());
+        this(DEFAULT_MIME_TYPE);
     }
 
     @Override
@@ -87,10 +90,10 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
         }
     }
 
-    static Encoder createEncoder(Map<String, String> params) {
-        Supplier<Encoder> supplier = ENCODERS.get(params.getOrDefault(CONTENT_TYPE_PARAM, JSON_MIME_TYPE));
+    static Encoder createEncoder(String mimeType) {
+        Supplier<Encoder> supplier = ENCODERS.get(mimeType);
         if (supplier == null) {
-            throw new IllegalArgumentException("No encoder found for MIME type [" + params.get(CONTENT_TYPE_PARAM) + "]");
+            throw new IllegalArgumentException("No encoder found for MIME type [" + mimeType + "]");
         }
         return supplier.get();
     }

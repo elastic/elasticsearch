@@ -43,6 +43,8 @@ import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.script.mustache.CustomMustacheFactory.CONTENT_TYPE_PARAM;
+
 /**
  * Main entry point handling template registration, compilation and
  * execution.
@@ -87,9 +89,16 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
      * */
     @Override
     public Object compile(String templateName, String templateSource, Map<String, String> params) {
-        final MustacheFactory factory = new CustomMustacheFactory(params);
+        final MustacheFactory factory = createMustacheFactory(params);
         Reader reader = new FastStringReader(templateSource);
         return factory.compile(reader, "query-template");
+    }
+
+    private CustomMustacheFactory createMustacheFactory(Map<String, String> params) {
+        if (params == null || params.isEmpty() || params.containsKey(CONTENT_TYPE_PARAM) == false) {
+            return new CustomMustacheFactory();
+        }
+        return new CustomMustacheFactory(params.get(CONTENT_TYPE_PARAM));
     }
 
     @Override

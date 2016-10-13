@@ -42,19 +42,20 @@ import static org.hamcrest.Matchers.instanceOf;
 public class CustomMustacheFactoryTests extends ESTestCase {
 
     public void testCreateEncoder() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> CustomMustacheFactory.createEncoder(params(null)));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> CustomMustacheFactory.createEncoder(null));
         assertThat(e.getMessage(), equalTo("No encoder found for MIME type [null]"));
 
-        e = expectThrows(IllegalArgumentException.class, () -> CustomMustacheFactory.createEncoder(params("test")));
+        e = expectThrows(IllegalArgumentException.class, () -> CustomMustacheFactory.createEncoder(""));
+        assertThat(e.getMessage(), equalTo("No encoder found for MIME type []"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> CustomMustacheFactory.createEncoder("test"));
         assertThat(e.getMessage(), equalTo("No encoder found for MIME type [test]"));
 
-        assertThat(CustomMustacheFactory.createEncoder(emptyMap()),
+        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.JSON_MIME_TYPE),
                 instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class));
-        assertThat(CustomMustacheFactory.createEncoder(params(CustomMustacheFactory.JSON_MIME_TYPE)),
-                instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class));
-        assertThat(CustomMustacheFactory.createEncoder(params(CustomMustacheFactory.PLAIN_TEXT_MIME_TYPE)),
+        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.PLAIN_TEXT_MIME_TYPE),
                 instanceOf(CustomMustacheFactory.DefaultEncoder.class));
-        assertThat(CustomMustacheFactory.createEncoder(params(CustomMustacheFactory.X_WWW_FORM_URLENCODED_MIME_TYPE)),
+        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.X_WWW_FORM_URLENCODED_MIME_TYPE),
                 instanceOf(CustomMustacheFactory.UrlEncoder.class));
     }
 
@@ -92,9 +93,5 @@ public class CustomMustacheFactoryTests extends ESTestCase {
         ExecutableScript executable = engine.executable(compiled, singletonMap("value", "tilde~ AND date:[2016 FROM*]"));
         BytesReference result = (BytesReference) executable.run();
         assertThat(result.utf8ToString(), equalTo("{\"field\": \"tilde%7E+AND+date%3A%5B2016+FROM*%5D\"}"));
-    }
-
-    private static Map<String, String> params(String mimeType) {
-        return singletonMap(CustomMustacheFactory.CONTENT_TYPE_PARAM, mimeType);
     }
 }

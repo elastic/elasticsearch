@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -67,8 +68,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 fail(e.getMessage());
             }
         };
-        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode replicaNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode primaryNode = new DiscoveryNode("node_1", new LocalTransportAddress("foo"), Version.CURRENT);
+        DiscoveryNode replicaNode = new DiscoveryNode("node_2", new LocalTransportAddress("bar"), Version.CURRENT);
 
         Map<DiscoveryNode, Set<Long>> nodeToContextMap = new HashMap<>();
         AtomicInteger contextIdGenerator = new AtomicInteger(0);

@@ -44,7 +44,7 @@ appear before it in the chain.
 
 The `tokenizer` parameter controls the tokenizers that will be used to
 tokenize the synonym, this parameter is for backwards compatibility.
-And `ignore_case` parameter works with `tokenizer` parameter only.
+The `ignore_case` parameter works with `tokenizer` parameter only.
 If you need same behavior in 1.x, `tokenizer` parameter should be set `whitespace`.
 
 Two synonym formats are supported: Solr, WordNet.

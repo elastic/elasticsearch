@@ -9,7 +9,7 @@ In 6.0, Synonym Token Filter tokenize synonyms with whatever
 tokenizer and token filters appear before it in the chain.
 
 `tokenizer` and `ignore_case` deprecated.
-These parameters still leave for backwards compatibility.
-If `tokenizer` is set, this token filter same behavior in 5.x.
-If you need same behavior in 5.x without `tokenizer` parameter,
+These parameters are still left for backwards compatibility.
+If `tokenizer` is set, this token filter will have the same behavior as 5.x.
+If you need the same behavior as 5.x without `tokenizer` parameter,
 `tokenizer` parameter should be set `whitespace`.

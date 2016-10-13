@@ -23,14 +23,11 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.synonym.SolrSynonymParser;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -45,6 +42,10 @@ import java.util.List;
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
     protected final boolean ignoreCase;
+    private final String format;
+    private final boolean expand;
+    private final String rules;
+    protected SynonymMap synonymMap;
 
     public SynonymTokenFilterFactory(IndexSettings indexSettings, Environment env, AnalysisRegistry analysisRegistry,
                                       String name, Settings settings) throws IOException {
@@ -59,18 +60,15 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             rules = sb.toString();
         } else if (settings.get("synonyms_path") != null) {
             Reader rulesReader = Analysis.getReaderFromFile(env, settings, "synonyms_path");
-            BufferedReader br = new BufferedReader(rulesReader);
             StringBuilder sb = new StringBuilder();
             String tmp;
-            try {
+            try (BufferedReader br = new BufferedReader(rulesReader)){
                 while ((tmp = br.readLine()) != null) {
                     sb.append(tmp).append(System.getProperty("line.separator"));
                 }
                 rules = sb.toString();
             } catch (IOException ioe) {
                 throw new IllegalArgumentException("failed to load synonyms", ioe);
-            } finally {
-                IOUtils.closeWhileHandlingException(br);
             }
 
         } else {
@@ -85,7 +83,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         // for backward compatibility
         String tokenizerName = settings.get("tokenizer", "");
 
-        if (tokenizerName.length() > 0) {
+        if (Strings.hasLength(tokenizerName)) {
             AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory =
                 analysisRegistry.getTokenizerProvider(tokenizerName, indexSettings);
             if (tokenizerFactoryFactory == null) {
@@ -107,11 +105,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         // fst is null means no synonyms
         return synonymMap.fst == null ? tokenStream : new SynonymFilter(tokenStream, synonymMap, ignoreCase);
     }
-
-    private final String format;
-    private final boolean expand;
-    private final String rules;
-    protected SynonymMap synonymMap;
 
     public Factory createPerAnalyzerFactory(Analyzer analyzerForParseSynonym){
         return new Factory("synonym", analyzerForParseSynonym);

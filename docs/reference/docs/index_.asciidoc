@@ -325,7 +325,7 @@ of configured copies per shard in the index (which is `number_of_replicas+1`).
 Specifying a negative value or a number greater than the number of 
 shard copies will throw an error.
 
-For example, suppose we have a cluster of three nodes, `A, `B`, and `C` and
+For example, suppose we have a cluster of three nodes, `A`, `B`, and `C` and
 we create an index `index` with the number of replicas set to 3 (resulting in 
 4 shard copies, one more copy than there are nodes). If we 
 attempt an indexing operation, by default the operation will only ensure

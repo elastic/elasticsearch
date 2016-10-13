@@ -122,6 +122,13 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 "last_name", "",
                 "category", "marvel hero",
                 "skill", 1));
+
+        builders.add(client().prepareIndex("test", "test", "nowHero").setSource(
+                "full_name", "now sort of",
+                "first_name", "now",
+                "last_name", "",
+                "category", "marvel hero",
+                "skill", 1));
         List<String> firstNames = new ArrayList<>();
         fill(firstNames, "Captain", between(15, 25));
         fill(firstNames, "Ultimate", between(5, 10));
@@ -163,6 +170,9 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .field("type", "text")
                 .field("norms", false)
                 .field("copy_to", "last_name_phrase")
+                .endObject()
+                .startObject("date")
+                .field("type", "date")
                 .endObject()
                 .endObject()
                 .endObject().endObject();
@@ -633,6 +643,15 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                         .lenient(true))).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("ultimate1"));
+
+
+        // Check that cross fields works with date fields
+        searchResponse = client().prepareSearch("test")
+                .setQuery(randomizeType(multiMatchQuery("now", "f*", "date")
+                        .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)).lenient(true))
+                .get();
+        assertHitCount(searchResponse, 1L);
+        assertFirstHit(searchResponse, hasId("nowHero"));
     }
 
     /**

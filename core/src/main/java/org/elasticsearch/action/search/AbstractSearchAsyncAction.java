@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -47,7 +48,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-import static org.elasticsearch.action.search.TransportSearchHelper.internalSearchRequest;
 
 abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> extends AbstractAsyncAction {
 
@@ -64,7 +64,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     protected final AtomicInteger successfulOps = new AtomicInteger();
     private final AtomicInteger totalOps = new AtomicInteger();
     protected final AtomicArray<FirstResult> firstResults;
-    private final Map<String, String[]> perIndexFilteringAliases;
+    private final Map<String, AliasFilter> aliasFilter;
     private final long clusterStateVersion;
     private volatile AtomicArray<ShardSearchFailure> shardFailures;
     private final Object shardFailuresMutex = new Object();
@@ -72,7 +72,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
 
     protected AbstractSearchAsyncAction(Logger logger, SearchTransportService searchTransportService,
                                         Function<String, DiscoveryNode> nodeIdToDiscoveryNode,
-                                        Map<String, String[]> perIndexFilteringAliases, Executor executor, SearchRequest request,
+                                        Map<String, AliasFilter> aliasFilter, Executor executor, SearchRequest request,
                                         ActionListener<SearchResponse> listener, GroupShardsIterator shardsIts, long startTime,
                                         long clusterStateVersion) {
         super(startTime);
@@ -81,7 +81,6 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         this.executor = executor;
         this.request = request;
         this.listener = listener;
-        this.perIndexFilteringAliases = perIndexFilteringAliases;
         this.nodeIdToDiscoveryNode = nodeIdToDiscoveryNode;
         this.clusterStateVersion = clusterStateVersion;
         this.shardsIts = shardsIts;
@@ -89,6 +88,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         // we need to add 1 for non active partition, since we count it in the total!
         expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
         firstResults = new AtomicArray<>(shardsIts.size());
+        this.aliasFilter = aliasFilter;
     }
 
 
@@ -123,9 +123,10 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
             if (node == null) {
                 onFirstPhaseResult(shardIndex, shard, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
             } else {
-                String[] filteringAliases = perIndexFilteringAliases.get(shard.index().getName());
-                sendExecuteFirstPhase(node, internalSearchRequest(shard, shardsIts.size(), request, filteringAliases,
-                    startTime()), new ActionListener<FirstResult>() {
+                AliasFilter filter = this.aliasFilter.get(shard.index().getName());
+                ShardSearchTransportRequest transportRequest = new ShardSearchTransportRequest(request, shard, shardsIts.size(),
+                    filter, startTime());
+                sendExecuteFirstPhase(node, transportRequest , new ActionListener<FirstResult>() {
                         @Override
                         public void onResponse(FirstResult result) {
                             onFirstPhaseResult(shardIndex, shard, result, shardIt);

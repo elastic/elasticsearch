@@ -1,5 +1,5 @@
 [[java-aggs-metrics-geobounds]]
-==== Cardinality Aggregation
+==== Geo Bounds Aggregation
 
 Here is how you can use
 {ref}/search-aggregations-metrics-geobounds-aggregation.html[Geo Bounds Aggregation]

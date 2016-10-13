@@ -327,7 +327,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
             } else {
                 fromValue = DistanceUnit.parse((String) from, unit, DistanceUnit.DEFAULT);
             }
-            if (indexCreatedBeforeV2_2 == true) {
+            if (indexCreatedBeforeV2_2) {
                 fromValue = geoDistance.normalize(fromValue, DistanceUnit.DEFAULT);
             }
         } else {
@@ -340,7 +340,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
             } else {
                 toValue = DistanceUnit.parse((String) to, unit, DistanceUnit.DEFAULT);
             }
-            if (indexCreatedBeforeV2_2 == true) {
+            if (indexCreatedBeforeV2_2) {
                 toValue = geoDistance.normalize(toValue, DistanceUnit.DEFAULT);
             }
         } else {

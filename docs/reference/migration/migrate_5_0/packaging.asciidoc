@@ -3,11 +3,10 @@
 
 ==== APT/YUM repository URL changes
 
-The repository for apt and yum packages has changed from 
+The repository for apt and yum packages has changed from
 `https://packages.elastic.co` to `https://artifacts.elastic.co/`.
 
-Full details can be found in the <<installing-elasticsearch,installation>> chapter of the 
-documentation.
+Full details can be found in <<install-elasticsearch>>.
 
 ==== Default logging using systemd (since Elasticsearch 2.2.0)
 

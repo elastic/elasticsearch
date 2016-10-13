@@ -41,10 +41,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.LegacyDoubleFieldMapper.DoubleFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -245,7 +245,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             @Override
             public ObjectMapper getObjectMapper(String name) {
                 BuilderContext context = new BuilderContext(this.getIndexSettings().getSettings(), new ContentPath());
-                return (ObjectMapper) new ObjectMapper.Builder<>(name).nested(Nested.newNested(false, false)).build(context);
+                return new ObjectMapper.Builder<>(name).nested(Nested.newNested(false, false)).build(context);
             }
         };
     }

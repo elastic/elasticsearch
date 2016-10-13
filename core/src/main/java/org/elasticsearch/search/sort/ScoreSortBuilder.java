@@ -20,11 +20,9 @@
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -39,7 +37,6 @@ import java.util.Objects;
 public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
     public static final String NAME = "_score";
-    public static final ParseField ORDER_FIELD = new ParseField("order");
     private static final SortFieldAndFormat SORT_SCORE = new SortFieldAndFormat(
             new SortField(null, SortField.Type.SCORE), DocValueFormat.RAW);
     private static final SortFieldAndFormat SORT_SCORE_REVERSE = new SortFieldAndFormat(
@@ -91,7 +88,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     private static ObjectParser<ScoreSortBuilder, QueryParseContext> PARSER = new ObjectParser<>(NAME, ScoreSortBuilder::new);
 
     static {
-        PARSER.declareField(ScoreSortBuilder::order, p -> SortOrder.fromString(p.text()), ORDER_FIELD, ValueType.STRING);
+        PARSER.declareString((builder, order) -> builder.order(SortOrder.fromString(order)), ORDER_FIELD);
     }
 
     @Override

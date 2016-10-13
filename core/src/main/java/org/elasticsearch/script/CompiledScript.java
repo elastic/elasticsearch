@@ -19,15 +19,16 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.script.Script.ScriptBinding;
 import org.elasticsearch.script.Script.ScriptType;
+import org.elasticsearch.search.lookup.SearchLookup;
+
+import java.util.Map;
 
 /**
  * CompiledScript holds all the parameters necessary to execute a previously compiled script.
  */
 public class CompiledScript {
 
-    private final ScriptBinding binding;
     private final ScriptType type;
     private final String id;
     private final ScriptEngineService engine;
@@ -35,26 +36,16 @@ public class CompiledScript {
 
     /**
      * Constructor for CompiledScript.
-     * @param binding The {@link ScriptBinding} that determines the signature of the script.
      * @param type The {@link ScriptType} of script to be executed.
      * @param id The id of the script to be executed.
      * @param engine The {@link ScriptEngineService} used to compile this script.
      * @param compiled The compiled script Object that is executable.
      */
-    public CompiledScript(ScriptBinding binding, ScriptType type, String id, ScriptEngineService engine, Object compiled) {
-        this.binding = binding;
+    public CompiledScript(ScriptType type, String id, ScriptEngineService engine, Object compiled) {
         this.type = type;
         this.id = id;
         this.engine = engine;
         this.compiled = compiled;
-    }
-
-    /**
-     * Method to get the compilation binding.
-     * @return The {@link ScriptBinding} that determines the signature of the script.
-     */
-    public ScriptBinding binding() {
-        return binding;
     }
 
     /**
@@ -103,5 +94,23 @@ public class CompiledScript {
     @Override
     public String toString() {
         return type + " script [" + id + "] using lang [" + lang() + "]";
+    }
+
+    /**
+     * Binds this {@link CompiledScript} to an {@link ExecutableScript}.
+     * @param variables The variables to bind to the {@link ExecutableScript}.
+     * @return An {@link ExecutableScript}.
+     */
+    public ExecutableScript bindExecutable(Map<String, Object> variables) {
+        return engine.executable(this, variables);
+    }
+
+    /**
+     * Binds this {@link CompiledScript} to an {@link SearchScript}.
+     * @param variables The variables to bind to the {@link SearchScript}.
+     * @return An {@link SearchScript}.
+     */
+    public SearchScript bindSearch(SearchLookup lookup, Map<String, Object> variables) {
+        return engine.search(this, lookup, variables);
     }
 }

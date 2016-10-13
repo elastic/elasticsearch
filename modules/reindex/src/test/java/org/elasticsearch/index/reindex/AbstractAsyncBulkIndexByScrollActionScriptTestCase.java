@@ -26,8 +26,6 @@ import org.elasticsearch.index.reindex.AbstractAsyncBulkIndexByScrollAction.OpTy
 import org.elasticsearch.index.reindex.AbstractAsyncBulkIndexByScrollAction.RequestWrapper;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptService;
 import org.junit.Before;
@@ -62,8 +60,7 @@ public abstract class AbstractAsyncBulkIndexByScrollActionScriptTestCase<
         ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "type", "id", 0);
         ExecutableScript executableScript = new SimpleExecutableScript(scriptBody);
 
-        when(ExecutableScriptBinding.bind(any(CompiledScript.class), Matchers.<Map<String, Object>>any()))
-                .thenReturn(executableScript);
+        when(any(CompiledScript.class).bindExecutable(Matchers.<Map<String, Object>>any())).thenReturn(executableScript);
         AbstractAsyncBulkIndexByScrollAction<Request> action = action(scriptService, request().setScript(EMPTY_SCRIPT));
         RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc);
         return (result != null) ? (T) result.self() : null;

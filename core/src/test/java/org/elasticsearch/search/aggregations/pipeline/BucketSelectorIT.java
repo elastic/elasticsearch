@@ -24,10 +24,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.Script.StoredScriptSource;
-import org.elasticsearch.script.Script.UnknownScriptBinding;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
@@ -434,7 +432,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("my_script")
                 // Source is not interpreted but my_script is defined in CustomScriptPlugin
-                .setSource(new StoredScriptSource(false, UnknownScriptBinding.NAME, CustomScriptPlugin.NAME,
+                .setSource(new StoredScriptSource(false, CustomScriptPlugin.NAME,
                     "Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)", Collections.emptyMap())));
 
         ScriptInput script = ScriptInput.stored("my_script");

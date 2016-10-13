@@ -39,11 +39,8 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptInput;
-import org.elasticsearch.script.Script.SearchScriptBinding;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
@@ -636,7 +633,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         }
 
         if (this.collateQuery != null) {
-            Function<Map<String, Object>, ExecutableScript> compiledScript = context.getLazyExecutableScript(this.collateQuery,
+            Function<Map<String, Object>, ExecutableScript> compiledScript = context.getLazyExecutableScript(this.collateQuery.lookup,
                 ScriptContext.Standard.SEARCH);
             suggestionContext.setCollateQueryScript(compiledScript);
             if (this.collateParams != null) {

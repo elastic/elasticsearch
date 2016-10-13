@@ -47,8 +47,6 @@ import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.Script.FileScriptLookup;
 import org.elasticsearch.script.Script.InlineScriptLookup;
 import org.elasticsearch.script.Script.ScriptInput;
@@ -61,7 +59,6 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -254,7 +251,7 @@ public class UpdateHelper extends AbstractComponent {
     private Map<String, Object> executeScript(ScriptInput script, Map<String, Object> ctx) {
         try {
             if (scriptService != null) {
-                ExecutableScript executableScript = ExecutableScriptBinding.bind(scriptService, ScriptContext.Standard.UPDATE, script.lookup, script.params);
+                ExecutableScript executableScript = script.lookup.getCompiled(scriptService, ScriptContext.Standard.UPDATE).bindExecutable(script.params);
                 executableScript.setNextVar("ctx", ctx);
                 executableScript.run();
                 // we need to unwrap the ctx...

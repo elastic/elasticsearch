@@ -35,7 +35,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -49,7 +48,6 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.script.Script.ScriptType;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -585,7 +583,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
         assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(true));
         assertThat(bulkResponse.getItems()[2].getFailure().getCause().getCause().getMessage(),
-                equalTo("script_lang not supported [painless]"));
+                equalTo("script mode does not exist for lang [painless], type [inline], operation [update]"));
 
         client().admin().indices().prepareRefresh("test").get();
 

@@ -52,7 +52,7 @@ public class StoredExpressionTests extends ESIntegTestCase {
     public void testAllOpsDisabledIndexedScripts() throws IOException {
         client().admin().cluster().preparePutStoredScript()
                 .setId("script1")
-                .setSource(new StoredScriptSource(false, null, ExpressionScriptEngineService.NAME, "2", Collections.emptyMap()))
+                .setSource(new StoredScriptSource(false, ExpressionScriptEngineService.NAME, "2", Collections.emptyMap()))
                 .get();
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         try {

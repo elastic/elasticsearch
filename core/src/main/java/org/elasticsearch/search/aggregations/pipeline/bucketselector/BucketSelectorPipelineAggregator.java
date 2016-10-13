@@ -24,8 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -37,7 +35,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -89,7 +86,7 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
         List<? extends Bucket> buckets = originalAgg.getBuckets();
 
         CompiledScript compiledScript =
-            script.lookup.getCompiled(reduceContext.scriptService(), ScriptContext.Standard.AGGS, ExecutableScriptBinding.BINDING);
+            script.lookup.getCompiled(reduceContext.scriptService(), ScriptContext.Standard.AGGS);
         List newBuckets = new ArrayList<>();
         for (Bucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();
@@ -102,7 +99,7 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
                 Double value = resolveBucketValue(originalAgg, bucket, bucketsPath, gapPolicy);
                 vars.put(varName, value);
             }
-            ExecutableScript executableScript = ExecutableScriptBinding.bind(compiledScript, vars);
+            ExecutableScript executableScript = compiledScript.bindExecutable(vars);
             Object scriptReturnValue = executableScript.run();
             final boolean keepBucket;
             // TODO: WTF!!!!!

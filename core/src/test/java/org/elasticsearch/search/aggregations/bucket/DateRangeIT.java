@@ -892,7 +892,7 @@ public class DateRangeIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("fieldname", "date");
         SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(dateRange("foo").field("date")
-                .script(ScriptInput.inline(DateScriptMocks.PlusOneMonthScript.NAME, "native", params))
+                .script(ScriptInput.inline("native", DateScriptMocks.PlusOneMonthScript.NAME, params))
                 .addRange(new DateTime(2012, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC), new DateTime(2013, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC)))
                 .get();
         assertSearchResponse(r);

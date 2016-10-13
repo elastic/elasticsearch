@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptContext;
@@ -38,7 +37,6 @@ import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 
 public class ScriptHeuristic extends SignificanceHeuristic {
@@ -73,12 +71,12 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public void initialize(InternalAggregation.ReduceContext context) {
-        initialize(ExecutableScriptBinding.bind(context.scriptService(), ScriptContext.Standard.AGGS, script.lookup, script.params));
+        initialize(script.lookup.getCompiled(context.scriptService(), ScriptContext.Standard.AGGS).bindExecutable(script.params));
     }
 
     @Override
     public void initialize(SearchContext context) {
-        initialize(context.getQueryShardContext().getExecutableScript(script, ScriptContext.Standard.AGGS, Collections.emptyMap()));
+        initialize(context.getQueryShardContext().getExecutableScript(script.lookup, ScriptContext.Standard.AGGS, script.params));
     }
 
     public void initialize(ExecutableScript executableScript) {

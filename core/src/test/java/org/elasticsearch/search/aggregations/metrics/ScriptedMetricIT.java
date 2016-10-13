@@ -29,7 +29,6 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.Script.StoredScriptSource;
-import org.elasticsearch.script.Script.UnknownScriptBinding;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -231,23 +230,20 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         // must match a predefined script from CustomScriptPlugin.pluginScripts() method
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("initScript_stored")
-                .setSource(new StoredScriptSource(
-                    false, UnknownScriptBinding.NAME, CustomScriptPlugin.NAME, "vars.multiplier = 3", emptyMap())));
+                .setSource(new StoredScriptSource(false, CustomScriptPlugin.NAME, "vars.multiplier = 3", emptyMap())));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("mapScript_stored")
                 .setSource(
-                    new StoredScriptSource(
-                        false, UnknownScriptBinding.NAME, CustomScriptPlugin.NAME, "_agg.add(vars.multiplier)", emptyMap())));
+                    new StoredScriptSource(false, CustomScriptPlugin.NAME, "_agg.add(vars.multiplier)", emptyMap())));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("combineScript_stored")
-                .setSource(new StoredScriptSource(false, UnknownScriptBinding.NAME, CustomScriptPlugin.NAME,
-                    "sum agg values as a new aggregation", emptyMap())));
+                .setSource(new StoredScriptSource(false, CustomScriptPlugin.NAME, "sum agg values as a new aggregation", emptyMap())));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("reduceScript_stored")
-                .setSource(new StoredScriptSource(false, UnknownScriptBinding.NAME, CustomScriptPlugin.NAME,
+                .setSource(new StoredScriptSource(false, CustomScriptPlugin.NAME,
                     "sum aggs of agg values as a new aggregation", emptyMap())));
 
         indexRandom(true, builders);
@@ -320,7 +316,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("_agg", new ArrayList<>());
 
-        ScriptInput mapScript = ScriptInput.inline(CustomScriptPlugin.NAME, "_agg.add(1)", null, params);
+        ScriptInput mapScript = ScriptInput.inline(CustomScriptPlugin.NAME, "_agg.add(1)", params);
 
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())

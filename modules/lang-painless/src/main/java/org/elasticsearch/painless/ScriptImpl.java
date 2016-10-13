@@ -126,7 +126,7 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
     }
 
     /**
-     * Adds stack trace and other useful information to exceptiosn thrown
+     * Adds stack trace and other useful information to exceptions thrown
      * from a Painless script.
      * @param t The throwable to build an exception around.
      * @return The generated ScriptException.

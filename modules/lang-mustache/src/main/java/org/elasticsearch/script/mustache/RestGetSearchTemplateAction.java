@@ -68,7 +68,6 @@ public class RestGetSearchTemplateAction extends BaseRestHandler {
                 RestStatus status = RestStatus.NOT_FOUND;
 
                 if (found) {
-                    // builder.field(CONTEXT, source.context); TODO: once context is used start returning this
                     builder.field(LANG, source.lang);
                     builder.field(TEMPLATE, source.code);
                     status = RestStatus.OK;

@@ -23,8 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -40,7 +38,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -95,7 +92,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         List<? extends Bucket> buckets = originalAgg.getBuckets();
 
         CompiledScript compiledScript =
-            script.lookup.getCompiled(reduceContext.scriptService(), ScriptContext.Standard.AGGS, ExecutableScriptBinding.BINDING);
+            script.lookup.getCompiled(reduceContext.scriptService(), ScriptContext.Standard.AGGS);
         List newBuckets = new ArrayList<>();
         for (Bucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();
@@ -116,7 +113,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
             if (skipBucket) {
                 newBuckets.add(bucket);
             } else {
-                ExecutableScript executableScript = ExecutableScriptBinding.bind(compiledScript, vars);
+                ExecutableScript executableScript = compiledScript.bindExecutable(vars);
                 Object returned = executableScript.run();
                 if (returned == null) {
                     newBuckets.add(bucket);

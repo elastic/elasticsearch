@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.script.Script.StoredScriptSource;
-import org.elasticsearch.script.Script.UnknownScriptBinding;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -50,7 +49,7 @@ public final class ScriptMetaData implements MetaData.Custom {
 
         public ScriptMetadataDiff(StreamInput in) throws IOException {
             pipelines = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                new StoredScriptSource(false, UnknownScriptBinding.NAME, Script.DEFAULT_SCRIPT_LANG, "", Collections.emptyMap()));
+                new StoredScriptSource(false, Script.DEFAULT_SCRIPT_LANG, "", Collections.emptyMap()));
         }
 
         @Override

@@ -19,24 +19,21 @@
 
 package org.elasticsearch.ingest.common;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-import org.mockito.stubbing.Answer;
+import org.hamcrest.Matchers;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -50,8 +47,10 @@ public class ScriptProcessorTests extends ESTestCase {
 
         ScriptService scriptService = mock(ScriptService.class);
         ScriptInput script = ScriptInput.inline("_script");
+        CompiledScript compiledScript = mock(CompiledScript.class);
         ExecutableScript executableScript = mock(ExecutableScript.class);
-        when(ExecutableScriptBinding.bind(scriptService, any(), any(), any())).thenReturn(executableScript);
+        when(script.lookup.getCompiled(scriptService, ScriptContext.Standard.INGEST)).thenReturn(compiledScript);
+        when(compiledScript.bindExecutable(new HashMap<>())).thenReturn(executableScript);
 
         Map<String, Object> document = new HashMap<>();
         document.put("bytes_in", randomInt());

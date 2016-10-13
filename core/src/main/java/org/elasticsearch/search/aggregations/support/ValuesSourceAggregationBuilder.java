@@ -26,14 +26,12 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptInput;
-import org.elasticsearch.script.Script.SearchScriptBinding;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -42,7 +40,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 
 /**
@@ -379,7 +376,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
 
     private SearchScript createScript(ScriptInput script, SearchContext context) {
         return script == null ? null :
-            context.getQueryShardContext().getSearchScript(script, ScriptContext.Standard.AGGS, Collections.emptyMap());
+            context.getQueryShardContext().getSearchScript(script.lookup, ScriptContext.Standard.AGGS, script.params);
     }
 
     private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {

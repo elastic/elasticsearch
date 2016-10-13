@@ -44,7 +44,7 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
         final PythonScriptEngineService se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
         final Object compiled = se.compile(null, "x + y", Collections.emptyMap());
         final CompiledScript compiledScript =
-            new CompiledScript(null, Script.ScriptType.INLINE, "testExecutableNoRuntimeParams", se, compiled);
+            new CompiledScript(Script.ScriptType.INLINE, "testExecutableNoRuntimeParams", se, compiled);
         final AtomicBoolean failed = new AtomicBoolean();
 
         Thread[] threads = new Thread[4];
@@ -130,7 +130,7 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
     public void testExecute() throws Exception {
         final PythonScriptEngineService se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
         final Object compiled = se.compile(null, "x + y", Collections.emptyMap());
-        final CompiledScript compiledScript = new CompiledScript(null, Script.ScriptType.INLINE, "testExecute", se, compiled);
+        final CompiledScript compiledScript = new CompiledScript(Script.ScriptType.INLINE, "testExecute", se, compiled);
         final AtomicBoolean failed = new AtomicBoolean();
 
         Thread[] threads = new Thread[4];

@@ -46,7 +46,6 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.script.Script.SearchScriptBinding;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
@@ -730,8 +729,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (source.scriptFields() != null) {
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
-                SearchScript searchScript = SearchScriptBinding.bind(
-                    scriptService, ScriptContext.Standard.SEARCH, context.lookup(), field.script().lookup, field.script().params);
+                SearchScript searchScript = field.script().lookup.getCompiled(
+                    scriptService, ScriptContext.Standard.SEARCH).bindSearch(context.lookup(), field.script().params);
                 context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }

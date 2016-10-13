@@ -63,7 +63,7 @@ public class ScriptModes {
         }
         Boolean scriptMode = scriptEnabled.get(getKey(lang, scriptType, scriptContext));
         if (scriptMode == null) {
-            throw new IllegalArgumentException("script mode not found for lang [" + lang + "], script_type [" + scriptType + "], operation [" + scriptContext.getKey() + "]");
+            throw new IllegalArgumentException("script mode does not exist for lang [" + lang + "], type [" + scriptType + "], operation [" + scriptContext.getKey() + "]");
         }
         return scriptMode;
     }

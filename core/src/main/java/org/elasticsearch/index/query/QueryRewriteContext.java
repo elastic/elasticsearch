@@ -30,14 +30,11 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
 
-import java.util.Collections;
 import java.util.function.LongSupplier;
 
 /**
@@ -127,8 +124,8 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     }
 
     public BytesReference getTemplateBytes(ScriptInput template) {
-        ExecutableScript executable = ExecutableScriptBinding.bind(
-            scriptService, ScriptContext.Standard.SEARCH, template.lookup, template.params);
+        ExecutableScript executable = template.lookup
+            .getCompiled(scriptService, ScriptContext.Standard.SEARCH).bindExecutable(template.params);
         return (BytesReference) executable.run();
     }
 

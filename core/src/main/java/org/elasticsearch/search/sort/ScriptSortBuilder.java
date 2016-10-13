@@ -48,14 +48,12 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.Script.ScriptInput;
-import org.elasticsearch.script.Script.SearchScriptBinding;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -285,7 +283,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
-        final SearchScript searchScript = context.getSearchScript(script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+        final SearchScript searchScript = context.getSearchScript(script.lookup, ScriptContext.Standard.SEARCH, script.params);
 
         MultiValueMode valueMode = null;
         if (sortMode != null) {

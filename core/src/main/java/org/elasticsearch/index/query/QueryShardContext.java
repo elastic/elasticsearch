@@ -61,10 +61,8 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.Script.ScriptInput;
-import org.elasticsearch.script.Script.SearchScriptBinding;
+import org.elasticsearch.script.Script.ScriptLookup;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
@@ -337,38 +335,38 @@ public class QueryShardContext extends QueryRewriteContext {
      * Compiles (or retrieves from cache) and binds the parameters to the
      * provided script
      */
-    public final SearchScript getSearchScript(ScriptInput script, ScriptContext context, Map<String, Object> params) {
+    public final SearchScript getSearchScript(ScriptLookup lookup, ScriptContext context, Map<String, Object> params) {
         failIfFrozen();
-        return SearchScriptBinding.bind(scriptService, context, lookup(), script.lookup, params);
+        return lookup.getCompiled(scriptService, context).bindSearch(lookup(), params);
     }
 
     /**
      * Returns a lazily created {@link SearchScript} that is compiled immediately but can be pulled later once all
      * parameters are available.
      */
-    public final Function<Map<String, Object>, SearchScript> getLazySearchScript(ScriptInput script, ScriptContext context) {
+    public final Function<Map<String, Object>, SearchScript> getLazySearchScript(ScriptLookup lookup, ScriptContext context) {
         failIfFrozen();
-        CompiledScript compiled = script.lookup.getCompiled(scriptService, context, SearchScriptBinding.BINDING);
-        return (params) ->  SearchScriptBinding.bind(compiled, lookup(), params);
+        CompiledScript compiled = lookup.getCompiled(scriptService, context);
+        return (params) ->  compiled.bindSearch(lookup(), params);
     }
 
     /**
      * Compiles (or retrieves from cache) and binds the parameters to the
      * provided script
      */
-    public final ExecutableScript getExecutableScript(ScriptInput script, ScriptContext context, Map<String, Object> params) {
+    public final ExecutableScript getExecutableScript(ScriptLookup lookup, ScriptContext context, Map<String, Object> params) {
         failIfFrozen();
-        return ExecutableScriptBinding.bind(scriptService, context, script.lookup, params);
+        return lookup.getCompiled(scriptService, context).bindExecutable(params);
     }
 
     /**
      * Returns a lazily created {@link ExecutableScript} that is compiled immediately but can be pulled later once all
      * parameters are available.
      */
-    public final Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(ScriptInput script, ScriptContext context) {
+    public final Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(ScriptLookup lookup, ScriptContext context) {
         failIfFrozen();
-        CompiledScript compiled = script.lookup.getCompiled(scriptService, context, SearchScriptBinding.BINDING);
-        return (params) ->  ExecutableScriptBinding.bind(compiled, params);
+        CompiledScript compiled = lookup.getCompiled(scriptService, context);
+        return (params) -> compiled.bindExecutable(params);
     }
 
     /**

@@ -27,7 +27,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.recycler.Recycler.C;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -37,7 +36,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -499,7 +497,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         vars.put("xyz", -1);
 
         Expression expr = JavascriptCompiler.compile("a+b+xyz");
-        CompiledScript compiledScript = new CompiledScript(ExecutableScriptBinding.BINDING, Script.ScriptType.INLINE, "", null, expr);
+        CompiledScript compiledScript = new CompiledScript(Script.ScriptType.INLINE, "", null, expr);
 
         ExpressionExecutableScript ees = new ExpressionExecutableScript(compiledScript, vars);
         assertEquals((Double) ees.run(), 4.5, 0.001);

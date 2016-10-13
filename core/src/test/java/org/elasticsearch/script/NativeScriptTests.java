@@ -30,7 +30,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
@@ -55,8 +54,8 @@ public class NativeScriptTests extends ESTestCase {
         List<Setting<?>> scriptSettings = scriptModule.getSettings();
         scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
 
-        ExecutableScript executable = ExecutableScriptBinding.bind(scriptModule.getScriptService(), ScriptContext.Standard.SEARCH,
-            ScriptInput.inline(NativeScriptEngineService.NAME, "my", Collections.emptyMap()).lookup, null);
+        ExecutableScript executable = ScriptInput.inline(NativeScriptEngineService.NAME, "my", Collections.emptyMap()).lookup
+            .getCompiled(scriptModule.getScriptService(), ScriptContext.Standard.SEARCH).bindExecutable(Collections.emptyMap());
         assertThat(executable.run().toString(), equalTo("test"));
     }
 
@@ -83,7 +82,7 @@ public class NativeScriptTests extends ESTestCase {
 
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
             assertThat(ScriptInput.inline(NativeScriptEngineService.NAME, "my", Collections.emptyMap())
-                .lookup.getCompiled(scriptService, scriptContext, ExecutableScriptBinding.BINDING), notNullValue());
+                .lookup.getCompiled(scriptService, scriptContext), notNullValue());
         }
     }
 

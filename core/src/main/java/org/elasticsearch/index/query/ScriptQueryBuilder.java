@@ -32,17 +32,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.LeafSearchScript;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.Script.ScriptInput;
-import org.elasticsearch.script.Script.SearchScriptBinding;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -135,7 +130,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return new ScriptQuery(script, context.getSearchScript(script, ScriptContext.Standard.SEARCH, Collections.emptyMap()));
+        return new ScriptQuery(script, context.getSearchScript(script.lookup, ScriptContext.Standard.SEARCH, script.params));
     }
 
     static class ScriptQuery extends Query {

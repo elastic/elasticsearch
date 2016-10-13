@@ -40,7 +40,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetStoredScriptAction extends BaseRestHandler {
     private static final String ID = "id";
     private static final String FOUND = "found";
-    private static final String BINDING = "binding";
     private static final String LANG = "lang";
     private static final String CODE = "code";
 
@@ -68,7 +67,6 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
                 RestStatus status = RestStatus.NOT_FOUND;
 
                 if (found) {
-                    // builder.field(CONTEXT, source.context); TODO: once context is used start returning this
                     builder.field(LANG, source.lang);
                     builder.field(CODE, source.code);
                     status = RestStatus.OK;

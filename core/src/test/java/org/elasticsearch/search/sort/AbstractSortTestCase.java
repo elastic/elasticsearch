@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
@@ -59,10 +58,8 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.InlineScriptLookup;
-import org.elasticsearch.script.Script.ScriptBinding;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
@@ -111,8 +108,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         scriptService = new ScriptService(baseSettings, environment,
                 new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
-            public CompiledScript getInlineScript(ScriptContext context, ScriptBinding binding, InlineScriptLookup lookup) {
-                return new CompiledScript(binding, Script.ScriptType.INLINE, "mockName", new ScriptEngineService() {
+            public CompiledScript getInlineScript(ScriptContext context, InlineScriptLookup lookup) {
+                return new CompiledScript(Script.ScriptType.INLINE, "mockName", new ScriptEngineService() {
 
                     @Override
                     public void close() throws IOException {

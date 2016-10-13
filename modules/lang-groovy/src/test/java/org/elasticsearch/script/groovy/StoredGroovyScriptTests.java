@@ -67,11 +67,11 @@ public class StoredGroovyScriptTests extends ESIntegTestCase {
     public void testFieldIndexedScript()  throws ExecutionException, InterruptedException {
         client().admin().cluster().preparePutStoredScript()
                 .setId("script1")
-                .setSource(new StoredScriptSource(false, null, GroovyScriptEngineService.NAME, "2", Collections.emptyMap()))
+                .setSource(new StoredScriptSource(false, GroovyScriptEngineService.NAME, "2", Collections.emptyMap()))
                 .get();
         client().admin().cluster().preparePutStoredScript()
                 .setId("script2")
-                .setSource(new StoredScriptSource(false, null, GroovyScriptEngineService.NAME, "factor * 2", Collections.emptyMap()))
+                .setSource(new StoredScriptSource(false, GroovyScriptEngineService.NAME, "factor * 2", Collections.emptyMap()))
                 .get();
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -109,7 +109,7 @@ public class StoredGroovyScriptTests extends ESIntegTestCase {
         for (int i = 1; i < iterations; i++) {
             assertAcked(client().admin().cluster().preparePutStoredScript()
                     .setId("script1")
-                    .setSource(new StoredScriptSource(false, null, GroovyScriptEngineService.NAME, "" + i, Collections.emptyMap())));
+                    .setSource(new StoredScriptSource(false, GroovyScriptEngineService.NAME, "" + i, Collections.emptyMap())));
             SearchResponse searchResponse = client()
                     .prepareSearch()
                     .setSource(
@@ -126,7 +126,7 @@ public class StoredGroovyScriptTests extends ESIntegTestCase {
     public void testDisabledUpdateIndexedScriptsOnly() {
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("script1")
-                .setSource(new StoredScriptSource(false, null, GroovyScriptEngineService.NAME, "2", Collections.emptyMap())));
+                .setSource(new StoredScriptSource(false, GroovyScriptEngineService.NAME, "2", Collections.emptyMap())));
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         try {
             client().prepareUpdate("test", "scriptTest", "1")
@@ -143,7 +143,7 @@ public class StoredGroovyScriptTests extends ESIntegTestCase {
         //dynamic scripts don't need to be enabled for an indexed script to be indexed and later on executed
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("script1")
-                .setSource(new StoredScriptSource(false, null, GroovyScriptEngineService.NAME, "2", Collections.emptyMap())));
+                .setSource(new StoredScriptSource(false, GroovyScriptEngineService.NAME, "2", Collections.emptyMap())));
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         refresh();
         SearchResponse searchResponse = client()

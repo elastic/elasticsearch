@@ -43,7 +43,7 @@ public class BucketScriptTests extends BasePipelineAggregationTestCase<BucketScr
         if (randomBoolean()) {
             script = ScriptInput.inline("script");
         } else {
-            Map<String, Object> params = null;
+            Map<String, Object> params = new HashMap<>();
             if (randomBoolean()) {
                 params = new HashMap<String, Object>();
                 params.put("foo", "bar");

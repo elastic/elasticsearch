@@ -108,7 +108,7 @@ public class ScriptModesTests extends ESTestCase {
             scriptModes.getScriptEnabled("non_existing", randomFrom(Script.ScriptType.values()), randomFrom(scriptContexts));
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("not found for lang [non_existing]"));
+            assertThat(e.getMessage(), containsString("does not exist for lang [non_existing]"));
         }
     }
 

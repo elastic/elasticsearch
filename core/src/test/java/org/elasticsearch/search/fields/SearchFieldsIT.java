@@ -397,7 +397,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .addSort("num1", SortOrder.ASC)
                 .setSize(numDocs)
                 .addScriptField("type",
-                    ScriptInput.inline(CustomScriptPlugin.NAME, "_fields._type.value", null, null))
+                    ScriptInput.inline(CustomScriptPlugin.NAME, "_fields._type.value", Collections.emptyMap()))
                 .get();
 
         assertNoFailures(response);

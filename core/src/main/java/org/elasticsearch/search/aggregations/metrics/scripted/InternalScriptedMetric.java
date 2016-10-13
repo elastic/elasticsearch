@@ -22,10 +22,7 @@ package org.elasticsearch.search.aggregations.metrics.scripted;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -34,7 +31,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -90,8 +86,8 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
             if (firstAggregation.reduceScript.params != null) {
                 vars.putAll(firstAggregation.reduceScript.params);
             }
-            ExecutableScript script = ExecutableScriptBinding.bind(
-                reduceContext.scriptService(), ScriptContext.Standard.AGGS, firstAggregation.reduceScript.lookup, vars);
+            ExecutableScript script = firstAggregation.reduceScript.lookup
+                .getCompiled(reduceContext.scriptService(), ScriptContext.Standard.AGGS).bindExecutable(vars);
             aggregation = script.run();
         } else {
             aggregation = aggregationObjects;

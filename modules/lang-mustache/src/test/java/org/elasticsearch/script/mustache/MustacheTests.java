@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
@@ -66,7 +65,7 @@ public class MustacheTests extends ESTestCase {
         Map<String, Object> params = Collections.singletonMap("boost_val", "0.2");
 
         Mustache mustache = (Mustache) engine.compile(null, template, Collections.emptyMap());
-        CompiledScript compiledScript = new CompiledScript(ExecutableScriptBinding.BINDING, INLINE, "my-name", engine, mustache);
+        CompiledScript compiledScript = new CompiledScript(INLINE, "my-name", engine, mustache);
         ExecutableScript result = engine.executable(compiledScript, params);
         assertEquals(
                 "Mustache templating broken",
@@ -78,8 +77,7 @@ public class MustacheTests extends ESTestCase {
 
     public void testArrayAccess() throws Exception {
         String template = "{{data.0}} {{data.1}}";
-        CompiledScript mustache = new CompiledScript(ExecutableScriptBinding.BINDING, INLINE,
-            "inline", engine, engine.compile(null, template, Collections.emptyMap()));
+        CompiledScript mustache = new CompiledScript(INLINE, "inline", engine, engine.compile(null, template, Collections.emptyMap()));
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
             new String[] { "foo", "bar" },
@@ -105,8 +103,7 @@ public class MustacheTests extends ESTestCase {
 
     public void testArrayInArrayAccess() throws Exception {
         String template = "{{data.0.0}} {{data.0.1}}";
-        CompiledScript mustache = new CompiledScript(ExecutableScriptBinding.BINDING, INLINE,
-            "inline", engine, engine.compile(null, template, Collections.emptyMap()));
+        CompiledScript mustache = new CompiledScript(INLINE, "inline", engine, engine.compile(null, template, Collections.emptyMap()));
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
             new String[][] { new String[] { "foo", "bar" }},
@@ -123,8 +120,7 @@ public class MustacheTests extends ESTestCase {
 
     public void testMapInArrayAccess() throws Exception {
         String template = "{{data.0.key}} {{data.1.key}}";
-        CompiledScript mustache = new CompiledScript(ExecutableScriptBinding.BINDING, INLINE,
-            "inline", engine, engine.compile(null, template, Collections.emptyMap()));
+        CompiledScript mustache = new CompiledScript(INLINE, "inline", engine, engine.compile(null, template, Collections.emptyMap()));
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
             new Object[] { singletonMap("key", "foo"), singletonMap("key", "bar") },
@@ -151,7 +147,7 @@ public class MustacheTests extends ESTestCase {
     public void testEscaping() {
         // json string escaping enabled:
         Mustache mustache = (Mustache) engine.compile(null, "{ \"field1\": \"{{value}}\"}", Collections.emptyMap());
-        CompiledScript compiledScript = new CompiledScript(ExecutableScriptBinding.BINDING, INLINE, "name", engine, mustache);
+        CompiledScript compiledScript = new CompiledScript(INLINE, "name", engine, mustache);
         ExecutableScript executableScript = engine.executable(compiledScript, Collections.singletonMap("value", "a \"value\""));
         BytesReference rawResult = (BytesReference) executableScript.run();
         String result = rawResult.utf8ToString();
@@ -160,7 +156,7 @@ public class MustacheTests extends ESTestCase {
         // json string escaping disabled:
         mustache = (Mustache) engine.compile(null, "{ \"field1\": \"{{value}}\"}",
                 Collections.singletonMap(Script.CONTENT_TYPE_OPTION, PLAIN_TEXT_CONTENT_TYPE));
-        compiledScript = new CompiledScript(ExecutableScriptBinding.BINDING, INLINE, "name", engine, mustache);
+        compiledScript = new CompiledScript(INLINE, "name", engine, mustache);
         executableScript = engine.executable(compiledScript, Collections.singletonMap("value", "a \"value\""));
         rawResult = (BytesReference) executableScript.run();
         result = rawResult.utf8ToString();
@@ -172,8 +168,7 @@ public class MustacheTests extends ESTestCase {
         List<String> randomList = Arrays.asList(generateRandomStringArray(10, 20, false));
 
         String template = "{{data.array.size}} {{data.list.size}}";
-        CompiledScript mustache = new CompiledScript(ExecutableScriptBinding.BINDING, INLINE,
-            "inline", engine, engine.compile(null, template, Collections.emptyMap()));
+        CompiledScript mustache = new CompiledScript(INLINE, "inline", engine, engine.compile(null, template, Collections.emptyMap()));
         Map<String, Object> data = new HashMap<>();
         data.put("array", randomArrayValues);
         data.put("list", randomList);
@@ -381,8 +376,7 @@ public class MustacheTests extends ESTestCase {
     }
 
     private void assertScript(String script, Map<String, Object> vars, Matcher<Object> matcher) {
-        Object result = engine.executable(new CompiledScript(ExecutableScriptBinding.BINDING, INLINE,
-            "inline", engine, compile(script)), vars).run();
+        Object result = engine.executable(new CompiledScript(INLINE, "inline", engine, compile(script)), vars).run();
         assertThat(result, notNullValue());
         assertThat(result, instanceOf(BytesReference.class));
         assertThat(((BytesReference) result).utf8ToString(), matcher);

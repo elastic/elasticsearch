@@ -29,9 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptInput;
-import org.elasticsearch.script.Script.SearchScriptBinding;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -47,7 +45,6 @@ import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -577,8 +574,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         }
         if (scriptFields != null) {
             for (ScriptField field : scriptFields) {
-                SearchScript searchScript = innerHitsContext.getQueryShardContext().getSearchScript(field.script(),
-                    ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                SearchScript searchScript = innerHitsContext.getQueryShardContext().getSearchScript(field.script().lookup,
+                    ScriptContext.Standard.SEARCH, field.script().params);
                 innerHitsContext.scriptFields().add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                         field.fieldName(), searchScript, field.ignoreFailure()));
             }

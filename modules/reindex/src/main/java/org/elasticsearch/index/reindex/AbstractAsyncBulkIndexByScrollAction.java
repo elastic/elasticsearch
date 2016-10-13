@@ -38,10 +38,8 @@ import org.elasticsearch.index.mapper.TTLFieldMapper;
 import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
@@ -53,9 +51,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
-
-import static java.util.Collections.emptyMap;
-
 /**
  * Abstract base for scrolling across a search and executing bulk indexes on all
  * results.
@@ -447,7 +442,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
                 return request;
             }
             if (executable == null) {
-                executable = ExecutableScriptBinding.bind(scriptService, ScriptContext.Standard.UPDATE, script.lookup, params);
+                executable = script.lookup.getCompiled(scriptService, ScriptContext.Standard.UPDATE).bindExecutable(params);
             }
             if (context == null) {
                 context = new HashMap<>();

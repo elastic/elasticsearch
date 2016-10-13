@@ -51,11 +51,9 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.Script.FileScriptLookup;
 import org.elasticsearch.script.Script.InlineScriptLookup;
-import org.elasticsearch.script.Script.ScriptBinding;
 import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.script.Script.StoredScriptLookup;
 import org.elasticsearch.script.Script.StoredScriptSource;
-import org.elasticsearch.script.Script.UnknownScriptBinding;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -85,12 +83,10 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         private class FileScriptSource {
             private final ScriptEngineService engine;
-            private final String binding;
             private final String id;
 
-            private FileScriptSource(ScriptEngineService engine, String binding, String id) {
+            private FileScriptSource(ScriptEngineService engine, String id) {
                 this.engine = engine;
-                this.binding = binding;
                 this.id = id;
             }
         }
@@ -111,21 +107,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             }
 
             ScriptEngineService engine = getScriptEngineServiceForExt(ext);
-            String binding = null;
-
-            if (engine.isScriptBindingEnabled()) {
-                int contextIndex = scriptPath.toString().lastIndexOf('.', extIndex);
-
-                if (contextIndex <= 0) {
-                    return null;
-                }
-
-                binding = scriptPath.toString().substring(contextIndex + 1, extIndex);
-
-                if (binding.isEmpty()) {
-                    return null;
-                }
-            }
 
             String id = scriptPath.toString().substring(0, extIndex).replace(scriptPath.getFileSystem().getSeparator(), "_");
 
@@ -133,7 +114,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 return null;
             }
 
-            return new FileScriptSource(engine, binding, id);
+            return new FileScriptSource(engine, id);
         }
 
         @Override
@@ -157,8 +138,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
                 InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8);
                 String code = Streams.copyToString(reader);
-                CompiledScript compiled =
-                    compile(UnknownScriptBinding.BINDING, FILE, source.id, source.engine.getType(), code, Collections.emptyMap());
+                CompiledScript compiled = compile(false, FILE, source.id, source.engine.getType(), code, Collections.emptyMap());
 
                 FileScriptLookup key = new FileScriptLookup(source.id);
                 fileCache.put(key, compiled);
@@ -363,12 +343,12 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 canExecuteScriptInSpecificContext(context, type, lang);
 
                 return;
-            } catch (IllegalArgumentException exception) {
+            } catch (IllegalStateException exception) {
                 // do nothing
             }
         }
 
-        throw new IllegalArgumentException("cannot execute [" + type.name + "] script using lang [" + lang + "] under any context");
+        throw new IllegalStateException("cannot execute [" + type.name + "] script using lang [" + lang + "] under any context");
     }
 
     private void canExecuteScriptInSpecificContext(ScriptContext context, ScriptType type, String lang) {
@@ -376,11 +356,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             throw new IllegalArgumentException("script context [" + context.getKey() + "] does not exist");
         }
 
-        System.out.println("here: " + lang + " " + type + " " + context + " - " + scriptModes.getScriptEnabled(lang, type, context));
-
         if (!scriptModes.getScriptEnabled(lang, type, context)) {
-            throw new IllegalArgumentException(
-                "cannot execute [" + type.name + "] script using lang [" + lang + "] under context [" + context + "]");
+            throw new IllegalStateException(
+                "[" + type.name + "] scripts using lang [" + lang + "] under context [" + context + "] are disabled");
         }
     }
 
@@ -439,7 +417,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         getScriptEngineServiceForLang(source.lang);
         canExecuteScriptInAnyContext(STORED, source.lang);
-        compile(UnknownScriptBinding.BINDING, STORED, id, source.lang, source.code, source.options);
+        compile(true, STORED, id, source.lang, source.code, source.options);
 
         clusterService.submitStateUpdateTask("put-script-" + request.id(),
             new AckedClusterStateUpdateTask<PutStoredScriptResponse>(request, listener) {
@@ -477,7 +455,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return ScriptMetaData.getScript(state, request.id());
     }
 
-    protected CompiledScript getFileScript(ScriptContext context, ScriptBinding binding, FileScriptLookup lookup) {
+    protected CompiledScript getFileScript(ScriptContext context, FileScriptLookup lookup) {
         CompiledScript compiled = fileCache.get(lookup);
 
         if (compiled == null) {
@@ -489,9 +467,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return compiled;
     }
 
-    protected CompiledScript getStoredScript(ScriptContext context, ScriptBinding binding, StoredScriptLookup lookup) {
+    protected CompiledScript getStoredScript(ScriptContext context, StoredScriptLookup lookup) {
         CompiledScript compiled = storedCache.get(lookup);
-        boolean check = true;
+        boolean checked = false;
 
         if (compiled == null) {
             synchronized(this) {
@@ -505,22 +483,22 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     }
 
                     canExecuteScriptInSpecificContext(context, STORED, source.lang);
-                    check = false;
+                    checked = true;
 
-                    compiled = compile(binding, STORED, lookup.id, source.lang, source.code, source.options);
+                    compiled = compile(true, STORED, lookup.id, source.lang, source.code, source.options);
                     storedCache.put(lookup, compiled);
                 }
             }
         }
 
-        if (!check) {
+        if (!checked) {
             canExecuteScriptInSpecificContext(context, STORED, compiled.lang());
         }
 
         return compiled;
     }
 
-    protected CompiledScript getInlineScript(ScriptContext context, ScriptBinding binding, InlineScriptLookup lookup) {
+    protected CompiledScript getInlineScript(ScriptContext context, InlineScriptLookup lookup) {
         canExecuteScriptInSpecificContext(context, INLINE, lookup.lang);
 
         CompiledScript compiled = inlineCache.get(lookup);
@@ -530,7 +508,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 compiled = inlineCache.get(lookup);
 
                 if (compiled == null) {
-                    compiled = compile(binding, INLINE, DEFAULT_SCRIPT_NAME, lookup.lang, lookup.code, lookup.options);
+                    compiled = compile(true, INLINE, DEFAULT_SCRIPT_NAME, lookup.lang, lookup.code, lookup.options);
                     inlineCache.put(lookup, compiled);
                 }
             }
@@ -539,23 +517,25 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return compiled;
     }
 
-    private CompiledScript compile(ScriptBinding binding, ScriptType type,
+    private CompiledScript compile(boolean limit, ScriptType type,
                                    String id, String lang, String code, Map<String, String> options) {
         if (logger.isTraceEnabled()) {
-            logger.trace("compiling script with binding [{}], type [{}], lang [{}], options [{}]", binding, type, lang, options);
+            logger.trace("compiling script with type [{}], lang [{}], options [{}]", type, lang, options);
         }
 
         try {
-            ScriptEngineService engine = getScriptEngineServiceForLang(lang);
+            if (limit) {
+                checkCompilationLimit();
+            }
 
-            checkCompilationLimit();
-            Object compiled = binding.compile(engine, id, code, options);
+            ScriptEngineService engine = getScriptEngineServiceForLang(lang);
+            Object compiled = engine.compile(id, code, options);
             scriptMetrics.onCompilation();
 
-            return new CompiledScript(binding, type, id, engine, compiled);
-        } catch (ScriptException good) {
+            return new CompiledScript(type, id, engine, compiled);
+        } catch (ScriptException exception) {
             // TODO: remove this try-catch completely, when all script engines have good exceptions!
-            throw good; // its already good
+            throw exception; // its already good
         } catch (Exception exception) {
             throw new GeneralScriptException("failed to compile " + type + " script [" + id + "] using lang [" + lang + "]", exception);
         }

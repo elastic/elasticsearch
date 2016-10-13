@@ -21,9 +21,8 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.MockScriptEngine.MockCompiledScript;
-import org.elasticsearch.script.Script.ExecutableScriptBinding;
 import org.elasticsearch.script.Script.FileScriptLookup;
-import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.Script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Files;
@@ -57,27 +56,30 @@ public class FileScriptTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("script.engine." + MockScriptEngine.NAME + ".file.aggs", "false").build();
         ScriptService scriptService = makeScriptService(settings);
-        CompiledScript compiledScript =
-            scriptService.getFileScript(ScriptContext.Standard.SEARCH, ExecutableScriptBinding.BINDING, new FileScriptLookup("script1"));
+        CompiledScript compiledScript = scriptService.getFileScript(ScriptContext.Standard.SEARCH, new FileScriptLookup("script1"));
         assertNotNull(compiledScript);
         MockCompiledScript executable = (MockCompiledScript) compiledScript.compiled();
-        assertEquals("script1.mockscript", executable.getName());
+        assertEquals("script1", executable.getName());
     }
 
-    public void testAllOpsDisabled() throws Exception {
+    public void testOpsDisabled() throws Exception {
         Settings settings = Settings.builder()
             .put("script.engine." + MockScriptEngine.NAME + ".file.aggs", "false")
             .put("script.engine." + MockScriptEngine.NAME + ".file.search", "false")
             .put("script.engine." + MockScriptEngine.NAME + ".file.mapping", "false")
             .put("script.engine." + MockScriptEngine.NAME + ".file.update", "false")
-            .put("script.engine." + MockScriptEngine.NAME + ".file.ingest", "false").build();
+            .put("script.engine." + MockScriptEngine.NAME + ".file.ingest", "true").build();
         ScriptService scriptService = makeScriptService(settings);
         for (ScriptContext context : ScriptContext.Standard.values()) {
+            if ("ingest".equals(context.getKey())) {
+                continue;
+            }
+
             try {
-                scriptService.getFileScript(context, ExecutableScriptBinding.BINDING, new FileScriptLookup("script1"));
+                scriptService.getFileScript(context, new FileScriptLookup("script1"));
                 fail(context.getKey() + " script should have been rejected");
             } catch(Exception e) {
-                assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [file], operation [" + context.getKey() + "] and lang [" + MockScriptEngine.NAME + "] are disabled"));
+                assertTrue(e.getMessage(), e.getMessage().contains("[" + ScriptType.FILE.name + "] scripts using lang [" + MockScriptEngine.NAME + "] under context [" + context.getKey() + "] are disabled"));
             }
         }
     }

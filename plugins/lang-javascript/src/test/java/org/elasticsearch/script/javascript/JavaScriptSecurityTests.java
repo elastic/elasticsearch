@@ -55,7 +55,7 @@ public class JavaScriptSecurityTests extends ESTestCase {
     private void doTest(String script) {
         Map<String, Object> vars = new HashMap<String, Object>();
         se.executable(new CompiledScript(
-            null, Script.ScriptType.INLINE, "test", se, se.compile(null, script, Collections.emptyMap())), vars).run();
+            Script.ScriptType.INLINE, "test", se, se.compile(null, script, Collections.emptyMap())), vars).run();
     }
 
     /** asserts that a script runs without exception */

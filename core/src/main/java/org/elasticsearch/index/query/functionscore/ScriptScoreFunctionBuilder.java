@@ -29,15 +29,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.Script.ScriptInput;
-import org.elasticsearch.script.Script.SearchScriptBinding;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 
 /**
@@ -98,7 +95,7 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) {
         try {
-            SearchScript searchScript = context.getSearchScript(script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+            SearchScript searchScript = context.getSearchScript(script.lookup, ScriptContext.Standard.SEARCH, script.params);
             return new ScriptScoreFunction(script, searchScript);
         } catch (Exception e) {
             throw new QueryShardException(context, "script_score: the script could not be loaded", e);

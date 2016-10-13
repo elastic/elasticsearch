@@ -103,7 +103,7 @@ public class GeoPointArrayIndexFieldData extends AbstractIndexGeoPointFieldData 
 
             Ordinals build = builder.build();
             RandomAccessOrds ordinals = build.ordinals();
-            if (!FieldData.isMultiValued(ordinals)) {
+            if (FieldData.isMultiValued(ordinals) == false) {
                 int maxDoc = reader.maxDoc();
                 LongArray sIndexedPoint = BigArrays.NON_RECYCLING_INSTANCE.newLongArray(reader.maxDoc());
                 for (int i=0; i<maxDoc; ++i) {
@@ -152,7 +152,7 @@ public class GeoPointArrayIndexFieldData extends AbstractIndexGeoPointFieldData 
 
             Ordinals build = builder.build();
             RandomAccessOrds ordinals = build.ordinals();
-            if (!FieldData.isMultiValued(ordinals)) {
+            if (FieldData.isMultiValued(ordinals) == false) {
                 int maxDoc = reader.maxDoc();
                 DoubleArray sLat = BigArrays.NON_RECYCLING_INSTANCE.newDoubleArray(reader.maxDoc());
                 DoubleArray sLon = BigArrays.NON_RECYCLING_INSTANCE.newDoubleArray(reader.maxDoc());

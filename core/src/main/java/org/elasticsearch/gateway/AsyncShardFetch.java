@@ -113,7 +113,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         nodesToIgnore.addAll(ignoreNodes);
         fillShardCacheWithDataNodes(cache, nodes);
         Set<NodeEntry<T>> nodesToFetch = findNodesToFetch(cache);
-        if (!nodesToFetch.isEmpty()) {
+        if (nodesToFetch.isEmpty() == false) {
             // mark all node as fetching and go ahead and async fetch them
             for (NodeEntry<T> nodeEntry : nodesToFetch) {
                 nodeEntry.markAsFetching();
@@ -155,7 +155,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             nodesToIgnore.clear();
             // if at least one node failed, make sure to have a protective reroute
             // here, just case this round won't find anything, and we need to retry fetching data
-            if (!failedNodes.isEmpty() || !allIgnoreNodes.isEmpty()) {
+            if (failedNodes.isEmpty() == false || allIgnoreNodes.isEmpty() == false) {
                 reroute(shardId, "nodes failed [" + failedNodes.size() + "], ignored [" + allIgnoreNodes.size() + "]");
             }
             return new FetchResult<>(shardId, fetchData, failedNodes, allIgnoreNodes);
@@ -196,7 +196,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                 logger.trace("{} processing failure {} for [{}]", shardId, failure, type);
                 NodeEntry<T> nodeEntry = cache.get(failure.nodeId());
                 // if the entry is there, and not marked as failed already, process it
-                if (nodeEntry != null && !nodeEntry.isFailed()) {
+                if (nodeEntry != null && nodeEntry.isFailed() == false) {
                     Throwable unwrappedCause = ExceptionsHelper.unwrapCause(failure.getCause());
                     // if the request got rejected or timed out, we need to try it again next time...
                     if (unwrappedCause instanceof EsRejectedExecutionException || unwrappedCause instanceof ReceiveTimeoutTransportException || unwrappedCause instanceof ElasticsearchTimeoutException) {
@@ -224,14 +224,14 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         // verify that all current data nodes are there
         for (ObjectObjectCursor<String, DiscoveryNode> cursor : nodes.getDataNodes()) {
             DiscoveryNode node = cursor.value;
-            if (!shardCache.containsKey(node.getId())) {
+            if (shardCache.containsKey(node.getId()) == false) {
                 shardCache.put(node.getId(), new NodeEntry<T>(node.getId()));
             }
         }
         // remove nodes that are not longer part of the data nodes set
         for (Iterator<String> it = shardCache.keySet().iterator(); it.hasNext(); ) {
             String nodeId = it.next();
-            if (!nodes.nodeExists(nodeId)) {
+            if (nodes.nodeExists(nodeId) == false) {
                 it.remove();
             }
         }
@@ -244,7 +244,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     private Set<NodeEntry<T>> findNodesToFetch(Map<String, NodeEntry<T>> shardCache) {
         Set<NodeEntry<T>> nodesToFetch = new HashSet<>();
         for (NodeEntry<T> nodeEntry : shardCache.values()) {
-            if (!nodeEntry.hasData() && !nodeEntry.isFetching()) {
+            if (nodeEntry.hasData() == false && nodeEntry.isFetching() == false) {
                 nodesToFetch.add(nodeEntry);
             }
         }
@@ -356,7 +356,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         }
 
         void markAsFetching() {
-            assert !fetching : "double marking a node as fetching";
+            assert fetching == false: "double marking a node as fetching";
             fetching = true;
         }
 
@@ -370,7 +370,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
 
         void doneFetching(Throwable failure) {
             assert fetching : "setting value but not in fetching mode";
-            assert !valueSet : "setting failure when already set value";
+            assert valueSet == false: "setting failure when already set value";
             assert failure != null : "setting failure can't be null";
             this.failure = failure;
             this.fetching = false;
@@ -378,7 +378,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
 
         void restartFetching() {
             assert fetching : "restarting fetching, but not in fetching mode";
-            assert !valueSet : "value can't be set when restarting fetching";
+            assert valueSet == false: "value can't be set when restarting fetching";
             assert failure == null : "failure can't be set when restarting fetching";
             this.fetching = false;
         }

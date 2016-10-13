@@ -287,7 +287,7 @@ public class LegacyGeoPointFieldMapper extends BaseGeoPointFieldMapper implement
     @Override
     protected void parse(ParseContext context, GeoPoint point, String geoHash) throws IOException {
         boolean validPoint = false;
-        if (!coerce.value() && !ignoreMalformed.value()) {
+        if (coerce.value() == false && ignoreMalformed.value() == false) {
             if (point.lat() > 90.0 || point.lat() < -90.0) {
                 throw new IllegalArgumentException("illegal latitude value [" + point.lat() + "] for " + name());
             }
@@ -297,7 +297,7 @@ public class LegacyGeoPointFieldMapper extends BaseGeoPointFieldMapper implement
             validPoint = true;
         }
 
-        if (coerce.value() && !validPoint) {
+        if (coerce.value() && validPoint == false) {
             // by setting coerce to false we are assuming all geopoints are already in a valid coordinate system
             // thus this extra step can be skipped
             GeoUtils.normalizePoint(point, true, true);

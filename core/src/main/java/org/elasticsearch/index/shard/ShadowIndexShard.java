@@ -83,7 +83,7 @@ public final class ShadowIndexShard extends IndexShard {
 
     @Override
     protected Engine newEngine(EngineConfig config) {
-        assert !this.shardRouting.primary();
+        assert this.shardRouting.primary() == false;
         assert config.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG;
         return engineFactory.newReadOnlyEngine(config);
     }

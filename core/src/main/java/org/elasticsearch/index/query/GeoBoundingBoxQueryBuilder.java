@@ -140,17 +140,17 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
      * @param right The right longitude
      */
     public GeoBoundingBoxQueryBuilder setCorners(double top, double left, double bottom, double right) {
-        if (!GeoValidationMethod.isIgnoreMalformed(validationMethod)) {
-            if (!Numbers.isValidDouble(top)) {
+        if (GeoValidationMethod.isIgnoreMalformed(validationMethod) == false) {
+            if (Numbers.isValidDouble(top) == false) {
                 throw new IllegalArgumentException("top latitude is invalid: " + top);
             }
-            if (!Numbers.isValidDouble(left)) {
+            if (Numbers.isValidDouble(left) == false) {
                 throw new IllegalArgumentException("left longitude is invalid: " + left);
             }
-            if (!Numbers.isValidDouble(bottom)) {
+            if (Numbers.isValidDouble(bottom) == false) {
                 throw new IllegalArgumentException("bottom latitude is invalid: " + bottom);
             }
-            if (!Numbers.isValidDouble(right)) {
+            if (Numbers.isValidDouble(right) == false) {
                 throw new IllegalArgumentException("right longitude is invalid: " + right);
             }
 
@@ -305,19 +305,19 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
         QueryValidationException validationException = null;
         // For everything post 2.0 validate latitude and longitude unless validation was explicitly turned off
-        if (!GeoUtils.isValidLatitude(topLeft.getLat())) {
+        if (GeoUtils.isValidLatitude(topLeft.getLat()) == false) {
             validationException = addValidationError("top latitude is invalid: " + topLeft.getLat(),
                     validationException);
         }
-        if (!GeoUtils.isValidLongitude(topLeft.getLon())) {
+        if (GeoUtils.isValidLongitude(topLeft.getLon()) == false) {
             validationException = addValidationError("left longitude is invalid: " + topLeft.getLon(),
                     validationException);
         }
-        if (!GeoUtils.isValidLatitude(bottomRight.getLat())) {
+        if (GeoUtils.isValidLatitude(bottomRight.getLat()) == false) {
             validationException = addValidationError("bottom latitude is invalid: " + bottomRight.getLat(),
                     validationException);
         }
-        if (!GeoUtils.isValidLongitude(bottomRight.getLon())) {
+        if (GeoUtils.isValidLongitude(bottomRight.getLon()) == false) {
             validationException = addValidationError("right longitude is invalid: " + bottomRight.getLon(),
                     validationException);
         }

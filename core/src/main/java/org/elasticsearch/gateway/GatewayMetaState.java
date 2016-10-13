@@ -93,11 +93,11 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                 // and found no non-upgradable indices, which means the upgrade can continue.
                 // Now it's safe to overwrite global and index metadata.
                 if (metaData != upgradedMetaData) {
-                    if (!MetaData.isGlobalStateEquals(metaData, upgradedMetaData)) {
+                    if (MetaData.isGlobalStateEquals(metaData, upgradedMetaData) == false) {
                         metaStateService.writeGlobalState("upgrade", upgradedMetaData);
                     }
                     for (IndexMetaData indexMetaData : upgradedMetaData) {
-                        if (!metaData.hasIndexMetaData(indexMetaData)) {
+                        if (metaData.hasIndexMetaData(indexMetaData) == false) {
                             metaStateService.writeIndex("upgrade", indexMetaData);
                         }
                     }
@@ -202,7 +202,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
 
     protected static boolean isDataOnlyNode(ClusterState state) {
-        return (!state.nodes().getLocalNode().isMasterNode() && state.nodes().getLocalNode().isDataNode());
+        return ((state.nodes().getLocalNode().isMasterNode() == false) && state.nodes().getLocalNode().isDataNode());
     }
 
     /**
@@ -256,7 +256,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         }
         // upgrade global custom meta data
         Map<String, MetaData.Custom> upgradedCustoms = metaDataUpgrader.customMetaDataUpgraders.apply(existingCustoms);
-        if (!upgradedCustoms.equals(existingCustoms)) {
+        if (upgradedCustoms.equals(existingCustoms) == false) {
             existingCustoms.keySet().forEach(upgradedMetaData::removeCustom);
             for (Map.Entry<String, MetaData.Custom> upgradedCustomEntry : upgradedCustoms.entrySet()) {
                 upgradedMetaData.putCustom(upgradedCustomEntry.getKey(), upgradedCustomEntry.getValue());
@@ -299,7 +299,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             IndexMetaData newIndexMetaData = newMetaData.getIndexSafe(index);
             IndexMetaData previousIndexMetaData = previousMetaData == null ? null : previousMetaData.index(index);
             String writeReason = null;
-            if (!previouslyWrittenIndices.contains(index) || previousIndexMetaData == null) {
+            if (previouslyWrittenIndices.contains(index) == false || previousIndexMetaData == null) {
                 writeReason = "freshly created";
             } else if (previousIndexMetaData.getVersion() != newIndexMetaData.getVersion()) {
                 writeReason = "version changed from [" + previousIndexMetaData.getVersion() + "] to [" + newIndexMetaData.getVersion() + "]";

@@ -315,7 +315,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         }
 
         GeoPoint point = new GeoPoint(this.point);
-        if (!indexCreatedBeforeV2_2 || GeoValidationMethod.isCoerce(validationMethod)) {
+        if (indexCreatedBeforeV2_2 == false || GeoValidationMethod.isCoerce(validationMethod)) {
             GeoUtils.normalizePoint(point, true, true);
         }
 
@@ -379,7 +379,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         builder.field(INCLUDE_UPPER_FIELD.getPreferredName(), includeUpper);
         builder.field(UNIT_FIELD.getPreferredName(), unit);
         builder.field(DISTANCE_TYPE_FIELD.getPreferredName(), geoDistance.name().toLowerCase(Locale.ROOT));
-        if (!Strings.isEmpty(optimizeBbox)) {
+        if (Strings.isEmpty(optimizeBbox) == false) {
             builder.field(OPTIMIZE_BBOX_FIELD.getPreferredName(), optimizeBbox);
         }
         builder.field(VALIDATION_METHOD.getPreferredName(), validationMethod);

@@ -135,7 +135,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
         this.client = client;
         this.roleCache = CacheBuilder.<String, RoleAndVersion>builder()
                 .setMaximumWeight(CACHE_SIZE_SETTING.get(settings))
-                .setExpireAfterWrite(CACHE_TTL_SETTING.get(settings).getNanos())
+                .setExpireAfterWrite(CACHE_TTL_SETTING.get(settings))
                 .build();
         this.isTribeNode = settings.getGroups("tribe", true).isEmpty() == false;
     }

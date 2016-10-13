@@ -36,9 +36,9 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         super(type, config);
         hasher = Hasher.resolve(config.settings().get(CACHE_HASH_ALGO_SETTING, null), Hasher.SSHA256);
         TimeValue ttl = config.settings().getAsTime(CACHE_TTL_SETTING, DEFAULT_TTL);
-        if (ttl.millis() > 0) {
+        if (ttl.getNanos() > 0) {
             cache = CacheBuilder.<String, UserWithHash>builder()
-                    .setExpireAfterAccess(TimeUnit.MILLISECONDS.toNanos(ttl.getMillis()))
+                    .setExpireAfterAccess(ttl)
                     .setMaximumWeight(config.settings().getAsInt(CACHE_MAX_USERS_SETTING, DEFAULT_MAX_USERS))
                     .build();
         } else {

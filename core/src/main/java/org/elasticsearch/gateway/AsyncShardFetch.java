@@ -356,7 +356,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         }
 
         void markAsFetching() {
-            assert fetching == false: "double marking a node as fetching";
+            assert fetching == false : "double marking a node as fetching";
             fetching = true;
         }
 
@@ -370,7 +370,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
 
         void doneFetching(Throwable failure) {
             assert fetching : "setting value but not in fetching mode";
-            assert valueSet == false: "setting failure when already set value";
+            assert valueSet == false : "setting failure when already set value";
             assert failure != null : "setting failure can't be null";
             this.failure = failure;
             this.fetching = false;
@@ -378,7 +378,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
 
         void restartFetching() {
             assert fetching : "restarting fetching, but not in fetching mode";
-            assert valueSet == false: "value can't be set when restarting fetching";
+            assert valueSet == false : "value can't be set when restarting fetching";
             assert failure == null : "failure can't be set when restarting fetching";
             this.fetching = false;
         }

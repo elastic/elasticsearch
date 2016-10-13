@@ -49,12 +49,15 @@ final class SettingsUpdater {
     }
 
     synchronized ClusterState updateSettings(final ClusterState currentState, Settings transientToApply, Settings persistentToApply) {
+        boolean changed = false;
         Settings.Builder transientSettings = Settings.builder();
         transientSettings.put(currentState.metaData().transientSettings());
+        changed |= clusterSettings.updateDynamicSettings(transientToApply, transientSettings, transientUpdates, "transient");
+
         Settings.Builder persistentSettings = Settings.builder();
         persistentSettings.put(currentState.metaData().persistentSettings());
-        boolean changed = clusterSettings.updateDynamicSettings(transientToApply, transientSettings, transientUpdates, "transient") |
-            clusterSettings.updateDynamicSettings(persistentToApply, persistentSettings, persistentUpdates, "persistent");
+        changed |= clusterSettings.updateDynamicSettings(persistentToApply, persistentSettings, persistentUpdates, "persistent");
+
         if (!changed) {
             return currentState;
         }

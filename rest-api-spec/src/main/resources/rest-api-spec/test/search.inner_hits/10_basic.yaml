@@ -5,19 +5,14 @@ setup:
         index: test
         body:
             mappings:
-              type_1: {
-                properties: {
-                  nested_field : {
+              type_1:
+                properties:
+                  nested_field:
                     type: nested
-                  }
-                }
-              }
               type_2: {}
-              type_3: {
-                _parent: {
+              type_3:
+                _parent:
                   type: type_2
-                }
-              }
 
 ---
 "Nested inner hits":
@@ -26,13 +21,8 @@ setup:
           index: test
           type:  type_1
           id:    1
-          body:  {
-            "nested_field" : [
-              {
-                "foo": "bar"
-              }
-            ]
-          }
+          body:
+            "nested_field" : [ { "foo": "bar" } ]
 
     - do:
         indices.refresh: {}

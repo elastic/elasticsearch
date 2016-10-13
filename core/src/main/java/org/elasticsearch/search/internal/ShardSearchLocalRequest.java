@@ -76,9 +76,8 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     ShardSearchLocalRequest(SearchRequest searchRequest, ShardRouting shardRouting, int numberOfShards,
                             AliasFilter aliasFilter, long nowInMillis) {
         this(shardRouting.shardId(), numberOfShards, searchRequest.searchType(),
-                searchRequest.source(), searchRequest.types(), searchRequest.requestCache());
+                searchRequest.source(), searchRequest.types(), searchRequest.requestCache(), aliasFilter);
         this.scroll = searchRequest.scroll();
-        this.aliasFilter = aliasFilter;
         this.nowInMillis = nowInMillis;
     }
 
@@ -90,13 +89,14 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     public ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType, SearchSourceBuilder source, String[] types,
-            Boolean requestCache) {
+            Boolean requestCache, AliasFilter aliasFilter) {
         this.shardId = shardId;
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
         this.source = source;
         this.types = types;
         this.requestCache = requestCache;
+        this.aliasFilter = aliasFilter;
     }
 
 

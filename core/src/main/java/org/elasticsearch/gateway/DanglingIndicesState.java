@@ -70,7 +70,7 @@ public class DanglingIndicesState extends AbstractComponent {
      * new dangling indices, and allocating outstanding ones.
      */
     public void processDanglingIndices(final MetaData metaData) {
-        if (nodeEnv.hasNodeFile() == false) {
+        if (!nodeEnv.hasNodeFile()) {
             return;
         }
         cleanupAllocatedDangledIndices(metaData);
@@ -93,7 +93,7 @@ public class DanglingIndicesState extends AbstractComponent {
         for (Index index : danglingIndices.keySet()) {
             final IndexMetaData indexMetaData = metaData.index(index);
             if (indexMetaData != null && indexMetaData.getIndex().getName().equals(index.getName())) {
-                if (indexMetaData.getIndex().getUUID().equals(index.getUUID()) == false) {
+                if (!indexMetaData.getIndex().getUUID().equals(index.getUUID())) {
                     logger.warn("[{}] can not be imported as a dangling index, as there is already another index " +
                         "with the same name but a different uuid. local index will be ignored (but not deleted)", index);
                 } else {
@@ -153,7 +153,7 @@ public class DanglingIndicesState extends AbstractComponent {
      * for allocation.
      */
     private void allocateDanglingIndices() {
-        if (danglingIndices.isEmpty() == true) {
+        if (danglingIndices.isEmpty()) {
             return;
         }
         try {

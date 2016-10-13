@@ -68,7 +68,7 @@ public class GeoPointArrayIndexFieldData extends AbstractIndexGeoPointFieldData 
             estimator.afterLoad(null, data.ramBytesUsed());
             return data;
         }
-        return (indexSettings.getIndexVersionCreated().before(Version.V_2_2_0) == true) ?
+        return (indexSettings.getIndexVersionCreated().before(Version.V_2_2_0)) ?
             loadLegacyFieldData(reader, estimator, terms, data) : loadFieldData22(reader, estimator, terms, data);
     }
 
@@ -103,7 +103,7 @@ public class GeoPointArrayIndexFieldData extends AbstractIndexGeoPointFieldData 
 
             Ordinals build = builder.build();
             RandomAccessOrds ordinals = build.ordinals();
-            if (FieldData.isMultiValued(ordinals) == false) {
+            if (!FieldData.isMultiValued(ordinals)) {
                 int maxDoc = reader.maxDoc();
                 LongArray sIndexedPoint = BigArrays.NON_RECYCLING_INSTANCE.newLongArray(reader.maxDoc());
                 for (int i=0; i<maxDoc; ++i) {
@@ -152,7 +152,7 @@ public class GeoPointArrayIndexFieldData extends AbstractIndexGeoPointFieldData 
 
             Ordinals build = builder.build();
             RandomAccessOrds ordinals = build.ordinals();
-            if (FieldData.isMultiValued(ordinals) == false) {
+            if (!FieldData.isMultiValued(ordinals)) {
                 int maxDoc = reader.maxDoc();
                 DoubleArray sLat = BigArrays.NON_RECYCLING_INSTANCE.newDoubleArray(reader.maxDoc());
                 DoubleArray sLon = BigArrays.NON_RECYCLING_INSTANCE.newDoubleArray(reader.maxDoc());

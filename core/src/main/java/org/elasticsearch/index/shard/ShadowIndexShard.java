@@ -65,7 +65,7 @@ public final class ShadowIndexShard extends IndexShard {
      */
     @Override
     public void updateRoutingEntry(ShardRouting newRouting) throws IOException {
-        if (newRouting.primary() == true) {// becoming a primary
+        if (newRouting.primary()) {// becoming a primary
             throw new IllegalStateException("can't promote shard to primary");
         }
         super.updateRoutingEntry(newRouting);
@@ -83,7 +83,7 @@ public final class ShadowIndexShard extends IndexShard {
 
     @Override
     protected Engine newEngine(EngineConfig config) {
-        assert this.shardRouting.primary() == false;
+        assert !this.shardRouting.primary();
         assert config.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG;
         return engineFactory.newReadOnlyEngine(config);
     }

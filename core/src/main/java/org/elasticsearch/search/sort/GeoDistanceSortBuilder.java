@@ -431,7 +431,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     nestedFilter = context.parseInnerQueryBuilder();
                 } else {
                     // the json in the format of -> field : { lat : 30, lon : 12 }
-                    if (fieldName != null && fieldName.equals(currentName) == false) {
+                    if (fieldName != null && !fieldName.equals(currentName)) {
                         throw new ParsingException(
                                 parser.getTokenLocation(),
                                 "Trying to reset fieldName to [{}], already set to [{}].",
@@ -452,12 +452,12 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     geoDistance = GeoDistance.fromString(parser.text());
                 } else if (parseFieldMatcher.match(currentName, COERCE_FIELD)) {
                     coerce = parser.booleanValue();
-                    if (coerce == true) {
+                    if (!coerce) {
                         ignoreMalformed = true;
                     }
                 } else if (parseFieldMatcher.match(currentName, IGNORE_MALFORMED_FIELD)) {
                     boolean ignore_malformed_value = parser.booleanValue();
-                    if (coerce == false) {
+                    if (!coerce) {
                         ignoreMalformed = ignore_malformed_value;
                     }
                 } else if (parseFieldMatcher.match(currentName, VALIDATION_METHOD_FIELD)) {
@@ -467,7 +467,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 } else if (parseFieldMatcher.match(currentName, NESTED_PATH_FIELD)) {
                     nestedPath = parser.text();
                 } else if (token == Token.VALUE_STRING){
-                    if (fieldName != null && fieldName.equals(currentName) == false) {
+                    if (fieldName != null && !fieldName.equals(currentName)) {
                         throw new ParsingException(
                                 parser.getTokenLocation(),
                                 "Trying to reset fieldName to [{}], already set to [{}].",
@@ -518,13 +518,13 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
         if (!indexCreatedBeforeV2_0 && !GeoValidationMethod.isIgnoreMalformed(validation)) {
             for (GeoPoint point : localPoints) {
-                if (GeoUtils.isValidLatitude(point.lat()) == false) {
+                if (!GeoUtils.isValidLatitude(point.lat())) {
                     throw new ElasticsearchParseException(
                             "illegal latitude value [{}] for [GeoDistanceSort] for field [{}].",
                             point.lat(),
                             fieldName);
                 }
-                if (GeoUtils.isValidLongitude(point.lon()) == false) {
+                if (!GeoUtils.isValidLongitude(point.lon())) {
                     throw new ElasticsearchParseException(
                             "illegal longitude value [{}] for [GeoDistanceSort] for field [{}].",
                             point.lon(),
@@ -558,7 +558,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 && nested == null
                 && finalSortMode == MultiValueMode.MIN // LatLonDocValuesField internally picks the closest point
                 && unit == DistanceUnit.METERS
-                && reverse == false
+                && !reverse
                 && localPoints.size() == 1) {
             return new SortFieldAndFormat(
                     LatLonDocValuesField.newDistanceSort(fieldName, localPoints.get(0).lat(), localPoints.get(0).lon()),

@@ -115,7 +115,7 @@ public class ContextMappings implements ToXContent {
         private final Map<String, Set<CharSequence>> contexts;
         private final ParseContext.Document document;
 
-        public TypedContextField(String name, String value, int weight, Map<String, Set<CharSequence>> contexts,
+        TypedContextField(String name, String value, int weight, Map<String, Set<CharSequence>> contexts,
                                  ParseContext.Document document) {
             super(name, value, weight);
             this.contexts = contexts;

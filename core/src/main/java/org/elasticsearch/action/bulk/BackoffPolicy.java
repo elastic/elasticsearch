@@ -171,7 +171,7 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
 
         private final int numberOfElements;
 
-        public ConstantBackoff(TimeValue delay, int numberOfElements) {
+        ConstantBackoff(TimeValue delay, int numberOfElements) {
             assert numberOfElements >= 0;
             this.delay = delay;
             this.numberOfElements = numberOfElements;
@@ -188,7 +188,7 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         private final int numberOfElements;
         private int curr;
 
-        public ConstantBackoffIterator(TimeValue delay, int numberOfElements) {
+        ConstantBackoffIterator(TimeValue delay, int numberOfElements) {
             this.delay = delay;
             this.numberOfElements = numberOfElements;
         }
@@ -212,7 +212,7 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         private final BackoffPolicy delegate;
         private final Runnable onBackoff;
 
-        public WrappedBackoffPolicy(BackoffPolicy delegate, Runnable onBackoff) {
+        WrappedBackoffPolicy(BackoffPolicy delegate, Runnable onBackoff) {
             this.delegate = delegate;
             this.onBackoff = onBackoff;
         }
@@ -227,7 +227,7 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
         private final Iterator<TimeValue> delegate;
         private final Runnable onBackoff;
 
-        public WrappedBackoffIterator(Iterator<TimeValue> delegate, Runnable onBackoff) {
+        WrappedBackoffIterator(Iterator<TimeValue> delegate, Runnable onBackoff) {
             this.delegate = delegate;
             this.onBackoff = onBackoff;
         }

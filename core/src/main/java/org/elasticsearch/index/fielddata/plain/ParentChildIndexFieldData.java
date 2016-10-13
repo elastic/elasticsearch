@@ -179,7 +179,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         final OrdinalMap ordMap;
         final AtomicParentChildFieldData[] fieldData;
 
-        public OrdinalMapAndAtomicFieldData(OrdinalMap ordMap, AtomicParentChildFieldData[] fieldData) {
+        OrdinalMapAndAtomicFieldData(OrdinalMap ordMap, AtomicParentChildFieldData[] fieldData) {
             this.ordMap = ordMap;
             this.fieldData = fieldData;
         }
@@ -223,7 +223,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         private final Map<String, OrdinalMapAndAtomicFieldData> atomicFD;
         private final int segmentIndex;
 
-        public GlobalAtomicFieldData(Set<String> types, Map<String, OrdinalMapAndAtomicFieldData> atomicFD, int segmentIndex) {
+        GlobalAtomicFieldData(Set<String> types, Map<String, OrdinalMapAndAtomicFieldData> atomicFD, int segmentIndex) {
             this.types = types;
             this.atomicFD = atomicFD;
             this.segmentIndex = segmentIndex;

@@ -237,7 +237,7 @@ public class UnicastZenPingTests extends ESTestCase {
         public final DiscoveryNode node;
         public final ConcurrentMap<TransportAddress, AtomicInteger> counters;
 
-        public NetworkHandle(TransportAddress address, TransportService transportService, DiscoveryNode discoveryNode,
+        NetworkHandle(TransportAddress address, TransportService transportService, DiscoveryNode discoveryNode,
                              ConcurrentMap<TransportAddress, AtomicInteger> counters) {
             this.address = address;
             this.transportService = transportService;

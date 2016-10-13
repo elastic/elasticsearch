@@ -40,7 +40,7 @@ final class UserAgentParser {
     private final List<UserAgentSubpattern> devicePatterns = new ArrayList<>();
     private final String name;
     
-    public UserAgentParser(String name, InputStream regexStream, UserAgentCache cache) {
+    UserAgentParser(String name, InputStream regexStream, UserAgentCache cache) {
         this.name = name;
         this.cache = cache;
         
@@ -186,11 +186,11 @@ final class UserAgentParser {
     }
 
     static final class Details {
-        public final VersionedName userAgent;
-        public final VersionedName operatingSystem;
-        public final VersionedName device;
+        final VersionedName userAgent;
+        final VersionedName operatingSystem;
+        final VersionedName device;
         
-        public Details(VersionedName userAgent, VersionedName operatingSystem, VersionedName device) {
+        Details(VersionedName userAgent, VersionedName operatingSystem, VersionedName device) {
             this.userAgent = userAgent;
             this.operatingSystem = operatingSystem;
             this.device = device;
@@ -198,13 +198,13 @@ final class UserAgentParser {
     }
     
     static final class VersionedName {
-        public final String name;
-        public final String major;
-        public final String minor;
-        public final String patch;
-        public final String build;
+        final String name;
+        final String major;
+        final String minor;
+        final String patch;
+        final String build;
         
-        public VersionedName(String name, String major, String minor, String patch, String build) {
+        VersionedName(String name, String major, String minor, String patch, String build) {
             this.name = name;
             this.major = major;
             this.minor = minor;
@@ -220,8 +220,8 @@ final class UserAgentParser {
         private final Pattern pattern;
         private final String nameReplacement, v1Replacement, v2Replacement, v3Replacement, v4Replacement;
 
-        public UserAgentSubpattern(Pattern pattern, String nameReplacement,
-                String v1Replacement, String v2Replacement, String v3Replacement, String v4Replacement) {
+        UserAgentSubpattern(Pattern pattern, String nameReplacement,
+                            String v1Replacement, String v2Replacement, String v3Replacement, String v4Replacement) {
           this.pattern = pattern;
           this.nameReplacement = nameReplacement;
           this.v1Replacement = v1Replacement;

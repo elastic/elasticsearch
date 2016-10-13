@@ -194,7 +194,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         private final AtomicInteger counter;
         private final AtomicReference<Set<String>> nodes = new AtomicReference<>();
 
-        public BanLock(Consumer<Set<String>> finish) {
+        BanLock(Consumer<Set<String>> finish) {
             counter = new AtomicInteger(0);
             this.finish = finish;
         }
@@ -245,7 +245,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             this.ban = false;
         }
 
-        public BanParentTaskRequest() {
+        BanParentTaskRequest() {
         }
 
         @Override

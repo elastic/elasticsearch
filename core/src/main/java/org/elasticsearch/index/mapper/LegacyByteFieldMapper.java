@@ -105,7 +105,7 @@ public class LegacyByteFieldMapper extends LegacyNumberFieldMapper {
     }
 
     static final class ByteFieldType extends NumberFieldType {
-        public ByteFieldType() {
+        ByteFieldType() {
             super(LegacyNumericType.INT);
         }
 

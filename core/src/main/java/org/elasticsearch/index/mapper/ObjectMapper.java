@@ -55,7 +55,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         public static final Dynamic DYNAMIC = null; // not set, inherited from root
     }
 
-    public static enum Dynamic {
+    public enum Dynamic {
         TRUE,
         FALSE,
         STRICT

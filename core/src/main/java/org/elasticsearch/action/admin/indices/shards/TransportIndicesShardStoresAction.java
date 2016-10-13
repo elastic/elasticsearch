@@ -226,7 +226,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
                 private final List<NodeGatewayStartedShards> responses;
                 private final List<FailedNodeException> failures;
 
-                public Response(ShardId shardId, List<NodeGatewayStartedShards> responses, List<FailedNodeException> failures) {
+                Response(ShardId shardId, List<NodeGatewayStartedShards> responses, List<FailedNodeException> failures) {
                     this.shardId = shardId;
                     this.responses = responses;
                     this.failures = failures;

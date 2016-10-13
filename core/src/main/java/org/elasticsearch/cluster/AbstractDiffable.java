@@ -57,21 +57,21 @@ public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffabl
         /**
          * Creates simple diff with changes
          */
-        public CompleteDiff(T part) {
+        CompleteDiff(T part) {
             this.part = part;
         }
 
         /**
          * Creates simple diff without changes
          */
-        public CompleteDiff() {
+        CompleteDiff() {
             this.part = null;
         }
 
         /**
          * Read simple diff from the stream
          */
-        public CompleteDiff(Diffable<T> reader, StreamInput in) throws IOException {
+        CompleteDiff(Diffable<T> reader, StreamInput in) throws IOException {
             if (in.readBoolean()) {
                 this.part = reader.readFrom(in);
             } else {

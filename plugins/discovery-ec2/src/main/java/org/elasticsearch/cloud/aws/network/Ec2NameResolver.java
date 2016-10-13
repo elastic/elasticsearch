@@ -58,7 +58,7 @@ public class Ec2NameResolver extends AbstractComponent implements CustomNameReso
      *
      * @author Paul_Loy
      */
-    private static enum Ec2HostnameType {
+    private enum Ec2HostnameType {
 
         PRIVATE_IPv4("ec2:privateIpv4", "local-ipv4"),
         PRIVATE_DNS("ec2:privateDns", "local-hostname"),
@@ -73,7 +73,7 @@ public class Ec2NameResolver extends AbstractComponent implements CustomNameReso
         final String configName;
         final String ec2Name;
 
-        private Ec2HostnameType(String configName, String ec2Name) {
+        Ec2HostnameType(String configName, String ec2Name) {
             this.configName = configName;
             this.ec2Name = ec2Name;
         }

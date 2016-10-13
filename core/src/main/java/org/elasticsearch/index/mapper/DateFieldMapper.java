@@ -172,7 +172,7 @@ public class DateFieldMapper extends FieldMapper {
             final DateMathParser forcedDateParser;
             private QueryShardContext queryShardContext;
 
-            public LateParsingQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
+            LateParsingQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
                     DateTimeZone timeZone, DateMathParser forcedDateParser, QueryShardContext queryShardContext) {
                 this.lowerTerm = lowerTerm;
                 this.upperTerm = upperTerm;

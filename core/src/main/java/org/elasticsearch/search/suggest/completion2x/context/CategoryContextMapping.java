@@ -234,7 +234,7 @@ public class CategoryContextMapping extends ContextMapping {
         private final Iterable<String> defaultValues;
         private final Iterable<String> values;
 
-        public FieldConfig(String fieldname, Iterable<String> defaultValues, Iterable<String> values) {
+        FieldConfig(String fieldname, Iterable<String> defaultValues, Iterable<String> values) {
             this.fieldname = fieldname;
             this.defaultValues = defaultValues;
             this.values = values;
@@ -293,7 +293,7 @@ public class CategoryContextMapping extends ContextMapping {
 
         private final Iterable<? extends CharSequence> values;
 
-        public FieldQuery(String name, Iterable<? extends CharSequence> values) {
+        FieldQuery(String name, Iterable<? extends CharSequence> values) {
             super(name);
             this.values = values;
         }

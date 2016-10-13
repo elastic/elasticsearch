@@ -75,7 +75,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
 
     static final class UidFieldType extends TermBasedFieldType {
 
-        public UidFieldType() {
+        UidFieldType() {
         }
 
         protected UidFieldType(UidFieldType ref) {

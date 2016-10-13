@@ -71,7 +71,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
         final int infoThreshold;
         final int debugThreshold;
 
-        public GcOverheadThreshold(final int warnThreshold, final int infoThreshold, final int debugThreshold) {
+        GcOverheadThreshold(final int warnThreshold, final int infoThreshold, final int debugThreshold) {
             this.warnThreshold = warnThreshold;
             this.infoThreshold = infoThreshold;
             this.debugThreshold = debugThreshold;
@@ -355,7 +355,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
             final JvmStats currentJvmStats;
             final ByteSizeValue maxHeapUsed;
 
-            public SlowGcEvent(
+            SlowGcEvent(
                 final GarbageCollector currentGc,
                 final long collectionCount,
                 final TimeValue collectionTime,
@@ -380,7 +380,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
         private final Map<String, JvmGcMonitorService.GcThreshold> gcThresholds;
         final GcOverheadThreshold gcOverheadThreshold;
 
-        public JvmMonitor(final Map<String, GcThreshold> gcThresholds, final GcOverheadThreshold gcOverheadThreshold) {
+        JvmMonitor(final Map<String, GcThreshold> gcThresholds, final GcOverheadThreshold gcOverheadThreshold) {
             this.gcThresholds = Objects.requireNonNull(gcThresholds);
             this.gcOverheadThreshold = Objects.requireNonNull(gcOverheadThreshold);
         }

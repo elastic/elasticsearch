@@ -31,7 +31,7 @@ class VersionValue implements Accountable {
 
     private final long version;
 
-    public VersionValue(long version) {
+    VersionValue(long version) {
         this.version = version;
     }
 

@@ -226,9 +226,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
          */
         private List<Thread> createdThreads = emptyList();
 
-        public AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client, ThreadPool threadPool,
-                                        ReindexRequest request, ActionListener<BulkIndexByScrollResponse> listener,
-                                        ScriptService scriptService, ClusterState clusterState) {
+        AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client, ThreadPool threadPool,
+                                 ReindexRequest request, ActionListener<BulkIndexByScrollResponse> listener,
+                                 ScriptService scriptService, ClusterState clusterState) {
             super(task, logger, client, threadPool, request, listener, scriptService, clusterState);
         }
 

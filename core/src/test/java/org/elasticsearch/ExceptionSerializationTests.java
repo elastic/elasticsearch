@@ -550,7 +550,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
         class UnknownException extends Exception {
 
-            public UnknownException(final String message) {
+            UnknownException(final String message) {
                 super(message);
             }
 

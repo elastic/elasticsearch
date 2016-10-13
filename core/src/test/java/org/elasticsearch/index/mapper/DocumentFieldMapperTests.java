@@ -42,7 +42,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
 
         private final String output;
 
-        public FakeAnalyzer(String output) {
+        FakeAnalyzer(String output) {
             this.output = output;
         }
 
@@ -69,7 +69,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
 
     static class FakeFieldType extends TermBasedFieldType {
 
-        public FakeFieldType() {
+        FakeFieldType() {
             super();
         }
 
@@ -93,7 +93,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
 
         private static final Settings SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
-        public FakeFieldMapper(String simpleName, MappedFieldType fieldType) {
+        FakeFieldMapper(String simpleName, MappedFieldType fieldType) {
             super(simpleName, fieldType.clone(), fieldType.clone(), SETTINGS, null, null);
         }
 

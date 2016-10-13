@@ -61,7 +61,7 @@ public class ReverseNestedAggregatorFactory extends AggregatorFactory<ReverseNes
 
     private static final class Unmapped extends NonCollectingAggregator {
 
-        public Unmapped(String name, AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+        Unmapped(String name, AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) throws IOException {
             super(name, context, parent, pipelineAggregators, metaData);
         }

@@ -46,7 +46,7 @@ final class LegacyIpIndexFieldData implements IndexFieldData<AtomicFieldData> {
     protected final String fieldName;
     protected final Logger logger;
 
-    public LegacyIpIndexFieldData(Index index, String fieldName) {
+    LegacyIpIndexFieldData(Index index, String fieldName) {
         this.index = index;
         this.fieldName = fieldName;
         this.logger = Loggers.getLogger(getClass());

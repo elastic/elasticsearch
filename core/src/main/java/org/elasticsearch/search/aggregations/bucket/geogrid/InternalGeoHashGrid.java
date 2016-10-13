@@ -52,7 +52,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
         protected long docCount;
         protected InternalAggregations aggregations;
 
-        public Bucket(long geohashAsLong, long docCount, InternalAggregations aggregations) {
+        Bucket(long geohashAsLong, long docCount, InternalAggregations aggregations) {
             this.docCount = docCount;
             this.aggregations = aggregations;
             this.geohashAsLong = geohashAsLong;
@@ -218,7 +218,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
     static class BucketPriorityQueue extends PriorityQueue<Bucket> {
 
-        public BucketPriorityQueue(int size) {
+        BucketPriorityQueue(int size) {
             super(size);
         }
 

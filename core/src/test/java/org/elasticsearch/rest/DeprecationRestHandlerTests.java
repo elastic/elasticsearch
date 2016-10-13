@@ -138,7 +138,7 @@ public class DeprecationRestHandlerTests extends ESTestCase {
         /**
          * Create a generator for characters [32, 126].
          */
-        public ASCIIHeaderGenerator() {
+        ASCIIHeaderGenerator() {
             super(asciiFromTo(32, 126));
         }
     }

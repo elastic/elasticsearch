@@ -195,7 +195,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
     public static void corruptFile(Path file, Logger logger) throws IOException {
         Path fileToCorrupt = file;
-        try (final SimpleFSDirectory dir = new SimpleFSDirectory(fileToCorrupt.getParent())) {
+        try (SimpleFSDirectory dir = new SimpleFSDirectory(fileToCorrupt.getParent())) {
             long checksumBeforeCorruption;
             try (IndexInput input = dir.openInput(fileToCorrupt.getFileName().toString(), IOContext.DEFAULT)) {
                 checksumBeforeCorruption = CodecUtil.retrieveChecksum(input);
@@ -385,7 +385,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
                     '}';
         }
 
-        public DummyState(String string, int aInt, long aLong, double aDouble, boolean aBoolean) {
+        DummyState(String string, int aInt, long aLong, double aDouble, boolean aBoolean) {
             this.string = string;
             this.aInt = aInt;
             this.aLong = aLong;
@@ -393,7 +393,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
             this.aBoolean = aBoolean;
         }
 
-        public DummyState() {
+        DummyState() {
 
         }
 

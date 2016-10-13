@@ -121,7 +121,7 @@ public class SlicedInputStreamTests extends ESTestCase {
 
         public boolean closed = false;
 
-        public CheckClosedInputStream(InputStream in) {
+        CheckClosedInputStream(InputStream in) {
             super(in);
         }
 

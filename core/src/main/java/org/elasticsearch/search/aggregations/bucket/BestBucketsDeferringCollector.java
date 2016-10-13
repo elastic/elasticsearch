@@ -49,7 +49,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         final PackedLongValues docDeltas;
         final PackedLongValues buckets;
 
-        public Entry(LeafReaderContext context, PackedLongValues docDeltas, PackedLongValues buckets) {
+        Entry(LeafReaderContext context, PackedLongValues docDeltas, PackedLongValues buckets) {
             this.context = context;
             this.docDeltas = docDeltas;
             this.buckets = buckets;

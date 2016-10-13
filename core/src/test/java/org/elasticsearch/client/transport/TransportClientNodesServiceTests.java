@@ -159,7 +159,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
     public void testListenerFailures() throws InterruptedException {
         int iters = iterations(10, 100);
         for (int i = 0; i <iters; i++) {
-            try(final TestIteration iteration = new TestIteration()) {
+            try(TestIteration iteration = new TestIteration()) {
                 final CountDownLatch latch = new CountDownLatch(1);
                 final AtomicInteger finalFailures = new AtomicInteger();
                 final AtomicReference<Throwable> finalFailure = new AtomicReference<>();
@@ -240,7 +240,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
     public void testConnectedNodes() {
         int iters = iterations(10, 100);
         for (int i = 0; i <iters; i++) {
-            try(final TestIteration iteration = new TestIteration()) {
+            try(TestIteration iteration = new TestIteration()) {
                 assertThat(iteration.transportClientNodesService.connectedNodes().size(), lessThanOrEqualTo(iteration.nodesCount));
                 for (DiscoveryNode discoveryNode : iteration.transportClientNodesService.connectedNodes()) {
                     assertThat(discoveryNode.getHostName(), startsWith("liveness-"));

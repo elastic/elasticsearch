@@ -71,7 +71,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
     class CustomMustacheVisitor extends DefaultMustacheVisitor {
 
-        public CustomMustacheVisitor(DefaultMustacheFactory df) {
+        CustomMustacheVisitor(DefaultMustacheFactory df) {
             super(df);
         }
 
@@ -96,7 +96,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
         private final String code;
 
-        public CustomCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String code) {
+        CustomCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String code) {
             super(tc, df, mustache, extractVariableName(code, mustache, tc));
             this.code = Objects.requireNonNull(code);
         }
@@ -151,7 +151,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
         private static final String CODE = "toJson";
 
-        public ToJsonCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String variable) {
+        ToJsonCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String variable) {
             super(tc, df, mustache, CODE);
             if (CODE.equalsIgnoreCase(variable) == false) {
                 throw new MustacheException("Mismatch function code [" + CODE + "] cannot be applied to [" + variable + "]");
@@ -202,12 +202,12 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
         private final String delimiter;
 
-        public JoinerCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String delimiter) {
+        JoinerCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String delimiter) {
             super(tc, df, mustache, CODE);
             this.delimiter = delimiter;
         }
 
-        public JoinerCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache) {
+        JoinerCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache) {
             this(tc, df, mustache, DEFAULT_DELIMITER);
         }
 
@@ -236,7 +236,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
         private static final Pattern PATTERN = Pattern.compile("^(?:" + CODE + " delimiter='(.*)')$");
 
-        public CustomJoinerCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String variable) {
+        CustomJoinerCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String variable) {
             super(tc, df, mustache, extractDelimiter(variable));
         }
 

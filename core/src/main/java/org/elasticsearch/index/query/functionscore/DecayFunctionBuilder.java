@@ -342,7 +342,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
 
         private static final GeoDistance distFunction = GeoDistance.DEFAULT;
 
-        public GeoFieldDataScoreFunction(GeoPoint origin, double scale, double decay, double offset, DecayFunction func,
+        GeoFieldDataScoreFunction(GeoPoint origin, double scale, double decay, double offset, DecayFunction func,
                                          IndexGeoPointFieldData fieldData, MultiValueMode mode) {
             super(scale, decay, offset, func, mode);
             this.origin = origin;
@@ -424,7 +424,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         private final IndexNumericFieldData fieldData;
         private final double origin;
 
-        public NumericFieldDataScoreFunction(double origin, double scale, double decay, double offset, DecayFunction func,
+        NumericFieldDataScoreFunction(double origin, double scale, double decay, double offset, DecayFunction func,
                                              IndexNumericFieldData fieldData, MultiValueMode mode) {
             super(scale, decay, offset, func, mode);
             this.fieldData = fieldData;

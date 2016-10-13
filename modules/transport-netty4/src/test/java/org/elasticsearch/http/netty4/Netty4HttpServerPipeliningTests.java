@@ -87,10 +87,9 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             .put("http.pipelining", true)
             .put("http.port", "0")
             .build();
-        try (final HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
+        try (HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
             httpServerTransport.start();
-            final TransportAddress transportAddress =
-                (TransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());
+            final TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
             final int numberOfRequests = randomIntBetween(4, 16);
             final List<String> requests = new ArrayList<>(numberOfRequests);
@@ -115,10 +114,9 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             .put("http.pipelining", false)
             .put("http.port", "0")
             .build();
-        try (final HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
+        try (HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
             httpServerTransport.start();
-            final TransportAddress transportAddress =
-                (TransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());
+            final TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
             final int numberOfRequests = randomIntBetween(4, 16);
             final Set<Integer> slowIds = new HashSet<>();

@@ -1520,7 +1520,7 @@ public class InternalEngineTests extends ESTestCase {
 
         public boolean sawIndexWriterIFDMessage;
 
-        public MockAppender(final String name) throws IllegalAccessException {
+        MockAppender(final String name) throws IllegalAccessException {
             super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
         }
 

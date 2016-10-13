@@ -52,7 +52,7 @@ public class BucketHelpers {
      * "insert_zeros": empty buckets will be filled with zeros for all metrics
      * "ignore": empty buckets will simply be ignored
      */
-    public static enum GapPolicy {
+    public enum GapPolicy {
         INSERT_ZEROS((byte) 0, "insert_zeros"), SKIP((byte) 1, "skip");
 
         /**
@@ -87,7 +87,7 @@ public class BucketHelpers {
         private final byte id;
         private final ParseField parseField;
 
-        private GapPolicy(byte id, String name) {
+        GapPolicy(byte id, String name) {
             this.id = id;
             this.parseField = new ParseField(name);
         }

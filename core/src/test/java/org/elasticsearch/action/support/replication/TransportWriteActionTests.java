@@ -153,7 +153,7 @@ public class TransportWriteActionTests extends ESTestCase {
     }
 
     private static class TestRequest extends ReplicatedWriteRequest<TestRequest> {
-        public TestRequest() {
+        TestRequest() {
             setShardId(new ShardId("test", "test", 1));
         }
     }

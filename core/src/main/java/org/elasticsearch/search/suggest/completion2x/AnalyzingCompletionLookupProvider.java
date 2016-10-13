@@ -355,7 +355,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         final int endByte;
         final int holeCharacter;
 
-        public AnalyzingSuggestHolder(boolean preserveSep, boolean preservePositionIncrements,
+        AnalyzingSuggestHolder(boolean preserveSep, boolean preservePositionIncrements,
                                       int maxSurfaceFormsPerAnalyzedForm, int maxGraphExpansions,
                                       boolean hasPayloads, int maxAnalyzedPathsForOneInput,
                                       FST<Pair<Long, BytesRef>> fst, int sepLabel, int payloadSep,

@@ -76,7 +76,7 @@ public class DiversifiedMapSamplerAggregator extends SamplerAggregator {
      */
     class DiverseDocsDeferringCollector extends BestDocsDeferringCollector {
 
-        public DiverseDocsDeferringCollector() {
+        DiverseDocsDeferringCollector() {
             super(shardSize, context.bigArrays());
         }
 
@@ -92,7 +92,7 @@ public class DiversifiedMapSamplerAggregator extends SamplerAggregator {
 
             private SortedBinaryDocValues values;
 
-            public ValuesDiversifiedTopDocsCollector(int numHits, int maxHitsPerKey) {
+            ValuesDiversifiedTopDocsCollector(int numHits, int maxHitsPerKey) {
                 super(numHits, maxHitsPerKey);
 
             }

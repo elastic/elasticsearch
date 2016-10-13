@@ -522,7 +522,7 @@ public class ClusterServiceTests extends ESTestCase {
             private AtomicInteger batches = new AtomicInteger();
             private AtomicInteger published = new AtomicInteger();
 
-            public TaskExecutor(List<Set<Task>> taskGroups) {
+            TaskExecutor(List<Set<Task>> taskGroups) {
                 this.taskGroups = taskGroups;
             }
 
@@ -996,7 +996,7 @@ public class ClusterServiceTests extends ESTestCase {
     private static class BlockingTask extends ClusterStateUpdateTask implements Releasable {
         private final CountDownLatch latch = new CountDownLatch(1);
 
-        public BlockingTask(Priority priority) {
+        BlockingTask(Priority priority) {
             super(priority);
         }
 
@@ -1044,7 +1044,7 @@ public class ClusterServiceTests extends ESTestCase {
 
         public volatile Long currentTimeOverride = null;
 
-        public TimedClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+        TimedClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
             super(settings, clusterSettings, threadPool);
         }
 

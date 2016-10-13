@@ -52,7 +52,7 @@ import java.io.IOException;
  */
 public interface IndexFieldData<FD extends AtomicFieldData> extends IndexComponent {
 
-    public static class CommonSettings {
+    class CommonSettings {
         public static final String SETTING_MEMORY_STORAGE_HINT = "memory_storage_hint";
 
         public enum MemoryStorageFormat {

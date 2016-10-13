@@ -110,7 +110,7 @@ public abstract class TransportWriteAction<
         boolean finishedAsyncActions;
         ActionListener<Response> listener = null;
 
-        public WritePrimaryResult(Request request, Response finalResponse,
+        WritePrimaryResult(Request request, Response finalResponse,
                                   @Nullable Translog.Location location,
                                   IndexShard indexShard) {
             super(request, finalResponse);
@@ -160,7 +160,7 @@ public abstract class TransportWriteAction<
         boolean finishedAsyncActions;
         private ActionListener<TransportResponse.Empty> listener;
 
-        public WriteReplicaResult(IndexShard indexShard, ReplicatedWriteRequest<?> request, Translog.Location location) {
+        WriteReplicaResult(IndexShard indexShard, ReplicatedWriteRequest<?> request, Translog.Location location) {
             new AsyncAfterWriteAction(indexShard, request, location, this, logger).run();
         }
 

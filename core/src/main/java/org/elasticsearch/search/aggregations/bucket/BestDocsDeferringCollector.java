@@ -163,7 +163,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         private long parentBucket;
         private int matchedDocs;
 
-        public PerParentBucketSamples(long parentBucket, Scorer scorer, LeafReaderContext readerContext) {
+        PerParentBucketSamples(long parentBucket, Scorer scorer, LeafReaderContext readerContext) {
             try {
                 this.parentBucket = parentBucket;
                 tdc = createTopDocsCollector(shardSize);

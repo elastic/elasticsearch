@@ -112,7 +112,7 @@ public class BasicAnalysisBackwardCompatibilityIT extends ESBackcompatTestCase {
         final String input;
         final String field;
 
-        public InputOutput(AnalyzeResponse response, String input, String field) {
+        InputOutput(AnalyzeResponse response, String input, String field) {
             this.response = response;
             this.input = input;
             this.field = field;

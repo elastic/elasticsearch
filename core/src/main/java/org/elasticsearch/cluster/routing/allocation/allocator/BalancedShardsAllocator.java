@@ -840,7 +840,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         private int numShards = 0;
         private final RoutingNode routingNode;
 
-        public ModelNode(RoutingNode routingNode) {
+        ModelNode(RoutingNode routingNode) {
             this.routingNode = routingNode;
         }
 
@@ -918,7 +918,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         private final Set<ShardRouting> shards = new HashSet<>(4); // expect few shards of same index to be allocated on same node
         private int highestPrimary = -1;
 
-        public ModelIndex(String id) {
+        ModelIndex(String id) {
             this.id = id;
         }
 
@@ -975,7 +975,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         private final Balancer balancer;
         private float pivotWeight;
 
-        public NodeSorter(ModelNode[] modelNodes, WeightFunction function, Balancer balancer) {
+        NodeSorter(ModelNode[] modelNodes, WeightFunction function, Balancer balancer) {
             this.function = function;
             this.balancer = balancer;
             this.modelNodes = modelNodes;

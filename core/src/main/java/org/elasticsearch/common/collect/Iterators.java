@@ -36,7 +36,7 @@ public class Iterators {
         private final Iterator<? extends T>[] iterators;
         private int index = 0;
 
-        public ConcatenatedIterator(Iterator<? extends T>... iterators) {
+        ConcatenatedIterator(Iterator<? extends T>... iterators) {
             if (iterators == null) {
                 throw new NullPointerException("iterators");
             }

@@ -51,7 +51,7 @@ public interface ScriptDocValues<T> extends List<T> {
      */
     List<T> getValues();
 
-    public static final class Strings extends AbstractList<String> implements ScriptDocValues<String> {
+    final class Strings extends AbstractList<String> implements ScriptDocValues<String> {
 
         private final SortedBinaryDocValues values;
 
@@ -102,7 +102,7 @@ public interface ScriptDocValues<T> extends List<T> {
 
     }
 
-    public static class Longs extends AbstractList<Long> implements ScriptDocValues<Long> {
+    class Longs extends AbstractList<Long> implements ScriptDocValues<Long> {
 
         private final SortedNumericDocValues values;
         private final MutableDateTime date = new MutableDateTime(0, DateTimeZone.UTC);
@@ -150,7 +150,7 @@ public interface ScriptDocValues<T> extends List<T> {
 
     }
 
-    public static class Doubles extends AbstractList<Double> implements ScriptDocValues<Double> {
+    class Doubles extends AbstractList<Double> implements ScriptDocValues<Double> {
 
         private final SortedNumericDoubleValues values;
 

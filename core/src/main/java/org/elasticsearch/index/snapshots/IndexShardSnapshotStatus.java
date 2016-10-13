@@ -27,7 +27,7 @@ public class IndexShardSnapshotStatus {
     /**
      * Snapshot stage
      */
-    public static enum Stage {
+    public enum Stage {
         /**
          * Snapshot hasn't started yet
          */

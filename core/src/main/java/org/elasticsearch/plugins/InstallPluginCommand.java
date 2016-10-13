@@ -286,7 +286,7 @@ class InstallPluginCommand extends SettingCommand {
         private int width = 50;
         private final boolean enabled;
 
-        public TerminalProgressInputStream(InputStream is, int expectedTotalSize, Terminal terminal) {
+        TerminalProgressInputStream(InputStream is, int expectedTotalSize, Terminal terminal) {
             super(is, expectedTotalSize);
             this.terminal = terminal;
             this.enabled = expectedTotalSize > 0;

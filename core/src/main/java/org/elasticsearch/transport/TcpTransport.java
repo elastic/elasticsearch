@@ -1373,7 +1373,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         private final TransportRequest request;
         private final TransportChannel transportChannel;
 
-        public RequestHandler(RequestHandlerRegistry reg, TransportRequest request, TransportChannel transportChannel) {
+        RequestHandler(RequestHandlerRegistry reg, TransportRequest request, TransportChannel transportChannel) {
             this.reg = reg;
             this.request = request;
             this.transportChannel = transportChannel;

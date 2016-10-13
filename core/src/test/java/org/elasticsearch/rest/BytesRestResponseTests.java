@@ -49,7 +49,7 @@ public class BytesRestResponseTests extends ESTestCase {
 
     class UnknownException extends Exception {
 
-        public UnknownException(final String message, final Throwable cause) {
+        UnknownException(final String message, final Throwable cause) {
             super(message, cause);
         }
 

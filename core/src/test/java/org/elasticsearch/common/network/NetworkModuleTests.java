@@ -51,7 +51,7 @@ import java.util.function.Supplier;
 public class NetworkModuleTests extends ModuleTestCase {
 
     static class FakeHttpTransport extends AbstractLifecycleComponent implements HttpServerTransport {
-        public FakeHttpTransport() {
+        FakeHttpTransport() {
             super(null);
         }
         @Override
@@ -78,7 +78,7 @@ public class NetworkModuleTests extends ModuleTestCase {
 
 
     static class FakeRestHandler extends BaseRestHandler {
-        public FakeRestHandler() {
+        FakeRestHandler() {
             super(null);
         }
         @Override
@@ -86,7 +86,7 @@ public class NetworkModuleTests extends ModuleTestCase {
     }
 
     static class FakeCatRestHandler extends AbstractCatAction {
-        public FakeCatRestHandler() {
+        FakeCatRestHandler() {
             super(null);
         }
         @Override

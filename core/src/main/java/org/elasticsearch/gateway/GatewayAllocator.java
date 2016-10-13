@@ -144,7 +144,7 @@ public class GatewayAllocator extends AbstractComponent {
 
     class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {
 
-        public InternalAsyncFetch(Logger logger, String type, ShardId shardId, Lister<? extends BaseNodesResponse<T>, T> action) {
+        InternalAsyncFetch(Logger logger, String type, ShardId shardId, Lister<? extends BaseNodesResponse<T>, T> action) {
             super(logger, type, shardId, action);
         }
 
@@ -159,7 +159,7 @@ public class GatewayAllocator extends AbstractComponent {
 
         private final TransportNodesListGatewayStartedShards startedAction;
 
-        public InternalPrimaryShardAllocator(Settings settings, TransportNodesListGatewayStartedShards startedAction) {
+        InternalPrimaryShardAllocator(Settings settings, TransportNodesListGatewayStartedShards startedAction) {
             super(settings);
             this.startedAction = startedAction;
         }
@@ -185,7 +185,7 @@ public class GatewayAllocator extends AbstractComponent {
 
         private final TransportNodesListShardStoreMetaData storeAction;
 
-        public InternalReplicaShardAllocator(Settings settings, TransportNodesListShardStoreMetaData storeAction) {
+        InternalReplicaShardAllocator(Settings settings, TransportNodesListShardStoreMetaData storeAction) {
             super(settings);
             this.storeAction = storeAction;
         }

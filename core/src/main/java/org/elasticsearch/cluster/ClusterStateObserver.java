@@ -301,7 +301,7 @@ public class ClusterStateObserver {
         public final Listener listener;
         public final ChangePredicate changePredicate;
 
-        public ObservingContext(Listener listener, ChangePredicate changePredicate) {
+        ObservingContext(Listener listener, ChangePredicate changePredicate) {
             this.listener = listener;
             this.changePredicate = changePredicate;
         }
@@ -311,7 +311,7 @@ public class ClusterStateObserver {
         public final ClusterState clusterState;
         public final ClusterState.ClusterStateStatus status;
 
-        public ObservedState(ClusterState clusterState) {
+        ObservedState(ClusterState clusterState) {
             this.clusterState = clusterState;
             this.status = clusterState.status();
         }

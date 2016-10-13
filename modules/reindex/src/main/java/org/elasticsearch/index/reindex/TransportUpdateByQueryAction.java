@@ -81,9 +81,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest> {
 
-        public AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client, ThreadPool threadPool,
-                                        UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener,
-                                        ScriptService scriptService, ClusterState clusterState) {
+        AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client, ThreadPool threadPool,
+                                 UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener,
+                                 ScriptService scriptService, ClusterState clusterState) {
             super(task, logger, client, threadPool, request, listener, scriptService, clusterState);
         }
 

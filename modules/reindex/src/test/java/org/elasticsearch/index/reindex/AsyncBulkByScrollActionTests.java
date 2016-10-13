@@ -656,7 +656,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
     private class DummyAbstractAsyncBulkByScrollAction
             extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest> {
-        public DummyAbstractAsyncBulkByScrollAction() {
+        DummyAbstractAsyncBulkByScrollAction() {
             super(testTask, AsyncBulkByScrollActionTests.this.logger, new ParentTaskAssigningClient(client, localNode, testTask),
                     AsyncBulkByScrollActionTests.this.threadPool, testRequest, listener);
         }
@@ -684,7 +684,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     private static class DummyAbstractBulkByScrollRequest extends AbstractBulkByScrollRequest<DummyAbstractBulkByScrollRequest> {
-        public DummyAbstractBulkByScrollRequest(SearchRequest searchRequest) {
+        DummyAbstractBulkByScrollRequest(SearchRequest searchRequest) {
             super(searchRequest);
         }
 
@@ -715,7 +715,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         private int searchesToReject = 0;
         private int scrollsToReject = 0;
 
-        public MyMockClient(Client in) {
+        MyMockClient(Client in) {
             super(in);
         }
 
@@ -822,7 +822,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         private final Request request;
         private final ActionListener<Response> listener;
 
-        public RequestAndListener(Request request, ActionListener<Response> listener) {
+        RequestAndListener(Request request, ActionListener<Response> listener) {
             this.request = request;
             this.listener = listener;
         }

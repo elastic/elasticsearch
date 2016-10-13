@@ -54,11 +54,12 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
 
     protected final Logger logger;
     protected final SearchTransportService searchTransportService;
-    protected final ThreadPool threadPool;
+    private final Executor executor;
     protected final ActionListener<SearchResponse> listener;
     private final GroupShardsIterator shardsIts;
     protected final SearchRequest request;
-    protected final Function<String, DiscoveryNode> nodes;
+    /** Used by subclasses to resolve node ids to DiscoveryNodes. **/
+    protected final Function<String, DiscoveryNode> nodeIdToDiscsoveryNode;
     protected final int expectedSuccessfulOps;
     private final int expectedTotalOps;
     protected final AtomicInteger successfulOps = new AtomicInteger();
@@ -71,18 +72,18 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     protected volatile ScoreDoc[] sortedShardDocs;
 
     protected AbstractSearchAsyncAction(Logger logger, SearchTransportService searchTransportService,
-                                        Function<String, DiscoveryNode> nodeLookup, Map<String, String[]> perIndexFilteringAliases,
-                                        ThreadPool threadPool, SearchRequest request,
+                                        Function<String, DiscoveryNode> nodeIdToDiscsoveryNode, Map<String, String[]> perIndexFilteringAliases,
+                                        Executor executor, SearchRequest request,
                                         ActionListener<SearchResponse> listener, GroupShardsIterator shardsIts, long startTime,
                                         long clusterStateVersion) {
         super(startTime);
         this.logger = logger;
         this.searchTransportService = searchTransportService;
-        this.threadPool = threadPool;
+        this.executor = executor;
         this.request = request;
         this.listener = listener;
         this.perIndexFilteringAliases = perIndexFilteringAliases;
-        nodes = nodeLookup;
+        this.nodeIdToDiscsoveryNode = nodeIdToDiscsoveryNode;
         this.clusterStateVersion = clusterStateVersion;
         this.shardsIts = shardsIts;
         expectedSuccessfulOps = shardsIts.size();
@@ -119,7 +120,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
             // no more active shards... (we should not really get here, but just for safety)
             onFirstPhaseResult(shardIndex, null, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
         } else {
-            final DiscoveryNode node = nodes.apply(shard.currentNodeId());
+            final DiscoveryNode node = nodeIdToDiscsoveryNode.apply(shard.currentNodeId());
             if (node == null) {
                 onFirstPhaseResult(shardIndex, shard, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
             } else {
@@ -285,7 +286,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     private void raiseEarlyFailure(Exception e) {
         for (AtomicArray.Entry<FirstResult> entry : firstResults.asList()) {
             try {
-                DiscoveryNode node = nodes.apply(entry.value.shardTarget().nodeId());
+                DiscoveryNode node = nodeIdToDiscsoveryNode.apply(entry.value.shardTarget().nodeId());
                 sendReleaseSearchContext(entry.value.id(), node);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
@@ -310,7 +311,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                 if (queryResult.hasHits()
                     && docIdsToLoad.get(entry.index) == null) { // but none of them made it to the global top docs
                     try {
-                        DiscoveryNode node = nodes.apply(entry.value.queryResult().shardTarget().nodeId());
+                        DiscoveryNode node = nodeIdToDiscsoveryNode.apply(entry.value.queryResult().shardTarget().nodeId());
                         sendReleaseSearchContext(entry.value.queryResult().id(), node);
                     } catch (Exception e) {
                         logger.trace("failed to release context", e);
@@ -378,6 +379,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     protected abstract String firstPhaseName();
 
     protected Executor getExecutor() {
-        return threadPool.executor(ThreadPool.Names.SEARCH);
+        return executor;
     }
+
 }

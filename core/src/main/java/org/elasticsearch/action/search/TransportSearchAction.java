@@ -45,6 +45,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.search.SearchType.QUERY_AND_FETCH;
@@ -130,27 +131,27 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                                         ActionListener<SearchResponse> listener) {
         final Function<String, DiscoveryNode> nodesLookup = state.nodes()::get;
         final long clusterStateVersion = state.version();
-
+        Executor executor = threadPool.executor(ThreadPool.Names.SEARCH);
         AbstractSearchAsyncAction searchAsyncAction;
         switch(searchRequest.searchType()) {
             case DFS_QUERY_THEN_FETCH:
                 searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, nodesLookup,
-                    filteringAliasLookup, searchPhaseController, threadPool, searchRequest, listener, shardIterators, startTime,
+                    filteringAliasLookup, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
                     clusterStateVersion);
                 break;
             case QUERY_THEN_FETCH:
                 searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, nodesLookup,
-                    filteringAliasLookup, searchPhaseController, threadPool, searchRequest, listener, shardIterators, startTime,
+                    filteringAliasLookup, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
                     clusterStateVersion);
                 break;
             case DFS_QUERY_AND_FETCH:
                 searchAsyncAction = new SearchDfsQueryAndFetchAsyncAction(logger, searchTransportService, nodesLookup,
-                    filteringAliasLookup, searchPhaseController, threadPool, searchRequest, listener, shardIterators, startTime,
+                    filteringAliasLookup, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
                     clusterStateVersion);
                 break;
             case QUERY_AND_FETCH:
                 searchAsyncAction = new SearchQueryAndFetchAsyncAction(logger, searchTransportService, nodesLookup,
-                    filteringAliasLookup, searchPhaseController, threadPool, searchRequest, listener, shardIterators, startTime,
+                    filteringAliasLookup, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
                     clusterStateVersion);
                 break;
             default:

@@ -35,10 +35,10 @@ import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
@@ -50,10 +50,10 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
 
     SearchQueryThenFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
                                     Function<String, DiscoveryNode> nodeLookup, Map<String, String[]> perIndexFilteringAliases,
-                                    SearchPhaseController searchPhaseController, ThreadPool threadPool,
+                                    SearchPhaseController searchPhaseController, Executor executor,
                                     SearchRequest request, ActionListener<SearchResponse> listener,
                                     GroupShardsIterator shardsIts, long startTime, long clusterStateVersion) {
-        super(logger, searchTransportService, nodeLookup, perIndexFilteringAliases, threadPool, request, listener,
+        super(logger, searchTransportService, nodeLookup, perIndexFilteringAliases, executor, request, listener,
             shardsIts, startTime, clusterStateVersion);
         this.searchPhaseController = searchPhaseController;
         fetchResults = new AtomicArray<>(firstResults.length());
@@ -87,7 +87,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
         final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
         for (AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
             QuerySearchResultProvider queryResult = firstResults.get(entry.index);
-            DiscoveryNode node = nodes.apply(queryResult.shardTarget().nodeId());
+            DiscoveryNode node = nodeIdToDiscsoveryNode.apply(queryResult.shardTarget().nodeId());
             ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult(), entry, lastEmittedDocPerShard);
             executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
         }

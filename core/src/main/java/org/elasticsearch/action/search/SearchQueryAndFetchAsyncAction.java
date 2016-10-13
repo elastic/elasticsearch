@@ -27,10 +27,10 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetchSearchResult> {
@@ -39,10 +39,10 @@ class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetc
 
     SearchQueryAndFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
                                    Function<String, DiscoveryNode> nodeLookup, Map<String, String[]> perIndexFilteringAliases,
-                                   SearchPhaseController searchPhaseController, ThreadPool threadPool,
+                                   SearchPhaseController searchPhaseController, Executor executor,
                                    SearchRequest request, ActionListener<SearchResponse> listener,
                                    GroupShardsIterator shardsIts, long startTime, long clusterStateVersion) {
-        super(logger, searchTransportService, nodeLookup, perIndexFilteringAliases, threadPool,
+        super(logger, searchTransportService, nodeLookup, perIndexFilteringAliases, executor,
                 request, listener, shardsIts, startTime, clusterStateVersion);
         this.searchPhaseController = searchPhaseController;
     }

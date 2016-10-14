@@ -22,6 +22,7 @@ package org.elasticsearch.search;
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterState;
@@ -563,11 +564,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final DefaultSearchContext searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,
             engineSearcher, indexService, indexShard, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
             timeout, fetchPhase);
-        // we clone the query shard context here just for rewriting otherwise we
-        // might end up with incorrect state since we are using now() or script services
-        // during rewrite and normalized / evaluate templates etc.
-        request.rewrite(new QueryShardContext(searchContext.getQueryShardContext()));
-        assert searchContext.getQueryShardContext().isCachable();
+        boolean success = false;
+        try {
+            // we clone the query shard context here just for rewriting otherwise we
+            // might end up with incorrect state since we are using now() or script services
+            // during rewrite and normalized / evaluate templates etc.
+            request.rewrite(new QueryShardContext(searchContext.getQueryShardContext()));
+            assert searchContext.getQueryShardContext().isCachable();
+            success = true;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(searchContext);
+            }
+        }
         return searchContext;
     }
 

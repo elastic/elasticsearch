@@ -39,7 +39,7 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
         private final ContentPath contentPath;
 
         public BuilderContext(Settings indexSettings, ContentPath contentPath) {
-            assert indexSettings != null;
+            Objects.requireNonNull(indexSettings, "indexSettings is required");
             this.contentPath = contentPath;
             this.indexSettings = indexSettings;
         }

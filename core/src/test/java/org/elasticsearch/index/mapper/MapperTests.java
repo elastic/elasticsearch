@@ -24,20 +24,19 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class MapperTests extends ESTestCase {
 
-    public void testBuilderContextWithIndexSettings() {
+    public void testSuccessfulBuilderContext() {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath(1));
+        ContentPath contentPath = new ContentPath(1);
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, contentPath);
 
-        assertNotNull(context.indexSettings());
-        assertThat(context.indexSettings(), equalTo(settings));
+        assertEquals(settings, context.indexSettings());
+        assertEquals(contentPath, context.path());
     }
 
     public void testBuilderContextWithIndexSettingsAsNull() {
-        AssertionError e = expectThrows(AssertionError.class, () -> new Mapper.BuilderContext(null, new ContentPath(1)));
+        NullPointerException e = expectThrows(NullPointerException.class, () -> new Mapper.BuilderContext(null, new ContentPath(1)));
     }
 
 

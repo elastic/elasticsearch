@@ -28,6 +28,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Internal validate request executed directly against a specific index shard.
@@ -50,7 +51,7 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
         this.types = request.types();
         this.explain = request.explain();
         this.rewrite = request.rewrite();
-        this.filteringAliases = filteringAliases;
+        this.filteringAliases = Objects.requireNonNull(filteringAliases, "filteringAliases must not be null");
         this.nowInMillis = request.nowInMillis;
     }
 

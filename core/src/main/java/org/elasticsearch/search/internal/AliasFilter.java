@@ -99,7 +99,7 @@ public final class AliasFilter implements Writeable {
             // this is only for BWC since 5.0 still  only sends aliases so this must be rewritten on the executing node
             // if we talk to an older node we also only forward/write the string array which is compatible with the consumers
             // in 5.0 see ExplainRequest and QueryValidationRequest
-            throw new IllegalStateException("alias filter must be rewritten first");
+            throw new IllegalStateException("alias filter for aliases: " + Arrays.toString(aliases) + " must be rewritten first");
         }
         return filter;
     }

@@ -18,8 +18,10 @@
  */
 package org.elasticsearch.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.validate.query.ShardValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -35,10 +37,12 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 
 public class ShardValidateQueryRequestTests extends ESTestCase {
+    public static final Version VERSION_5_0 = Version.fromId(5000099);
 
     protected NamedWriteableRegistry namedWriteableRegistry;
     protected SearchRequestParsers searchRequestParsers;
@@ -74,6 +78,37 @@ public class ShardValidateQueryRequestTests extends ESTestCase {
                 assertEquals(request.rewrite(), readRequest.rewrite());
                 assertEquals(request.shardId(), readRequest.shardId());
             }
+        }
+    }
+
+    // BWC test for changes from #20916
+    public void testSerialize50Request() throws IOException {
+        ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest("indices");
+        validateQueryRequest.query(QueryBuilders.termQuery("field", "value"));
+        validateQueryRequest.rewrite(true);
+        validateQueryRequest.explain(false);
+        validateQueryRequest.types("type1", "type2");
+        ShardValidateQueryRequest request = new ShardValidateQueryRequest(new ShardId("index", "foobar", 1),
+            new AliasFilter(QueryBuilders.termQuery("filter_field", "value"), new String[] {"alias0", "alias1"}), validateQueryRequest);
+        BytesArray requestBytes = new BytesArray(Base64.getDecoder()
+            // this is a base64 encoded request generated with the same input
+            .decode("AAVpbmRleAZmb29iYXIBAQdpbmRpY2VzBAR0ZXJtP4AAAAAFZmllbGQVBXZhbHVlAgV0eXBlMQV0eXBlMgIGYWxpYXMwBmFsaWFzMQABAA"));
+        try (StreamInput in = new NamedWriteableAwareStreamInput(requestBytes.streamInput(), namedWriteableRegistry)) {
+            in.setVersion(VERSION_5_0);
+            ShardValidateQueryRequest readRequest = new ShardValidateQueryRequest();
+            readRequest.readFrom(in);
+            assertEquals(0, in.available());
+            assertArrayEquals(request.filteringAliases().getAliases(), readRequest.filteringAliases().getAliases());
+            expectThrows(IllegalStateException.class, () -> readRequest.filteringAliases().getQueryBuilder());
+            assertArrayEquals(request.types(), readRequest.types());
+            assertEquals(request.explain(), readRequest.explain());
+            assertEquals(request.query(), readRequest.query());
+            assertEquals(request.rewrite(), readRequest.rewrite());
+            assertEquals(request.shardId(), readRequest.shardId());
+            BytesStreamOutput output = new BytesStreamOutput();
+            output.setVersion(VERSION_5_0);
+            readRequest.writeTo(output);
+            assertEquals(output.bytes().toBytesRef(), requestBytes.toBytesRef());
         }
     }
 }

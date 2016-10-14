@@ -22,6 +22,7 @@ package org.elasticsearch.action.explain;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -43,7 +44,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
     private String[] storedFields;
     private FetchSourceContext fetchSourceContext;
 
-    private AliasFilter filteringAlias = null;
+    private AliasFilter filteringAlias = new AliasFilter(null, Strings.EMPTY_ARRAY);
 
     long nowInMillis;
 

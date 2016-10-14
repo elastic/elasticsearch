@@ -20,6 +20,9 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ShardValidateQueryRequestTests;
+import org.elasticsearch.action.admin.indices.validate.query.ShardValidateQueryRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -30,6 +33,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -48,12 +52,12 @@ import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.AbstractSearchTestCase;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
@@ -167,6 +171,36 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
         Function<XContentParser, QueryParseContext> contextFactory = (p) -> new QueryParseContext(queriesRegistry,
             p, new ParseFieldMatcher(Settings.EMPTY));
         return ShardSearchRequest.parseAliasFilter(contextFactory, indexMetaData, aliasNames);
+    }
+
+    // BWC test for changes from #20916
+    public void testSerialize50Request() throws IOException {
+        BytesArray requestBytes = new BytesArray(Base64.getDecoder()
+            // this is a base64 encoded request generated with the same input
+            .decode("AAh4cXptdEhJcgdnT0d1ZldWyfL/sgQBJAHkDAMBAAIBAQ4TWlljWlZ5TkVmRU5xQnFQVHBjVBRZbUpod2pRV2dDSXVxRXpRaEdGVBRFZWFJY0plT2hn" +
+                "UEpISFhmSXR6Qw5XZ1hQcmFidWhWalFSQghuUWNwZ2JjQxBtZldRREJPaGF3UnlQSE56EVhQSUtRa25Iekh3bU5kbGVECWlFT2NIeEh3RgZIYXpMTWgUeGJq" +
+                "VU9Tdkdua3RORU5QZkNrb1EOalRyWGh5WXhvZ3plV2UUcWlXZFl2eUFUSXdPVGdMUUtYTHAJU3RKR3JxQkVJEkdEQ01xUHpnWWNaT3N3U3prSRIUeURlVFpM" +
+                "Q1lBZERZcWpDb3NOVWIST1NyQlZtdUNrd0F1UXRvdVRjEGp6RlVMd1dqc3VtUVNaTk0JT3N2cnpLQ3ZLBmRpS1J6cgdYbmVhZnBxBUlTUU9pEEJMcm1ERXVs" +
+                "eXhESlBoVkgTaWdUUmtVZGh4d0FFc2ZKRm9ZahNrb01XTnFFd2NWSVVDU3pWS2xBC3JVTWV3V2tUUWJUE3VGQU1Hd21CYUFMTmNQZkxobXUIZ3dxWHBxWXcF" +
+                "bmNDZUEOTFBSTEpYZVF6Z3d2eE0PV1BucUFacll6WWRxa1hCDGxkbXNMaVRzcUZXbAtSY0NsY3FNdlJQcv8BAP////8PAQAAARQAAQp5THlIcHdQeGtMAAAB" +
+                "AQAAAAEDbkVLAQMBCgACAAADAQABAAAAAQhIc25wRGxQbwEBQgABAAACAQMAAAEIAAAJMF9OSG9kSmh2HwABAwljRW5MVWxFbVQFemlxWG8KcXZQTkRUUGJk" +
+                "bgECCkpMbXVMT1dtVnkISEdUUHhsd0cBAAEJAAABA2lkcz+rKsUAAAAAAAAAAAECAQYAAgwxX0ZlRWxSQkhzQ07/////DwABAAEDCnRyYXFHR1hjVHkKTERY" +
+                "aE1HRWVySghuSWtzbEtXUwABCgEHSlRwQnhwdwAAAQECAgAAAAAAAQcyX3FlYmNDGQEEBklxZU9iUQdTc01Gek5YCWlMd2xuamNRQwNiVncAAUHt61kAAQR0" +
+                "ZXJtP4AAAAANbUtDSnpHU3lidm5KUBUMaVpqeG9vcm5QSFlvAAEBLGdtcWxuRWpWTXdvTlhMSHh0RWlFdHBnbEF1cUNmVmhoUVlwRFZxVllnWWV1A2ZvbwEA" +
+                "AQhwYWlubGVzc/8AALk4AAAAAAABAAAAAAAAAwpKU09PU0ZmWnhFClVqTGxMa2p3V2gKdUJwZ3R3dXFER5Hg97uT7MOmPgEADw"));
+        try (StreamInput in = new NamedWriteableAwareStreamInput(requestBytes.streamInput(), namedWriteableRegistry)) {
+            in.setVersion(ShardValidateQueryRequestTests.VERSION_5_0);
+            ShardSearchTransportRequest readRequest = new ShardSearchTransportRequest();
+            readRequest.readFrom(in);
+            assertEquals(0, in.available());
+            IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, () -> readRequest.filteringAliases());
+            assertEquals("alias filter for aliases: [JSOOSFfZxE, UjLlLkjwWh, uBpgtwuqDG] must be rewritten first",
+                illegalStateException.getMessage());
+            BytesStreamOutput output = new BytesStreamOutput();
+            output.setVersion(ShardValidateQueryRequestTests.VERSION_5_0);
+            readRequest.writeTo(output);
+            assertEquals(output.bytes().toBytesRef(), requestBytes.toBytesRef());
+        }
     }
 
 }

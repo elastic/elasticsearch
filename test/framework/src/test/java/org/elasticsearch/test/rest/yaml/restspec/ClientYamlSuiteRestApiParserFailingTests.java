@@ -145,7 +145,9 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
 
     private void parseAndExpectFailure(String brokenJson, String expectedErrorMessage) throws Exception {
         XContentParser parser = JsonXContent.jsonXContent.createParser(brokenJson);
-        IOException e = expectThrows(IOException.class, () -> new ClientYamlSuiteRestApiParser().parse("location", parser));
+        ClientYamlSuiteRestApiParser restApiParser = new ClientYamlSuiteRestApiParser();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> restApiParser.parse("location", parser));
         assertThat(e.getMessage(), containsString(expectedErrorMessage));
     }
 

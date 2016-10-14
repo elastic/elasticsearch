@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
 
@@ -43,7 +44,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
     private String[] storedFields;
     private FetchSourceContext fetchSourceContext;
 
-    private String[] filteringAlias = Strings.EMPTY_ARRAY;
+    private AliasFilter filteringAlias = new AliasFilter(null, Strings.EMPTY_ARRAY);
 
     long nowInMillis;
 
@@ -131,11 +132,11 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
         return this;
     }
 
-    public String[] filteringAlias() {
+    public AliasFilter filteringAlias() {
         return filteringAlias;
     }
 
-    public ExplainRequest filteringAlias(String[] filteringAlias) {
+    public ExplainRequest filteringAlias(AliasFilter filteringAlias) {
         if (filteringAlias != null) {
             this.filteringAlias = filteringAlias;
         }
@@ -166,7 +167,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
         routing = in.readOptionalString();
         preference = in.readOptionalString();
         query = in.readNamedWriteable(QueryBuilder.class);
-        filteringAlias = in.readStringArray();
+        filteringAlias = new AliasFilter(in);
         storedFields = in.readOptionalStringArray();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         nowInMillis = in.readVLong();
@@ -180,7 +181,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
         out.writeNamedWriteable(query);
-        out.writeStringArray(filteringAlias);
+        filteringAlias.writeTo(out);
         out.writeOptionalStringArray(storedFields);
         out.writeOptionalWriteable(fetchSourceContext);
         out.writeVLong(nowInMillis);

@@ -97,7 +97,7 @@ public class Version {
      * If you need a version that doesn't exist here for instance V_5_1_0 then go and create such a version
      * as a constant where you need it:
      * <pre>
-     *   public static final Version V_5_1_0_UNRELEASED = new Version(5010099, Version.CURRENT.luceneVersion);
+     *   public static final Version V_5_1_0_UNRELEASED = Version.fromId(5010099);
      * </pre>
      * Then go to VersionsTest.java and add a test for this constant VersionTests#testUnknownVersions().
      * This is particularly useful if you are building a feature that needs a BWC layer for this unreleased version etc.*/

@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -38,6 +37,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -60,6 +60,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
     private final SearchPhaseController searchPhaseController;
+    private final SearchService searchService;
 
     @Inject
     public TransportSearchAction(Settings settings, ThreadPool threadPool, BigArrays bigArrays, ScriptService scriptService,
@@ -71,6 +72,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchTransportService = new SearchTransportService(settings, transportService);
         SearchTransportService.registerRequestHandler(transportService, searchService);
         this.clusterService = clusterService;
+        this.searchService = searchService;
+    }
+
+    private Map<String, AliasFilter> buildPerIndexAliasFilter(SearchRequest request, ClusterState clusterState, String...concreteIndices) {
+        final Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
+        for (String index : concreteIndices) {
+            clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index);
+            AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, index, request.indices());
+            if (aliasFilter != null) {
+                aliasFilterMap.put(index, aliasFilter);
+            }
+        }
+        return aliasFilterMap;
     }
 
     @Override
@@ -85,14 +99,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // of just for the _search api
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, searchRequest.indicesOptions(),
             startTimeInMillis, searchRequest.indices());
-        Map<String, String[]> filteringAliasLookup = new HashMap<>();
-
-        for (String index : concreteIndices) {
-            clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index);
-            filteringAliasLookup.put(index, indexNameExpressionResolver.filteringAliases(clusterState,
-                index, searchRequest.indices()));
-        }
-
+        Map<String, AliasFilter> aliasFilter = buildPerIndexAliasFilter(searchRequest, clusterState, concreteIndices);
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, searchRequest.routing(),
             searchRequest.indices());
         GroupShardsIterator shardIterators = clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap,
@@ -122,12 +129,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             logger.debug("failed to optimize search type, continue as normal", e);
         }
 
-        searchAsyncAction(searchRequest, shardIterators, startTimeInMillis, clusterState, Collections.unmodifiableMap(filteringAliasLookup)
+        searchAsyncAction(searchRequest, shardIterators, startTimeInMillis, clusterState, Collections.unmodifiableMap(aliasFilter)
             , listener).start();
     }
 
     private AbstractSearchAsyncAction searchAsyncAction(SearchRequest searchRequest, GroupShardsIterator shardIterators, long startTime,
-                                                        ClusterState state,  Map<String, String[]> filteringAliasLookup,
+                                                        ClusterState state,  Map<String, AliasFilter> aliasFilter,
                                                         ActionListener<SearchResponse> listener) {
         final Function<String, DiscoveryNode> nodesLookup = state.nodes()::get;
         final long clusterStateVersion = state.version();
@@ -136,22 +143,22 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         switch(searchRequest.searchType()) {
             case DFS_QUERY_THEN_FETCH:
                 searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, nodesLookup,
-                    filteringAliasLookup, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
+                    aliasFilter, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
                     clusterStateVersion);
                 break;
             case QUERY_THEN_FETCH:
                 searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, nodesLookup,
-                    filteringAliasLookup, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
+                    aliasFilter, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
                     clusterStateVersion);
                 break;
             case DFS_QUERY_AND_FETCH:
                 searchAsyncAction = new SearchDfsQueryAndFetchAsyncAction(logger, searchTransportService, nodesLookup,
-                    filteringAliasLookup, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
+                    aliasFilter, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
                     clusterStateVersion);
                 break;
             case QUERY_AND_FETCH:
                 searchAsyncAction = new SearchQueryAndFetchAsyncAction(logger, searchTransportService, nodesLookup,
-                    filteringAliasLookup, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
+                    aliasFilter, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
                     clusterStateVersion);
                 break;
             default:

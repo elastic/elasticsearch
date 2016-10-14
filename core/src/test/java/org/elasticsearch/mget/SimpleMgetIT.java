@@ -53,7 +53,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
         MultiGetResponse mgetResponse = client().prepareMultiGet()
                 .add(new MultiGetRequest.Item("test", "test", "1"))
                 .add(new MultiGetRequest.Item("nonExistingIndex", "test", "1"))
-                .execute().actionGet();
+                .get();
         assertThat(mgetResponse.getResponses().length, is(2));
 
         assertThat(mgetResponse.getResponses()[0].getIndex(), is("test"));
@@ -65,10 +65,9 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertThat(((ElasticsearchException) mgetResponse.getResponses()[1].getFailure().getFailure()).getIndex().getName(),
             is("nonExistingIndex"));
 
-
         mgetResponse = client().prepareMultiGet()
                 .add(new MultiGetRequest.Item("nonExistingIndex", "test", "1"))
-                .execute().actionGet();
+                .get();
         assertThat(mgetResponse.getResponses().length, is(1));
         assertThat(mgetResponse.getResponses()[0].getIndex(), is("nonExistingIndex"));
         assertThat(mgetResponse.getResponses()[0].isFailed(), is(true));
@@ -87,7 +86,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
         MultiGetResponse mgetResponse = client().prepareMultiGet()
             .add(new MultiGetRequest.Item("test", "test", "1"))
             .add(new MultiGetRequest.Item("multiIndexAlias", "test", "1"))
-            .execute().actionGet();
+            .get();
         assertThat(mgetResponse.getResponses().length, is(2));
 
         assertThat(mgetResponse.getResponses()[0].getIndex(), is("test"));
@@ -99,7 +98,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
 
         mgetResponse = client().prepareMultiGet()
             .add(new MultiGetRequest.Item("multiIndexAlias", "test", "1"))
-            .execute().actionGet();
+            .get();
         assertThat(mgetResponse.getResponses().length, is(1));
         assertThat(mgetResponse.getResponses()[0].getIndex(), is("multiIndexAlias"));
         assertThat(mgetResponse.getResponses()[0].isFailed(), is(true));
@@ -124,7 +123,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
         MultiGetResponse mgetResponse = client().prepareMultiGet()
                 .add(new MultiGetRequest.Item(indexOrAlias(), "test", "1").parent("4"))
                 .add(new MultiGetRequest.Item(indexOrAlias(), "test", "1"))
-                .execute().actionGet();
+                .get();
 
         assertThat(mgetResponse.getResponses().length, is(2));
         assertThat(mgetResponse.getResponses()[0].isFailed(), is(false));
@@ -192,7 +191,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
         MultiGetResponse mgetResponse = client().prepareMultiGet()
                 .add(new MultiGetRequest.Item(indexOrAlias(), "test", id).routing(routingOtherShard))
                 .add(new MultiGetRequest.Item(indexOrAlias(), "test", id))
-                .execute().actionGet();
+                .get();
 
         assertThat(mgetResponse.getResponses().length, is(2));
         assertThat(mgetResponse.getResponses()[0].isFailed(), is(false));

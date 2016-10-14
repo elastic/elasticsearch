@@ -42,7 +42,11 @@ public class ClientYamlSuiteRestApiParser {
                 if ("methods".equals(parser.currentName())) {
                     parser.nextToken();
                     while (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
-                        restApi.addMethod(parser.text());
+                        String method = parser.text();
+                        if (restApi.getMethods().contains(method)) {
+                            throw new IOException("Found duplicate method [" + method + "]");
+                        }
+                        restApi.addMethod(method);
                     }
                 }
 
@@ -56,13 +60,21 @@ public class ClientYamlSuiteRestApiParser {
 
                         if (parser.currentToken() == XContentParser.Token.START_ARRAY && "paths".equals(currentFieldName)) {
                             while (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
-                                restApi.addPath(parser.text());
+                                String path = parser.text();
+                                if (restApi.getPaths().contains(path)) {
+                                    throw new IOException("Found duplicate path [" + path + "]");
+                                }
+                                restApi.addPath(path);
                             }
                         }
 
                         if (parser.currentToken() == XContentParser.Token.START_OBJECT && "parts".equals(currentFieldName)) {
                             while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-                                restApi.addPathPart(parser.currentName());
+                                String part = parser.currentName();
+                                if (restApi.getPathParts().contains(part)) {
+                                    throw new IOException("Found duplicate part [" + part + "]");
+                                }
+                                restApi.addPathPart(part);
                                 parser.nextToken();
                                 if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
                                     throw new IOException("Expected parts field in rest api definition to contain an object");
@@ -73,6 +85,10 @@ public class ClientYamlSuiteRestApiParser {
 
                         if (parser.currentToken() == XContentParser.Token.START_OBJECT && "params".equals(currentFieldName)) {
                             while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+                                String param = parser.currentName();
+                                if (restApi.getParams().contains(param)) {
+                                    throw new IOException("Found duplicate param [" + param + "]");
+                                }
                                 restApi.addParam(parser.currentName());
                                 parser.nextToken();
                                 if (parser.currentToken() != XContentParser.Token.START_OBJECT) {

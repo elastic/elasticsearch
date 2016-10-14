@@ -67,13 +67,13 @@ import java.util.function.ToLongBiFunction;
  */
 public class Cache<K, V> {
     // positive if entries have an expiration
-    private long expireAfterAccess = -1;
+    private long expireAfterAccessNanos = -1;
 
     // true if entries can expire after access
     private boolean entriesExpireAfterAccess;
 
     // positive if entries have an expiration after write
-    private long expireAfterWrite = -1;
+    private long expireAfterWriteNanos = -1;
 
     // true if entries can expire after initial insertion
     private boolean entriesExpireAfterWrite;
@@ -98,20 +98,30 @@ public class Cache<K, V> {
     Cache() {
     }
 
-    void setExpireAfterAccess(long expireAfterAccess) {
-        if (expireAfterAccess <= 0) {
-            throw new IllegalArgumentException("expireAfterAccess <= 0");
+    void setExpireAfterAccessNanos(long expireAfterAccessNanos) {
+        if (expireAfterAccessNanos <= 0) {
+            throw new IllegalArgumentException("expireAfterAccessNanos <= 0");
         }
-        this.expireAfterAccess = expireAfterAccess;
+        this.expireAfterAccessNanos = expireAfterAccessNanos;
         this.entriesExpireAfterAccess = true;
     }
 
-    void setExpireAfterWrite(long expireAfterWrite) {
-        if (expireAfterWrite <= 0) {
-            throw new IllegalArgumentException("expireAfterWrite <= 0");
+    // pkg-private for testing
+    long getExpireAfterAccessNanos() {
+        return this.expireAfterAccessNanos;
+    }
+
+    void setExpireAfterWriteNanos(long expireAfterWriteNanos) {
+        if (expireAfterWriteNanos <= 0) {
+            throw new IllegalArgumentException("expireAfterWriteNanos <= 0");
         }
-        this.expireAfterWrite = expireAfterWrite;
+        this.expireAfterWriteNanos = expireAfterWriteNanos;
         this.entriesExpireAfterWrite = true;
+    }
+
+    // pkg-private for testing
+    long getExpireAfterWriteNanos() {
+        return this.expireAfterWriteNanos;
     }
 
     void setMaximumWeight(long maximumWeight) {
@@ -696,8 +706,8 @@ public class Cache<K, V> {
     }
 
     private boolean isExpired(Entry<K, V> entry, long now) {
-        return (entriesExpireAfterAccess && now - entry.accessTime > expireAfterAccess) ||
-                (entriesExpireAfterWrite && now - entry.writeTime > expireAfterWrite);
+        return (entriesExpireAfterAccess && now - entry.accessTime > expireAfterAccessNanos) ||
+                (entriesExpireAfterWrite && now - entry.writeTime > expireAfterWriteNanos);
     }
 
     private boolean unlink(Entry<K, V> entry) {

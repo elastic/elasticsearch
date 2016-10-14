@@ -19,9 +19,11 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -30,6 +32,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
+import org.joda.time.format.DateTimeFormat;
 
 import java.util.List;
 
@@ -439,6 +442,57 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 equalTo(0L));
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
                 equalTo(5L));
+    }
+
+    public void testCacheWithFilteredAlias() {
+        assertAcked(client().admin().indices().prepareCreate("index").addMapping("type", "created_at", "type=date")
+            .setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true, IndexMetaData.SETTING_NUMBER_OF_SHARDS,
+                1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .addAlias(new Alias("last_week").filter(QueryBuilders.rangeQuery("created_at").gte("now-7d/d")))
+            .get());
+        DateTime now = new DateTime(DateTimeZone.UTC);
+        client().prepareIndex("index", "type", "1").setRouting("1").setSource("created_at",
+            DateTimeFormat.forPattern("YYYY-MM-dd").print(now)).get();
+        refresh();
+
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+            equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+            equalTo(0L));
+
+        SearchResponse r1 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
+            .setQuery(QueryBuilders.rangeQuery("created_at").gte("now-7d/d")).get();
+        assertSearchResponse(r1);
+        assertThat(r1.getHits().getTotalHits(), equalTo(1L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+            equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+            equalTo(1L));
+
+        r1 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
+            .setQuery(QueryBuilders.rangeQuery("created_at").gte("now-7d/d")).get();
+        assertSearchResponse(r1);
+        assertThat(r1.getHits().getTotalHits(), equalTo(1L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+            equalTo(1L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+            equalTo(1L));
+
+        r1 = client().prepareSearch("last_week").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get();
+        assertSearchResponse(r1);
+        assertThat(r1.getHits().getTotalHits(), equalTo(1L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+            equalTo(1L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+            equalTo(2L));
+
+        r1 = client().prepareSearch("last_week").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get();
+        assertSearchResponse(r1);
+        assertThat(r1.getHits().getTotalHits(), equalTo(1L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+            equalTo(2L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+            equalTo(2L));
     }
 
 }

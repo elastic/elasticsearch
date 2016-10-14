@@ -297,7 +297,7 @@ public class LegacyGeoPointFieldMapper extends BaseGeoPointFieldMapper implement
             validPoint = true;
         }
 
-        if (coerce.value() == true && validPoint == false) {
+        if (coerce.value() && validPoint == false) {
             // by setting coerce to false we are assuming all geopoints are already in a valid coordinate system
             // thus this extra step can be skipped
             GeoUtils.normalizePoint(point, true, true);

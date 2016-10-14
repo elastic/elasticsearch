@@ -256,22 +256,21 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                     recordFailure(item.getFailure(), failures);
                     continue;
                 }
-
                 switch (item.getOpType()) {
-                case "index":
-                case "create":
-                    IndexResponse ir = item.getResponse();
-                    if (ir.getResult() == DocWriteResponse.Result.CREATED) {
-                        task.countCreated();
-                    } else {
+                    case CREATE:
+                    case INDEX:
+                        if (item.getResponse().getResult() == DocWriteResponse.Result.CREATED) {
+                            task.countCreated();
+                        } else {
+                            task.countUpdated();
+                        }
+                        break;
+                    case UPDATE:
                         task.countUpdated();
-                    }
-                    break;
-                case "delete":
-                    task.countDeleted();
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unknown op type:  " + item.getOpType());
+                        break;
+                    case DELETE:
+                        task.countDeleted();
+                        break;
                 }
                 // Track the indexes we've seen so we can refresh them if requested
                 destinationIndicesThisBatch.add(item.getIndex());

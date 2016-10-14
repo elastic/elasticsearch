@@ -257,7 +257,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
         if (nearP == null)
             nearP = xRandomPointIn(r, bounds);
 
-        if (small == true) {
+        if (small) {
             // between 3 and 6 degrees
             final double latRange = 3 * r.nextDouble() + 3;
             final double lonRange = 3 * r.nextDouble() + 3;

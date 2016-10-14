@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.Script;
@@ -68,6 +69,7 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
     protected NamedWriteableRegistry namedWriteableRegistry;
     protected SearchRequestParsers searchRequestParsers;
     private TestSearchExtPlugin searchExtPlugin;
+    protected IndicesQueriesRegistry queriesRegistry;
 
     public void setUp() throws Exception {
         super.setUp();
@@ -79,6 +81,7 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
         entries.addAll(searchModule.getNamedWriteables());
         namedWriteableRegistry = new NamedWriteableRegistry(entries);
         searchRequestParsers = searchModule.getSearchRequestParsers();
+        queriesRegistry = searchModule.getQueryParserRegistry();
     }
 
     protected SearchSourceBuilder createSearchSourceBuilder() throws IOException {

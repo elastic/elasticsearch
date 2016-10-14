@@ -126,10 +126,6 @@
           "type" : "list",
           "description" : "Specific 'tag' of the request for logging and statistical purposes"
         },
-        "timeout": {
-          "type" : "time",
-          "description" : "Explicit operation timeout"
-        },
         "version": {
           "type" : "boolean",
           "description" : "Specify whether to return document version as part of a hit"

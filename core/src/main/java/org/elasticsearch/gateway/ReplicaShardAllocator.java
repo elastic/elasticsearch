@@ -65,7 +65,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         List<Runnable> shardCancellationActions = new ArrayList<>();
         for (RoutingNode routingNode : routingNodes) {
             for (ShardRouting shard : routingNode) {
-                if (shard.primary() == true) {
+                if (shard.primary()) {
                     continue;
                 }
                 if (shard.initializing() == false) {
@@ -109,7 +109,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                     }
                     if (currentNode.equals(nodeWithHighestMatch) == false
                             && Objects.equals(currentSyncId, primaryStore.syncId()) == false
-                            && matchingNodes.isNodeMatchBySyncID(nodeWithHighestMatch) == true) {
+                            && matchingNodes.isNodeMatchBySyncID(nodeWithHighestMatch)) {
                         // we found a better match that has a full sync id match, the existing allocation is not fully synced
                         // so we found a better one, cancel this one
                         logger.debug("cancelling allocation of replica on [{}], sync id match found on node [{}]",

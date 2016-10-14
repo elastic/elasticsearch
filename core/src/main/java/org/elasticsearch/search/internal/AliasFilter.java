@@ -29,6 +29,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * Represents a {@link QueryBuilder} and a list of alias names that filters the builder is composed of.
@@ -100,5 +102,20 @@ public final class AliasFilter implements Writeable {
             throw new IllegalStateException("alias filter must be rewritten first");
         }
         return filter;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        AliasFilter that = (AliasFilter) o;
+        return reparseAliases == that.reparseAliases &&
+            Arrays.equals(aliases, that.aliases) &&
+            Objects.equals(filter, that.filter);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(aliases, filter, reparseAliases);
     }
 }

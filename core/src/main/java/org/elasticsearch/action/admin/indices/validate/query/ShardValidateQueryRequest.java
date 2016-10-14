@@ -42,10 +42,9 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
     private AliasFilter filteringAliases;
 
     public ShardValidateQueryRequest() {
-
     }
 
-    ShardValidateQueryRequest(ShardId shardId, AliasFilter filteringAliases, ValidateQueryRequest request) {
+    public ShardValidateQueryRequest(ShardId shardId, AliasFilter filteringAliases, ValidateQueryRequest request) {
         super(shardId, request);
         this.query = request.query();
         this.types = request.types();

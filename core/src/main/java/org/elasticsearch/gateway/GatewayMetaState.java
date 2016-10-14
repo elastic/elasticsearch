@@ -192,7 +192,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         Set<Index> relevantIndices;
         if (isDataOnlyNode(state)) {
             relevantIndices = getRelevantIndicesOnDataOnlyNode(state, previousState, previouslyWrittenIndices);
-        } else if (state.nodes().getLocalNode().isMasterNode() == true) {
+        } else if (state.nodes().getLocalNode().isMasterNode()) {
             relevantIndices = getRelevantIndicesForMasterEligibleNode(state);
         } else {
             relevantIndices = Collections.emptySet();

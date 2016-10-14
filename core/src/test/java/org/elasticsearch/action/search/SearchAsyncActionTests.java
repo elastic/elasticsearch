@@ -68,7 +68,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             }
         };
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode replicaNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
 
         Map<DiscoveryNode, Set<Long>> nodeToContextMap = new HashMap<>();
         AtomicInteger contextIdGenerator = new AtomicInteger(0);

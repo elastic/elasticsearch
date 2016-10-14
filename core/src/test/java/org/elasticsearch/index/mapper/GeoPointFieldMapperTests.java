@@ -84,7 +84,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
         assertThat(doc.rootDoc().getField("point.lon").fieldType().stored(), is(stored));
         assertThat(doc.rootDoc().getField("point.geohash"), nullValue());
-        if (indexCreatedBefore22 == true) {
+        if (indexCreatedBefore22) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
             assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(GeoPointField.encodeLatLon(1.2, 1.3)));

@@ -58,7 +58,7 @@ public class GlobalCheckpointTests extends ESTestCase {
     }
 
     private final AtomicInteger aIdGenerator = new AtomicInteger();
-    private Map<String, Long> randomAllocations(int min, int max) {
+    private Map<String, Long> randomAllocationsWithLocalCheckpoints(int min, int max) {
         Map<String, Long> allocations = new HashMap<>();
         for (int i = randomIntBetween(min, max); i > 0; i--) {
             allocations.put("id_" + aIdGenerator.incrementAndGet(), (long)randomInt(1000));
@@ -68,21 +68,17 @@ public class GlobalCheckpointTests extends ESTestCase {
 
     public void testGlobalCheckpointUpdate() {
         Map<String, Long> allocations = new HashMap<>();
-        Map<String, Long> tmpAllocations = randomAllocations(0, 5);
-        Set<String> active = new HashSet<>(tmpAllocations.keySet());
-        allocations.putAll(tmpAllocations);
-        tmpAllocations = randomAllocations(0, 5);
-        Set<String> initializing = new HashSet<>(tmpAllocations.keySet());
-        allocations.putAll(tmpAllocations);
+        Map<String, Long> activeWithCheckpoints = randomAllocationsWithLocalCheckpoints(0, 5);
+        Set<String> active = new HashSet<>(activeWithCheckpoints.keySet());
+        allocations.putAll(activeWithCheckpoints);
+        Map<String, Long> initializingWithCheckpoints = randomAllocationsWithLocalCheckpoints(0, 5);
+        Set<String> initializing = new HashSet<>(initializingWithCheckpoints.keySet());
+        allocations.putAll(initializingWithCheckpoints);
         assertThat(allocations.size(), equalTo(active.size() + initializing.size()));
-        final long maxLocalCheckpoint;
-        if (allocations.isEmpty()) {
-            // note: this state can not happen in practice as we always have at least one primary shard active/in sync
-            // it is however nice not to assume this on this level and check we do the right thing.
-            maxLocalCheckpoint = UNASSIGNED_SEQ_NO;
-        } else {
-            maxLocalCheckpoint = allocations.values().stream().min(Long::compare).get();
-        }
+
+        // note: allocations can never be empty in practice as we always have at least one primary shard active/in sync
+        // it is however nice not to assume this on this level and check we do the right thing.
+        final long maxLocalCheckpoint = allocations.values().stream().min(Long::compare).orElse(UNASSIGNED_SEQ_NO);
 
         assertThat(checkpointService.getCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
 
@@ -138,8 +134,8 @@ public class GlobalCheckpointTests extends ESTestCase {
     }
 
     public void testMissingActiveIdsPreventAdvance() {
-        final Map<String, Long> active = randomAllocations(1, 5);
-        final Map<String, Long> initializing = randomAllocations(0, 5);
+        final Map<String, Long> active = randomAllocationsWithLocalCheckpoints(1, 5);
+        final Map<String, Long> initializing = randomAllocationsWithLocalCheckpoints(0, 5);
         final Map<String, Long> assigned = new HashMap<>();
         assigned.putAll(active);
         assigned.putAll(initializing);
@@ -163,11 +159,11 @@ public class GlobalCheckpointTests extends ESTestCase {
     }
 
     public void testMissingInSyncIdsPreventAdvance() {
-        final Map<String, Long> active = randomAllocations(0, 5);
-        final Map<String, Long> initializing = randomAllocations(1, 5);
+        final Map<String, Long> active = randomAllocationsWithLocalCheckpoints(0, 5);
+        final Map<String, Long> initializing = randomAllocationsWithLocalCheckpoints(1, 5);
         checkpointService.updateAllocationIdsFromMaster(active.keySet(), initializing.keySet());
         initializing.keySet().forEach(checkpointService::markAllocationIdAsInSync);
-        randomSubsetOf(randomInt(initializing.size()-1),
+        randomSubsetOf(randomInt(initializing.size() - 1),
             initializing.keySet()).forEach(aId -> checkpointService.updateLocalCheckpoint(aId, initializing.get(aId)));
 
         active.forEach(checkpointService::updateLocalCheckpoint);
@@ -183,9 +179,9 @@ public class GlobalCheckpointTests extends ESTestCase {
     }
 
     public void testInSyncIdsAreIgnoredIfNotValidatedByMaster() {
-        final Map<String, Long> active = randomAllocations(1, 5);
-        final Map<String, Long> initializing = randomAllocations(1, 5);
-        final Map<String, Long> nonApproved = randomAllocations(1, 5);
+        final Map<String, Long> active = randomAllocationsWithLocalCheckpoints(1, 5);
+        final Map<String, Long> initializing = randomAllocationsWithLocalCheckpoints(1, 5);
+        final Map<String, Long> nonApproved = randomAllocationsWithLocalCheckpoints(1, 5);
         checkpointService.updateAllocationIdsFromMaster(active.keySet(), initializing.keySet());
         initializing.keySet().forEach(checkpointService::markAllocationIdAsInSync);
         nonApproved.keySet().forEach(checkpointService::markAllocationIdAsInSync);
@@ -200,10 +196,10 @@ public class GlobalCheckpointTests extends ESTestCase {
     }
 
     public void testInSyncIdsAreRemovedIfNotValidatedByMaster() {
-        final Map<String, Long> activeToStay = randomAllocations(1, 5);
-        final Map<String, Long> initializingToStay = randomAllocations(1, 5);
-        final Map<String, Long> activeToBeRemoved = randomAllocations(1, 5);
-        final Map<String, Long> initializingToBeRemoved = randomAllocations(1, 5);
+        final Map<String, Long> activeToStay = randomAllocationsWithLocalCheckpoints(1, 5);
+        final Map<String, Long> initializingToStay = randomAllocationsWithLocalCheckpoints(1, 5);
+        final Map<String, Long> activeToBeRemoved = randomAllocationsWithLocalCheckpoints(1, 5);
+        final Map<String, Long> initializingToBeRemoved = randomAllocationsWithLocalCheckpoints(1, 5);
         final Set<String> active = Sets.union(activeToStay.keySet(), activeToBeRemoved.keySet());
         final Set<String> initializing = Sets.union(initializingToStay.keySet(), initializingToBeRemoved.keySet());
         final Map<String, Long> allocations = new HashMap<>();

@@ -35,24 +35,30 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.AbstractSearchTestCase;
+import org.elasticsearch.search.SearchModule;
 
 import java.io.IOException;
 import java.util.Base64;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -195,6 +201,22 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
             IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, () -> readRequest.filteringAliases());
             assertEquals("alias filter for aliases: [JSOOSFfZxE, UjLlLkjwWh, uBpgtwuqDG] must be rewritten first",
                 illegalStateException.getMessage());
+            IndexMetaData.Builder indexMetadata = new IndexMetaData.Builder(baseMetaData)
+                .putAlias(AliasMetaData.newAliasMetaDataBuilder("JSOOSFfZxE").filter("{\"term\" : {\"foo\" : \"bar\"}}"))
+                .putAlias(AliasMetaData.newAliasMetaDataBuilder("UjLlLkjwWh").filter("{\"term\" : {\"foo\" : \"bar1\"}}"))
+                .putAlias(AliasMetaData.newAliasMetaDataBuilder("uBpgtwuqDG").filter("{\"term\" : {\"foo\" : \"bar2\"}}"));
+            IndexSettings indexSettings = new IndexSettings(indexMetadata.build(), Settings.EMPTY);
+            final long nowInMillis = randomPositiveLong();
+            QueryShardContext context = new QueryShardContext(
+                0, indexSettings, null, null, null, null, null, queriesRegistry, null, null, null,
+                () -> nowInMillis);
+            readRequest.rewrite(context);
+            QueryBuilder queryBuilder = readRequest.filteringAliases();
+            assertEquals(queryBuilder, QueryBuilders.boolQuery()
+                .should(QueryBuilders.termQuery("foo", "bar"))
+                .should(QueryBuilders.termQuery("foo", "bar1"))
+                .should(QueryBuilders.termQuery("foo", "bar2"))
+            );
             BytesStreamOutput output = new BytesStreamOutput();
             output.setVersion(ShardValidateQueryRequestTests.V_5_0_0);
             readRequest.writeTo(output);

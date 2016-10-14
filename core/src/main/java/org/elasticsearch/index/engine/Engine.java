@@ -77,6 +77,7 @@ import java.util.Base64;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -277,9 +278,9 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract void index(Index operation) throws EngineException;
+    public abstract void index(Index operation) throws OperationFailedEngineException;
 
-    public abstract void delete(Delete delete) throws EngineException;
+    public abstract void delete(Delete delete) throws OperationFailedEngineException;
 
     /**
      * Attempts to do a special commit where the given syncID is put into the commit data. The attempt
@@ -767,11 +768,28 @@ public abstract class Engine implements Closeable {
     }
 
     public abstract static class Operation {
+
+        /** type of operation (index, delete), subclasses use static types */
+        public enum TYPE {
+            INDEX, DELETE;
+
+            private final String lowercase;
+
+            TYPE() {
+                this.lowercase = this.toString().toLowerCase(Locale.ROOT);
+            }
+
+            public String getLowercase() {
+                return lowercase;
+            }
+        }
+
         private final Term uid;
         private long version;
         private final VersionType versionType;
         private final Origin origin;
         private Translog.Location location;
+        private Exception failure;
         private final long startTime;
         private long endTime;
 
@@ -818,6 +836,18 @@ public abstract class Engine implements Closeable {
             return this.location;
         }
 
+        public Exception getFailure() {
+            return failure;
+        }
+
+        public void setFailure(Exception failure) {
+            this.failure = failure;
+        }
+
+        public boolean hasFailure() {
+            return failure != null;
+        }
+
         public int sizeInBytes() {
             if (location != null) {
                 return location.size;
@@ -853,6 +883,8 @@ public abstract class Engine implements Closeable {
         abstract String type();
 
         abstract String id();
+
+        abstract TYPE operationType();
     }
 
     public static class Index extends Operation {
@@ -890,6 +922,11 @@ public abstract class Engine implements Closeable {
         @Override
         public String id() {
             return this.doc.id();
+        }
+
+        @Override
+        TYPE operationType() {
+            return TYPE.INDEX;
         }
 
         public String routing() {
@@ -983,6 +1020,11 @@ public abstract class Engine implements Closeable {
         @Override
         public String id() {
             return this.id;
+        }
+
+        @Override
+        TYPE operationType() {
+            return TYPE.DELETE;
         }
 
         public void updateVersion(long version, boolean found) {

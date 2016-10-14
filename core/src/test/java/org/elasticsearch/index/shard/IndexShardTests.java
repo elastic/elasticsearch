@@ -359,7 +359,7 @@ public class IndexShardTests extends IndexShardTestCase {
             try {
                 indexShard.acquirePrimaryOperationLock(null, ThreadPool.Names.INDEX);
                 fail("shard shouldn't accept primary ops");
-            } catch (IllegalStateException ignored) {
+            } catch (ShardNotFoundException ignored) {
 
             }
         }

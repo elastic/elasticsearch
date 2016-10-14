@@ -19,7 +19,6 @@
 
 package org.elasticsearch;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.engine.OperationFailedEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TcpTransport;
@@ -487,8 +487,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.index.shard.TranslogRecoveryPerformer.BatchOperationException::new, 26),
         SNAPSHOT_CREATION_EXCEPTION(org.elasticsearch.snapshots.SnapshotCreationException.class,
                 org.elasticsearch.snapshots.SnapshotCreationException::new, 27),
-        DELETE_FAILED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.DeleteFailedEngineException.class,
-                org.elasticsearch.index.engine.DeleteFailedEngineException::new, 28),
+        // 28 was DeleteFailedEngineException
         DOCUMENT_MISSING_EXCEPTION(org.elasticsearch.index.engine.DocumentMissingException.class,
                 org.elasticsearch.index.engine.DocumentMissingException::new, 29),
         SNAPSHOT_EXCEPTION(org.elasticsearch.snapshots.SnapshotException.class,
@@ -581,8 +580,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.action.TimestampParsingException::new, 78),
         ROUTING_MISSING_EXCEPTION(org.elasticsearch.action.RoutingMissingException.class,
                 org.elasticsearch.action.RoutingMissingException::new, 79),
-        INDEX_FAILED_ENGINE_EXCEPTION(org.elasticsearch.index.engine.IndexFailedEngineException.class,
-                org.elasticsearch.index.engine.IndexFailedEngineException::new, 80),
+        OPERATION_FAILED_ENGINE_EXCEPTION(OperationFailedEngineException.class,
+                OperationFailedEngineException::new, 80),
         INDEX_SHARD_RESTORE_FAILED_EXCEPTION(org.elasticsearch.index.snapshots.IndexShardRestoreFailedException.class,
                 org.elasticsearch.index.snapshots.IndexShardRestoreFailedException::new, 81),
         REPOSITORY_EXCEPTION(org.elasticsearch.repositories.RepositoryException.class,

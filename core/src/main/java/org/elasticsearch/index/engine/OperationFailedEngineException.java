@@ -26,21 +26,21 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Objects;
 
-public class IndexFailedEngineException extends EngineException {
+public class OperationFailedEngineException extends EngineException {
 
     private final String type;
 
     private final String id;
 
-    public IndexFailedEngineException(ShardId shardId, String type, String id, Throwable cause) {
-        super(shardId, "Index failed for [" + type + "#" + id + "]", cause);
+    public OperationFailedEngineException(ShardId shardId, String operationType, String type, String id, Throwable cause) {
+        super(shardId, operationType + " failed for [" + type + "#" + id + "]", cause);
         Objects.requireNonNull(type, "type must not be null");
         Objects.requireNonNull(id, "id must not be null");
         this.type = type;
         this.id = id;
     }
 
-    public IndexFailedEngineException(StreamInput in) throws IOException{
+    public OperationFailedEngineException(StreamInput in) throws IOException{
         super(in);
         type = in.readString();
         id = in.readString();

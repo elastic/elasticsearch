@@ -397,7 +397,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void index(Index index) {
+    public void index(Index index) throws OperationFailedEngineException {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (index.origin().isRecovery()) {
@@ -408,13 +408,31 @@ public class InternalEngine extends Engine {
                     innerIndex(index);
                 }
             }
-        } catch (IllegalStateException | IOException e) {
-            try {
-                maybeFailEngine("index", e);
-            } catch (Exception inner) {
-                e.addSuppressed(inner);
+        } catch (Exception e) {
+            handleOperationFailure(index, e);
+        }
+    }
+
+    /**
+     * When indexing a document into Lucene, Lucene distinguishes between environment related errors
+     * (like out of disk space) and document specific errors (like analysis chain problems) by setting
+     * the IndexWriter.getTragicEvent() value for the former. maybeFailEngine checks for these kind of
+     * errors and returns true if that is the case. We use that to indicate a document level failure
+     * and set the error in operation.setFailure. In case of environment related errors, the failure
+     * is bubbled up
+     */
+    private void handleOperationFailure(final Operation operation, final Exception e) throws OperationFailedEngineException {
+        try {
+            if (maybeFailEngine(operation.operationType().getLowercase(), e)) {
+                throw new OperationFailedEngineException(shardId,
+                        operation.operationType().getLowercase(), operation.type(), operation.id(), e);
+            } else {
+                operation.setFailure(e);
             }
-            throw new IndexFailedEngineException(shardId, index.type(), index.id(), e);
+        } catch (Exception inner) {
+            e.addSuppressed(inner);
+            throw new OperationFailedEngineException(shardId,
+                    operation.operationType().getLowercase(), operation.type(), operation.id(), e);
         }
     }
 
@@ -545,18 +563,13 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void delete(Delete delete) throws EngineException {
+    public void delete(Delete delete) throws OperationFailedEngineException {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
             innerDelete(delete);
-        } catch (IllegalStateException | IOException e) {
-            try {
-                maybeFailEngine("delete", e);
-            } catch (Exception inner) {
-                e.addSuppressed(inner);
-            }
-            throw new DeleteFailedEngineException(shardId, delete, e);
+        } catch (Exception e) {
+            handleOperationFailure(delete, e);
         }
 
         maybePruneDeletedTombstones();

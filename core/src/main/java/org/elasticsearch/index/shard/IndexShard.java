@@ -555,7 +555,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexingOperationListeners.postIndex(index, e);
             throw e;
         }
-        indexingOperationListeners.postIndex(index, index.isCreated());
+        if (index.hasFailure()) {
+            indexingOperationListeners.postIndex(index, index.getFailure());
+        } else {
+            indexingOperationListeners.postIndex(index, index.isCreated());
+        }
     }
 
     public Engine.Delete prepareDeleteOnPrimary(String type, String id, long version, VersionType versionType) {
@@ -599,8 +603,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexingOperationListeners.postDelete(delete, e);
             throw e;
         }
-
-        indexingOperationListeners.postDelete(delete);
+        if (delete.hasFailure()) {
+            indexingOperationListeners.postDelete(delete, delete.getFailure());
+        } else {
+            indexingOperationListeners.postDelete(delete);
+        }
     }
 
     public Engine.GetResult get(Engine.Get get) {

@@ -321,7 +321,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(),
             new BytesArray(new byte[]{1}), null);
         Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
-        shard.index(index);
+        shard.execute(index);
         assertTrue(shard.shouldFlush());
         assertEquals(2, shard.getEngine().getTranslog().totalOperations());
         client().prepareIndex("test", "test", "2").setSource("{}").setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
@@ -406,23 +406,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();
         List<Exception> failures = new ArrayList<>();
         IndexingOperationListener listener = new IndexingOperationListener() {
-
             @Override
-            public void postIndex(Engine.Index index, boolean created) {
-                try {
-                    assertNotNull(shardRef.get());
-                    // this is all IMC needs to do - check current memory and refresh
-                    assertTrue(shardRef.get().getIndexBufferRAMBytesUsed() > 0);
-                    shardRef.get().refresh("test");
-                } catch (Exception e) {
-                    failures.add(e);
-                    throw e;
-                }
-            }
-
-
-            @Override
-            public void postDelete(Engine.Delete delete) {
+            public void postOperation(Engine.Operation operation) {
                 try {
                     assertNotNull(shardRef.get());
                     // this is all IMC needs to do - check current memory and refresh

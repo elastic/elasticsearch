@@ -880,11 +880,13 @@ public abstract class Engine implements Closeable {
             return this.endTime;
         }
 
-        abstract String type();
+        public abstract String type();
 
         abstract String id();
 
-        abstract TYPE operationType();
+        public abstract TYPE operationType();
+
+        public abstract String toString();
     }
 
     public static class Index extends Operation {
@@ -925,7 +927,7 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        TYPE operationType() {
+        public TYPE operationType() {
             return TYPE.INDEX;
         }
 
@@ -989,6 +991,10 @@ public abstract class Engine implements Closeable {
             return isRetry;
         }
 
+        @Override
+        public String toString() {
+            return "index [{" + type() + "}][{" + id()+ "}] [{" + docs() + "}]";
+        }
     }
 
     public static class Delete extends Operation {
@@ -1023,8 +1029,13 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        TYPE operationType() {
+        public TYPE operationType() {
             return TYPE.DELETE;
+        }
+
+        @Override
+        public String toString() {
+            return "delete [{"+ uid().text() +"}]";
         }
 
         public void updateVersion(long version, boolean found) {

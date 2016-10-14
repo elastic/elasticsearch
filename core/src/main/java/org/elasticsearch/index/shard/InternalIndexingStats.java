@@ -65,63 +65,60 @@ final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     @Override
-    public Engine.Index preIndex(Engine.Index operation) {
+    public void preOperation(Engine.Operation operation) {
         if (!operation.origin().isRecovery()) {
-            totalStats.indexCurrent.inc();
-            typeStats(operation.type()).indexCurrent.inc();
-        }
-        return operation;
-    }
-
-    @Override
-    public void postIndex(Engine.Index index, boolean created) {
-        if (!index.origin().isRecovery()) {
-            long took = index.endTime() - index.startTime();
-            totalStats.indexMetric.inc(took);
-            totalStats.indexCurrent.dec();
-            StatsHolder typeStats = typeStats(index.type());
-            typeStats.indexMetric.inc(took);
-            typeStats.indexCurrent.dec();
+            StatsHolder statsHolder = typeStats(operation.type());
+            switch (operation.operationType()) {
+                case INDEX:
+                    totalStats.indexCurrent.inc();
+                    statsHolder.indexCurrent.inc();
+                    break;
+            case DELETE:
+                    totalStats.deleteCurrent.inc();
+                    statsHolder.deleteCurrent.inc();
+                    break;
+            }
         }
     }
 
     @Override
-    public void postIndex(Engine.Index index, Exception ex) {
-        if (!index.origin().isRecovery()) {
-            totalStats.indexCurrent.dec();
-            typeStats(index.type()).indexCurrent.dec();
-            totalStats.indexFailed.inc();
-            typeStats(index.type()).indexFailed.inc();
+    public void postOperation(Engine.Operation operation) {
+        if (!operation.origin().isRecovery()) {
+            long took = operation.endTime() - operation.startTime();
+            StatsHolder typeStats = typeStats(operation.type());
+            switch (operation.operationType()) {
+                case INDEX:
+                    totalStats.indexMetric.inc(took);
+                    totalStats.indexCurrent.dec();
+                    typeStats.indexMetric.inc(took);
+                    typeStats.indexCurrent.dec();
+                    break;
+                case DELETE:
+                    totalStats.deleteMetric.inc(took);
+                    totalStats.deleteCurrent.dec();
+                    typeStats.deleteMetric.inc(took);
+                    typeStats.deleteCurrent.dec();
+                    break;
+            }
         }
     }
 
     @Override
-    public Engine.Delete preDelete(Engine.Delete delete) {
-        if (!delete.origin().isRecovery()) {
-            totalStats.deleteCurrent.inc();
-            typeStats(delete.type()).deleteCurrent.inc();
-        }
-        return delete;
-
-    }
-
-    @Override
-    public void postDelete(Engine.Delete delete) {
-        if (!delete.origin().isRecovery()) {
-            long took = delete.endTime() - delete.startTime();
-            totalStats.deleteMetric.inc(took);
-            totalStats.deleteCurrent.dec();
-            StatsHolder typeStats = typeStats(delete.type());
-            typeStats.deleteMetric.inc(took);
-            typeStats.deleteCurrent.dec();
-        }
-    }
-
-    @Override
-    public void postDelete(Engine.Delete delete, Exception ex) {
-        if (!delete.origin().isRecovery()) {
-            totalStats.deleteCurrent.dec();
-            typeStats(delete.type()).deleteCurrent.dec();
+    public void postOperation(Engine.Operation operation, Exception ex) {
+        if (!operation.origin().isRecovery()) {
+            StatsHolder statsHolder = typeStats(operation.type());
+            switch (operation.operationType()) {
+                case INDEX:
+                    totalStats.indexCurrent.dec();
+                    statsHolder.indexCurrent.dec();
+                    totalStats.indexFailed.inc();
+                    statsHolder.indexFailed.inc();
+                    break;
+                case DELETE:
+                    totalStats.deleteCurrent.dec();
+                    statsHolder.deleteCurrent.dec();
+                    break;
+            }
         }
     }
 
@@ -157,11 +154,6 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 indexMetric.count(), TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()), indexCurrent.count(), indexFailed.count(),
                 deleteMetric.count(), TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()), deleteCurrent.count(),
                 noopUpdates.count(), isThrottled, TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis));
-        }
-
-        void clear() {
-            indexMetric.clear();
-            deleteMetric.clear();
         }
     }
 }

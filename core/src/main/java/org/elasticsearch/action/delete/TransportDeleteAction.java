@@ -129,7 +129,7 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
 
     public static PrimaryOperationResult<DeleteResponse> executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard primary) {
         Engine.Delete delete = primary.prepareDeleteOnPrimary(request.type(), request.id(), request.version(), request.versionType());
-        primary.delete(delete);
+        primary.execute(delete);
         if (delete.hasFailure()) {
             return new PrimaryOperationResult<>(delete.getFailure());
         } else {
@@ -145,7 +145,7 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
 
     public static ReplicaOperationResult executeDeleteRequestOnReplica(DeleteRequest request, IndexShard replica) {
         Engine.Delete delete = replica.prepareDeleteOnReplica(request.type(), request.id(), request.version(), request.versionType());
-        replica.delete(delete);
+        replica.execute(delete);
         return delete.hasFailure()
                 ? new ReplicaOperationResult(delete.getFailure())
                 : new ReplicaOperationResult(delete.getTranslogLocation());

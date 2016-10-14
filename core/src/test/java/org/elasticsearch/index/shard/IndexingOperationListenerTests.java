@@ -40,63 +40,55 @@ public class IndexingOperationListenerTests extends ESTestCase{
         AtomicInteger postDeleteException = new AtomicInteger();
         IndexingOperationListener listener = new IndexingOperationListener() {
             @Override
-            public Engine.Index preIndex(Engine.Index operation) {
-                preIndex.incrementAndGet();
-                return operation;
+            public void preOperation(Engine.Operation operation) {
+                switch (operation.operationType()) {
+                    case INDEX:
+                        preIndex.incrementAndGet();
+                        break;
+                    case DELETE:
+                        preDelete.incrementAndGet();
+                        break;
+                }
             }
 
             @Override
-            public void postIndex(Engine.Index index, boolean created) {
-                postIndex.incrementAndGet();
+            public void postOperation(Engine.Operation operation) {
+                switch (operation.operationType()) {
+                    case INDEX:
+                        postIndex.incrementAndGet();
+                        break;
+                    case DELETE:
+                        postDelete.incrementAndGet();
+                        break;
+                }
             }
 
             @Override
-            public void postIndex(Engine.Index index, Exception ex) {
-                postIndexException.incrementAndGet();
-            }
-
-            @Override
-            public Engine.Delete preDelete(Engine.Delete delete) {
-                preDelete.incrementAndGet();
-                return delete;
-            }
-
-            @Override
-            public void postDelete(Engine.Delete delete) {
-                postDelete.incrementAndGet();
-            }
-
-            @Override
-            public void postDelete(Engine.Delete delete, Exception ex) {
-                postDeleteException.incrementAndGet();
+            public void postOperation(Engine.Operation operation, Exception ex) {
+                switch (operation.operationType()) {
+                    case INDEX:
+                        postIndexException.incrementAndGet();
+                        break;
+                    case DELETE:
+                        postDeleteException.incrementAndGet();
+                        break;
+                }
             }
         };
 
         IndexingOperationListener throwingListener = new IndexingOperationListener() {
             @Override
-            public Engine.Index preIndex(Engine.Index operation) {
+            public void preOperation(Engine.Operation operation) {
                 throw new RuntimeException();
             }
 
             @Override
-            public void postIndex(Engine.Index index, boolean created) {
-                throw new RuntimeException();            }
-
-            @Override
-            public void postIndex(Engine.Index index, Exception ex) {
-                throw new RuntimeException();            }
-
-            @Override
-            public Engine.Delete preDelete(Engine.Delete delete) {
+            public void postOperation(Engine.Operation operation) {
                 throw new RuntimeException();
             }
 
             @Override
-            public void postDelete(Engine.Delete delete) {
-                throw new RuntimeException();            }
-
-            @Override
-            public void postDelete(Engine.Delete delete, Exception ex) {
+            public void postOperation(Engine.Operation operation, Exception ex) {
                 throw new RuntimeException();
             }
         };
@@ -111,7 +103,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         IndexingOperationListener.CompositeListener compositeListener = new IndexingOperationListener.CompositeListener(indexingOperationListeners, logger);
         Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", "1"));
         Engine.Index index = new Engine.Index(new Term("_uid", "1"), null);
-        compositeListener.postDelete(delete);
+        compositeListener.postOperation(delete);
         assertEquals(0, preIndex.get());
         assertEquals(0, postIndex.get());
         assertEquals(0, postIndexException.get());
@@ -119,7 +111,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         assertEquals(2, postDelete.get());
         assertEquals(0, postDeleteException.get());
 
-        compositeListener.postDelete(delete, new RuntimeException());
+        compositeListener.postOperation(delete, new RuntimeException());
         assertEquals(0, preIndex.get());
         assertEquals(0, postIndex.get());
         assertEquals(0, postIndexException.get());
@@ -127,7 +119,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         assertEquals(2, postDelete.get());
         assertEquals(2, postDeleteException.get());
 
-        compositeListener.preDelete(delete);
+        compositeListener.preOperation(delete);
         assertEquals(0, preIndex.get());
         assertEquals(0, postIndex.get());
         assertEquals(0, postIndexException.get());
@@ -135,7 +127,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         assertEquals(2, postDelete.get());
         assertEquals(2, postDeleteException.get());
 
-        compositeListener.postIndex(index, false);
+        compositeListener.postOperation(index);
         assertEquals(0, preIndex.get());
         assertEquals(2, postIndex.get());
         assertEquals(0, postIndexException.get());
@@ -143,7 +135,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         assertEquals(2, postDelete.get());
         assertEquals(2, postDeleteException.get());
 
-        compositeListener.postIndex(index, new RuntimeException());
+        compositeListener.postOperation(index, new RuntimeException());
         assertEquals(0, preIndex.get());
         assertEquals(2, postIndex.get());
         assertEquals(2, postIndexException.get());
@@ -151,7 +143,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         assertEquals(2, postDelete.get());
         assertEquals(2, postDeleteException.get());
 
-        compositeListener.preIndex(index);
+        compositeListener.preOperation(index);
         assertEquals(2, preIndex.get());
         assertEquals(2, postIndex.get());
         assertEquals(2, postIndexException.get());

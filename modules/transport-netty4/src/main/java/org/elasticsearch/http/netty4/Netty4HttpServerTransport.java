@@ -127,7 +127,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         Setting.intSetting("http.netty.max_composite_buffer_components", -1, Property.NodeScope, Property.Shared);
 
     public static final Setting<Integer> SETTING_HTTP_WORKER_COUNT = new Setting<>("http.netty.worker_count",
-        (s) -> Integer.toString(EsExecutors.boundedNumberOfProcessors(s) * 2),
+        (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
         (s) -> Setting.parseInt(s, 1, "http.netty.worker_count"), Property.NodeScope, Property.Shared);
 
     public static final Setting<Boolean> SETTING_HTTP_TCP_NO_DELAY =

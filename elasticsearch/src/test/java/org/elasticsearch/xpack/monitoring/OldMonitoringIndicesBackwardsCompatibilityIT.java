@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.monitoring;
 import org.elasticsearch.AbstractOldXPackIndicesBackwardsCompatibilityTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -26,7 +28,9 @@ import org.hamcrest.Matcher;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -105,12 +109,15 @@ public class OldMonitoringIndicesBackwardsCompatibilityIT extends AbstractOldXPa
         SearchResponse firstNodeStats = search(new NodeStatsResolver(MonitoredSystem.ES, Settings.EMPTY), greaterThanOrEqualTo(3L));
         SearchResponse firstClusterState = search(new ClusterStateResolver(MonitoredSystem.ES, Settings.EMPTY), greaterThanOrEqualTo(3L));
 
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setNodes(true).get();
+        final String masterNodeId = clusterStateResponse.getState().getNodes().getMasterNodeId();
+
         // Verify some stuff about the stuff in the backwards compatibility indexes
-        Arrays.stream(firstIndexStats.getHits().hits()).forEach(hit -> checkIndexStats(hit.sourceAsMap()));
-        Arrays.stream(firstShards.getHits().hits()).forEach(hit -> checkShards(hit.sourceAsMap()));
-        Arrays.stream(firstIndicesStats.getHits().hits()).forEach(hit -> checkIndicesStats(hit.sourceAsMap()));
-        Arrays.stream(firstNodeStats.getHits().hits()).forEach(hit -> checkNodeStats(hit.sourceAsMap()));
-        Arrays.stream(firstClusterState.getHits().hits()).forEach(hit -> checkClusterState(hit.sourceAsMap()));
+        Arrays.stream(firstIndexStats.getHits().hits()).forEach(hit -> checkIndexStats(version, hit.sourceAsMap()));
+        Arrays.stream(firstShards.getHits().hits()).forEach(hit -> checkShards(version, hit.sourceAsMap()));
+        Arrays.stream(firstIndicesStats.getHits().hits()).forEach(hit -> checkIndicesStats(version, hit.sourceAsMap()));
+        Arrays.stream(firstNodeStats.getHits().hits()).forEach(hit -> checkNodeStats(version, masterNodeId, hit.sourceAsMap()));
+        Arrays.stream(firstClusterState.getHits().hits()).forEach(hit -> checkClusterState(version, hit.sourceAsMap()));
 
         // Wait for monitoring to accumulate some data about the current cluster
         long indexStatsCount = firstIndexStats.getHits().totalHits();
@@ -132,8 +139,9 @@ public class OldMonitoringIndicesBackwardsCompatibilityIT extends AbstractOldXPa
         return response;
     }
 
-    private void checkIndexStats(Map<String, Object> indexStats) {
+    private void checkIndexStats(final Version version, Map<String, Object> indexStats) {
         checkMonitoringElement(indexStats);
+        checkSourceNode(version, indexStats);
         Map<?, ?> stats = (Map<?, ?>) indexStats.get("index_stats");
         assertThat(stats, hasKey("index"));
         Map<?, ?> total = (Map<?, ?>) stats.get("total");
@@ -142,14 +150,15 @@ public class OldMonitoringIndicesBackwardsCompatibilityIT extends AbstractOldXPa
         assertThat((Integer) docs.get("count"), greaterThanOrEqualTo(0));
     }
 
-    private void checkShards(Map<String, Object> shards) {
+    private void checkShards(final Version version, Map<String, Object> shards) {
         checkMonitoringElement(shards);
         Map<?, ?> shard = (Map<?, ?>) shards.get("shard");
         assertThat(shard, allOf(hasKey("index"), hasKey("state"), hasKey("primary"), hasKey("node")));
     }
 
-    private void checkIndicesStats(Map<String, Object> indicesStats) {
+    private void checkIndicesStats(final Version version, Map<String, Object> indicesStats) {
         checkMonitoringElement(indicesStats);
+        checkSourceNode(version, indicesStats);
         Map<?, ?> stats = (Map<?, ?>) indicesStats.get("indices_stats");
         Map<?, ?> all = (Map<?, ?>) stats.get("_all");
         Map<?, ?> primaries = (Map<?, ?>) all.get("primaries");
@@ -159,20 +168,59 @@ public class OldMonitoringIndicesBackwardsCompatibilityIT extends AbstractOldXPa
     }
 
     @SuppressWarnings("unchecked")
-    private void checkNodeStats(Map<String, Object> nodeStats) {
+    private void checkNodeStats(final Version version, final String masterNodeId, Map<String, Object> nodeStats) {
         checkMonitoringElement(nodeStats);
+        checkSourceNode(version, nodeStats);
         Map<?, ?> stats = (Map<?, ?>) nodeStats.get("node_stats");
-        assertThat(stats, allOf(hasKey("node_id"), hasKey("node_master"), hasKey("mlockall"), hasKey("disk_threshold_enabled"),
-                hasKey("indices"), hasKey("process"), hasKey("jvm"), hasKey("thread_pool")));
+
+        // Those fields are expected in every node stats documents
+        Set<String> mandatoryKeys = new HashSet();
+        mandatoryKeys.add("node_id");
+        mandatoryKeys.add("node_master");
+        mandatoryKeys.add("mlockall");
+        mandatoryKeys.add("indices");
+        mandatoryKeys.add("os");
+        mandatoryKeys.add("fs");
+        mandatoryKeys.add("process");
+        mandatoryKeys.add("jvm");
+        mandatoryKeys.add("thread_pool");
+
+        // disk_threshold_* fields have been removed in 5.0 alpha5, we only check for them if the
+        // current tested version is less than or equal to alpha4. Also, the current master node
+        // might have collected its own node stats through the Monitoring plugin, and since it is
+        // running under Version.CURRENT there's no chance to find these fields.
+        if (version.onOrBefore(Version.V_5_0_0_alpha4)) {
+            if (masterNodeId.equals((String) stats.get("node_id")) == false) {
+                mandatoryKeys.add("disk_threshold_enabled");
+                mandatoryKeys.add("disk_threshold_watermark_high");
+            }
+        }
+
+        for (String key : mandatoryKeys) {
+            assertThat("Expecting [" + key + "] to be present for bwc index in version [" + version + "]", stats, hasKey(key));
+        }
+
+        Set<String> keys = new HashSet(stats.keySet());
+        keys.removeAll(mandatoryKeys);
+        assertTrue("Found unexpected fields [" + Strings.collectionToCommaDelimitedString(keys) + "] " +
+                "for bwc index in version [" + version + "]", keys.isEmpty());
     }
 
-    private void checkClusterState(Map<String, Object> clusterState) {
+    private void checkClusterState(final Version version, Map<String, Object> clusterState) {
         checkMonitoringElement(clusterState);
+        checkSourceNode(version, clusterState);
         Map<?, ?> stats = (Map<?, ?>) clusterState.get("cluster_state");
         assertThat(stats, allOf(hasKey("status"), hasKey("version"), hasKey("state_uuid"), hasKey("master_node"), hasKey("nodes")));
     }
 
     private void checkMonitoringElement(Map<String, Object> element) {
         assertThat(element, allOf(hasKey("cluster_uuid"), hasKey("timestamp")));
+    }
+
+    private void checkSourceNode(final Version version, Map<String, Object> element) {
+        if (version.onOrAfter(Version.V_2_3_0)) {
+            // The source_node field has been added in v2.3.0
+            assertThat(element, hasKey("source_node"));
+        }
     }
 }

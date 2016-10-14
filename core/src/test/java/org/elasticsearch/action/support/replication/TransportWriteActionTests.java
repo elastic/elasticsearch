@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -137,13 +136,13 @@ public class TransportWriteActionTests extends ESTestCase {
         }
 
         @Override
-        protected WriteResult<TestResponse> onPrimaryShard(TestRequest request, IndexShard indexShard) throws Exception {
-            return new WriteResult<>(new TestResponse(), location);
+        protected PrimaryOperationResult<TestResponse> onPrimaryShard(TestRequest request, IndexShard primary) throws Exception {
+            return new PrimaryOperationResult<>(new TestResponse(), location);
         }
 
         @Override
-        protected Location onReplicaShard(TestRequest request, IndexShard indexShard) {
-            return location;
+        protected ReplicaOperationResult onReplicaShard(TestRequest request, IndexShard replica) {
+            return new ReplicaOperationResult(location);
         }
 
         @Override

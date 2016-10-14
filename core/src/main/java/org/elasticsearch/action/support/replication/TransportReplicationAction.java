@@ -178,7 +178,7 @@ public abstract class TransportReplicationAction<
      * @param shardRequest the request to the replica shard
      * @param replica      the replica shard to perform the operation on
      */
-    protected abstract ReplicaResult shardOperationOnReplica(ReplicaRequest shardRequest, IndexShard replica);
+    protected abstract ReplicaResult shardOperationOnReplica(ReplicaRequest shardRequest, IndexShard replica) throws Exception;
 
     /**
      * Cluster level block to check before request execution
@@ -206,8 +206,13 @@ public abstract class TransportReplicationAction<
     }
 
     protected boolean retryPrimaryException(final Throwable e) {
-        return e.getClass() == ReplicationOperation.RetryOnPrimaryException.class
-            || TransportActions.isShardNotAvailableException(e);
+        boolean retry = e.getClass() == ReplicationOperation.RetryOnPrimaryException.class
+                || TransportActions.isShardNotAvailableException(e);
+        if (retry) {
+            assert e instanceof ElasticsearchException
+                    : "expected all retry on primary exception to be ElasticsearchException instances, found: " + e.getClass();
+        }
+        return retry;
     }
 
     class OperationTransportHandler implements TransportRequestHandler<Request> {
@@ -310,17 +315,10 @@ public abstract class TransportReplicationAction<
                     final IndexMetaData indexMetaData = clusterService.state().getMetaData().index(request.shardId().getIndex());
                     final boolean executeOnReplicas = (indexMetaData == null) || shouldExecuteReplication(indexMetaData.getSettings());
                     final ActionListener<Response> listener = createResponseListener(primaryShardReference);
-                    createReplicatedOperation(request, new ActionListener<PrimaryResult>() {
-                        @Override
-                        public void onResponse(PrimaryResult result) {
-                            result.respond(listener);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }, primaryShardReference, executeOnReplicas).execute();
+                    createReplicatedOperation(request,
+                            ActionListener.wrap(result -> result.respond(listener), listener::onFailure),
+                            primaryShardReference, executeOnReplicas)
+                            .execute();
                 }
             } catch (Exception e) {
                 Releasables.closeWhileHandlingException(primaryShardReference); // release shard operation lock before responding to caller
@@ -376,11 +374,19 @@ public abstract class TransportReplicationAction<
 
     protected class PrimaryResult implements ReplicationOperation.PrimaryResult<ReplicaRequest> {
         final ReplicaRequest replicaRequest;
-        final Response finalResponse;
+        final Response finalResponseIfSuccessful;
+        final Exception finalFailure;
 
-        public PrimaryResult(ReplicaRequest replicaRequest, Response finalResponse) {
+        public PrimaryResult(ReplicaRequest replicaRequest, Response finalResponseIfSuccessful) {
             this.replicaRequest = replicaRequest;
-            this.finalResponse = finalResponse;
+            this.finalResponseIfSuccessful = finalResponseIfSuccessful;
+            this.finalFailure = null;
+        }
+
+        public PrimaryResult(Exception finalFailure) {
+            this.replicaRequest = null;
+            this.finalResponseIfSuccessful = null;
+            this.finalFailure = finalFailure;
         }
 
         @Override
@@ -390,22 +396,37 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void setShardInfo(ReplicationResponse.ShardInfo shardInfo) {
-            finalResponse.setShardInfo(shardInfo);
+            if (finalResponseIfSuccessful != null) {
+                finalResponseIfSuccessful.setShardInfo(shardInfo);
+            }
         }
 
         public void respond(ActionListener<Response> listener) {
-            listener.onResponse(finalResponse);
+            if (finalResponseIfSuccessful != null) {
+                listener.onResponse(finalResponseIfSuccessful);
+            } else {
+                listener.onFailure(finalFailure);
+            }
         }
     }
 
     protected class ReplicaResult {
-        /**
-         * Public constructor so subclasses can call it.
-         */
-        public ReplicaResult() {}
+        final Exception finalFailure;
+
+        public ReplicaResult() {
+            this.finalFailure = null;
+        }
+
+        public ReplicaResult(Exception finalFailure) {
+            this.finalFailure = finalFailure;
+        }
 
         public void respond(ActionListener<TransportResponse.Empty> listener) {
-            listener.onResponse(TransportResponse.Empty.INSTANCE);
+            if (finalFailure == null) {
+                listener.onResponse(TransportResponse.Empty.INSTANCE);
+            } else {
+                listener.onFailure(finalFailure);
+            }
         }
     }
 
@@ -902,7 +923,9 @@ public abstract class TransportReplicationAction<
         @Override
         public PrimaryResult perform(Request request) throws Exception {
             PrimaryResult result = shardOperationOnPrimary(request, indexShard);
-            result.replicaRequest().primaryTerm(indexShard.getPrimaryTerm());
+            if (result.replicaRequest() != null) {
+                result.replicaRequest().primaryTerm(indexShard.getPrimaryTerm());
+            }
             return result;
         }
 

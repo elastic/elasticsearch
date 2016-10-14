@@ -265,7 +265,7 @@ class InstallPluginCommand extends SettingCommand {
 
     /** Downloads a zip from the url, into a temp file under the given temp dir. */
     private Path downloadZip(Terminal terminal, String urlString, Path tmpDir) throws IOException {
-        terminal.println(VERBOSE, "Retrieving zip from " + urlString);
+        terminal.println("Retrieving zip from " + urlString);
         URL url = new URL(urlString);
         Path zip = Files.createTempFile(tmpDir, null, ".zip");
         URLConnection urlConnection = url.openConnection();

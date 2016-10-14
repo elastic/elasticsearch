@@ -478,7 +478,6 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(1L));
 
-        // filtered alias is handled differently and must not be cached at this point
         r1 = client().prepareSearch("last_week").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get();
         assertSearchResponse(r1);
         assertThat(r1.getHits().getTotalHits(), equalTo(1L));

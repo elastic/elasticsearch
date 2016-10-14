@@ -47,7 +47,7 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
 
     }
 
-    ShardValidateQueryRequest(ShardId shardId, @Nullable String[] filteringAliases, ValidateQueryRequest request) {
+    public ShardValidateQueryRequest(ShardId shardId, @Nullable String[] filteringAliases, ValidateQueryRequest request) {
         super(shardId, request);
         this.query = request.query();
         this.types = request.types();
@@ -69,8 +69,8 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
         return this.explain;
     }
 
-    public boolean rewrite() { 
-        return this.rewrite; 
+    public boolean rewrite() {
+        return this.rewrite;
     }
 
     public String[] filteringAliases() {

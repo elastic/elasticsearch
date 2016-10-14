@@ -21,8 +21,6 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardValidateQueryRequestTests;
-import org.elasticsearch.action.admin.indices.validate.query.ShardValidateQueryRequest;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -85,6 +83,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
                 assertEquals(deserializedRequest.numberOfShards(), shardSearchTransportRequest.numberOfShards());
                 assertEquals(deserializedRequest.cacheKey(), shardSearchTransportRequest.cacheKey());
                 assertNotSame(deserializedRequest, shardSearchTransportRequest);
+                assertEquals(deserializedRequest.filteringAliases(), shardSearchTransportRequest.filteringAliases());
             }
         }
     }
@@ -189,7 +188,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
                 "ZXJtP4AAAAANbUtDSnpHU3lidm5KUBUMaVpqeG9vcm5QSFlvAAEBLGdtcWxuRWpWTXdvTlhMSHh0RWlFdHBnbEF1cUNmVmhoUVlwRFZxVllnWWV1A2ZvbwEA" +
                 "AQhwYWlubGVzc/8AALk4AAAAAAABAAAAAAAAAwpKU09PU0ZmWnhFClVqTGxMa2p3V2gKdUJwZ3R3dXFER5Hg97uT7MOmPgEADw"));
         try (StreamInput in = new NamedWriteableAwareStreamInput(requestBytes.streamInput(), namedWriteableRegistry)) {
-            in.setVersion(ShardValidateQueryRequestTests.VERSION_5_0);
+            in.setVersion(ShardValidateQueryRequestTests.V_5_0_0);
             ShardSearchTransportRequest readRequest = new ShardSearchTransportRequest();
             readRequest.readFrom(in);
             assertEquals(0, in.available());
@@ -197,7 +196,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
             assertEquals("alias filter for aliases: [JSOOSFfZxE, UjLlLkjwWh, uBpgtwuqDG] must be rewritten first",
                 illegalStateException.getMessage());
             BytesStreamOutput output = new BytesStreamOutput();
-            output.setVersion(ShardValidateQueryRequestTests.VERSION_5_0);
+            output.setVersion(ShardValidateQueryRequestTests.V_5_0_0);
             readRequest.writeTo(output);
             assertEquals(output.bytes().toBytesRef(), requestBytes.toBytesRef());
         }

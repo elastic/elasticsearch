@@ -520,11 +520,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     final SearchContext createContext(ShardSearchRequest request, @Nullable Engine.Searcher searcher) throws IOException {
         final DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, searcher);
         try {
-            // we clone the query shard context here just for rewriting otherwise we
-            // might end up with incorrect state since we are using now() or script services
-            // during rewrite and normalized / evaluate templates etc.
-            request.rewrite(new QueryShardContext(context.getQueryShardContext()));
-            assert context.getQueryShardContext().isCachable();
             if (request.scroll() != null) {
                 context.scrollContext(new ScrollContext());
                 context.scrollContext().scroll = request.scroll();
@@ -558,16 +553,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return context;
     }
 
-    public DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout, @Nullable Engine.Searcher searcher) {
+    public DefaultSearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout, @Nullable Engine.Searcher searcher)
+        throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().getId());
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().getId(), indexShard.shardId());
         Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher("search") : searcher;
 
-        return new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher,
-            indexService,
-            indexShard, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
+        final DefaultSearchContext searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,
+            engineSearcher, indexService, indexShard, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher,
             timeout, fetchPhase);
+        // we clone the query shard context here just for rewriting otherwise we
+        // might end up with incorrect state since we are using now() or script services
+        // during rewrite and normalized / evaluate templates etc.
+        request.rewrite(new QueryShardContext(searchContext.getQueryShardContext()));
+        assert searchContext.getQueryShardContext().isCachable();
+        return searchContext;
     }
 
     private void freeAllContextForIndex(Index index) {

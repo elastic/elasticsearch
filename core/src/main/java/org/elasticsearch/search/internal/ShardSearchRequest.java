@@ -103,50 +103,49 @@ public interface ShardSearchRequest {
         }
         Index index = metaData.getIndex();
         ImmutableOpenMap<String, AliasMetaData> aliases = metaData.getAliases();
+        Function<AliasMetaData, QueryBuilder> parserFunction = (alias) -> {
+            if (alias.filter() == null) {
+                return null;
+            }
+            try {
+                byte[] filterSource = alias.filter().uncompressed();
+                try (XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource)) {
+                    Optional<QueryBuilder> innerQueryBuilder = contextFactory.apply(parser).parseInnerQueryBuilder();
+                    if (innerQueryBuilder.isPresent()) {
+                        return innerQueryBuilder.get();
+                    }
+                    return null;
+                }
+            } catch (IOException ex) {
+                throw new AliasFilterParsingException(index, alias.getAlias(), "Invalid alias filter", ex);
+            }
+        };
         if (aliasNames.length == 1) {
             AliasMetaData alias = aliases.get(aliasNames[0]);
             if (alias == null) {
                 // This shouldn't happen unless alias disappeared after filteringAliases was called.
                 throw new InvalidAliasNameException(index, aliasNames[0], "Unknown alias name was passed to alias Filter");
             }
-            return parse(index, alias, contextFactory);
+            return parserFunction.apply(alias);
         } else {
             // we need to bench here a bit, to see maybe it makes sense to use OrFilter
             BoolQueryBuilder combined = new BoolQueryBuilder();
-                for (String aliasName : aliasNames) {
-                AliasMetaData alias = aliases.get(aliasName);
-                if (alias == null) {
-                    // This shouldn't happen unless alias disappeared after filteringAliases was called.
-                    throw new InvalidAliasNameException(index, aliasNames[0],
-                        "Unknown alias name was passed to alias Filter");
-                }
-                QueryBuilder parsedFilter = parse(index, alias, contextFactory);
-                if (parsedFilter != null) {
-                    combined.should(parsedFilter);
-                } else {
-                    // The filter might be null only if filter was removed after filteringAliases was called
-                    return null;
-                }
+            for (String aliasName : aliasNames) {
+            AliasMetaData alias = aliases.get(aliasName);
+            if (alias == null) {
+                // This shouldn't happen unless alias disappeared after filteringAliases was called.
+                throw new InvalidAliasNameException(index, aliasNames[0],
+                    "Unknown alias name was passed to alias Filter");
             }
-            return combined;
-        }
-    }
-
-    static QueryBuilder parse(Index index, AliasMetaData alias, Function<XContentParser, QueryParseContext> contextFactory) {
-        if (alias.filter() == null) {
-            return null;
-        }
-        try {
-            byte[] filterSource = alias.filter().uncompressed();
-            try (XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource)) {
-                Optional<QueryBuilder> innerQueryBuilder = contextFactory.apply(parser).parseInnerQueryBuilder();
-                if (innerQueryBuilder.isPresent()) {
-                    return innerQueryBuilder.get();
-                }
+            QueryBuilder parsedFilter = parserFunction.apply(alias);
+            if (parsedFilter != null) {
+                combined.should(parsedFilter);
+            } else {
+                // The filter might be null only if filter was removed after filteringAliases was called
                 return null;
             }
-        } catch (IOException ex) {
-            throw new AliasFilterParsingException(index, alias.getAlias(), "Invalid alias filter", ex);
+            }
+            return combined;
         }
     }
 

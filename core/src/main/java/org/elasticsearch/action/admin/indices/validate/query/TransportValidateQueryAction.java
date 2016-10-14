@@ -142,8 +142,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     }
 
     @Override
-    protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) {
-
+    protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) throws IOException {
         boolean valid;
         String explanation = null;
         String error = null;

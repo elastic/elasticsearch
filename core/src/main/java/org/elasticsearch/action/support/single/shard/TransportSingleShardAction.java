@@ -46,6 +46,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
@@ -94,7 +95,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         new AsyncSingleAction(request, listener).start();
     }
 
-    protected abstract Response shardOperation(Request request, ShardId shardId);
+    protected abstract Response shardOperation(Request request, ShardId shardId) throws IOException;
 
     protected abstract Response newResponse();
 

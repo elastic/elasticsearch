@@ -19,6 +19,7 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.action.ShardValidateQueryRequestTests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -26,7 +27,6 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
-import org.junit.Assert;
 
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
@@ -288,6 +288,8 @@ public class VersionTests extends ESTestCase {
         assertUnknownVersion(V_20_0_0_UNRELEASED);
         expectThrows(AssertionError.class, () -> assertUnknownVersion(Version.CURRENT));
         assertUnknownVersion(AliasFilter.V_5_1_0); // once we released 5.1.0 and it's added to Version.java we need to remove this constant
+        // once we released 5.0.0 and it's added to Version.java we need to remove this constant
+        assertUnknownVersion(ShardValidateQueryRequestTests.V_5_0_0);
     }
 
     public static void assertUnknownVersion(Version version) {

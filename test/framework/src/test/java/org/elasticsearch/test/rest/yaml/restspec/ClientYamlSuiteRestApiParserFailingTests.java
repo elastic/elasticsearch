@@ -45,7 +45,7 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
                "      }," +
                "      \"params\": {" +
                "        \"type\" : \"boolean\",\n" +
-               "        \"description\" : \"Whether specified concrete indices should be ignored when unavailable (missing or closed)\"\n" +
+               "        \"description\" : \"Whether specified concrete indices should be ignored when unavailable (missing or closed)\"" +
                "      }" +
                "    }," +
                "    \"body\": null" +
@@ -65,7 +65,7 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
                 "      }," +
                 "      \"params\": {" +
                 "        \"type\" : \"boolean\",\n" +
-                "        \"description\" : \"Whether specified concrete indices should be ignored when unavailable (missing or closed)\"\n" +
+                "        \"description\" : \"Whether specified concrete indices should be ignored when unavailable (missing or closed)\"" +
                 "      }" +
                 "    }," +
                 "    \"body\": null" +
@@ -97,7 +97,7 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
                 "      }," +
                 "      \"params\": {" +
                 "        \"type\" : \"boolean\",\n" +
-                "        \"description\" : \"Whether specified concrete indices should be ignored when unavailable (missing or closed)\"\n" +
+                "        \"description\" : \"Whether specified concrete indices should be ignored when unavailable (missing or closed)\"" +
                 "      }" +
                 "    }," +
                 "    \"body\": null" +

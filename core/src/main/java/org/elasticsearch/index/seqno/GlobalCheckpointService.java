@@ -36,7 +36,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbersService.UNASSIGNED_SE
  * are currently active. Since shards count as "active" when the master starts them, and before this primary shard
  * has been notified of this fact, we also include shards in that have completed recovery. These shards have received
  * all old operations via the recovery mechanism and are kept up to date by the various replications actions. The set
- * of shards that taken into account for the global check point calculation are called the "in sync" shards.
+ * of shards that are taken into account for the global checkpoint calculation are called the "in sync" shards.
  *
  * <p>
  * The global checkpoint is maintained by the primary shard and is replicated to all the replicas
@@ -46,7 +46,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
 
 
     /**
-     * This map holds the last known local checkpoint for every active shard and initializing shard copies that's has been brought up
+     * This map holds the last known local checkpoint for every active shard and initializing shard copies that has been brought up
      * to speed through recovery. These shards are treated as valid copies and participate in determining the global
      * checkpoint.
      * <p>
@@ -55,9 +55,9 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
     private final ObjectLongMap<String> inSyncLocalCheckpoints; // keyed by allocation ids
 
     /**
-     * This set hold the last set of known valid allocation ids as received by the master. This is important to make sure
+     * This set holds the last set of known valid allocation ids as received by the master. This is important to make sure
      * shard that are failed or relocated are cleaned up from {@link #inSyncLocalCheckpoints} and do not hold the global
-     * checkpoint back;
+     * checkpoint back
      */
     private final Set<String> assignedAllocationIds;
 
@@ -66,7 +66,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
     /**
      * Initialize the global checkpoint service. The {@code globalCheckpoint}
      * should be set to the last known global checkpoint for this shard, or
-     * {@link SequenceNumbersService#NO_OPS_PERFORMED}.
+     * {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}.
      *
      * @param shardId          the shard this service is providing tracking
      *                         local checkpoints for
@@ -77,13 +77,14 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
      */
     GlobalCheckpointService(final ShardId shardId, final IndexSettings indexSettings, final long globalCheckpoint) {
         super(shardId, indexSettings);
+        assert globalCheckpoint >= UNASSIGNED_SEQ_NO : "illegal initial global checkpoint:" + globalCheckpoint;
         inSyncLocalCheckpoints = new ObjectLongHashMap<>(1 + indexSettings.getNumberOfReplicas());
         assignedAllocationIds = new HashSet<>(1 + indexSettings.getNumberOfReplicas());
         this.globalCheckpoint = globalCheckpoint;
     }
 
     /**
-     * notifies the service of a local checkpoint. if the checkpoint is lower than the currently known one,
+     * Notifies the service of a local checkpoint. If the checkpoint is lower than the currently known one,
      * this is a noop. Last, if the allocation id is not in sync, it is ignored. This to prevent late
      * arrivals from shards that are removed to be re-added.
      */
@@ -98,7 +99,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
                     logger.trace("updated local checkpoint of [{}] to [{}] (was [{}])", allocationId, localCheckpoint, current);
                 }
             } else {
-                logger.trace("skipping update local checkpoint [{}], current check point is higher " +
+                logger.trace("skipping update of local checkpoint [{}], current checkpoint is higher " +
                         "(current [{}], incoming [{}], type [{}])",
                     allocationId, current, localCheckpoint, allocationId);
             }
@@ -160,7 +161,7 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
 
     /**
      * Notifies the service of the current allocation ids in the cluster state. This method trims any shards that
-     * have been removed
+     * have been removed.
      *
      * @param activeAllocationIds       the allocation ids of the currently active shard copies
      * @param initializingAllocationIds the allocation ids of the currently initializing shard copies
@@ -181,13 +182,13 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
 
     /**
      * marks the allocationId as "in sync" with the primary shard. This should be called at the end of recovery
-     * where the primary knows all operation bellow the global checkpoint have been completed on this shard.
+     * where the primary knows all operation below the global checkpoint have been completed on this shard.
      *
      * @param allocationId    allocationId of the recovering shard
      */
     public synchronized void markAllocationIdAsInSync(String allocationId) {
         if (assignedAllocationIds.contains(allocationId) == false) {
-            // master have change its mind and removed this allocation, ignore.
+            // master have change it's mind and removed this allocation, ignore.
             return;
         }
         logger.trace("marked [{}] as in sync", allocationId);

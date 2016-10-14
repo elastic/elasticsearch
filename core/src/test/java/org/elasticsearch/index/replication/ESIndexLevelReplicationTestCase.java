@@ -258,10 +258,10 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         private void syncGlobalCheckpoint() {
-            PlainActionFuture<ReplicationResponse> listner = new PlainActionFuture<>();
+            PlainActionFuture<ReplicationResponse> listener = new PlainActionFuture<>();
             try {
-                new GlobalCheckpointSync(listner, this).execute();
-                listner.get();
+                new GlobalCheckpointSync(listener, this).execute();
+                listener.get();
             } catch (Exception e) {
                 throw new AssertionError(e);
             }

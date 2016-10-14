@@ -734,7 +734,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         /**
          * Notifies the service of the current allocation ids in the cluster state.
-         * see {@link GlobalCheckpointService#updateAllocationIdsFromMaster(Set, Set)} for details.
+         * See {@link GlobalCheckpointService#updateAllocationIdsFromMaster(Set, Set)} for details.
          *
          * @param activeAllocationIds       the allocation ids of the currently active shard copies
          * @param initializingAllocationIds the allocation ids of the currently initializing shard copies

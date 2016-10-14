@@ -287,7 +287,6 @@ public class VersionTests extends ESTestCase {
     public void testUnknownVersions() {
         assertUnknownVersion(V_20_0_0_UNRELEASED);
         expectThrows(AssertionError.class, () -> assertUnknownVersion(Version.CURRENT));
-        assertUnknownVersion(AliasFilter.V_5_1_0); // once we released 5.1.0 and it's added to Version.java we need to remove this constant
         // once we released 5.0.0 and it's added to Version.java we need to remove this constant
         assertUnknownVersion(ShardValidateQueryRequestTests.V_5_0_0);
     }

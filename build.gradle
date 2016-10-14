@@ -48,7 +48,7 @@ subprojects {
     dependencies {
         testCompile group: 'org.ini4j', name: 'ini4j', version:'0.5.2'
         // Includes: junit, hamcrest and mockito
-        testCompile group: 'org.elasticsearch.test', name: 'framework', version: '5.0.0-beta1'
+        testCompile group: 'org.elasticsearch.test', name: 'framework', version: '5.0.0-rc1'
     }
 }
 

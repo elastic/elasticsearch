@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
@@ -51,8 +52,8 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     public ShardSearchTransportRequest(SearchRequest searchRequest, ShardRouting shardRouting, int numberOfShards,
-                                       String[] filteringAliases, long nowInMillis) {
-        this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardRouting, numberOfShards, filteringAliases, nowInMillis);
+                                       AliasFilter aliasFilter, long nowInMillis) {
+        this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardRouting, numberOfShards, aliasFilter, nowInMillis);
         this.originalIndices = new OriginalIndices(searchRequest);
     }
 
@@ -104,7 +105,7 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public String[] filteringAliases() {
+    public QueryBuilder filteringAliases() {
         return shardSearchLocalRequest.filteringAliases();
     }
 

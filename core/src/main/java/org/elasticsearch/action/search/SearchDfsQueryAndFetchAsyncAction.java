@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
@@ -46,10 +47,10 @@ class SearchDfsQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<DfsSea
     private final SearchPhaseController searchPhaseController;
     SearchDfsQueryAndFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
                                       Function<String, DiscoveryNode> nodeIdToDiscoveryNode,
-                                      Map<String, String[]> perIndexFilteringAliases, SearchPhaseController searchPhaseController,
+                                      Map<String, AliasFilter> aliasFilter, SearchPhaseController searchPhaseController,
                                       Executor executor, SearchRequest request, ActionListener<SearchResponse> listener,
                                       GroupShardsIterator shardsIts, long startTime, long clusterStateVersion) {
-        super(logger, searchTransportService, nodeIdToDiscoveryNode, perIndexFilteringAliases, executor,
+        super(logger, searchTransportService, nodeIdToDiscoveryNode, aliasFilter, executor,
                 request, listener, shardsIts, startTime, clusterStateVersion);
         this.searchPhaseController = searchPhaseController;
         queryFetchResults = new AtomicArray<>(firstResults.length());

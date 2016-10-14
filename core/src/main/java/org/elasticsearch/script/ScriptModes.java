@@ -22,6 +22,7 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.Script.ScriptType;
+import org.elasticsearch.script.ScriptContext.Standard;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -60,6 +61,11 @@ public class ScriptModes {
         //native scripts are always enabled as they are static by definition
         if (NativeScriptEngineService.NAME.equals(lang)) {
             return true;
+        }
+        //expression scripts are always disabled for ingest and update
+        //TODO: fix this with an API
+        if ("expression".equals(lang) && (scriptContext == Standard.INGEST || scriptContext == Standard.UPDATE)) {
+            throw new IllegalStateException("scripts using lang [expression] with operation [" + scriptContext.getKey() + "] are always disabled");
         }
         Boolean scriptMode = scriptEnabled.get(getKey(lang, scriptType, scriptContext));
         if (scriptMode == null) {

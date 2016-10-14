@@ -63,7 +63,7 @@
   - match: { _source.count:      1   }
 
   - do:
-      catch:      /script_lang not supported \[doesnotexist\]/
+      catch:      /script mode does not exist for lang \[doesnotexist\]/
       update:
           index:  test_1
           type:   test
@@ -75,7 +75,7 @@
               params: { bar: 'xxx' }
 
   - do:
-      catch:      /script_lang not supported \[doesnotexist\]/
+      catch:      /script mode does not exist for lang \[doesnotexist\]/
       update:
           index:  test_1
           type:   test

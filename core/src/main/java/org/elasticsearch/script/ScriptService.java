@@ -178,9 +178,38 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
     }
 
-    private class StoredCacheRemovalListener implements RemovalListener<StoredScriptLookup, CompiledScript> {
+    private static class StoredScriptCacheKey {
+        private final String id;
+        private final String code;
+
+        private StoredScriptCacheKey(String id, String code) {
+            this.id = id;
+            this.code = code;
+        }
+
         @Override
-        public void onRemoval(RemovalNotification<StoredScriptLookup, CompiledScript> notification) {
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            StoredScriptCacheKey that = (StoredScriptCacheKey)o;
+
+            if (!id.equals(that.id)) return false;
+            return code.equals(that.code);
+
+        }
+
+        @Override
+        public int hashCode() {
+            int result = id.hashCode();
+            result = 31 * result + code.hashCode();
+            return result;
+        }
+    }
+
+    private class StoredCacheRemovalListener implements RemovalListener<StoredScriptCacheKey, CompiledScript> {
+        @Override
+        public void onRemoval(RemovalNotification<StoredScriptCacheKey, CompiledScript> notification) {
             if (logger.isDebugEnabled()) {
                 logger.debug("removed [{}] from stored cache, reason [{}]", notification.getValue(), notification.getRemovalReason());
             }
@@ -222,7 +251,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     private final Path fileScriptsDirectory;
     private final ConcurrentMap<FileScriptLookup, CompiledScript> fileCache = ConcurrentCollections.newConcurrentMap();
 
-    private final Cache<StoredScriptLookup, CompiledScript> storedCache;
+    private final Cache<StoredScriptCacheKey, CompiledScript> storedCache;
     private final Cache<InlineScriptLookup, CompiledScript> inlineCache;
 
     private ClusterState clusterState;
@@ -275,7 +304,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             fileWatcher.init();
         }
 
-        CacheBuilder<StoredScriptLookup, CompiledScript> storedCacheBuilder = CacheBuilder.builder();
+        CacheBuilder<StoredScriptCacheKey, CompiledScript> storedCacheBuilder = CacheBuilder.builder();
         CacheBuilder<InlineScriptLookup, CompiledScript> inlineCacheBuilder = CacheBuilder.builder();
         int cacheMaxSize = SCRIPT_CACHE_SIZE_SETTING.get(settings);
         TimeValue cacheExpire = SCRIPT_CACHE_EXPIRE_SETTING.get(settings);
@@ -358,7 +387,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         if (!scriptModes.getScriptEnabled(lang, type, context)) {
             throw new IllegalStateException(
-                "[" + type.name + "] scripts using lang [" + lang + "] under context [" + context + "] are disabled");
+                "[" + type.name + "] scripts using lang [" + lang + "] with operation [" + context + "] are disabled");
         }
     }
 
@@ -468,31 +497,26 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     }
 
     protected CompiledScript getStoredScript(ScriptContext context, StoredScriptLookup lookup) {
-        CompiledScript compiled = storedCache.get(lookup);
-        boolean checked = false;
+        StoredScriptSource source = ScriptMetaData.getScript(clusterState, lookup.id);
+
+        if (source == null) {
+            throw new ResourceNotFoundException("stored script [" + lookup.id + "] does not exist");
+        }
+
+        canExecuteScriptInSpecificContext(context, STORED, source.lang);
+
+        StoredScriptCacheKey key = new StoredScriptCacheKey(lookup.id, source.code);
+        CompiledScript compiled = storedCache.get(key);
 
         if (compiled == null) {
             synchronized(this) {
-                compiled = storedCache.get(lookup);
+                compiled = storedCache.get(key);
 
                 if (compiled == null) {
-                    StoredScriptSource source = ScriptMetaData.getScript(clusterState, lookup.id);
-
-                    if (source == null) {
-                        throw new ResourceNotFoundException("stored script [" + lookup.id + "] does not exist");
-                    }
-
-                    canExecuteScriptInSpecificContext(context, STORED, source.lang);
-                    checked = true;
-
                     compiled = compile(true, STORED, lookup.id, source.lang, source.code, source.options);
-                    storedCache.put(lookup, compiled);
+                    storedCache.put(key, compiled);
                 }
             }
-        }
-
-        if (!checked) {
-            canExecuteScriptInSpecificContext(context, STORED, compiled.lang());
         }
 
         return compiled;

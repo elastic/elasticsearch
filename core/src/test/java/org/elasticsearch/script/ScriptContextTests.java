@@ -93,7 +93,7 @@ public class ScriptContextTests extends ESTestCase {
                     new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
                 fail("script compilation should have been rejected");
             } catch (IllegalStateException e) {
-                assertThat(e.getMessage(), containsString("[" + scriptType + "] scripts using lang [" + MockScriptEngine.NAME + "] under context [" + PLUGIN_NAME + "_custom_globally_disabled_op] are disabled"));
+                assertThat(e.getMessage(), containsString("[" + scriptType + "] scripts using lang [" + MockScriptEngine.NAME + "] with operation [" + PLUGIN_NAME + "_custom_globally_disabled_op] are disabled"));
             }
         }
     }
@@ -105,7 +105,7 @@ public class ScriptContextTests extends ESTestCase {
             script.lookup.getCompiled(scriptService, new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"));
             fail("script compilation should have been rejected");
         } catch (IllegalStateException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("[inline] scripts using lang [" + MockScriptEngine.NAME + "] under context [" + PLUGIN_NAME + "_custom_exp_disabled_op] are disabled"));
+            assertTrue(e.getMessage(), e.getMessage().contains("[inline] scripts using lang [" + MockScriptEngine.NAME + "] with operation [" + PLUGIN_NAME + "_custom_exp_disabled_op] are disabled"));
         }
 
         // still works for other script contexts

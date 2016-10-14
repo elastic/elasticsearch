@@ -184,8 +184,9 @@ public final class Script {
                         "unexpected token [" + parser.currentToken() + "], expected [<template>]");
                 }
             } else {
+                String text = parser.textOrNull();
                 throw new ParsingException(parser.getTokenLocation(),
-                    "unexpected token [" + parser.currentToken() + "], " +
+                    "unexpected token [" + parser.currentToken() + "]" + (text == null ? "" : " [" + text + "]") + ", " +
                         "expected [" + ScriptField.SCRIPT.getPreferredName() + ", " + ScriptField.TEMPLATE.getPreferredName() + "]");
             }
 
@@ -421,7 +422,7 @@ public final class Script {
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
-                        "unexpected token [" + parser.currentToken() + "], expected [" +
+                        "unexpected token [" + (name == null ? parser.currentToken() : name) + "], " + "expected [" +
                             FILE.parse.getPreferredName() + ", " +
                             STORED.parse.getPreferredName() + ", " +
                             INLINE.parse.getPreferredName() + ", " +

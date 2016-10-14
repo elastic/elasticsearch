@@ -61,7 +61,8 @@ public class StoredExpressionTests extends ESIntegTestCase {
             fail("update script should have been rejected");
         } catch(Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
-            assertThat(e.getCause().getMessage(), containsString("scripts of type [stored], operation [update] and lang [expression] are disabled"));
+            assertThat(e.getCause().getMessage(),
+                containsString("scripts using lang [expression] with operation [update] are always disabled"));
         }
         try {
             client().prepareSearch()
@@ -71,7 +72,7 @@ public class StoredExpressionTests extends ESIntegTestCase {
                     .setIndices("test").setTypes("scriptTest").get();
             fail("search script should have been rejected");
         } catch(Exception e) {
-            assertThat(e.toString(), containsString("scripts of type [stored], operation [search] and lang [expression] are disabled"));
+            assertThat(e.toString(), containsString("[stored] scripts using lang [expression] with operation [search] are disabled"));
         }
         try {
             client().prepareSearch("test")
@@ -79,7 +80,7 @@ public class StoredExpressionTests extends ESIntegTestCase {
                             new SearchSourceBuilder().aggregation(AggregationBuilders.terms("test").script(
                                     ScriptInput.stored("script1")))).get();
         } catch (Exception e) {
-            assertThat(e.toString(), containsString("scripts of type [stored], operation [aggs] and lang [expression] are disabled"));
+            assertThat(e.toString(), containsString("\"[stored] scripts using lang [expression] with operation [aggs] are disabled\""));
         }
     }
 }

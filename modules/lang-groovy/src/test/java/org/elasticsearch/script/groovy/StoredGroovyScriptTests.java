@@ -26,7 +26,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptInput;
 import org.elasticsearch.script.Script.StoredScriptSource;
 import org.elasticsearch.search.SearchHit;
@@ -135,7 +134,7 @@ public class StoredGroovyScriptTests extends ESIntegTestCase {
         } catch (Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
             assertThat(ExceptionsHelper.detailedMessage(e),
-                    containsString("scripts of type [stored], operation [update] and lang [groovy] are disabled"));
+                    containsString("[stored] scripts using lang [groovy] with operation [update] are disabled"));
         }
     }
 

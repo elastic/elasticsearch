@@ -55,13 +55,13 @@
         body: { "script": { "lang": "groovy", "code": "_score * foo bar + doc[\"myParent.weight\"].value" } }
 
   - do:
-      catch: request
+      catch: /resource_not_found/
       put_script:
         id: "1"
         body: { "script" : { "lang": "foobar", "code": "_score * doc[\"myParent.weight\"].value" } }
 
   - do:
-      catch: /script_lang.not.supported/
+      catch: /script.lang.\[foobar\].does.not.exist/
       put_script:
         id: "1"
         body: { "script" : { "lang": "foobar", "code": "_score * doc[\"myParent.weight\"].value" } }

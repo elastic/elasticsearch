@@ -162,6 +162,7 @@ public class ScriptSettings {
                 }
             }
         }
+
         return scriptModeSettings;
     }
 

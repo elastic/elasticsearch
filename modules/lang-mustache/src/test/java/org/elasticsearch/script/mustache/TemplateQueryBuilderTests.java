@@ -22,7 +22,7 @@ package org.elasticsearch.script.mustache;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -129,8 +129,8 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         String queryAsString = testQueryAsString.replace("inline", "bogusField");
         try {
             parseQuery(queryAsString);
-            fail("ScriptParseException expected.");
-        } catch (ElasticsearchParseException e) {
+            fail("ParsingException expected.");
+        } catch (ParsingException e) {
             assertTrue(e.getMessage().contains("bogusField"));
         }
     }
@@ -144,7 +144,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         builder.doXContent(content, null);
         content.endObject();
         content.close();
-        assertEquals("{\"template\":{\"inline\":\"I am a $template string\",\"lang\":\"mustache\",\"params\":{\"template\":\"filled\"}}}",
+        assertEquals("{\"template\":{\"lang\":\"mustache\",\"inline\":\"I am a $template string\",\"params\":{\"template\":\"filled\"}}}",
                 content.string());
     }
 
@@ -162,7 +162,8 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         String query = "{\"template\": {\"inline\": {\"match_{{template}}\": {}},\"params\" : {\"template\" : \"all\"}}}";
         Map<String, Object> params = new HashMap<>();
         params.put("template", "all");
-        QueryBuilder expectedBuilder = new TemplateQueryBuilder(expectedTemplateString, Script.ScriptType.INLINE, params, XContentType.JSON);
+        QueryBuilder expectedBuilder =
+            new TemplateQueryBuilder(expectedTemplateString, Script.ScriptType.INLINE, params, XContentType.JSON);
         assertParsedQuery(query, expectedBuilder);
     }
 

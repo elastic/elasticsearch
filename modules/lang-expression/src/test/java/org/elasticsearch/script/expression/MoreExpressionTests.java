@@ -567,7 +567,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
             String message = e.getMessage();
             assertThat(message + " should have contained failed to execute", message.contains("failed to execute"), equalTo(true));
             message = e.getCause().getMessage();
-            assertThat(message + " should have contained not supported", message.contains("not supported"), equalTo(true));
+            assertThat(message + " should have contained are always disabled", message.contains("are always disabled"), equalTo(true));
         }
     }
 

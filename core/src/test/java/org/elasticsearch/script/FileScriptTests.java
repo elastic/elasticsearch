@@ -79,7 +79,7 @@ public class FileScriptTests extends ESTestCase {
                 scriptService.getFileScript(context, new FileScriptLookup("script1"));
                 fail(context.getKey() + " script should have been rejected");
             } catch(Exception e) {
-                assertTrue(e.getMessage(), e.getMessage().contains("[" + ScriptType.FILE.name + "] scripts using lang [" + MockScriptEngine.NAME + "] under context [" + context.getKey() + "] are disabled"));
+                assertTrue(e.getMessage(), e.getMessage().contains("[" + ScriptType.FILE.name + "] scripts using lang [" + MockScriptEngine.NAME + "] with operation [" + context.getKey() + "] are disabled"));
             }
         }
     }

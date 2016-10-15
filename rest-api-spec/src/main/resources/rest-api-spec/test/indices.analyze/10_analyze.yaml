@@ -6,6 +6,8 @@ setup:
 
 ---
 "Basic test":
+    - skip:
+        features: ["warnings"]
     - do:
         indices.analyze:
           text: Foo Bar
@@ -15,6 +17,8 @@ setup:
 
 ---
 "Tokenizer and filter":
+    - skip:
+        features: ["warnings"]
     - do:
         indices.analyze:
           filter:      lowercase
@@ -25,6 +29,8 @@ setup:
 
 ---
 "Index and field":
+    - skip:
+        features: ["warnings"]
     - do:
         indices.create:
           index: test
@@ -53,6 +59,8 @@ setup:
     - match:     { tokens.0.token: foo bar }
 ---
 "Body params override query string":
+    - skip:
+        features: ["warnings"]
     - do:
         indices.analyze:
           text: Foo Bar

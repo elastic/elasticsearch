@@ -58,10 +58,11 @@ public class GlobalCheckpointTests extends ESTestCase {
     }
 
     private final AtomicInteger aIdGenerator = new AtomicInteger();
+
     private Map<String, Long> randomAllocationsWithLocalCheckpoints(int min, int max) {
         Map<String, Long> allocations = new HashMap<>();
         for (int i = randomIntBetween(min, max); i > 0; i--) {
-            allocations.put("id_" + aIdGenerator.incrementAndGet(), (long)randomInt(1000));
+            allocations.put("id_" + aIdGenerator.incrementAndGet(), (long) randomInt(1000));
         }
         return allocations;
     }
@@ -140,7 +141,7 @@ public class GlobalCheckpointTests extends ESTestCase {
         assigned.putAll(active);
         assigned.putAll(initializing);
         checkpointService.updateAllocationIdsFromMaster(
-            new HashSet<>(randomSubsetOf(randomInt(active.size()-1), active.keySet())),
+            new HashSet<>(randomSubsetOf(randomInt(active.size() - 1), active.keySet())),
             initializing.keySet());
         randomSubsetOf(initializing.keySet()).forEach(checkpointService::markAllocationIdAsInSync);
         assigned.forEach(checkpointService::updateLocalCheckpoint);

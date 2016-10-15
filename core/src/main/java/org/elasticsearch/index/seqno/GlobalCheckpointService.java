@@ -34,7 +34,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbersService.UNASSIGNED_SE
  * A shard component that is responsible of tracking the global checkpoint. The global checkpoint
  * is the highest seq_no for which all lower (or equal) seq_no have been processed on all shards that
  * are currently active. Since shards count as "active" when the master starts them, and before this primary shard
- * has been notified of this fact, we also include shards in that have completed recovery. These shards have received
+ * has been notified of this fact, we also include shards that have completed recovery. These shards have received
  * all old operations via the recovery mechanism and are kept up to date by the various replications actions. The set
  * of shards that are taken into account for the global checkpoint calculation are called the "in sync" shards.
  *

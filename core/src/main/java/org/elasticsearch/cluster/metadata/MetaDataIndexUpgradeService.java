@@ -19,6 +19,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -161,7 +163,10 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
 
     IndexMetaData archiveBrokenIndexSettings(IndexMetaData indexMetaData) {
         final Settings settings = indexMetaData.getSettings();
-        final Settings upgrade = indexScopedSettings.archiveUnknownOrBrokenSettings(settings);
+        final Settings upgrade = indexScopedSettings.archiveUnknownOrInvalidSettings(
+            settings,
+            e -> logger.warn("{} ignoring unknown index setting: [{}] with value [{}]; archiving", indexMetaData.getIndex(), e.getKey(), e.getValue()),
+            (e, ex) -> logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} ignoring invalid index setting: [{}] with value [{}]; archiving", indexMetaData.getIndex(), e.getKey(), e.getValue()), ex));
         if (upgrade != settings) {
             return IndexMetaData.builder(indexMetaData).settings(upgrade).build();
         } else {

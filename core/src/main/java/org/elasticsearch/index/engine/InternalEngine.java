@@ -57,6 +57,7 @@ import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.Engine.Operation;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
@@ -414,25 +415,33 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * When indexing a document into Lucene, Lucene distinguishes between environment related errors
-     * (like out of disk space) and document specific errors (like analysis chain problems) by setting
-     * the IndexWriter.getTragicEvent() value for the former. maybeFailEngine checks for these kind of
-     * errors and returns true if that is the case. We use that to indicate a document level failure
-     * and set the error in operation.setFailure. In case of environment related errors, the failure
-     * is bubbled up
+     * Handle failures executing write operations, distinguish persistent engine (environment) failures
+     * from document (request) specific failures.
+     * Write failures that fail the engine as a side-effect, are thrown wrapped in {@link OperationFailedEngineException}
+     * and document specific failures are captured through {@link Operation#setFailure(Exception)} to be handled
+     * at the transport level.
      */
-    private void handleOperationFailure(final Operation operation, final Exception e) throws OperationFailedEngineException {
+    private void handleOperationFailure(final Operation operation, final Exception failure) {
+        boolean isEnvironmentFailure;
         try {
-            if (maybeFailEngine(operation.operationType().getLowercase(), e)) {
-                throw new OperationFailedEngineException(shardId,
-                        operation.operationType().getLowercase(), operation.type(), operation.id(), e);
-            } else {
-                operation.setFailure(e);
-            }
+            // When indexing a document into Lucene, Lucene distinguishes between environment related errors
+            // (like out of disk space) and document specific errors (like analysis chain problems) by setting
+            // the IndexWriter.getTragicEvent() value for the former. maybeFailEngine checks for these kind of
+            // errors and returns true if that is the case. We use that to indicate a document level failure
+            // and set the error in operation.setFailure. In case of environment related errors, the failure
+            // is bubbled up
+            isEnvironmentFailure = (failure instanceof IllegalStateException || failure instanceof IOException)
+                    && maybeFailEngine(operation.operationType().getLowercase(), failure);
         } catch (Exception inner) {
-            e.addSuppressed(inner);
-            throw new OperationFailedEngineException(shardId,
-                    operation.operationType().getLowercase(), operation.type(), operation.id(), e);
+            // we failed checking whether the failure can fail the engine, treat it as a persistent engine failure
+            isEnvironmentFailure = true;
+            failure.addSuppressed(inner);
+        }
+        if (isEnvironmentFailure) {
+            throw new OperationFailedEngineException(shardId, operation.operationType().getLowercase(),
+                    operation.type(), operation.id(), failure);
+        } else {
+            operation.setFailure(failure);
         }
     }
 
@@ -540,7 +549,7 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private long updateVersion(Engine.Operation op, long currentVersion, long expectedVersion) {
+    private long updateVersion(Operation op, long currentVersion, long expectedVersion) {
         final long updatedVersion = op.versionType().updateVersion(currentVersion, expectedVersion);
         op.updateVersion(updatedVersion);
         return updatedVersion;

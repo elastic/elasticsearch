@@ -62,8 +62,6 @@ public class DiscoveryModule extends AbstractModule {
         addDiscoveryType("local", LocalDiscovery.class);
         addDiscoveryType("zen", ZenDiscovery.class);
         addElectMasterService("zen", ElectMasterService.class);
-        // always add the unicast hosts, or things get angry!
-        addZenPing(UnicastZenPing.class);
     }
 
     /**
@@ -129,6 +127,9 @@ public class DiscoveryModule extends AbstractModule {
             for (Class<? extends UnicastHostsProvider> unicastHostProvider :
                     unicastHostProviders.getOrDefault(discoveryType, Collections.emptyList())) {
                 unicastHostsProviderMultibinder.addBinding().to(unicastHostProvider);
+            }
+            if (zenPings.isEmpty()) {
+                zenPings.registerExtension(UnicastZenPing.class);
             }
             zenPings.bind(binder());
         }

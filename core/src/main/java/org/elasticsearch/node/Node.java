@@ -152,6 +152,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -331,7 +332,11 @@ public class Node implements Closeable {
             }
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             modules.add(new NodeModule(this, monitorService));
-            modules.add(new DiscoveryModule(this.settings));
+            final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings);
+            pluginsService.filterPlugins(DiscoveryPlugin.class).stream().map(p -> p.getZenPings(this.settings))
+                .flatMap(Set::stream).forEach(discoveryModule::addZenPing);
+
+            modules.add(discoveryModule);
             ClusterModule clusterModule = new ClusterModule(settings, clusterService,
                 pluginsService.filterPlugins(ClusterPlugin.class));
             modules.add(clusterModule);

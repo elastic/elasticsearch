@@ -21,6 +21,10 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.zen.ping.ZenPing;
+
+import java.util.Collections;
+import java.util.Set;
 
 /**
  * An additional extension point for {@link Plugin}s that extends Elasticsearch's discovery functionality. To add an additional
@@ -52,4 +56,6 @@ public interface DiscoveryPlugin {
     default NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
         return null;
     }
+
+    default Set<Class<? extends ZenPing>> getZenPings(Settings settings) { return Collections.emptySet(); }
 }

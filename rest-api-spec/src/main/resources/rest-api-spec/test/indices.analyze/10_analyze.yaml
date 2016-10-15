@@ -6,6 +6,8 @@ setup:
 
 ---
 "Basic test":
+    - skip:
+        features: ["warnings"]
     - do:
         warnings:
           - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
@@ -17,6 +19,8 @@ setup:
 
 ---
 "Tokenizer and filter":
+    - skip:
+        features: ["warnings"]
     - do:
         warnings:
           - filter request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
@@ -31,6 +35,8 @@ setup:
 
 ---
 "Index and field":
+    - skip:
+        features: ["warnings"]
     - do:
         indices.create:
           index: test
@@ -62,6 +68,8 @@ setup:
     - match:     { tokens.0.token: foo bar }
 ---
 "Body params override query string":
+    - skip:
+        features: ["warnings"]
     - do:
         warnings:
           - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param

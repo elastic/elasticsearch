@@ -106,12 +106,12 @@ public class ShadowEngine extends Engine {
 
 
     @Override
-    public void index(Index index) throws OperationFailedEngineException {
+    public void index(Index index) {
         throw new UnsupportedOperationException(shardId + " index operation not allowed on shadow engine");
     }
 
     @Override
-    public void delete(Delete delete) throws OperationFailedEngineException {
+    public void delete(Delete delete) {
         throw new UnsupportedOperationException(shardId + " delete operation not allowed on shadow engine");
     }
 

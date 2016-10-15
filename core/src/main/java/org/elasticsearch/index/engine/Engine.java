@@ -278,9 +278,9 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract void index(Index operation) throws OperationFailedEngineException;
+    public abstract void index(Index operation);
 
-    public abstract void delete(Delete delete) throws OperationFailedEngineException;
+    public abstract void delete(Delete delete);
 
     /**
      * Attempts to do a special commit where the given syncID is put into the commit data. The attempt

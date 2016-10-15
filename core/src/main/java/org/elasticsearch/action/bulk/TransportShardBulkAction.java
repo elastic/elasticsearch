@@ -27,7 +27,6 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
@@ -60,6 +59,7 @@ import java.util.Map;
 import static org.elasticsearch.action.delete.TransportDeleteAction.executeDeleteRequestOnPrimary;
 import static org.elasticsearch.action.delete.TransportDeleteAction.executeDeleteRequestOnReplica;
 import static org.elasticsearch.action.index.TransportIndexAction.executeIndexRequestOnPrimary;
+import static org.elasticsearch.action.index.TransportIndexAction.executeIndexRequestOnReplica;
 import static org.elasticsearch.action.support.replication.ReplicationOperation.ignoreReplicaException;
 import static org.elasticsearch.action.support.replication.ReplicationOperation.isConflictException;
 
@@ -288,7 +288,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 switch (docWriteRequest.opType()) {
                     case CREATE:
                     case INDEX:
-                        replicaResult = TransportIndexAction.executeIndexRequestOnReplica(((IndexRequest) docWriteRequest), replica);
+                        replicaResult = executeIndexRequestOnReplica(((IndexRequest) docWriteRequest), replica);
                         break;
                     case DELETE:
                         replicaResult = executeDeleteRequestOnReplica(((DeleteRequest) docWriteRequest), replica);

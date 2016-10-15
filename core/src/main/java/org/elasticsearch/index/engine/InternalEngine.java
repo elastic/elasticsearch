@@ -397,7 +397,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void index(Index index) throws OperationFailedEngineException {
+    public void index(Index index) {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (index.origin().isRecovery()) {
@@ -563,7 +563,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void delete(Delete delete) throws OperationFailedEngineException {
+    public void delete(Delete delete) {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:

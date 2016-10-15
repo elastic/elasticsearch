@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.discovery;
 
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -31,12 +32,13 @@ import org.elasticsearch.plugins.Plugin;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 public final class MockZenPing extends AbstractLifecycleComponent implements ZenPing {
 
-    static final Set<MockZenPing> activeNodes = ConcurrentCollections.newConcurrentSet();
+    static final Map<ClusterName, Set<MockZenPing>> activeNodesPerCluster = ConcurrentCollections.newConcurrentMap();
 
     private volatile PingContextProvider contextProvider;
 
@@ -52,11 +54,16 @@ public final class MockZenPing extends AbstractLifecycleComponent implements Zen
 
     @Override
     public void ping(PingListener listener, TimeValue timeout) {
-        List<PingResponse> responseList = activeNodes.stream()
+        logger.info("pinging using mock zen ping");
+        List<PingResponse> responseList = getActiveNodesForCurrentCluster().stream()
             .filter(p -> p != this) // remove this as pings are not expected to return the local node
             .map(MockZenPing::getPingResponse)
             .collect(Collectors.toList());
         listener.onPing(responseList);
+    }
+
+    private ClusterName getClusterName() {
+        return contextProvider.clusterState().getClusterName();
     }
 
     private PingResponse getPingResponse() {
@@ -67,13 +74,18 @@ public final class MockZenPing extends AbstractLifecycleComponent implements Zen
     @Override
     protected void doStart() {
         assert contextProvider != null;
-        boolean added = activeNodes.add(this);
+        boolean added = getActiveNodesForCurrentCluster().add(this);
         assert added;
+    }
+
+    private Set<MockZenPing> getActiveNodesForCurrentCluster() {
+        return activeNodesPerCluster.computeIfAbsent(getClusterName(),
+            clusterName -> ConcurrentCollections.newConcurrentSet());
     }
 
     @Override
     protected void doStop() {
-        boolean found = activeNodes.remove(this);
+        boolean found = getActiveNodesForCurrentCluster().remove(this);
         assert found;
     }
 

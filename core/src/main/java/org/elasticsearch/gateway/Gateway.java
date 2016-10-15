@@ -38,6 +38,7 @@ import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.indices.IndicesService;
 
 import java.util.Arrays;
+import java.util.Map;
 import java.util.function.Supplier;
 
 public class Gateway extends AbstractComponent implements ClusterStateListener {
@@ -148,11 +149,33 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
             }
         }
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        metaDataBuilder.persistentSettings(clusterSettings.archiveUnknownOrBrokenSettings(metaDataBuilder.persistentSettings()));
-        metaDataBuilder.transientSettings(clusterSettings.archiveUnknownOrBrokenSettings(metaDataBuilder.transientSettings()));
+        metaDataBuilder.persistentSettings(
+            clusterSettings.archiveUnknownOrInvalidSettings(
+                metaDataBuilder.persistentSettings(),
+                e -> logUnknownSetting("persistent", e),
+                (e, ex) -> logInvalidSetting("persistent", e, ex)));
+        metaDataBuilder.transientSettings(
+            clusterSettings.archiveUnknownOrInvalidSettings(
+                metaDataBuilder.transientSettings(),
+                e -> logUnknownSetting("transient", e),
+                (e, ex) -> logInvalidSetting("transient", e, ex)));
         ClusterState.Builder builder = ClusterState.builder(clusterService.getClusterName());
         builder.metaData(metaDataBuilder);
         listener.onSuccess(builder.build());
+    }
+
+    private void logUnknownSetting(String settingType, Map.Entry<String, String> e) {
+        logger.warn("ignoring unknown {} setting: [{}] with value [{}]; archiving", settingType, e.getKey(), e.getValue());
+    }
+
+    private void logInvalidSetting(String settingType, Map.Entry<String, String> e, IllegalArgumentException ex) {
+        logger.warn(
+            (org.apache.logging.log4j.util.Supplier<?>)
+                () -> new ParameterizedMessage("ignoring invalid {} setting: [{}] with value [{}]; archiving",
+                    settingType,
+                    e.getKey(),
+                    e.getValue()),
+            ex);
     }
 
     @Override

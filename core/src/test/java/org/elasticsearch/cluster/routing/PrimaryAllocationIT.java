@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimary
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -63,9 +62,8 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-        .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen").build();
+    protected boolean addMockZenPings() {
+        return false;
     }
 
     private void createStaleReplicaScenario() throws Exception {

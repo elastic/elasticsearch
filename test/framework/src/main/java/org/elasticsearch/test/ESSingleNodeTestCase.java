@@ -45,6 +45,7 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.discovery.MockZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.junit.After;
@@ -181,7 +182,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 1000)
             .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-            .put("discovery.type", "local")
             .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
             .put(Node.NODE_DATA_SETTING.getKey(), true)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
@@ -190,6 +190,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (plugins.contains(MockTcpTransportPlugin.class) == false) {
             plugins = new ArrayList<>(plugins);
             plugins.add(MockTcpTransportPlugin.class);
+        }
+        if (plugins.contains(MockZenPing.TestPlugin.class) == false) {
+            plugins = new ArrayList<>(plugins);
+            plugins.add(MockZenPing.TestPlugin.class);
         }
         Node build = new MockNode(settings, plugins);
         try {

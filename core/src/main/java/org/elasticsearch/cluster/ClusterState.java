@@ -52,7 +52,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.local.LocalDiscovery;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 
 import java.io.IOException;
@@ -72,8 +71,7 @@ import java.util.Set;
  * single thread and controlled by the {@link ClusterService}. After every update the
  * {@link Discovery#publish} method publishes new version of the cluster state to all other nodes in the
  * cluster.  The actual publishing mechanism is delegated to the {@link Discovery#publish} method and depends on
- * the type of discovery. For example, for local discovery it is implemented by the {@link LocalDiscovery#publish}
- * method. In the Zen Discovery it is handled in the {@link PublishClusterStateAction#publish} method. The
+ * the type of discovery. In the Zen Discovery it is handled in the {@link PublishClusterStateAction#publish} method. The
  * publishing mechanism can be overridden by other discovery.
  * <p>
  * The cluster state implements the {@link Diffable} interface in order to support publishing of cluster state

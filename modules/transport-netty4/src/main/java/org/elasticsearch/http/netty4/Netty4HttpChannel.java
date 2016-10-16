@@ -186,7 +186,7 @@ final class Netty4HttpChannel extends AbstractRestChannel {
     private boolean isCloseConnection() {
         final boolean http10 = isHttp10();
         return HttpHeaderValues.CLOSE.contentEqualsIgnoreCase(nettyRequest.headers().get(HttpHeaderNames.CONNECTION)) ||
-            (http10 && HttpHeaderValues.KEEP_ALIVE.equals(nettyRequest.headers().get(HttpHeaderNames.CONNECTION)) == false);
+            (http10 && !HttpHeaderValues.KEEP_ALIVE.contentEqualsIgnoreCase(nettyRequest.headers().get(HttpHeaderNames.CONNECTION)));
     }
 
     // Create a new {@link HttpResponse} to transmit the response for the netty request.

@@ -219,18 +219,29 @@ public class Netty4HttpChannelTests extends ESTestCase {
         try (Netty4HttpServerTransport httpServerTransport =
                  new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool)) {
             httpServerTransport.start();
-            final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
-            httpRequest.headers().add(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
+            final FullHttpRequest httpRequest;
+            final boolean close = randomBoolean();
+            if (randomBoolean()) {
+                httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
+                if (close) {
+                    httpRequest.headers().add(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
+                }
+            } else {
+                httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_0, HttpMethod.GET, "/");
+                if (!close) {
+                    httpRequest.headers().add(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
+                }
+            }
             final EmbeddedChannel embeddedChannel = new EmbeddedChannel();
             final Netty4HttpRequest request = new Netty4HttpRequest(httpRequest, embeddedChannel);
 
-            // send a response, the channel should close
+            // send a response, the channel close status should match
             assertTrue(embeddedChannel.isOpen());
             final Netty4HttpChannel channel =
                 new Netty4HttpChannel(httpServerTransport, request, null, randomBoolean(), threadPool.getThreadContext());
             final TestResponse resp = new TestResponse();
             channel.sendResponse(resp);
-            assertFalse(embeddedChannel.isOpen());
+            assertThat(embeddedChannel.isOpen(), equalTo(!close));
         }
     }
 

@@ -18,9 +18,9 @@
 
   - do:
       put_template:
-        id: "1"
+        id: "my_template"
         body: { "template": { "query": { "match" : { "text": "{{my_value}}" } }, "size": "{{my_size}}" } }
-  - match: { _id: "1" }
+  - match: { _id: "my_template" }
 
   - do:
       indices.refresh: {}
@@ -28,12 +28,12 @@
 
   - do:
       search_template:
-        body: { "template": { "id" : "1" }, "params" : { "my_value" : "value1_foo", "my_size" : 1 } }
+        body: { "template": { "id" : "my_template" }, "params" : { "my_value" : "value1_foo", "my_size" : 1 } }
   - match: { hits.total: 1 }
 
   - do:
       search_template:
-        body: {  "id" : "1", "params" : { "my_value" : "value1_foo", "my_size" : 1 } }
+        body: {  "id" : "my_template", "params" : { "my_value" : "value1_foo", "my_size" : 1 } }
   - match: { hits.total: 1 }
 
   - do:

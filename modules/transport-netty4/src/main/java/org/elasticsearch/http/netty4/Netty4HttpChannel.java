@@ -185,7 +185,7 @@ final class Netty4HttpChannel extends AbstractRestChannel {
     // Determine if the request connection should be closed on completion.
     private boolean isCloseConnection() {
         final boolean http10 = isHttp10();
-        return HttpHeaderValues.CLOSE.equals(nettyRequest.headers().get(HttpHeaderNames.CONNECTION)) ||
+        return HttpHeaderValues.CLOSE.contentEqualsIgnoreCase(nettyRequest.headers().get(HttpHeaderNames.CONNECTION)) ||
             (http10 && HttpHeaderValues.KEEP_ALIVE.equals(nettyRequest.headers().get(HttpHeaderNames.CONNECTION)) == false);
     }
 

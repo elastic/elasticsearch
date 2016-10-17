@@ -28,8 +28,12 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 
+/**
+ * A {@link Discovery} implementation that is used by {@link org.elasticsearch.tribe.TribeService}. This implementation
+ * doesn't support any clustering features. Most notably {@link #startInitialJoin()} does nothing and
+ * {@link #publish(ClusterChangedEvent, AckListener)} is not supported.
+ */
 public class NoneDiscovery extends AbstractLifecycleComponent implements Discovery {
-
 
     private final ClusterService clusterService;
     private final DiscoverySettings discoverySettings;

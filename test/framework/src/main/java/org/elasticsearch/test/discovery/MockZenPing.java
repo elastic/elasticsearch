@@ -36,6 +36,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * A {@link ZenPing} implementation which returns results based on an static in-memory map. This allows pinging
+ * to be immediate and can be used to speed up tests.
+ */
 public final class MockZenPing extends AbstractLifecycleComponent implements ZenPing {
 
     static final Map<ClusterName, Set<MockZenPing>> activeNodesPerCluster = ConcurrentCollections.newConcurrentMap();

@@ -87,7 +87,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
 
         currentNodes = DiscoveryNodes.builder();
         currentNodes.masterNodeId("b").add(new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
-        ;
+
         // version isn't taken into account, so randomize it to ensure this.
         if (randomBoolean()) {
             currentState.version(2);

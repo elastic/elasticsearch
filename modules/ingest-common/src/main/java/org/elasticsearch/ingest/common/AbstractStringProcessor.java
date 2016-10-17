@@ -34,7 +34,7 @@ abstract class AbstractStringProcessor extends AbstractProcessor {
     private final String field;
     private final boolean ignoreMissing;
 
-    protected AbstractStringProcessor(String tag, String field, boolean ignoreMissing) {
+    AbstractStringProcessor(String tag, String field, boolean ignoreMissing) {
         super(tag);
         this.field = field;
         this.ignoreMissing = ignoreMissing;
@@ -50,16 +50,8 @@ abstract class AbstractStringProcessor extends AbstractProcessor {
 
     @Override
     public final void execute(IngestDocument document) {
-        String val;
+        String val = document.getFieldValue(field, String.class, ignoreMissing);
 
-        try {
-            val = document.getFieldValue(field, String.class);
-        } catch (IllegalArgumentException e) {
-            if (ignoreMissing && document.hasField(field) != true) {
-                return;
-            }
-            throw e;
-        }
         if (val == null && ignoreMissing) {
             return;
         } else if (val == null) {
@@ -72,7 +64,7 @@ abstract class AbstractStringProcessor extends AbstractProcessor {
     protected abstract String process(String value);
 
     abstract static class Factory implements Processor.Factory {
-        protected final String processorType;
+        final String processorType;
 
         protected Factory(String processorType) {
             this.processorType = processorType;

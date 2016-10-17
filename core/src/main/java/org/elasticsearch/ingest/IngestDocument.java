@@ -117,6 +117,28 @@ public final class IngestDocument {
     }
 
     /**
+     * Returns the value contained in the document for the provided path
+     *
+     * @param path The path within the document in dot-notation
+     * @param clazz The expected class of the field value
+     * @param ignoreMissing The flag to determine whether to throw an exception when `path` is not found in the document.
+     * @return the value for the provided path if existing, null otherwise.
+     * @throws IllegalArgumentException only if ignoreMissing is false and the path is null, empty, invalid, if the field doesn't exist
+     * or if the field that is found at the provided path is not of the expected type.
+     */
+    public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
+        try {
+            return getFieldValue(path, clazz);
+        } catch (IllegalArgumentException e) {
+            if (ignoreMissing && hasField(path) != true) {
+                return null;
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    /**
      * Returns the value contained in the document with the provided templated path
      * @param pathTemplate The path within the document in dot-notation
      * @param clazz The expected class fo the field value

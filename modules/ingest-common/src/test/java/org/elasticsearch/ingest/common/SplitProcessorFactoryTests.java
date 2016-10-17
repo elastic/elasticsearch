@@ -39,6 +39,7 @@ public class SplitProcessorFactoryTests extends ESTestCase {
         assertThat(splitProcessor.getTag(), equalTo(processorTag));
         assertThat(splitProcessor.getField(), equalTo("field1"));
         assertThat(splitProcessor.getSeparator(), equalTo("\\."));
+        assertFalse(splitProcessor.isIgnoreMissing());
     }
 
     public void testCreateNoFieldPresent() throws Exception {

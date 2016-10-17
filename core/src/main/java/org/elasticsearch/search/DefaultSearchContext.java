@@ -65,7 +65,6 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -291,11 +290,21 @@ final class DefaultSearchContext extends SearchContext {
     static Query createSearchFilter(String[] types, Query aliasFilter, boolean hasNestedFields) {
         Query typesFilter = null;
         if (types != null && types.length >= 1) {
-            BytesRef[] typesBytes = new BytesRef[types.length];
-            for (int i = 0; i < typesBytes.length; i++) {
-                typesBytes[i] = new BytesRef(types[i]);
+            final int threshold = Math.min(16, BooleanQuery.getMaxClauseCount());
+            if (types.length < threshold) {
+                BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                for (String type : types) {
+                    BytesRef typeBytes = new BytesRef(type);
+                    builder.add(new TypeFieldMapper.TypeQuery(typeBytes), Occur.SHOULD);
+                }
+                typesFilter = builder.build();
+            } else {
+                BytesRef[] typesBytes = new BytesRef[types.length];
+                for (int i = 0; i < typesBytes.length; i++) {
+                    typesBytes[i] = new BytesRef(types[i]);
+                }
+                typesFilter = new TermsQuery(TypeFieldMapper.NAME, typesBytes);
             }
-            typesFilter = new TermsQuery(TypeFieldMapper.NAME, typesBytes);
         }
 
         if (typesFilter == null && aliasFilter == null && hasNestedFields == false) {

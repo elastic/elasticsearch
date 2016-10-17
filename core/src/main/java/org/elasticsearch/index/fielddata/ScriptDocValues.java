@@ -292,7 +292,7 @@ public interface ScriptDocValues<T> extends List<T> {
         }
     }
 
-    class Booleans extends AbstractList<Boolean> implements ScriptDocValues<Boolean> {
+    final class Booleans extends AbstractList<Boolean> implements ScriptDocValues<Boolean> {
 
         private final SortedNumericDocValues values;
 
@@ -307,7 +307,7 @@ public interface ScriptDocValues<T> extends List<T> {
 
         @Override
         public List<Boolean> getValues() {
-            return Collections.unmodifiableList(this);
+            return this;
         }
 
         public boolean getValue() {

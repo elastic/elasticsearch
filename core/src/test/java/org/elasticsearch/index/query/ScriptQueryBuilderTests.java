@@ -57,8 +57,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
                 "  \"script\" : {\n" +
                 "    \"script\" : {\n" +
                 "      \"lang\" : \"mockscript\",\n" +
-                "      \"inline\" : \"5\",\n" +
-                "      \"params\" : { }\n" +
+                "      \"inline\" : \"5\"\n" +
                 "    },\n" +
                 "    \"boost\" : 1.0,\n" +
                 "    \"_name\" : \"PcKdEyPOmR\"\n" +

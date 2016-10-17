@@ -612,7 +612,7 @@ public final class Script {
                     "expected [" + FILE.name + ", " + STORED.name + "," + INLINE.name + "]");
             }
 
-            Map<String, Object> params = in.readMap();
+            Map<String, Object> params = in.readBoolean() ? in.readMap() : new HashMap<>();
 
             return new ScriptInput(type, lookup, params);
         }
@@ -631,7 +631,11 @@ public final class Script {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             lookup.toXContent(builder, params);
-            builder.field(ScriptField.PARAMS.getPreferredName(), this.params);
+
+            if (!this.params.isEmpty()) {
+                builder.field(ScriptField.PARAMS.getPreferredName(), this.params);
+            }
+
             builder.endObject();
 
             return builder;
@@ -641,7 +645,13 @@ public final class Script {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(type.value);
             lookup.writeTo(out);
-            out.writeMap(params);
+
+            if (!params.isEmpty()) {
+                out.writeBoolean(true);
+                out.writeMap(params);
+            } else {
+                out.writeBoolean(false);
+            }
         }
 
         @Override

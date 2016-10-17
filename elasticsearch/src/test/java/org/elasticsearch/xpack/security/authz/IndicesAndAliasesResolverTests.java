@@ -95,7 +95,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .put(indexBuilder("-index10").settings(settings))
                 .put(indexBuilder("-index11").settings(settings))
                 .put(indexBuilder("-index20").settings(settings))
-                .put(indexBuilder("-index22").settings(settings))
+                .put(indexBuilder("-index21").settings(settings))
                 .put(indexBuilder("+index30").settings(settings))
                 .put(indexBuilder(SecurityTemplateService.SECURITY_INDEX_NAME).settings(settings)).build();
 

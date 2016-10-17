@@ -535,13 +535,10 @@ public class SearchQueryIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch().setQuery(queryStringQuery("future:[now/d TO now+2M/d]").lowercaseExpandedTerms(false)).get();
         assertHitCount(searchResponse, 1L);
 
-        try {
-            client().prepareSearch().setQuery(queryStringQuery("future:[now/D TO now+2M/d]").lowercaseExpandedTerms(false)).get();
-            fail("expected SearchPhaseExecutionException (total failure)");
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-            assertThat(e.toString(), containsString("unit [D] not supported for date math"));
-        }
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch()
+                .setQuery(queryStringQuery("future:[now/D TO now+2M/d]").lowercaseExpandedTerms(false)).get());
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.toString(), containsString("unit [D] not supported for date math"));
     }
 
     // Issue #7880
@@ -776,12 +773,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch().setQuery(matchQuery("double", "2")).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("2"));
-        try {
-            client().prepareSearch().setQuery(matchQuery("double", "2 3 4")).get();
-            fail("SearchPhaseExecutionException should have been thrown");
-        } catch (SearchPhaseExecutionException ex) {
-            // number format exception
-        }
+        expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch().setQuery(matchQuery("double", "2 3 4")).get());
     }
 
     public void testMultiMatchQuery() throws Exception {
@@ -1777,15 +1769,11 @@ public class SearchQueryIT extends ESIntegTestCase {
         refresh();
 
         //has_child fails if executed on "simple" index
-        try {
-            client().prepareSearch("simple")
-                    .setQuery(hasChildQuery("child", matchQuery("text", "value"), ScoreMode.None)).get();
-            fail("Should have failed as has_child query can only be executed against parent-child types");
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.shardFailures().length, greaterThan(0));
-            for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
-                assertThat(shardSearchFailure.reason(), containsString("no mapping found for type [child]"));
-            }
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
+                () -> client().prepareSearch("simple").setQuery(hasChildQuery("child", matchQuery("text", "value"), ScoreMode.None)).get());
+        assertThat(e.shardFailures().length, greaterThan(0));
+        for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
+            assertThat(shardSearchFailure.reason(), containsString("no mapping found for type [child]"));
         }
 
         //has_child doesn't get parsed for "simple" index
@@ -1983,14 +1971,10 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getId(), is("3"));
 
         // When we use long values, it means we have ms since epoch UTC based so we don't apply any transformation
-        try {
+        Exception e = expectThrows(SearchPhaseExecutionException.class, () ->
             client().prepareSearch("test")
                     .setQuery(QueryBuilders.rangeQuery("date").from(1388534400000L).to(1388537940999L).timeZone("+01:00"))
-                    .get();
-            fail("A Range Filter using ms since epoch with a TimeZone should raise a ParsingException");
-        } catch (SearchPhaseExecutionException e) {
-            // We expect it
-        }
+                    .get());
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01").to("2014-01-01T00:59:00").timeZone("-01:00"))
@@ -2005,14 +1989,10 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getId(), is("4"));
 
         // A Range Filter on a numeric field with a TimeZone should raise an exception
-        try {
+        e = expectThrows(SearchPhaseExecutionException.class, () ->
             client().prepareSearch("test")
                     .setQuery(QueryBuilders.rangeQuery("num").from("0").to("4").timeZone("-01:00"))
-                    .get();
-            fail("A Range Filter on a numeric field with a TimeZone should raise a ParsingException");
-        } catch (SearchPhaseExecutionException e) {
-            // We expect it
-        }
+                    .get());
     }
 
     public void testSearchEmptyDoc() {

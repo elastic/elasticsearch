@@ -159,7 +159,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     protected static String[] getCurrentTypes() {
-        return currentTypes;
+        return currentTypes == null ? Strings.EMPTY_ARRAY : currentTypes;
     }
 
     protected Collection<Class<? extends Plugin>> getPlugins() {

@@ -97,40 +97,23 @@ public class VersionTests extends ESTestCase {
     }
 
     public void testTooLongVersionFromString() {
-        try {
-            Version.fromString("1.0.0.1.3");
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("needs to contain major, minor, and revision"));
-        }
+        Exception e = expectThrows(IllegalArgumentException.class, () -> Version.fromString("1.0.0.1.3"));
+        assertThat(e.getMessage(), containsString("needs to contain major, minor, and revision"));
     }
 
     public void testTooShortVersionFromString() {
-        try {
-            Version.fromString("1.0");
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("needs to contain major, minor, and revision"));
-        }
-
+        Exception e = expectThrows(IllegalArgumentException.class, () -> Version.fromString("1.0"));
+        assertThat(e.getMessage(), containsString("needs to contain major, minor, and revision"));
     }
 
     public void testWrongVersionFromString() {
-        try {
-            Version.fromString("WRONG.VERSION");
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("needs to contain major, minor, and revision"));
-        }
+        Exception e = expectThrows(IllegalArgumentException.class, () -> Version.fromString("WRONG.VERSION"));
+        assertThat(e.getMessage(), containsString("needs to contain major, minor, and revision"));
     }
 
     public void testVersionNoPresentInSettings() {
-        try {
-            Version.indexCreated(Settings.builder().build());
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), containsString("[index.version.created] is not present"));
-        }
+        Exception e = expectThrows(IllegalStateException.class, () -> Version.indexCreated(Settings.builder().build()));
+        assertThat(e.getMessage(), containsString("[index.version.created] is not present"));
     }
 
     public void testIndexCreatedVersion() {

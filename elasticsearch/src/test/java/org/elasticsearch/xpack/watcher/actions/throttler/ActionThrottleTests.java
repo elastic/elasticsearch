@@ -127,7 +127,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
 
         ctx = getManualExecutionContext(new TimeValue(0, TimeUnit.SECONDS));
         WatchRecord watchRecord = executionService().execute(ctx);
-        for (ActionWrapper.Result result : watchRecord.result().actionsResults()) {
+        for (ActionWrapper.Result result : watchRecord.result().actionsResults().values()) {
             if (ackingActions.contains(result.id())) {
                 assertThat(result.action().status(), equalTo(Action.Result.Status.THROTTLED));
             } else {
@@ -157,12 +157,12 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         ManualExecutionContext ctx = getManualExecutionContext(new TimeValue(0, TimeUnit.SECONDS));
         WatchRecord watchRecord = executionService().execute(ctx);
         long firstExecution = System.currentTimeMillis();
-        for(ActionWrapper.Result actionResult : watchRecord.result().actionsResults()) {
+        for(ActionWrapper.Result actionResult : watchRecord.result().actionsResults().values()) {
             assertThat(actionResult.action().status(), equalTo(Action.Result.Status.SIMULATED));
         }
         ctx = getManualExecutionContext(new TimeValue(0, TimeUnit.SECONDS));
         watchRecord = executionService().execute(ctx);
-        for(ActionWrapper.Result actionResult : watchRecord.result().actionsResults()) {
+        for(ActionWrapper.Result actionResult : watchRecord.result().actionsResults().values()) {
             assertThat(actionResult.action().status(), equalTo(Action.Result.Status.THROTTLED));
         }
 
@@ -175,7 +175,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
             public void run() {
                 ManualExecutionContext ctx = getManualExecutionContext(new TimeValue(0, TimeUnit.SECONDS));
                 WatchRecord watchRecord = executionService().execute(ctx);
-                for (ActionWrapper.Result actionResult : watchRecord.result().actionsResults()) {
+                for (ActionWrapper.Result actionResult : watchRecord.result().actionsResults().values()) {
                     if ("ten_sec_throttle".equals(actionResult.id())) {
                         assertThat(actionResult.action().status(), equalTo(Action.Result.Status.SIMULATED));
                     } else {

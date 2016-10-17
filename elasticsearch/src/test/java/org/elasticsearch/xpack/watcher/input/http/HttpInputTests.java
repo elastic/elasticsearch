@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
 import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
@@ -309,7 +308,7 @@ public class HttpInputTests extends ESTestCase {
                 new ExecutableAlwaysCondition(logger),
                 null,
                 null,
-                new ExecutableActions(new ArrayList<>()),
+                new ArrayList<>(),
                 null,
                 new WatchStatus(new DateTime(0, UTC), emptyMap()));
         return new TriggeredExecutionContext(watch,

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.execution;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
-import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
 import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.watcher.input.Input;
@@ -18,6 +17,7 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
@@ -180,8 +180,8 @@ public abstract class WatchExecutionContext {
         }
     }
 
-    public ExecutableActions.Results actionsResults() {
-        return new ExecutableActions.Results(actionsResults);
+    public Map<String, ActionWrapper.Result> actionsResults() {
+        return Collections.unmodifiableMap(actionsResults);
     }
 
     public WatchRecord abortBeforeExecution(ExecutionState state, String message) {

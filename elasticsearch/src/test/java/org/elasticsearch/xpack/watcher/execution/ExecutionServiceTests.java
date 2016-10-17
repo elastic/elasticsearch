@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
-import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
 import org.elasticsearch.xpack.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.xpack.watcher.actions.throttler.Throttler;
 import org.elasticsearch.xpack.watcher.condition.Condition;
@@ -168,14 +167,13 @@ public class ExecutionServiceTests extends ESTestCase {
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
 
         WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(clock.nowUTC())));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
         when(watch.transform()).thenReturn(watchTransform);
-        when(watch.actions()).thenReturn(actions);
+        when(watch.actions()).thenReturn(Arrays.asList(actionWrapper));
         when(watch.status()).thenReturn(watchStatus);
 
         WatchRecord watchRecord = executionService.execute(context);
@@ -248,14 +246,12 @@ public class ExecutionServiceTests extends ESTestCase {
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
-
         WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(clock.nowUTC())));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
         when(watch.transform()).thenReturn(watchTransform);
-        when(watch.actions()).thenReturn(actions);
+        when(watch.actions()).thenReturn(Arrays.asList(actionWrapper));
         when(watch.status()).thenReturn(watchStatus);
 
         WatchRecord watchRecord = executionService.execute(context);
@@ -263,7 +259,7 @@ public class ExecutionServiceTests extends ESTestCase {
         assertThat(watchRecord.result().conditionResult(), nullValue());
         assertThat(watchRecord.result().transformResult(), nullValue());
         assertThat(watchRecord.result().actionsResults(), notNullValue());
-        assertThat(watchRecord.result().actionsResults().count(), is(0));
+        assertThat(watchRecord.result().actionsResults().size(), is(0));
 
         verify(historyStore, times(1)).put(watchRecord);
         verify(releasable, times(1)).close();
@@ -315,14 +311,12 @@ public class ExecutionServiceTests extends ESTestCase {
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
-
         WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(clock.nowUTC())));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
         when(watch.transform()).thenReturn(watchTransform);
-        when(watch.actions()).thenReturn(actions);
+        when(watch.actions()).thenReturn(Arrays.asList(actionWrapper));
         when(watch.status()).thenReturn(watchStatus);
 
         WatchRecord watchRecord = executionService.execute(context);
@@ -330,7 +324,7 @@ public class ExecutionServiceTests extends ESTestCase {
         assertThat(watchRecord.result().conditionResult(), is(conditionResult));
         assertThat(watchRecord.result().transformResult(), nullValue());
         assertThat(watchRecord.result().actionsResults(), notNullValue());
-        assertThat(watchRecord.result().actionsResults().count(), is(0));
+        assertThat(watchRecord.result().actionsResults().size(), is(0));
 
         verify(historyStore, times(1)).put(watchRecord);
         verify(releasable, times(1)).close();
@@ -381,14 +375,12 @@ public class ExecutionServiceTests extends ESTestCase {
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
-
         WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(clock.nowUTC())));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
         when(watch.transform()).thenReturn(watchTransform);
-        when(watch.actions()).thenReturn(actions);
+        when(watch.actions()).thenReturn(Arrays.asList(actionWrapper));
         when(watch.status()).thenReturn(watchStatus);
 
         WatchRecord watchRecord = executionService.execute(context);
@@ -396,7 +388,7 @@ public class ExecutionServiceTests extends ESTestCase {
         assertThat(watchRecord.result().conditionResult(), is(conditionResult));
         assertThat(watchRecord.result().transformResult(), is(watchTransformResult));
         assertThat(watchRecord.result().actionsResults(), notNullValue());
-        assertThat(watchRecord.result().actionsResults().count(), is(0));
+        assertThat(watchRecord.result().actionsResults().size(), is(0));
 
         verify(historyStore, times(1)).put(watchRecord);
         verify(releasable, times(1)).close();
@@ -461,14 +453,13 @@ public class ExecutionServiceTests extends ESTestCase {
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
 
         WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(clock.nowUTC())));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
         when(watch.transform()).thenReturn(watchTransform);
-        when(watch.actions()).thenReturn(actions);
+        when(watch.actions()).thenReturn(Arrays.asList(actionWrapper));
         when(watch.status()).thenReturn(watchStatus);
 
         WatchRecord watchRecord = executionService.execute(context);
@@ -476,7 +467,7 @@ public class ExecutionServiceTests extends ESTestCase {
         assertThat(watchRecord.result().conditionResult(), is(conditionResult));
         assertThat(watchRecord.result().transformResult(), is(watchTransformResult));
         assertThat(watchRecord.result().actionsResults(), notNullValue());
-        assertThat(watchRecord.result().actionsResults().count(), is(1));
+        assertThat(watchRecord.result().actionsResults().size(), is(1));
         assertThat(watchRecord.result().actionsResults().get("_action").condition(), is(actionConditionResult));
         assertThat(watchRecord.result().actionsResults().get("_action").transform(), is(actionTransformResult));
         assertThat(watchRecord.result().actionsResults().get("_action").action().status(), is(Action.Result.Status.FAILURE));
@@ -542,14 +533,12 @@ public class ExecutionServiceTests extends ESTestCase {
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
-
         WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
         when(watch.transform()).thenReturn(watchTransform);
-        when(watch.actions()).thenReturn(actions);
+        when(watch.actions()).thenReturn(Arrays.asList(actionWrapper));
         when(watch.status()).thenReturn(watchStatus);
 
         WatchRecord watchRecord = executionService.executeInner(context);
@@ -591,20 +580,18 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableAction action = mock(ExecutableAction.class);
         when(action.type()).thenReturn("_type");
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
-
         WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
-        when(watch.actions()).thenReturn(actions);
+        when(watch.actions()).thenReturn(Arrays.asList(actionWrapper));
         when(watch.status()).thenReturn(watchStatus);
 
         WatchRecord watchRecord = executionService.executeInner(context);
         assertThat(watchRecord.result().inputResult(), sameInstance(inputResult));
         assertThat(watchRecord.result().conditionResult(), sameInstance(conditionResult));
         assertThat(watchRecord.result().transformResult(), nullValue());
-        assertThat(watchRecord.result().actionsResults().count(), is(1));
+        assertThat(watchRecord.result().actionsResults().size(), is(1));
         ActionWrapper.Result result = watchRecord.result().actionsResults().get("_action");
         assertThat(result, notNullValue());
         assertThat(result.id(), is("_action"));
@@ -654,20 +641,18 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableAction action = mock(ExecutableAction.class);
         when(action.type()).thenReturn("_type");
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
-
         WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
-        when(watch.actions()).thenReturn(actions);
+        when(watch.actions()).thenReturn(Arrays.asList(actionWrapper));
         when(watch.status()).thenReturn(watchStatus);
 
         WatchRecord watchRecord = executionService.executeInner(context);
         assertThat(watchRecord.result().inputResult(), sameInstance(inputResult));
         assertThat(watchRecord.result().conditionResult(), sameInstance(conditionResult));
         assertThat(watchRecord.result().transformResult(), nullValue());
-        assertThat(watchRecord.result().actionsResults().count(), is(1));
+        assertThat(watchRecord.result().actionsResults().size(), is(1));
         ActionWrapper.Result result = watchRecord.result().actionsResults().get("_action");
         assertThat(result, notNullValue());
         assertThat(result.id(), is("_action"));
@@ -711,20 +696,18 @@ public class ExecutionServiceTests extends ESTestCase {
         when(action.type()).thenReturn("_type");
         when(action.logger()).thenReturn(logger);
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
-
         WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
-        when(watch.actions()).thenReturn(actions);
+        when(watch.actions()).thenReturn(Arrays.asList(actionWrapper));
         when(watch.status()).thenReturn(watchStatus);
 
         WatchRecord watchRecord = executionService.executeInner(context);
         assertThat(watchRecord.result().inputResult(), sameInstance(inputResult));
         assertThat(watchRecord.result().conditionResult(), sameInstance(conditionResult));
         assertThat(watchRecord.result().transformResult(), nullValue());
-        assertThat(watchRecord.result().actionsResults().count(), is(1));
+        assertThat(watchRecord.result().actionsResults().size(), is(1));
         ActionWrapper.Result result = watchRecord.result().actionsResults().get("_action");
         assertThat(result, notNullValue());
         assertThat(result.id(), is("_action"));
@@ -759,21 +742,20 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableTransform actionTransform = mock(ExecutableTransform.class);
         ExecutableAction action = mock(ExecutableAction.class);
         ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
-        ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
 
         WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(now)));
 
         when(watch.input()).thenReturn(input);
         when(watch.condition()).thenReturn(condition);
         when(watch.transform()).thenReturn(watchTransform);
-        when(watch.actions()).thenReturn(actions);
+        when(watch.actions()).thenReturn(Arrays.asList(actionWrapper));
         when(watch.status()).thenReturn(watchStatus);
 
         WatchRecord watchRecord = executionService.executeInner(context);
         assertThat(watchRecord.result().inputResult(), sameInstance(inputResult));
         assertThat(watchRecord.result().conditionResult(), sameInstance(conditionResult));
         assertThat(watchRecord.result().transformResult(), nullValue());
-        assertThat(watchRecord.result().actionsResults().count(), is(0));
+        assertThat(watchRecord.result().actionsResults().size(), is(0));
 
         verify(condition, times(1)).execute(context);
         verify(watchTransform, never()).execute(context, payload);

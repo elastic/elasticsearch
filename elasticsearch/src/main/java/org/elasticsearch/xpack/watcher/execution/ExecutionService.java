@@ -387,7 +387,7 @@ public class ExecutionService extends AbstractComponent {
         }
 
         if (conditionResult.met()) {
-            if (watch.actions().count() > 0 && watch.transform() != null) {
+            if (watch.actions().size() > 0 && watch.transform() != null) {
                 ctx.beforeWatchTransform();
                 Transform.Result transformResult = watch.transform().execute(ctx, ctx.payload());
                 ctx.onWatchTransformResult(transformResult);

@@ -170,9 +170,9 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
         assertThat("the expected count of history records should be [" + expectedCount + "]", newRecordCount, equalTo(expectedCount));
 
         if (ignoreCondition) {
-            assertThat("The action should have run", watchRecord.result().actionsResults().count(), equalTo(1));
+            assertThat("The action should have run", watchRecord.result().actionsResults().size(), equalTo(1));
         } else if (!conditionAlwaysTrue) {
-            assertThat("The action should not have run", watchRecord.result().actionsResults().count(), equalTo(0));
+            assertThat("The action should not have run", watchRecord.result().actionsResults().size(), equalTo(0));
         }
 
         if ((ignoreCondition || conditionAlwaysTrue) && action == null) {

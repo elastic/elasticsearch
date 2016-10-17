@@ -11,11 +11,11 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
-import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class WatchExecutionSnapshot implements Streamable, ToXContent {
 
@@ -38,10 +38,10 @@ public class WatchExecutionSnapshot implements Streamable, ToXContent {
         executionTime = context.executionTime();
         phase = context.executionPhase();
         if (phase == ExecutionPhase.ACTIONS) {
-            ExecutableActions.Results actionResults = context.actionsResults();
-            executedActions = new String[actionResults.count()];
+            Map<String, ActionWrapper.Result> actionResults = context.actionsResults();
+            executedActions = new String[actionResults.size()];
             int i = 0;
-            for (ActionWrapper.Result actionResult : actionResults) {
+            for (ActionWrapper.Result actionResult : actionResults.values()) {
                 executedActions[i++] = actionResult.id();
             }
         }

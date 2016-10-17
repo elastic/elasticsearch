@@ -34,7 +34,6 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
-import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
 import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.never.ExecutableNeverCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
@@ -286,7 +285,7 @@ public class WatchStoreTests extends ESTestCase {
             ExecutableAction action = mock(ExecutableAction.class);
             when(actionWrapper.action()).thenReturn(action);
             when(action.type()).thenReturn(randomFrom("a", "b", "c"));
-            when(watch.actions()).thenReturn(new ExecutableActions(Arrays.asList(actionWrapper)));
+            when(watch.actions()).thenReturn(Arrays.asList(actionWrapper));
 
             // random transform, not always set
             Transform mockTransform = mock(Transform.class);

@@ -17,7 +17,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
 import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
@@ -175,7 +174,7 @@ public class ChainInputTests extends ESTestCase {
                 new ExecutableAlwaysCondition(logger),
                 null,
                 null,
-                new ExecutableActions(new ArrayList<>()),
+                new ArrayList<>(),
                 null,
                 new WatchStatus(new DateTime(0, UTC), emptyMap()));
         WatchExecutionContext ctx = new TriggeredExecutionContext(watch,

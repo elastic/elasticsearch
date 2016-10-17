@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.actions.ActionRegistry;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
-import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
 import org.elasticsearch.xpack.watcher.condition.ConditionRegistry;
 import org.elasticsearch.xpack.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
@@ -42,11 +41,11 @@ import org.elasticsearch.xpack.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.joda.time.DateTime;
-import org.joda.time.PeriodType;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -66,7 +65,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
     private final ExecutableInput input;
     private final ExecutableCondition condition;
     @Nullable private final ExecutableTransform transform;
-    private final ExecutableActions actions;
+    private final List<ActionWrapper> actions;
     @Nullable private final TimeValue throttlePeriod;
     @Nullable private final Map<String, Object> metadata;
     private final WatchStatus status;
@@ -76,7 +75,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
     private transient long version = Versions.MATCH_ANY;
 
     public Watch(String id, Trigger trigger, ExecutableInput input, ExecutableCondition condition, @Nullable ExecutableTransform transform,
-                 @Nullable TimeValue throttlePeriod, ExecutableActions actions, @Nullable Map<String, Object> metadata,
+                 @Nullable TimeValue throttlePeriod, List<ActionWrapper> actions, @Nullable Map<String, Object> metadata,
                  WatchStatus status) {
         this.id = id;
         this.trigger = trigger;
@@ -113,7 +112,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         return throttlePeriod;
     }
 
-    public ExecutableActions actions() {
+    public List<ActionWrapper> actions() {
         return actions;
     }
 
@@ -187,7 +186,11 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             builder.timeValueField(Field.THROTTLE_PERIOD.getPreferredName(),
                     Field.THROTTLE_PERIOD_HUMAN.getPreferredName(), throttlePeriod);
         }
-        builder.field(Field.ACTIONS.getPreferredName(), actions, params);
+        builder.startObject(Field.ACTIONS.getPreferredName());
+        for (ActionWrapper action : actions) {
+            builder.field(action.id(), action, params);
+        }
+        builder.endObject();
         if (metadata != null) {
             builder.field(Field.METADATA.getPreferredName(), metadata);
         }
@@ -214,7 +217,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         private final CryptoService cryptoService;
         private final ExecutableInput defaultInput;
         private final ExecutableCondition defaultCondition;
-        private final ExecutableActions defaultActions;
+        private final List<ActionWrapper> defaultActions;
         private final Clock clock;
 
         @Inject
@@ -231,7 +234,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             this.cryptoService = Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.get(settings) ? cryptoService : null;
             this.defaultInput = new ExecutableNoneInput(logger);
             this.defaultCondition = new ExecutableAlwaysCondition(logger);
-            this.defaultActions = new ExecutableActions(Collections.emptyList());
+            this.defaultActions = Collections.emptyList();
             this.clock = clock;
         }
 
@@ -286,7 +289,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             Trigger trigger = null;
             ExecutableInput input = defaultInput;
             ExecutableCondition condition = defaultCondition;
-            ExecutableActions actions = defaultActions;
+            List<ActionWrapper> actions = defaultActions;
             ExecutableTransform transform = null;
             TimeValue throttlePeriod = null;
             Map<String, Object> metatdata = null;

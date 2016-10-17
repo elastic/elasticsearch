@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.notification.email.HtmlSanitizer;
 import org.elasticsearch.xpack.notification.email.Profile;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
-import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
 import org.elasticsearch.xpack.watcher.actions.email.EmailAction;
 import org.elasticsearch.xpack.watcher.actions.email.ExecutableEmailAction;
 import org.elasticsearch.xpack.watcher.actions.webhook.ExecutableWebhookAction;
@@ -236,7 +235,7 @@ public final class WatcherTestUtils {
                 new ExecutableAlwaysCondition(logger),
                 new ExecutableSearchTransform(searchTransform, logger, client, searchTemplateService, null),
                 new TimeValue(0),
-                new ExecutableActions(actions),
+                actions,
                 metadata,
                 new WatchStatus(now, statuses));
     }

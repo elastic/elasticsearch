@@ -12,6 +12,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.watcher.actions.Action;
+import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
@@ -75,9 +78,9 @@ public abstract class WatchRecord implements ToXContent {
         if (executionResult == null || executionResult.conditionResult() == null) {
             return ExecutionState.FAILED;
         }
-
         if (executionResult.conditionResult().met()) {
-            if (executionResult.actionsResults().throttled()) {
+            final Collection<ActionWrapper.Result> values = executionResult.actionsResults().values();
+            if (values.stream().anyMatch((r) -> r.action().status() == Action.Result.Status.THROTTLED)) {
                 return ExecutionState.THROTTLED;
             } else {
                 return ExecutionState.EXECUTED;

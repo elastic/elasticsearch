@@ -9,7 +9,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
+import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class WatchExecutionResult implements ToXContent {
 
@@ -25,7 +26,7 @@ public class WatchExecutionResult implements ToXContent {
     @Nullable private final Input.Result inputResult;
     @Nullable private final Condition.Result conditionResult;
     @Nullable private final Transform.Result transformResult;
-    private final ExecutableActions.Results actionsResults;
+    private final Map<String, ActionWrapper.Result> actionsResults;
 
     public WatchExecutionResult(WatchExecutionContext context, long executionDurationMs) {
         this(context.executionTime(), executionDurationMs, context.inputResult(), context.conditionResult(), context.transformResult(),
@@ -33,7 +34,7 @@ public class WatchExecutionResult implements ToXContent {
     }
 
     WatchExecutionResult(DateTime executionTime, long executionDurationMs, Input.Result inputResult, Condition.Result conditionResult,
-                         @Nullable Transform.Result transformResult, ExecutableActions.Results actionsResults) {
+                         @Nullable Transform.Result transformResult, Map<String, ActionWrapper.Result> actionsResults) {
         this.executionTime = executionTime;
         this.inputResult = inputResult;
         this.conditionResult = conditionResult;
@@ -62,7 +63,7 @@ public class WatchExecutionResult implements ToXContent {
         return transformResult;
     }
 
-    public ExecutableActions.Results actionsResults() {
+    public Map<String, ActionWrapper.Result> actionsResults() {
         return actionsResults;
     }
 
@@ -82,7 +83,11 @@ public class WatchExecutionResult implements ToXContent {
         if (transformResult != null) {
             builder.field(Transform.Field.TRANSFORM.getPreferredName(), transformResult, params);
         }
-        builder.field(Field.ACTIONS.getPreferredName(), actionsResults, params);
+        builder.startArray(Field.ACTIONS.getPreferredName());
+        for (ActionWrapper.Result result : actionsResults.values()) {
+            result.toXContent(builder, params);
+        }
+        builder.endArray();
         builder.endObject();
         return builder;
     }

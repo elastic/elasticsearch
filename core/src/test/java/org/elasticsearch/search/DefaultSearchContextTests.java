@@ -77,7 +77,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             .build();
         assertThat(searchFilter, equalTo(expectedQuery));
 
-        int size = randomInt(100);
+        int size = randomIntBetween(17, 100);
         String[] types = new String[size];
         BytesRef[] typesBytes = new BytesRef[size];
         for (int i = 0; i < size; i++) {

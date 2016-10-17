@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
@@ -371,12 +372,13 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             if (randomBoolean()) {
                 //one alias per index with suffix "-alias"
                 for (String index : indices) {
-                    client().admin().indices().prepareCreate(index).setSettings(indexSettings()).addAlias(new Alias(index + "-alias"));
+                    assertAcked(client().admin().indices().prepareCreate(index).setSettings(indexSettings())
+                            .addAlias(new Alias(index + "-alias")));
                 }
             } else {
                 //same alias pointing to all indices
                 for (String index : indices) {
-                    client().admin().indices().prepareCreate(index).setSettings(indexSettings()).addAlias(new Alias("alias"));
+                    assertAcked(client().admin().indices().prepareCreate(index).setSettings(indexSettings()).addAlias(new Alias("alias")));
                 }
             }
         }

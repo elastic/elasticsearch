@@ -37,7 +37,6 @@ List<String> availableBoxes = [
     'sles-12',
     'ubuntu-1204',
     'ubuntu-1404',
-    'ubuntu-1504',
     'ubuntu-1604'
 ]
 

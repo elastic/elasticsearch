@@ -365,7 +365,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
      * and refreshes the new indices
      */
     protected void createIndicesWithRandomAliases(String... indices) {
-        //no aliases
         createIndex(indices);
 
         if (frequently()) {

@@ -242,7 +242,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             verify(auditTrail).accessGranted(user, SearchAction.NAME, searchRequest);
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationService.INDICES_PERMISSIONS_KEY);
             IndicesAccessControl.IndexAccessControl indexAccessControl =
-                    indicesAccessControl.getIndexPermissions(IndicesAndAliasesResolver.NO_INDEX);
+                    indicesAccessControl.getIndexPermissions(IndicesAndAliasesResolver.NO_INDEX_PLACEHOLDER);
             assertFalse(indexAccessControl.getFieldPermissions().hasFieldLevelSecurity());
             assertNull(indexAccessControl.getQueries());
         }
@@ -508,8 +508,8 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         SearchRequest searchRequest = new SearchRequest("_all");
         authorizationService.authorize(createAuthentication(user), SearchAction.NAME, searchRequest);
-        assertEquals(1, searchRequest.indices().length);
-        assertEquals(IndicesAndAliasesResolver.NO_INDEX, searchRequest.indices()[0]);
+        assertEquals(2, searchRequest.indices().length);
+        assertEquals(IndicesAndAliasesResolver.NO_INDICES_LIST, Arrays.asList(searchRequest.indices()));
     }
 
     public void testGrantedNonXPackUserCanExecuteMonitoringOperationsAgainstSecurityIndex() {

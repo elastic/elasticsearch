@@ -58,7 +58,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import static org.bouncycastle.asn1.x500.style.RFC4519Style.name;
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.support.Exceptions.authorizationError;
 
@@ -214,7 +213,7 @@ public class AuthorizationService extends AbstractComponent {
 
         //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
         //'-*' matches no indices so we allow the request to go through, which will yield an empty response
-        if (indexNames.size() == 1 && indexNames.contains(IndicesAndAliasesResolver.NO_INDEX)) {
+        if (indexNames.size() == 1 && indexNames.contains(IndicesAndAliasesResolver.NO_INDEX_PLACEHOLDER)) {
             setIndicesAccessControl(IndicesAccessControl.ALLOW_NO_INDICES);
             grant(authentication, action, request);
             return;

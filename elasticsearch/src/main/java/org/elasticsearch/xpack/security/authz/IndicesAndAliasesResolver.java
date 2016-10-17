@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -32,8 +31,12 @@ import java.util.stream.Collectors;
 
 public class IndicesAndAliasesResolver {
 
-    public static final String NO_INDEX = "-*";
-    private static final List<String> NO_INDICES = Collections.singletonList(NO_INDEX);
+    //placeholder used in the security plugin to indicate that the request is authorized knowing that it will yield an empty response
+    public static final String NO_INDEX_PLACEHOLDER = "-*";
+    private static final Set<String> NO_INDEX_PLACEHOLDER_SET = Collections.singleton(NO_INDEX_PLACEHOLDER);
+    //`*,-*` what we replace indices with if we need Elasticsearch to return empty responses without throwing exception
+    private static final String[] NO_INDICES_ARRAY = new String[] {"*", "-*"};
+    static final List<String> NO_INDICES_LIST = Arrays.asList(NO_INDICES_ARRAY);
 
     private final IndexNameExpressionResolver nameExpressionResolver;
 
@@ -58,20 +61,18 @@ public class IndicesAndAliasesResolver {
         return resolveIndicesAndAliases((IndicesRequest) request, metaData, authorizedIndices);
     }
 
-    private Set<String> resolveIndicesAndAliases(IndicesRequest indicesRequest, MetaData metaData,
-                                                 AuthorizedIndices authorizedIndices) {
+    private Set<String> resolveIndicesAndAliases(IndicesRequest indicesRequest, MetaData metaData, AuthorizedIndices authorizedIndices) {
         boolean indicesReplacedWithNoIndices = false;
         final Set<String> indices;
-        if (indicesRequest instanceof PutMappingRequest
-                && ((PutMappingRequest) indicesRequest).getConcreteIndex() != null) {
+        if (indicesRequest instanceof PutMappingRequest && ((PutMappingRequest) indicesRequest).getConcreteIndex() != null) {
             /*
              * This is a special case since PutMappingRequests from dynamic mapping updates have a concrete index
              * if this index is set and it's in the list of authorized indices we are good and don't need to put
              * the list of indices in there, if we do so it will result in an invalid request and the update will fail.
              */
-            indices = Collections.singleton(((PutMappingRequest) indicesRequest).getConcreteIndex().getName());
             assert indicesRequest.indices() == null || indicesRequest.indices().length == 0
                     : "indices are: " + Arrays.toString(indicesRequest.indices()); // Arrays.toString() can handle null values - all good
+            return Collections.singleton(((PutMappingRequest) indicesRequest).getConcreteIndex().getName());
         } else if (indicesRequest instanceof IndicesRequest.Replaceable) {
             IndicesRequest.Replaceable replaceable = (IndicesRequest.Replaceable) indicesRequest;
             final boolean replaceWildcards = indicesRequest.indicesOptions().expandWildcardsOpen()
@@ -110,16 +111,20 @@ public class IndicesAndAliasesResolver {
                     //this is how we tell es core to return an empty response, we can let the request through being sure
                     //that the '-*' wildcard expression will be resolved to no indices. We can't let empty indices through
                     //as that would be resolved to _all by es core.
-                    replacedIndices = NO_INDICES;
+                    replaceable.indices(NO_INDICES_ARRAY);
                     indicesReplacedWithNoIndices = true;
+                    indices = NO_INDEX_PLACEHOLDER_SET;
                 } else {
                     throw new IndexNotFoundException(Arrays.toString(indicesRequest.indices()));
                 }
+            } else {
+                replaceable.indices(replacedIndices.toArray(new String[replacedIndices.size()]));
+                indices = new HashSet<>(replacedIndices);
             }
-            replaceable.indices(replacedIndices.toArray(new String[replacedIndices.size()]));
-            indices = Sets.newHashSet(replacedIndices);
         } else {
             if (containsWildcards(indicesRequest)) {
+                //an alias can still contain '*' in its name as of 5.0. Such aliases cannot be referred to when using
+                //the security plugin, otherwise the following exception gets thrown
                 throw new IllegalStateException("There are no external requests known to support wildcards that don't support replacing " +
                         "their indices");
             }
@@ -132,7 +137,7 @@ public class IndicesAndAliasesResolver {
             for (String name : indicesRequest.indices()) {
                 resolvedNames.add(nameExpressionResolver.resolveDateMathExpression(name));
             }
-            indices = Sets.newHashSet(resolvedNames);
+            indices = new HashSet<>(resolvedNames);
         }
 
         if (indicesRequest instanceof AliasesRequest) {
@@ -156,7 +161,7 @@ public class IndicesAndAliasesResolver {
                 Collections.addAll(indices, aliasesRequest.aliases());
             }
         }
-        return indices;
+        return Collections.unmodifiableSet(indices);
     }
 
     private List<String> loadAuthorizedAliases(List<String> authorizedIndices, MetaData metaData) {
@@ -222,31 +227,27 @@ public class IndicesAndAliasesResolver {
     //TODO Investigate reusing code from vanilla es to resolve index names and wildcards
     private List<String> replaceWildcardsWithAuthorizedIndices(String[] indices, IndicesOptions indicesOptions, MetaData metaData,
                                                                List<String> authorizedIndices, boolean replaceWildcards) {
-        //the order matters when it comes to + and - (see MetaData#convertFromWildcards)
+        //the order matters when it comes to + and -
         List<String> finalIndices = new ArrayList<>();
-        for (int i = 0; i < indices.length; i++) {
-            String index = indices[i];
+        boolean wildcardSeen = false;
+        for (String index : indices) {
             String aliasOrIndex;
             boolean minus = false;
             if (index.charAt(0) == '+') {
                 aliasOrIndex = index.substring(1);
             } else if (index.charAt(0) == '-') {
-                if (i == 0) {
-                    //mimic the MetaData#convertFromWilcards behaviour with "-index" syntax
-                    //but instead of adding all the indices, add only the ones that the user is authorized for
-                    for (String authorizedIndex : authorizedIndices) {
-                        if (isIndexVisible(authorizedIndex, indicesOptions, metaData)) {
-                            finalIndices.add(authorizedIndex);
-                        }
-                    }
+                if (wildcardSeen) {
+                    aliasOrIndex = index.substring(1);
+                    minus = true;
+                } else {
+                    aliasOrIndex = index;
                 }
-                aliasOrIndex = index.substring(1);
-                minus = true;
             } else {
                 aliasOrIndex = index;
             }
 
             if (replaceWildcards && Regex.isSimpleMatchPattern(aliasOrIndex)) {
+                wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
                 for (String authorizedIndex : authorizedIndices) {
                     if (Regex.simpleMatch(aliasOrIndex, authorizedIndex) && isIndexVisible(authorizedIndex, indicesOptions, metaData)) {

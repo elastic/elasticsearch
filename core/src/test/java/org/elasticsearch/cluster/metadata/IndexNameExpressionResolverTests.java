@@ -623,6 +623,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "+testXXX", "+testXXY", "+testYYY", "-testYYY")),
                 equalTo(newHashSet("testXXX", "testXXY", "testYYY", "-testYYY")));
 
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "testYYY", "testYYX", "testX*", "-testXXX")),
+                equalTo(newHashSet("testYYY", "testYYX", "testXXY", "testXYY")));
+
+        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "-testXXX", "*testY*", "-testYYY")),
+                equalTo(newHashSet("testYYX", "testYYY", "-testYYY")));
+
         String[] indexNames = indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), "-doesnotexist");
         assertEquals(0, indexNames.length);
 

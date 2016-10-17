@@ -75,15 +75,6 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegT
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                // In snapshot tests, we explicitly disable cloud discovery
-            // nocommit - figure out what this means
-         //       .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local")
-                .build();
-    }
-
-    @Override
     public Settings indexSettings() {
         // During restore we frequently restore index to exactly the same state it was before, that might cause the same
         // checksum file to be written twice during restore operation

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilders;
+import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
@@ -38,8 +39,6 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.compareCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
@@ -92,7 +91,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
         WatchSourceBuilder watchSource = watchBuilder()
                 .trigger(schedule(cron("0/5 * * * * ? *")))
                 .input(searchInput(request))
-                .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L));
+                .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L));
 
         // we first need to make sure the license is enabled, otherwise all APIs will be blocked
         ensureLicenseEnabled();
@@ -150,7 +149,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
         WatchSourceBuilder watchSource = WatchSourceBuilders.watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(simpleInput("key", "value"))
-                .condition(alwaysCondition())
+                .condition(AlwaysCondition.INSTANCE)
                 .addAction("_id", loggingAction("executed!"));
 
         watcherClient().preparePutWatch("_watch_id")
@@ -201,7 +200,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
             WatchSourceBuilder watchSource = watchBuilder()
                     .trigger(schedule(cron("0/5 * * * * ? *")))
                     .input(searchInput(request))
-                    .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L));
+                    .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L));
             watcherClient().preparePutWatch(watchName).setSource(watchSource).get();
         }
         ensureGreen();

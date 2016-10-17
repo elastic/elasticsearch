@@ -31,7 +31,6 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.compareCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
@@ -55,7 +54,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0/5 * * * * ? *")))
                         .input(searchInput(templateRequest(searchSource().query(matchAllQuery()), "my-index")))
-                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
+                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
                         .metadata(metadata))
                         .get();
 

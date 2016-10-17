@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.transport.action.execute;
 
 import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.Wid;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
@@ -20,7 +21,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
@@ -43,7 +43,7 @@ public class ExecuteWatchWithDateMathTests extends AbstractWatcherIntegrationTes
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0/5 * * * * ? 2099")))
                         .input(simpleInput("foo", "bar"))
-                        .condition(alwaysCondition())
+                        .condition(AlwaysCondition.INSTANCE)
                         .addAction("log", loggingAction("_text")))
                 .get();
 

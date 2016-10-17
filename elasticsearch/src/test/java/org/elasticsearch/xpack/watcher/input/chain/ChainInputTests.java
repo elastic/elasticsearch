@@ -13,11 +13,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
 import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
@@ -42,7 +44,6 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.chainInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
@@ -152,7 +153,7 @@ public class ChainInputTests extends ESTestCase {
         watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(chainedInputBuilder)
-                .condition(scriptCondition("ctx.payload.hits.total == 1"))
+                .condition(new ScriptCondition(new Script("ctx.payload.hits.total == 1")))
                 .addAction("_id", loggingAction("watch [{{ctx.watch_id}}] matched"))
                 .toXContent(builder, ToXContent.EMPTY_PARAMS);
 

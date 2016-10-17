@@ -16,7 +16,10 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.condition.Condition;
+import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
+import org.elasticsearch.xpack.watcher.condition.never.NeverCondition;
+import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -31,10 +34,6 @@ import java.util.function.Function;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.compareCondition;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.neverCondition;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
@@ -48,13 +47,13 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
     private final Input input = simpleInput("key", 15).build();
 
-    private final Condition.Builder scriptConditionPasses = mockScriptCondition("return true;");
-    private final Condition.Builder compareConditionPasses = compareCondition("ctx.payload.key", CompareCondition.Op.GTE, 15);
-    private final Condition.Builder conditionPasses = randomFrom(alwaysCondition(), scriptConditionPasses, compareConditionPasses);
+    private final Condition scriptConditionPasses = mockScriptCondition("return true;");
+    private final Condition compareConditionPasses = new CompareCondition("ctx.payload.key", CompareCondition.Op.GTE, 15);
+    private final Condition conditionPasses = randomFrom(AlwaysCondition.INSTANCE, scriptConditionPasses, compareConditionPasses);
 
-    private final Condition.Builder scriptConditionFails = mockScriptCondition("return false;");
-    private final Condition.Builder compareConditionFails = compareCondition("ctx.payload.key", CompareCondition.Op.LT, 15);
-    private final Condition.Builder conditionFails = randomFrom(neverCondition(), scriptConditionFails, compareConditionFails);
+    private final Condition scriptConditionFails = mockScriptCondition("return false;");
+    private final Condition compareConditionFails = new CompareCondition("ctx.payload.key", CompareCondition.Op.LT, 15);
+    private final Condition conditionFails = randomFrom(NeverCondition.INSTANCE, scriptConditionFails, compareConditionFails);
 
     @Override
     protected List<Class<? extends Plugin>> pluginTypes() {
@@ -97,15 +96,15 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
     public void testActionConditionWithHardFailures() throws Exception {
         final String id = "testActionConditionWithHardFailures";
 
-        final Condition.Builder scriptConditionFailsHard = mockScriptCondition("throw new IllegalStateException('failed');");
-        final List<Condition.Builder> actionConditionsWithFailure =
-                Lists.newArrayList(scriptConditionFailsHard, conditionPasses, alwaysCondition());
+        final Condition scriptConditionFailsHard = mockScriptCondition("throw new IllegalStateException('failed');");
+        final List<Condition> actionConditionsWithFailure =
+                Lists.newArrayList(scriptConditionFailsHard, conditionPasses, AlwaysCondition.INSTANCE);
 
         Collections.shuffle(actionConditionsWithFailure, random());
 
         final int failedIndex = actionConditionsWithFailure.indexOf(scriptConditionFailsHard);
 
-        putAndTriggerWatch(id, input, actionConditionsWithFailure.toArray(new Condition.Builder[actionConditionsWithFailure.size()]));
+        putAndTriggerWatch(id, input, actionConditionsWithFailure.toArray(new Condition[actionConditionsWithFailure.size()]));
 
         flush();
 
@@ -131,7 +130,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
                 assertThat(condition, nullValue());
                 assertThat(logging, nullValue());
             } else {
-                assertThat(condition.get("type"), is(actionConditionsWithFailure.get(i).build().type()));
+                assertThat(condition.get("type"), is(actionConditionsWithFailure.get(i).type()));
 
                 assertThat(action.get("status"), is("success"));
                 assertThat(condition.get("met"), is(true));
@@ -144,13 +143,13 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
     @SuppressWarnings("unchecked")
     public void testActionConditionWithFailures() throws Exception {
         final String id = "testActionConditionWithFailures";
-        final List<Condition.Builder> actionConditionsWithFailure = Lists.newArrayList(conditionFails, conditionPasses, alwaysCondition());
+        final List<Condition> actionConditionsWithFailure = Lists.newArrayList(conditionFails, conditionPasses, AlwaysCondition.INSTANCE);
 
         Collections.shuffle(actionConditionsWithFailure, random());
 
         final int failedIndex = actionConditionsWithFailure.indexOf(conditionFails);
 
-        putAndTriggerWatch(id, input, actionConditionsWithFailure.toArray(new Condition.Builder[actionConditionsWithFailure.size()]));
+        putAndTriggerWatch(id, input, actionConditionsWithFailure.toArray(new Condition[actionConditionsWithFailure.size()]));
 
         flush();
 
@@ -169,7 +168,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
             final Map<String, Object> logging = (Map<String, Object>)action.get("logging");
 
             assertThat(action.get("id"), is("action" + i));
-            assertThat(condition.get("type"), is(actionConditionsWithFailure.get(i).build().type()));
+            assertThat(condition.get("type"), is(actionConditionsWithFailure.get(i).type()));
 
             if (i == failedIndex) {
                 assertThat(action.get("status"), is("condition_failed"));
@@ -188,15 +187,15 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
     @SuppressWarnings("unchecked")
     public void testActionCondition() throws Exception {
         final String id = "testActionCondition";
-        final List<Condition.Builder> actionConditions = Lists.newArrayList(conditionPasses);
+        final List<Condition> actionConditions = Lists.newArrayList(conditionPasses);
 
         if (randomBoolean()) {
-            actionConditions.add(alwaysCondition());
+            actionConditions.add(AlwaysCondition.INSTANCE);
         }
 
         Collections.shuffle(actionConditions, random());
 
-        putAndTriggerWatch(id, input, actionConditions.toArray(new Condition.Builder[actionConditions.size()]));
+        putAndTriggerWatch(id, input, actionConditions.toArray(new Condition[actionConditions.size()]));
 
         flush();
 
@@ -216,7 +215,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
             assertThat(action.get("id"), is("action" + i));
             assertThat(action.get("status"), is("success"));
-            assertThat(condition.get("type"), is(actionConditions.get(i).build().type()));
+            assertThat(condition.get("type"), is(actionConditions.get(i).type()));
             assertThat(condition.get("met"), is(true));
             assertThat(action.get("reason"), nullValue());
             assertThat(logging.get("logged_text"), is(Integer.toString(i)));
@@ -245,8 +244,8 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
      * @param input The input to use for the Watch
      * @param actionConditions The conditions to add to the Watch
      */
-    private void putAndTriggerWatch(final String id, final Input input, final Condition.Builder... actionConditions) {
-        WatchSourceBuilder source = watchBuilder().trigger(schedule(interval("5s"))).input(input).condition(alwaysCondition());
+    private void putAndTriggerWatch(final String id, final Input input, final Condition... actionConditions) {
+        WatchSourceBuilder source = watchBuilder().trigger(schedule(interval("5s"))).input(input).condition(AlwaysCondition.INSTANCE);
 
         for (int i = 0; i < actionConditions.length; ++i) {
             source.addAction("action" + i, actionConditions[i], loggingAction(Integer.toString(i)));
@@ -265,9 +264,9 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
      * @param inlineScript The script to "compile" and run
      * @return Never {@code null}
      */
-    private static Condition.Builder mockScriptCondition(String inlineScript) {
+    private static Condition mockScriptCondition(String inlineScript) {
         Script script = new Script(inlineScript, ScriptService.ScriptType.INLINE, MockScriptPlugin.NAME, null, null);
-        return scriptCondition(script);
+        return new ScriptCondition(script);
     }
 
 }

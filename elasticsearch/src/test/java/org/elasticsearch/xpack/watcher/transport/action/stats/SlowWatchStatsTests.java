@@ -12,7 +12,7 @@ import org.elasticsearch.script.SleepScriptEngine;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
-import org.elasticsearch.xpack.watcher.condition.ConditionBuilders;
+import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionPhase;
 import org.elasticsearch.xpack.watcher.execution.QueuedWatch;
 import org.elasticsearch.xpack.watcher.input.InputBuilders;
@@ -63,7 +63,7 @@ public class SlowWatchStatsTests extends AbstractWatcherIntegrationTestCase {
         watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("1s")))
                 .input(InputBuilders.simpleInput("key", "value"))
-                .condition(ConditionBuilders.scriptCondition(SleepScriptEngine.sleepScript(10000)))
+                .condition(new ScriptCondition(SleepScriptEngine.sleepScript(10000)))
                 .addAction("_action", ActionBuilders.loggingAction("hello {{ctx.watch_id}}!"))
         ).get();
 
@@ -88,7 +88,7 @@ public class SlowWatchStatsTests extends AbstractWatcherIntegrationTestCase {
             watcherClient().preparePutWatch("_id" + i).setSource(watchBuilder()
                             .trigger(schedule(interval("1s")))
                             .input(InputBuilders.simpleInput("key", "value"))
-                            .condition(ConditionBuilders.scriptCondition(SleepScriptEngine.sleepScript(10000)))
+                            .condition(new ScriptCondition(SleepScriptEngine.sleepScript(10000)))
                             .addAction("_action", ActionBuilders.loggingAction("hello {{ctx.watch_id}}!"))
             ).get();
         }

@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -28,7 +29,6 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
@@ -51,7 +51,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("1s")))
                         .input(simpleInput("foo", "bar"))
-                        .condition(alwaysCondition())
+                        .condition(AlwaysCondition.INSTANCE)
                         .addAction("_a1", indexAction("actions", "action1"))
                         .defaultThrottlePeriod(new TimeValue(0, TimeUnit.SECONDS)))
                 .get();
@@ -108,7 +108,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0 0 0 1 1 ? 2050"))) // some time in 2050
                         .input(simpleInput("foo", "bar"))
-                        .condition(alwaysCondition())
+                        .condition(AlwaysCondition.INSTANCE)
                         .addAction("_a1", indexAction("actions", "action1"))
                         .defaultThrottlePeriod(new TimeValue(0, TimeUnit.SECONDS)))
                 .get();

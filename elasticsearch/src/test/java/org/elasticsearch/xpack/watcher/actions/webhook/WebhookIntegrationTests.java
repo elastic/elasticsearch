@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
+import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
@@ -29,7 +30,6 @@ import java.net.BindException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.xContentSource;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
@@ -77,7 +77,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput("key", "value"))
-                        .condition(alwaysCondition())
+                        .condition(AlwaysCondition.INSTANCE)
                         .addAction("_id", ActionBuilders.webhookAction(builder)))
                 .get();
 
@@ -122,7 +122,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput("key", "value"))
-                        .condition(alwaysCondition())
+                        .condition(AlwaysCondition.INSTANCE)
                         .addAction("_id", ActionBuilders.webhookAction(builder)))
                 .get();
 

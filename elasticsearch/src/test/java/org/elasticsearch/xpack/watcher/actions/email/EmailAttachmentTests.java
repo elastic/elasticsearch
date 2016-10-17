@@ -49,7 +49,6 @@ import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.emailAction
 import static org.elasticsearch.xpack.notification.email.DataAttachment.JSON;
 import static org.elasticsearch.xpack.notification.email.DataAttachment.YAML;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.compareCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
@@ -189,7 +188,7 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         WatchSourceBuilder watchSourceBuilder = watchBuilder()
                 .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                 .input(searchInput(request))
-                .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0L))
+                .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0L))
                 .addAction("_email", emailAction(emailBuilder).setAuthentication(USERNAME, PASSWORD.toCharArray())
                 .setAttachments(emailAttachments));
         logger.info("TMP WATCHSOURCE {}", watchSourceBuilder.build().getBytes().utf8ToString());

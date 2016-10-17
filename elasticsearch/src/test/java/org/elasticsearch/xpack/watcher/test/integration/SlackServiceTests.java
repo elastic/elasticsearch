@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.notification.slack.SlackService;
 import org.elasticsearch.xpack.notification.slack.message.Attachment;
 import org.elasticsearch.xpack.notification.slack.message.SlackMessage;
 import org.elasticsearch.xpack.watcher.actions.slack.SlackAction;
+import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.joda.time.DateTime;
@@ -23,7 +24,6 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.slackAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
@@ -87,7 +87,7 @@ public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("1").setSource(watchBuilder()
                 .trigger(schedule(interval("10m")))
                 .input(simpleInput("ref", "testWatchWithSlackAction()"))
-                .condition(alwaysCondition())
+                .condition(AlwaysCondition.INSTANCE)
                 .addAction("slack", actionBuilder))
                 .execute().get();
 

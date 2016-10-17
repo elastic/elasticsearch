@@ -9,8 +9,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -24,7 +26,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.scriptTransform;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
@@ -120,7 +121,8 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         PutWatchResponse putWatchResponse = watcherClient.preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(cron("0/1 * * * * ?")))
                 .input(simpleInput("value", 5))
-                .condition(scriptCondition("ctx.vars.condition_value = ctx.payload.value + 5; return ctx.vars.condition_value > 5;"))
+                .condition(new ScriptCondition(
+                        new Script("ctx.vars.condition_value = ctx.payload.value + 5; return ctx.vars.condition_value > 5;")))
                 .transform(scriptTransform("ctx.vars.watch_transform_value = ctx.vars.condition_value + 5; return ctx.payload;"))
                 .addAction(
                         "a1",
@@ -182,7 +184,8 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         PutWatchResponse putWatchResponse = watcherClient.preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(cron("0/1 * * * * ? 2020")))
                 .input(simpleInput("value", 5))
-                .condition(scriptCondition("ctx.vars.condition_value = ctx.payload.value + 5; return ctx.vars.condition_value > 5;"))
+                .condition(new ScriptCondition(
+                        new Script("ctx.vars.condition_value = ctx.payload.value + 5; return ctx.vars.condition_value > 5;")))
                 .transform(scriptTransform("ctx.vars.watch_transform_value = ctx.vars.condition_value + 5; return ctx.payload;"))
                 .addAction(
                         "a1",

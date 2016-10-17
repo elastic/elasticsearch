@@ -59,10 +59,6 @@ public class WatchSourceBuilder implements ToXContent {
         return this;
     }
 
-    public WatchSourceBuilder condition(Condition.Builder condition) {
-        return condition(condition.build());
-    }
-
     public WatchSourceBuilder condition(Condition condition) {
         this.condition = condition;
         return this;
@@ -94,8 +90,8 @@ public class WatchSourceBuilder implements ToXContent {
         return addAction(id, null, transform.build(), action.build());
     }
 
-    public WatchSourceBuilder addAction(String id, Condition.Builder condition, Action.Builder action) {
-        return addAction(id, null, condition.build(), null, action.build());
+    public WatchSourceBuilder addAction(String id, Condition condition, Action.Builder action) {
+        return addAction(id, null, condition, null, action.build());
     }
 
     public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Transform.Builder transform, Action.Builder action) {
@@ -107,9 +103,9 @@ public class WatchSourceBuilder implements ToXContent {
         return this;
     }
 
-    public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Condition.Builder condition, Transform.Builder transform,
+    public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Condition condition, Transform.Builder transform,
                                         Action.Builder action) {
-        return addAction(id, throttlePeriod, condition.build(), transform.build(), action.build());
+        return addAction(id, throttlePeriod, condition, transform.build(), action.build());
     }
 
     public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Condition condition, Transform transform, Action action) {

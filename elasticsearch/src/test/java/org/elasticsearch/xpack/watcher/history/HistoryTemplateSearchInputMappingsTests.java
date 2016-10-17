@@ -10,6 +10,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -19,7 +20,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
@@ -57,7 +57,7 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(searchInput(request))
-                .condition(alwaysCondition())
+                .condition(AlwaysCondition.INSTANCE)
                 .addAction("logger", loggingAction("indexed")))
                 .get();
 

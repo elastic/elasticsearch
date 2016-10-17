@@ -9,6 +9,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
@@ -21,7 +22,6 @@ import java.util.function.Function;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.scriptTransform;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
@@ -84,7 +84,7 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id1").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(simpleInput())
-                .condition(alwaysCondition())
+                .condition(AlwaysCondition.INSTANCE)
                 .transform(scriptTransform("return [ 'key' : 'value1' ];"))
                 .addAction("logger", scriptTransform("return [ 'key' : 'value2' ];"), loggingAction("indexed")))
                 .get();
@@ -96,7 +96,7 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
         putWatchResponse = watcherClient().preparePutWatch("_id2").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(simpleInput())
-                .condition(alwaysCondition())
+                .condition(AlwaysCondition.INSTANCE)
                 .transform(scriptTransform("return [ 'key' : [ 'key1' : 'value1' ] ];"))
                 .addAction("logger", scriptTransform("return [ 'key' : [ 'key1' : 'value2' ] ];"), loggingAction("indexed")))
                 .get();

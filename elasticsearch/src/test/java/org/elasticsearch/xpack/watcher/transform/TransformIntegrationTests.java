@@ -18,6 +18,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
@@ -38,7 +39,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
@@ -141,7 +141,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
-                        .condition(alwaysCondition())
+                        .condition(AlwaysCondition.INSTANCE)
                         .transform(scriptTransform(script))
                         .addAction("_id", indexAction("output1", "type")))
                 .get();
@@ -151,7 +151,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
-                        .condition(alwaysCondition())
+                        .condition(AlwaysCondition.INSTANCE)
                         .addAction("_id", scriptTransform(script), indexAction("output2", "type")))
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
@@ -235,7 +235,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
-                        .condition(alwaysCondition())
+                        .condition(AlwaysCondition.INSTANCE)
                         .transform(chainTransform(scriptTransform(script1), scriptTransform(script2)))
                         .addAction("_id", indexAction("output1", "type")))
                 .get();
@@ -245,7 +245,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
-                        .condition(alwaysCondition())
+                        .condition(AlwaysCondition.INSTANCE)
                         .addAction("_id", chainTransform(scriptTransform(script1), scriptTransform(script2)),
                                 indexAction("output2", "type")))
                 .get();

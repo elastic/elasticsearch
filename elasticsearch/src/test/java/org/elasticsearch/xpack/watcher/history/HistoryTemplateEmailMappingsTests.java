@@ -12,6 +12,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.xpack.notification.email.EmailTemplate;
 import org.elasticsearch.xpack.notification.email.support.EmailServer;
+import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
@@ -22,7 +23,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.emailAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
@@ -85,7 +85,7 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(simpleInput())
-                .condition(alwaysCondition())
+                .condition(AlwaysCondition.INSTANCE)
                 .addAction("_email", emailAction(EmailTemplate.builder()
                         .from("from@example.com")
                         .to("to1@example.com", "to2@example.com")

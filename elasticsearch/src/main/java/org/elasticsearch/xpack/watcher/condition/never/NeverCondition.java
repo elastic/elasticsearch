@@ -53,13 +53,4 @@ public class NeverCondition implements Condition {
             return builder;
         }
     }
-
-    public static class Builder implements Condition.Builder<NeverCondition> {
-
-        public static final Builder INSTANCE = new Builder();
-
-        public NeverCondition build() {
-            return NeverCondition.INSTANCE;
-        }
-    }
 }

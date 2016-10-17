@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -28,7 +29,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
@@ -45,7 +45,7 @@ public class DeleteWatchTests extends AbstractWatcherIntegrationTestCase {
         PutWatchResponse putResponse = watcherClient().preparePutWatch("_name").setSource(watchBuilder()
                 .trigger(schedule(interval("5m")))
                 .input(simpleInput())
-                .condition(alwaysCondition())
+                .condition(AlwaysCondition.INSTANCE)
                 .addAction("_action1", loggingAction("anything")))
                 .get();
 

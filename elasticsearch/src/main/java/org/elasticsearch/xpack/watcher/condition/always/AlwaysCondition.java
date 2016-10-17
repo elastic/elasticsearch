@@ -53,13 +53,4 @@ public class AlwaysCondition implements Condition {
             return builder;
         }
     }
-
-    public static class Builder implements Condition.Builder<AlwaysCondition> {
-
-        public static final Builder INSTANCE = new Builder();
-
-        public AlwaysCondition build() {
-            return AlwaysCondition.INSTANCE;
-        }
-    }
 }

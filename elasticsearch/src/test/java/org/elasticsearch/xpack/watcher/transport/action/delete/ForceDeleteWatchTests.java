@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.transport.action.delete;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.SleepScriptEngine;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
@@ -19,7 +20,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,7 +48,7 @@ public class ForceDeleteWatchTests extends AbstractWatcherIntegrationTestCase {
     public void testForceDeleteLongRunningWatch() throws Exception {
         PutWatchResponse putResponse = watcherClient().preparePutWatch("_name").setSource(watchBuilder()
                 .trigger(schedule(interval("3s")))
-                .condition(scriptCondition(SleepScriptEngine.sleepScript(5000)))
+                .condition(new ScriptCondition(SleepScriptEngine.sleepScript(5000)))
                 .addAction("_action1", loggingAction("executed action: {{ctx.id}}")))
                 .get();
         assertThat(putResponse.getId(), equalTo("_name"));

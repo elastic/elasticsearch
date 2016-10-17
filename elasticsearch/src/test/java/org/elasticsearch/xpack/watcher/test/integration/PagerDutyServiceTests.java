@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.notification.pagerduty.IncidentEventContext;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.xpack.notification.pagerduty.SentEvent;
+import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.watch.Payload;
@@ -24,7 +25,6 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.pagerDutyAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
@@ -82,7 +82,7 @@ public class PagerDutyServiceTests extends AbstractWatcherIntegrationTestCase {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("1").setSource(watchBuilder()
                 .trigger(schedule(interval("10m")))
                 .input(simpleInput("ref", "testWatchWithPagerDutyAction()"))
-                .condition(alwaysCondition())
+                .condition(AlwaysCondition.INSTANCE)
                 .addAction("pd", actionBuilder))
                 .execute().get();
 

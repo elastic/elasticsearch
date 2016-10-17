@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -30,7 +31,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.emailAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
@@ -75,7 +75,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0 0 0 1 * ? 2020")))
                         .input(simpleInput())
-                        .condition(alwaysCondition())
+                        .condition(AlwaysCondition.INSTANCE)
                         .addAction("_email", emailAction(
                                 EmailTemplate.builder()
                                         .from("_from")

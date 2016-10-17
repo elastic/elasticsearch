@@ -220,27 +220,6 @@ public class CompareCondition implements Condition {
         }
     }
 
-    public static Builder builder(String path, Op op, Object value) {
-        return new Builder(path, op, value);
-    }
-
-    public static class Builder implements Condition.Builder<CompareCondition> {
-
-        private String path;
-        private Op op;
-        private Object value;
-
-        public Builder(String path, Op op, Object value) {
-            this.path = path;
-            this.op = op;
-            this.value = value;
-        }
-
-        public CompareCondition build() {
-            return new CompareCondition(path, op, value);
-        }
-    }
-
     interface Field extends Condition.Field {
         ParseField RESOLVED_VALUES = new ParseField("resolved_values");
     }

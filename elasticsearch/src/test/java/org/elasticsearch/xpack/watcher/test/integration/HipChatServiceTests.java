@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.notification.hipchat.HipChatMessage;
 import org.elasticsearch.xpack.notification.hipchat.HipChatService;
 import org.elasticsearch.xpack.notification.hipchat.SentMessages;
 import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
+import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
@@ -22,7 +23,6 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.hipchatAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
@@ -155,7 +155,7 @@ public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("1").setSource(watchBuilder()
                 .trigger(schedule(interval("10m")))
                 .input(simpleInput("ref", "HipChatServiceTests#testWatchWithHipChatAction"))
-                .condition(alwaysCondition())
+                .condition(AlwaysCondition.INSTANCE)
                 .addAction("hipchat", actionBuilder))
                 .execute().get();
 

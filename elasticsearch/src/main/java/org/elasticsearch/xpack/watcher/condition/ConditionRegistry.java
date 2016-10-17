@@ -86,11 +86,4 @@ public class ConditionRegistry {
         }
         return condition;
     }
-
-    public static void writeResult(Condition.Result result, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject()
-                .field(Condition.Field.MET.getPreferredName(), result.met())
-                .field(result.type(), result, params)
-                .endObject();
-    }
 }

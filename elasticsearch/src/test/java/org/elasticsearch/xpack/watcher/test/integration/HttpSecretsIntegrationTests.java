@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.common.http.auth.basic.ApplicableBasicAuth;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -34,7 +35,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.webhookAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
@@ -88,7 +88,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
                         .input(httpInput(HttpRequestTemplate.builder(webServer.getHostName(), webServer.getPort())
                                 .path("/")
                                 .auth(new BasicAuth(USERNAME, PASSWORD.toCharArray()))))
-                        .condition(alwaysCondition())
+                        .condition(AlwaysCondition.INSTANCE)
                         .addAction("_logging", loggingAction("executed")))
                         .get();
 
@@ -149,7 +149,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0 0 0 1 * ? 2020")))
                         .input(simpleInput())
-                        .condition(alwaysCondition())
+                        .condition(AlwaysCondition.INSTANCE)
                         .addAction("_webhook", webhookAction(HttpRequestTemplate.builder(webServer.getHostName(), webServer.getPort())
                                 .path("/")
                                 .auth(new BasicAuth(USERNAME, PASSWORD.toCharArray())))))

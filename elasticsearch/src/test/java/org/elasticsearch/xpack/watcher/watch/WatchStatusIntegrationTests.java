@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.watcher.watch;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.watcher.condition.never.NeverCondition;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.neverCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule.Interval.Unit.SECONDS;
@@ -35,7 +35,7 @@ public class WatchStatusIntegrationTests extends AbstractWatcherIntegrationTestC
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, SECONDS)))
                         .input(simpleInput())
-                        .condition(neverCondition())
+                        .condition(NeverCondition.INSTANCE)
                         .addAction("_logger", loggingAction("logged text")))
                 .get();
         timeWarp().scheduler().trigger("_name");

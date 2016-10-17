@@ -76,11 +76,6 @@ public interface Condition extends ToXContent {
         protected abstract XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException;
     }
 
-    interface Builder<C extends Condition> {
-
-        C build();
-    }
-
     interface Field {
         ParseField TYPE = new ParseField("type");
         ParseField STATUS = new ParseField("status");

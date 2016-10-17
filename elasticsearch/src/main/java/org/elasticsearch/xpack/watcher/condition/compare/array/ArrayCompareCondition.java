@@ -330,30 +330,6 @@ public class ArrayCompareCondition implements Condition {
         }
     }
 
-    public static Builder builder(String arrayPath, String path, Op op, Object value, Quantifier quantifier) {
-        return new Builder(arrayPath, path, op, value, quantifier);
-    }
-
-    public static class Builder implements Condition.Builder<ArrayCompareCondition> {
-        private String arrayPath;
-        private String path;
-        private Op op;
-        private Object value;
-        private Quantifier quantifier;
-
-        private Builder(String arrayPath, String path, Op op, Object value, Quantifier quantifier) {
-            this.arrayPath = arrayPath;
-            this.path = path;
-            this.op = op;
-            this.value = value;
-            this.quantifier = quantifier;
-        }
-
-        public ArrayCompareCondition build() {
-            return new ArrayCompareCondition(arrayPath, path, op, value, quantifier);
-        }
-    }
-
     interface Field {
         ParseField PATH = new ParseField("path");
         ParseField VALUE = new ParseField("value");

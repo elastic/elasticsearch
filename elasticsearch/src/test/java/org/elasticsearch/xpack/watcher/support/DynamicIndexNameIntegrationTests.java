@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.support;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
@@ -19,7 +20,6 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
@@ -45,7 +45,7 @@ public class DynamicIndexNameIntegrationTests extends AbstractWatcherIntegration
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(simpleInput("key", "value"))
-                        .condition(alwaysCondition())
+                        .condition(AlwaysCondition.INSTANCE)
                         .addAction("dynamic_index", indexAction("<idx-{now}>", "type")))
                 .get();
 

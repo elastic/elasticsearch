@@ -11,11 +11,13 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.xpack.watcher.trigger.TriggerModule;
@@ -28,7 +30,6 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
@@ -81,7 +82,7 @@ public class WatcherExecutorServiceBenchmark {
                 PutWatchRequest putAlertRequest = new PutWatchRequest(name, new WatchSourceBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(searchInput(templateRequest(new SearchSourceBuilder(), "test")))
-                        .condition(scriptCondition("ctx.payload.hits.total > 0")));
+                        .condition(new ScriptCondition(new Script("ctx.payload.hits.total > 0"))));
                 putAlertRequest.setId(name);
                 watcherClient.putWatch(putAlertRequest).actionGet();
             }
@@ -123,7 +124,7 @@ public class WatcherExecutorServiceBenchmark {
                         .trigger(schedule(interval("5s")))
                         .input(searchInput(templateRequest(new SearchSourceBuilder(), "test"))
                                 .extractKeys("hits.total"))
-                        .condition(scriptCondition("1 == 1"))
+                        .condition(new ScriptCondition(new Script("1 == 1")))
                         .addAction("_id", indexAction("index", "type")));
                 putAlertRequest.setId(name);
                 watcherClient.putWatch(putAlertRequest).actionGet();
@@ -167,7 +168,7 @@ public class WatcherExecutorServiceBenchmark {
                 PutWatchRequest putAlertRequest = new PutWatchRequest(name, new WatchSourceBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(httpInput(HttpRequestTemplate.builder("localhost", 9200)))
-                        .condition(scriptCondition("ctx.payload.tagline == \"You Know, for Search\"")));
+                        .condition(new ScriptCondition(new Script("ctx.payload.tagline == \"You Know, for Search\""))));
                 putAlertRequest.setId(name);
                 watcherClient.putWatch(putAlertRequest).actionGet();
             }

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingLevel;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
@@ -46,7 +47,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
@@ -110,7 +110,7 @@ public class WatcherScheduleEngineBenchmark {
                             .setSource(new WatchSourceBuilder()
                                             .trigger(schedule(interval(interval + "s")))
                                             .input(searchInput(templateRequest(new SearchSourceBuilder(), "test")))
-                                            .condition(scriptCondition("ctx.payload.hits.total > 0"))
+                                            .condition(new ScriptCondition(new Script("ctx.payload.hits.total > 0")))
                                             .addAction("logging", ActionBuilders.loggingAction("test").setLevel(LoggingLevel.TRACE))
                                             .buildAsBytes(XContentType.JSON)
                             ).get();

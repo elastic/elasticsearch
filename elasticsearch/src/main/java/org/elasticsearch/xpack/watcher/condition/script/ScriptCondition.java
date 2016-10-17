@@ -69,10 +69,6 @@ public class ScriptCondition implements Condition {
         }
     }
 
-    public static Builder builder(Script script) {
-        return new Builder(script);
-    }
-
     public static class Result extends Condition.Result {
 
         static final Result MET = new Result(true);
@@ -85,20 +81,6 @@ public class ScriptCondition implements Condition {
         @Override
         protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
             return builder;
-        }
-    }
-
-    public static class Builder implements Condition.Builder<ScriptCondition> {
-
-        private final Script script;
-
-        private Builder(Script script) {
-            this.script = script;
-        }
-
-        @Override
-        public ScriptCondition build() {
-            return new ScriptCondition(script);
         }
     }
 }

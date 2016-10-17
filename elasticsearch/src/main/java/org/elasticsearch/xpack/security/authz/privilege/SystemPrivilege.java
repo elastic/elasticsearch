@@ -19,7 +19,8 @@ public class SystemPrivilege extends Privilege<SystemPrivilege> {
             "internal:*",
             "indices:monitor/*", // added for monitoring
             "cluster:monitor/*",  // added for monitoring
-            "cluster:admin/reroute" // added for DiskThresholdDecider.DiskListener
+            "cluster:admin/reroute", // added for DiskThresholdDecider.DiskListener
+            "indices:admin/mapping/put" // needed for recovery and shrink api
     ));
 
     SystemPrivilege() {

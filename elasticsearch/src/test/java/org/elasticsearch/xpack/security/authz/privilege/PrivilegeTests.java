@@ -241,7 +241,7 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(predicate.test("whatever"), is(false));
         assertThat(predicate.test("cluster:admin/reroute"), is(true));
         assertThat(predicate.test("cluster:admin/whatever"), is(false));
-        assertThat(predicate.test("indices:admin/mapping/put"), is(false));
+        assertThat(predicate.test("indices:admin/mapping/put"), is(true));
         assertThat(predicate.test("indices:admin/mapping/whatever"), is(false));
     }
 }

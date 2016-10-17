@@ -119,8 +119,10 @@ public class IndicesAndAliasesResolver {
             replaceable.indices(replacedIndices.toArray(new String[replacedIndices.size()]));
             indices = Sets.newHashSet(replacedIndices);
         } else {
-            assert !containsWildcards(indicesRequest) :
-                    "There are no external requests known to support wildcards that don't support replacing their indices";
+            if (containsWildcards(indicesRequest)) {
+                throw new IllegalStateException("There are no external requests known to support wildcards that don't support replacing " +
+                        "their indices");
+            }
             //NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support
             // replacing their indices.
             //That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
@@ -210,7 +212,7 @@ public class IndicesAndAliasesResolver {
             return true;
         }
         for (String index : indicesRequest.indices()) {
-            if (index.startsWith("+") || index.startsWith("-") || Regex.isSimpleMatchPattern(index)) {
+            if (Regex.isSimpleMatchPattern(index)) {
                 return true;
             }
         }

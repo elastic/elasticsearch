@@ -29,8 +29,10 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -48,7 +50,6 @@ import org.elasticsearch.xpack.security.user.XPackUser;
 import org.junit.Before;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -62,6 +63,7 @@ import static org.mockito.Mockito.when;
 public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     private User user;
+    private User userDashIndices;
     private User userNoIndices;
     private CompositeRolesStore rolesStore;
     private MetaData metaData;
@@ -90,13 +92,21 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .put(indexBuilder("bar-closed").state(IndexMetaData.State.CLOSE).settings(settings))
                 .put(indexBuilder("bar2").settings(settings))
                 .put(indexBuilder(indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>")).settings(settings))
+                .put(indexBuilder("-index10").settings(settings))
+                .put(indexBuilder("-index11").settings(settings))
+                .put(indexBuilder("-index20").settings(settings))
+                .put(indexBuilder("-index22").settings(settings))
+                .put(indexBuilder("+index30").settings(settings))
                 .put(indexBuilder(SecurityTemplateService.SECURITY_INDEX_NAME).settings(settings)).build();
 
         user = new User("user", "role");
+        userDashIndices = new User("dash", "dash");
         userNoIndices = new User("test", "test");
         rolesStore = mock(CompositeRolesStore.class);
-        String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed" };
+        String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed"};
+        String[] dashIndices = new String[]{"-index10", "-index11", "-index20", "-index21"};
         when(rolesStore.role("role")).thenReturn(Role.builder("role").add(IndexPrivilege.ALL, authorizedIndices).build());
+        when(rolesStore.role("dash")).thenReturn(Role.builder("dash").add(IndexPrivilege.ALL, dashIndices).build());
         when(rolesStore.role("test")).thenReturn(Role.builder("test").cluster(ClusterPrivilege.MONITOR).build());
         when(rolesStore.role(SuperuserRole.NAME)).thenReturn(Role.builder(SuperuserRole.DESCRIPTOR).build());
         ClusterService clusterService = mock(ClusterService.class);
@@ -104,6 +114,43 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 mock(AuditTrailService.class), new DefaultAuthenticationFailureHandler(), mock(ThreadPool.class),
                 new AnonymousUser(settings));
         defaultIndicesResolver = new IndicesAndAliasesResolver(indexNameExpressionResolver);
+    }
+
+    public void testDashIndicesAreAllowedInShardLevelRequests() {
+        //indices with names starting with '-' or '+' can be created up to version  2.x and can be around in 5.x
+        //aliases with names starting with '-' or '+' can be created up to version 5.x and can be around in 6.x
+        ShardSearchTransportRequest request = mock(ShardSearchTransportRequest.class);
+        when(request.indices()).thenReturn(new String[]{"-index10", "-index20", "+index30"});
+        Set<String> indices = defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(userDashIndices, SearchAction.NAME));
+        String[] expectedIndices = new String[]{"-index10", "-index20", "+index30"};
+        assertThat(indices.size(), equalTo(expectedIndices.length));
+        assertThat(indices, hasItems(expectedIndices));
+    }
+
+    public void testWildcardsAreNotAllowedInShardLevelRequests() {
+        ShardSearchTransportRequest request = mock(ShardSearchTransportRequest.class);
+        when(request.indices()).thenReturn(new String[]{"index*"});
+        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
+                () -> defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)));
+        assertEquals("There are no external requests known to support wildcards that don't support replacing their indices",
+                illegalStateException.getMessage());
+    }
+
+    public void testAllIsNotAllowedInShardLevelRequests() {
+        ShardSearchTransportRequest request = mock(ShardSearchTransportRequest.class);
+        if (randomBoolean()) {
+            when(request.indices()).thenReturn(new String[]{"_all"});
+        } else {
+            if (randomBoolean()) {
+                when(request.indices()).thenReturn(Strings.EMPTY_ARRAY);
+            } else {
+                when(request.indices()).thenReturn(null);
+            }
+        }
+        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
+                () -> defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)));
+        assertEquals("There are no external requests known to support wildcards that don't support replacing their indices",
+                illegalStateException.getMessage());
     }
 
     public void testResolveEmptyIndicesExpandWilcardsOpenAndClosed() {

@@ -9,7 +9,7 @@ import org.elasticsearch.AbstractOldXPackIndicesBackwardsCompatibilityTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -365,22 +365,24 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
      * and refreshes the new indices
      */
     protected void createIndicesWithRandomAliases(String... indices) {
-        if (randomBoolean()) {
-            //no aliases
-            createIndex(indices);
-        } else {
-            if (randomBoolean()) {
-                //one alias per index with suffix "-alias"
-                for (String index : indices) {
-                    assertAcked(client().admin().indices().prepareCreate(index).setSettings(indexSettings())
-                            .addAlias(new Alias(index + "-alias")));
-                }
-            } else {
-                //same alias pointing to all indices
-                for (String index : indices) {
-                    assertAcked(client().admin().indices().prepareCreate(index).setSettings(indexSettings()).addAlias(new Alias("alias")));
+        //no aliases
+        createIndex(indices);
+
+        if (frequently()) {
+            IndicesAliasesRequestBuilder builder = client().admin().indices().prepareAliases();
+            for (String index : indices) {
+                if (frequently()) {
+                    //one alias per index with prefix "alias-"
+                    builder.addAlias(index, "alias-" + index);
                 }
             }
+            if (randomBoolean()) {
+                //one alias pointing to all indices
+                for (String index : indices) {
+                    builder.addAlias(index, "alias");
+                }
+            }
+            assertAcked(builder);
         }
 
         for (String index : indices) {

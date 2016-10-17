@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
@@ -206,7 +205,6 @@ public class InternalTestClusterTests extends ESTestCase {
                         NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
                         2 + (masterNodes ? InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES : 0) + maxNumDataNodes + numClientNodes)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
-                    .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local")
                     .build();
             }
             @Override
@@ -220,7 +218,8 @@ public class InternalTestClusterTests extends ESTestCase {
         Path baseDir = createTempDir();
         InternalTestCluster cluster = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
-            enableHttpPipelining, nodePrefix, Collections.singleton(MockTcpTransportPlugin.class), Function.identity());
+            enableHttpPipelining, nodePrefix, Arrays.asList(MockTcpTransportPlugin.class, MockZenPing.TestPlugin.class),
+            Function.identity());
         try {
             cluster.beforeTest(random(), 0.0);
             final Map<String,Path[]> shardNodePaths = new HashMap<>();

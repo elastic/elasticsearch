@@ -637,8 +637,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                     throw infe(expression);
                 }
 
-                if (Regex.isSimpleMatchPattern(expression) &&
-                        (options.expandWildcardsOpen() || options.expandWildcardsClosed())) {
+                if (Regex.isSimpleMatchPattern(expression)) {
                     wildcardSeen = true;
                 }
             }

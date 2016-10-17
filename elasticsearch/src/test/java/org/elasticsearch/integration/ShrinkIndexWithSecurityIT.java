@@ -26,6 +26,11 @@ public class ShrinkIndexWithSecurityIT extends SecurityIntegTestCase {
         return true;
     }
 
+    @Override
+    protected int minimumNumberOfShards() {
+        return 2;
+    }
+
     public void testShrinkIndex() throws Exception {
         final int randomNumberOfDocs = scaledRandomIntBetween(2, 12);
         for (int i = 0; i < randomNumberOfDocs; i++) {

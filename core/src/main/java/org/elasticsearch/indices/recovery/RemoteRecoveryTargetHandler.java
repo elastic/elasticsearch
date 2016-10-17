@@ -28,7 +28,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
-import org.elasticsearch.transport.FutureTransportResponseHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
@@ -51,9 +50,11 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private final AtomicLong bytesSinceLastPause = new AtomicLong();
 
     private final Consumer<Long> onSourceThrottle;
+    private String targetAllocationId;
 
-    public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, TransportService transportService, DiscoveryNode targetNode,
-                                       RecoverySettings recoverySettings, Consumer<Long> onSourceThrottle) {
+    public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, String targetAllocationId, TransportService transportService,
+                                       DiscoveryNode targetNode, RecoverySettings recoverySettings, Consumer<Long> onSourceThrottle) {
+        this.targetAllocationId = targetAllocationId;
         this.transportService = transportService;
 
 
@@ -85,16 +86,11 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public FinalizeResponse finalizeRecovery() {
-        return transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.FINALIZE,
-                new RecoveryFinalizeRecoveryRequest(recoveryId, shardId),
-                TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
-                new FutureTransportResponseHandler<FinalizeResponse>() {
-                    @Override
-                    public FinalizeResponse newInstance() {
-                        return new FinalizeResponse();
-                    }
-                }).txGet();
+    public void finalizeRecovery() {
+        transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.FINALIZE,
+            new RecoveryFinalizeRecoveryRequest(recoveryId, shardId),
+            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
+            EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
     }
 
     @Override
@@ -166,5 +162,10 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                                  * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
                                  */
                         throttleTimeInNanos), fileChunkRequestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+    }
+
+    @Override
+    public String getTargetAllocationId() {
+        return targetAllocationId;
     }
 }

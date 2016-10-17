@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.Type;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -54,6 +55,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
 import org.elasticsearch.index.NodeServicesProvider;
+import org.elasticsearch.index.seqno.GlobalCheckpointService;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -85,6 +87,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 public class IndicesClusterStateService extends AbstractLifecycleComponent implements ClusterStateListener {
 
@@ -120,7 +123,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                       SearchService searchService, SyncedFlushService syncedFlushService,
                                       PeerRecoverySourceService peerRecoverySourceService, NodeServicesProvider nodeServicesProvider,
                                       GlobalCheckpointSyncAction globalCheckpointSyncAction) {
-        this(settings, (AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>>) indicesService,
+        this(settings, indicesService,
             clusterService, threadPool, recoveryTargetService, shardStateAction,
             nodeMappingRefreshAction, repositoriesService, restoreService, searchService, syncedFlushService, peerRecoverySourceService,
             nodeServicesProvider, globalCheckpointSyncAction::updateCheckpointForShard);
@@ -502,7 +505,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     assert shardRouting.initializing() : shardRouting + " should have been removed by failMissingShards";
                     createShard(nodes, routingTable, shardRouting);
                 } else {
-                    updateShard(nodes, shardRouting, shard);
+                    updateShard(nodes, shardRouting, shard, routingTable);
                 }
             }
         }
@@ -534,7 +537,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
-    private void updateShard(DiscoveryNodes nodes, ShardRouting shardRouting, Shard shard) {
+    private void updateShard(DiscoveryNodes nodes, ShardRouting shardRouting, Shard shard, RoutingTable routingTable) {
         final ShardRouting currentRoutingEntry = shard.routingEntry();
         assert currentRoutingEntry.isSameAllocation(shardRouting) :
             "local shard has a different allocation id but wasn't cleaning by removeShards. "
@@ -542,6 +545,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         try {
             shard.updateRoutingEntry(shardRouting);
+            if (shardRouting.primary()) {
+                IndexShardRoutingTable indexShardRoutingTable = routingTable.shardRoutingTable(shardRouting.shardId());
+                Set<String> activeIds = indexShardRoutingTable.activeShards().stream().map(r -> r.allocationId().getId())
+                    .collect(Collectors.toSet());
+                Set<String> initializingIds = indexShardRoutingTable.getAllInitializingShards().stream().map(r -> r.allocationId().getId())
+                    .collect(Collectors.toSet());
+               shard.updateAllocationIdsFromMaster(activeIds, initializingIds);
+            }
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed updating shard routing entry", e);
             return;
@@ -720,6 +731,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @throws IOException                  if shard state could not be persisted
          */
         void updateRoutingEntry(ShardRouting shardRouting) throws IOException;
+
+        /**
+         * Notifies the service of the current allocation ids in the cluster state.
+         * See {@link GlobalCheckpointService#updateAllocationIdsFromMaster(Set, Set)} for details.
+         *
+         * @param activeAllocationIds       the allocation ids of the currently active shard copies
+         * @param initializingAllocationIds the allocation ids of the currently initializing shard copies
+         */
+        void updateAllocationIdsFromMaster(Set<String> activeAllocationIds, Set<String> initializingAllocationIds);
     }
 
     public interface AllocatedIndex<T extends Shard> extends Iterable<T>, IndexComponent {

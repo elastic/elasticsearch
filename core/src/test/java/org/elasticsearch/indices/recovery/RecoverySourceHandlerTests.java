@@ -306,7 +306,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }).when(shard).relocated(any(String.class));
 
         RecoveryTargetHandler targetHandler = mock(RecoveryTargetHandler.class);
-        when(targetHandler.finalizeRecovery()).thenReturn(new RecoveryTargetHandler.FinalizeResponse("_mock_", 1));
 
         final Supplier<Long> currentClusterStateVersionSupplier = () -> {
             assertFalse(ensureClusterStateVersionCalled.get());

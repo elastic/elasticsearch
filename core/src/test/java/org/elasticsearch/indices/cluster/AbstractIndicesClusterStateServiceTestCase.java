@@ -21,6 +21,7 @@ package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
@@ -50,8 +51,10 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -82,8 +85,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
      * @param state cluster state used for matching
      */
     public void assertClusterStateMatchesNodeState(ClusterState state, IndicesClusterStateService indicesClusterStateService) {
-        AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>> indicesService =
-            indicesClusterStateService.indicesService;
+        MockIndicesService indicesService = (MockIndicesService) indicesClusterStateService.indicesService;
         ConcurrentMap<ShardId, ShardRouting> failedShardsCache = indicesClusterStateService.failedShardsCache;
         RoutingNode localRoutingNode = state.getRoutingNodes().node(state.getNodes().getLocalNodeId());
         if (localRoutingNode != null) {
@@ -95,7 +97,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 Index index = shardRouting.index();
                 IndexMetaData indexMetaData = state.metaData().getIndexSafe(index);
 
-                Shard shard = indicesService.getShardOrNull(shardRouting.shardId());
+                MockIndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
                 ShardRouting failedShard = failedShardsCache.get(shardRouting.shardId());
                 if (enableRandomFailures) {
                     if (shard == null && failedShard == null) {
@@ -121,6 +123,17 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                         assertTrue("Shard with id " + shardRouting + " expected but missing in indexService", shard != null);
                         // shard has latest shard routing
                         assertThat(shard.routingEntry(), equalTo(shardRouting));
+                    }
+
+                    if (shard.routingEntry().primary() && shard.routingEntry().active()) {
+                        IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shard.shardId());
+                        Set<String> activeIds = shardRoutingTable.activeShards().stream()
+                            .map(r -> r.allocationId().getId()).collect(Collectors.toSet());
+                        Set<String> initializingIds = shardRoutingTable.getAllInitializingShards().stream()
+                            .map(r -> r.allocationId().getId()).collect(Collectors.toSet());
+                        assertThat(shard.routingEntry() + " isn't updated with active aIDs", shard.activeAllocationIds, equalTo(activeIds));
+                        assertThat(shard.routingEntry() + " isn't updated with init aIDs", shard.initializingAllocationIds,
+                            equalTo(initializingIds));
                     }
                 }
             }
@@ -305,6 +318,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
     protected class MockIndexShard implements IndicesClusterStateService.Shard {
         private volatile ShardRouting shardRouting;
         private volatile RecoveryState recoveryState;
+        private volatile Set<String> activeAllocationIds;
+        private volatile Set<String> initializingAllocationIds;
 
         public MockIndexShard(ShardRouting shardRouting) {
             this.shardRouting = shardRouting;
@@ -336,6 +351,12 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             assert this.shardId().equals(shardRouting.shardId());
             assert this.shardRouting.isSameAllocation(shardRouting);
             this.shardRouting = shardRouting;
+        }
+
+        @Override
+        public void updateAllocationIdsFromMaster(Set<String> activeAllocationIds, Set<String> initializingAllocationIds) {
+            this.activeAllocationIds = activeAllocationIds;
+            this.initializingAllocationIds = initializingAllocationIds;
         }
     }
 }

@@ -114,13 +114,12 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
 
     /**
      * marks the allocationId as "in sync" with the primary shard.
-     * see {@link GlobalCheckpointService#markAllocationIdAsInSync(String, long)} for details.
+     * see {@link GlobalCheckpointService#markAllocationIdAsInSync(String)} for details.
      *
      * @param allocationId    allocationId of the recovering shard
-     * @param localCheckpoint the local checkpoint of the shard in question
      */
-    public void markAllocationIdAsInSync(String allocationId, long localCheckpoint) {
-        globalCheckpointService.markAllocationIdAsInSync(allocationId, localCheckpoint);
+    public void markAllocationIdAsInSync(String allocationId) {
+        globalCheckpointService.markAllocationIdAsInSync(allocationId);
     }
 
     public long getLocalCheckpoint() {

@@ -21,18 +21,28 @@ package org.elasticsearch.index.replication;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTests;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
 
 public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase {
 
@@ -67,7 +77,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                     try {
                         latch.countDown();
                         latch.await();
-                        shards.appendDocs(numDocs-1);
+                        shards.appendDocs(numDocs - 1);
                     } catch (Exception e) {
                         throw new AssertionError(e);
                     }
@@ -118,6 +128,40 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             assertNotEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, primarySegmentStats.getMaxUnsafeAutoIdTimestamp());
             assertEquals(primarySegmentStats.getMaxUnsafeAutoIdTimestamp(), segmentsStats.getMaxUnsafeAutoIdTimestamp());
             assertNotEquals(Long.MAX_VALUE, segmentsStats.getMaxUnsafeAutoIdTimestamp());
+        }
+    }
+
+    public void testCheckpointsAdvance() throws Exception {
+        try (ReplicationGroup shards = createGroup(randomInt(3))) {
+            shards.startPrimary();
+            int numDocs = 0;
+            int startedShards;
+            do {
+                numDocs += shards.indexDocs(randomInt(20));
+                startedShards = shards.startReplicas(randomIntBetween(1, 2));
+            } while (startedShards > 0);
+
+            if (numDocs == 0 || randomBoolean()) {
+                // in the case we have no indexing, we simulate the background global checkpoint sync
+                shards.getPrimary().updateGlobalCheckpointOnPrimary();
+            }
+            for (IndexShard shard : shards) {
+                final SeqNoStats shardStats = shard.seqNoStats();
+                final ShardRouting shardRouting = shard.routingEntry();
+                logger.debug("seq_no stats for {}: {}", shardRouting, XContentHelper.toString(shardStats,
+                    new ToXContent.MapParams(Collections.singletonMap("pretty", "false"))));
+                assertThat(shardRouting + " local checkpoint mismatch", shardStats.getLocalCheckpoint(), equalTo(numDocs - 1L));
+
+                final Matcher<Long> globalCheckpointMatcher;
+                if (shardRouting.primary()) {
+                    globalCheckpointMatcher = equalTo(numDocs - 1L);
+                } else {
+                    // nocommit: removed once fixed
+                    globalCheckpointMatcher = anyOf(equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO), equalTo(numDocs - 1L));
+                }
+                assertThat(shardRouting + " global checkpoint mismatch", shardStats.getGlobalCheckpoint(), globalCheckpointMatcher);
+                assertThat(shardRouting + " max seq no mismatch", shardStats.getMaxSeqNo(), equalTo(numDocs - 1L));
+            }
         }
     }
 

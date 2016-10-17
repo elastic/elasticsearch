@@ -314,12 +314,11 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel) throws Exception {
-            final RecoveryTargetHandler.FinalizeResponse response;
-            try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
-            )) {
-                response = recoveryRef.status().finalizeRecovery();
+            try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()))
+            {
+                recoveryRef.status().finalizeRecovery();
             }
-            channel.sendResponse(response);
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 

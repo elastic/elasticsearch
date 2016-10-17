@@ -333,10 +333,14 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public FinalizeResponse finalizeRecovery() {
+    public void finalizeRecovery() {
         final IndexShard indexShard = indexShard();
         indexShard.finalizeRecovery();
-        return new FinalizeResponse(indexShard.routingEntry().allocationId().getId(), indexShard.getLocalCheckpoint());
+    }
+
+    @Override
+    public String getTargetAllocationId() {
+        return indexShard().routingEntry().allocationId().getId();
     }
 
     @Override

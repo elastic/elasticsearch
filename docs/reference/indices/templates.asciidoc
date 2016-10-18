@@ -214,6 +214,7 @@ using `filter_path` to limit the response to just the `version`:
 --------------------------------------------------
 GET /_template/template_1?filter_path=*.version
 --------------------------------------------------
+// CONSOLE
 // TEST[continued]
 
 This should give a small response that makes it both easy and inexpensive to parse:

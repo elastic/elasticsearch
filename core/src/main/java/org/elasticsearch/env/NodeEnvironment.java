@@ -1013,6 +1013,9 @@ public final class NodeEnvironment  implements Closeable {
                 }
             } catch (IOException ex) {
                 throw new IOException("failed to write in data directory [" + path + "] write permission is required", ex);
+            } finally {
+                // make our best effort to ensure the temp file will eventually be deleted
+                Files.deleteIfExists(resolve);
             }
         }
     }

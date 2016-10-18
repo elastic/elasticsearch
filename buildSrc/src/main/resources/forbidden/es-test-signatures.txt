@@ -25,4 +25,3 @@ org.apache.lucene.util.LuceneTestCase$Nightly @ We don't run nightly tests at th
 com.carrotsearch.randomizedtesting.annotations.Nightly @ We don't run nightly tests at this point!
 
 org.junit.Test @defaultMessage Just name your test method testFooBar
-org.junit.rules.ExpectedException @ Use LuceneTestCase#expectThrows(Class<T>, LuceneTestCase.ThrowingRunnable) instead

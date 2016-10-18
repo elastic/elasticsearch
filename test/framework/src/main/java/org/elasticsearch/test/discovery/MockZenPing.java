@@ -25,12 +25,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -100,9 +100,8 @@ public final class MockZenPing extends AbstractLifecycleComponent implements Zen
 
     public static class TestPlugin extends Plugin implements DiscoveryPlugin {
 
-        @Override
-        public Set<Class<? extends ZenPing>> getZenPings(Settings settings) {
-            return Collections.singleton(MockZenPing.class);
+        public void onModule(DiscoveryModule discoveryModule) {
+            discoveryModule.addZenPing(MockZenPing.class);
         }
     }
 }

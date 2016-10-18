@@ -114,14 +114,14 @@ public class TransportService extends AbstractLifecycleComponent {
     private final Logger tracerLog;
 
     volatile String[] tracerLogInclude;
-    volatile String[] tracelLogExclude;
+    volatile String[] tracerLogExclude;
 
     /** if set will call requests sent to this id to shortcut and executed locally */
     volatile DiscoveryNode localNode = null;
 
     /**
      * Build the service.
-     * 
+     *
      * @param clusterSettings if non null the the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
      *        updates for {@link #TRACE_LOG_EXCLUDE_SETTING} and {@link #TRACE_LOG_INCLUDE_SETTING}.
      */
@@ -174,7 +174,7 @@ public class TransportService extends AbstractLifecycleComponent {
     }
 
     void setTracerLogExclude(List<String> tracelLogExclude) {
-        this.tracelLogExclude = tracelLogExclude.toArray(Strings.EMPTY_ARRAY);
+        this.tracerLogExclude = tracelLogExclude.toArray(Strings.EMPTY_ARRAY);
     }
 
     @Override
@@ -589,8 +589,8 @@ public class TransportService extends AbstractLifecycleComponent {
                 return false;
             }
         }
-        if (tracelLogExclude.length > 0) {
-            return !Regex.simpleMatch(tracelLogExclude, action);
+        if (tracerLogExclude.length > 0) {
+            return !Regex.simpleMatch(tracerLogExclude, action);
         }
         return true;
     }

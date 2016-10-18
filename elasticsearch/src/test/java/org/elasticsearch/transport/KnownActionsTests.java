@@ -11,11 +11,11 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.security.action.SecurityActionModule;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.graph.Graph;
+import org.elasticsearch.xpack.security.action.SecurityActionModule;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -55,6 +55,11 @@ public class KnownActionsTests extends SecurityIntegTestCase {
         Collection<Class<? extends Plugin>> mockPlugins = super.getMockPlugins();
         // no handler wrapping here we check the requestHandlers below and this plugin wraps it
         return mockPlugins.stream().filter(p -> p != AssertingTransportInterceptor.TestPlugin.class).collect(Collectors.toList());
+    }
+
+    @Override
+    protected boolean addMockZenPings() {
+        return false; // make sure unicasthost zen ping actions are loaded
     }
 
     @BeforeClass

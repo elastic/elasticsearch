@@ -10,23 +10,22 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.transport.Netty3Plugin;
-import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.xpack.security.authc.file.FileRealm;
-import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
+import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
+import org.elasticsearch.transport.Netty3Plugin;
+import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
+import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
+import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
-import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
-import org.elasticsearch.xpack.XPackPlugin;
 
 import java.net.URISyntaxException;
 import java.nio.file.Files;
@@ -48,9 +47,7 @@ import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
  */
 public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.UnicastZen {
 
-    public static final Settings DEFAULT_SETTINGS = Settings.builder()
-            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen")
-            .build();
+    public static final Settings DEFAULT_SETTINGS = Settings.EMPTY;
 
     public static final String DEFAULT_USER_NAME = "test_user";
     public static final String DEFAULT_PASSWORD = "changeme";

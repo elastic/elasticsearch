@@ -15,6 +15,7 @@ import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.discovery.MockZenPing;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.Security;
@@ -23,16 +24,14 @@ import org.elasticsearch.xpack.ssl.SSLClientAuth;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 
 import static java.util.Collections.singletonMap;
-
 import static org.elasticsearch.test.SecuritySettingsSource.getSSLSettingsForStore;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
-import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 
 public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase {
@@ -101,7 +100,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .build();
-        try (Node node = new MockNode(nodeSettings, Collections.singletonList(XPackPlugin.class))) {
+        try (Node node = new MockNode(nodeSettings, Arrays.asList(XPackPlugin.class, MockZenPing.TestPlugin.class))) {
             node.start();
             assertGreenClusterState(node.client());
         }
@@ -127,7 +126,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put("xpack.security.transport.ssl.enabled", sslTransportEnabled())
                 .put("xpack.security.audit.enabled", false)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                .put("discovery.initial_state_timeout", "2s")
+                .put("discovery.initial_state_timeout", "0s")
                 .put("path.home", home)
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .build();
@@ -143,7 +142,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 // the license is disabled and therefore blocking health & stats calls.
                 node.client().admin().cluster().prepareUpdateSettings()
                         .setTransientSettings(singletonMap("key", "value"))
-                        .setMasterNodeTimeout(TimeValue.timeValueSeconds(2))
+                        .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
                         .get();
                 fail("Expected to fail update settings as the node should not be able to connect to the cluster, cause there should be no" +
                         " master");

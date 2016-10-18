@@ -19,12 +19,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.node.MockNode;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -33,8 +29,13 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.test.discovery.MockZenPing;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -56,8 +57,7 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
     protected final Settings nodeSettings(int nodeOrdinal) {
         final Settings.Builder builder = Settings.builder()
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
-                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local");
+                .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
         List<String> enabledFeatures = enabledFeatures();
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), enabledFeatures.contains(XPackPlugin.SECURITY));
         builder.put(XPackSettings.MONITORING_ENABLED.getKey(), enabledFeatures.contains(XPackPlugin.MONITORING));
@@ -132,8 +132,6 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
                 .put("tribe.t2.cluster.name", cluster2.getClusterName())
                 .put("tribe.t1.transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
                 .put("tribe.t2.transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
-                .put("tribe.t1.discovery.type", "local")
-                .put("tribe.t2.discovery.type", "local")
                 .put("tribe.blocks.write", false)
                 .put(tribe1Defaults.build())
                 .put(tribe2Defaults.build())
@@ -143,7 +141,8 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
                 .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
                 .build();
 
-        final Node tribeNode = new MockNode(merged, Collections.singleton(MockTcpTransportPlugin.class)).start();
+        final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(MockZenPing.TestPlugin.class, MockTcpTransportPlugin.class);
+        final Node tribeNode = new MockNode(merged, mockPlugins).start();
         Client tribeClient = tribeNode.client();
 
         logger.info("wait till tribe has the same nodes as the 2 clusters");

@@ -7,23 +7,21 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.test.discovery.MockZenPing;
 import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.action.user.PutUserResponse;
@@ -35,6 +33,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -145,11 +144,6 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
             tribe1Defaults.put("tribe.t1." + entry.getKey(), entry.getValue());
             tribe2Defaults.put("tribe.t2." + entry.getKey(), entry.getValue());
         }
-        // give each tribe it's unicast hosts to connect to
-        tribe1Defaults.putArray("tribe.t1." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(),
-                getUnicastHosts(internalCluster().client()));
-        tribe2Defaults.putArray("tribe.t2." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(),
-                getUnicastHosts(cluster2.client()));
 
         Settings merged = Settings.builder()
                 .put(internalCluster().getDefaultSettings())
@@ -164,18 +158,10 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
                 .put("node.name", "tribe_node") // make sure we can identify threads from this node
                 .build();
 
-        tribeNode = new MockNode(merged, nodePlugins()).start();
+        final Collection<Class<? extends Plugin>> plugins = new ArrayList<>(nodePlugins());
+        plugins.add(MockZenPing.TestPlugin.class);
+        tribeNode = new MockNode(merged, plugins).start();
         tribeClient = getClientWrapper().apply(tribeNode.client());
-    }
-
-    private String[] getUnicastHosts(Client client) {
-        ArrayList<String> unicastHosts = new ArrayList<>();
-        NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().clear().setTransport(true).get();
-        for (NodeInfo info : nodeInfos.getNodes()) {
-            TransportAddress address = info.getTransport().getAddress().publishAddress();
-            unicastHosts.add(address.getAddress() + ":" + address.getPort());
-        }
-        return unicastHosts.toArray(new String[unicastHosts.size()]);
     }
 
     public void testThatTribeCanAuthenticateElasticUser() throws Exception {

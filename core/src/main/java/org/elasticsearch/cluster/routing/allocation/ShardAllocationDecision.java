@@ -155,10 +155,7 @@ public class ShardAllocationDecision {
     public static ShardAllocationDecision fromDecision(Decision decision, @Nullable String assignedNodeId, @Nullable String explanation,
                                                        @Nullable Map<String, NodeExplanation> nodeExplanations) {
         final Type decisionType = decision.type();
-        AllocationStatus allocationStatus = null;
-        if (decisionType != Type.YES) {
-            allocationStatus = AllocationStatus.fromDecision(decisionType);
-        }
+        AllocationStatus allocationStatus = decisionType != Type.YES ? AllocationStatus.fromDecision(decisionType) : null;
         return new ShardAllocationDecision(decisionType, allocationStatus, explanation, assignedNodeId, null, nodeExplanations, null);
     }
 

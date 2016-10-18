@@ -209,7 +209,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING,
                     InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING,
                     InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING,
-                    SnapshotInProgressAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED_SETTING,
                     DestructiveOperations.REQUIRES_NAME_SETTING,
                     DiscoverySettings.PUBLISH_TIMEOUT_SETTING,
                     DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING,

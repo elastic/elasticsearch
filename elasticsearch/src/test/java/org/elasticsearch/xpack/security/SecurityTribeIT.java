@@ -158,9 +158,9 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
                 .put("node.name", "tribe_node") // make sure we can identify threads from this node
                 .build();
 
-        final Collection<Class<? extends Plugin>> plugins = new ArrayList<>(nodePlugins());
-        plugins.add(MockZenPing.TestPlugin.class);
-        tribeNode = new MockNode(merged, plugins).start();
+        final List<Class<? extends Plugin>> classpathPlugins = new ArrayList<>(nodePlugins());
+        classpathPlugins.addAll(getMockPlugins());
+        tribeNode = new MockNode(merged, classpathPlugins).start();
         tribeClient = getClientWrapper().apply(tribeNode.client());
     }
 

@@ -81,12 +81,12 @@ documentation
 
 [source,java]
 --------------------------------------------------
-SearchRequestBuilder srb1 = node.client()
+SearchRequestBuilder srb1 = client
     .prepareSearch().setQuery(QueryBuilders.queryStringQuery("elasticsearch")).setSize(1);
-SearchRequestBuilder srb2 = node.client()
+SearchRequestBuilder srb2 = client
     .prepareSearch().setQuery(QueryBuilders.matchQuery("name", "kimchy")).setSize(1);
 
-MultiSearchResponse sr = node.client().prepareMultiSearch()
+MultiSearchResponse sr = client.prepareMultiSearch()
         .add(srb1)
         .add(srb2)
         .execute().actionGet();
@@ -107,7 +107,7 @@ The following code shows how to add two aggregations within your search:
 
 [source,java]
 --------------------------------------------------
-SearchResponse sr = node.client().prepareSearch()
+SearchResponse sr = client.prepareSearch()
     .setQuery(QueryBuilders.matchAllQuery())
     .addAggregation(
             AggregationBuilders.terms("agg1").field("field")

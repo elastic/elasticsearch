@@ -32,6 +32,109 @@ import static org.hamcrest.Matchers.containsString;
  * stream
  */
 public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
+
+    public void testDuplicateMethods() throws Exception {
+       parseAndExpectFailure("{\n" +
+               "  \"ping\": {" +
+               "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
+               "    \"methods\": [\"PUT\", \"PUT\"]," +
+               "    \"url\": {" +
+               "      \"path\": \"/\"," +
+               "      \"paths\": [\"/\"]," +
+               "      \"parts\": {" +
+               "      }," +
+               "      \"params\": {" +
+               "        \"type\" : \"boolean\",\n" +
+               "        \"description\" : \"Whether specified concrete indices should be ignored when unavailable (missing or closed)\"" +
+               "      }" +
+               "    }," +
+               "    \"body\": null" +
+               "  }" +
+               "}", "Found duplicate method [PUT]");
+    }
+
+    public void testDuplicatePaths() throws Exception {
+        parseAndExpectFailure("{\n" +
+                "  \"ping\": {" +
+                "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
+                "    \"methods\": [\"PUT\"]," +
+                "    \"url\": {" +
+                "      \"path\": \"/pingone\"," +
+                "      \"paths\": [\"/pingone\", \"/pingtwo\", \"/pingtwo\"]," +
+                "      \"parts\": {" +
+                "      }," +
+                "      \"params\": {" +
+                "        \"type\" : \"boolean\",\n" +
+                "        \"description\" : \"Whether specified concrete indices should be ignored when unavailable (missing or closed)\"" +
+                "      }" +
+                "    }," +
+                "    \"body\": null" +
+                "  }" +
+                "}", "Found duplicate path [/pingtwo]");
+    }
+
+    public void testDuplicateParts() throws Exception {
+        parseAndExpectFailure("{\n" +
+                "  \"ping\": {" +
+                "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
+                "    \"methods\": [\"PUT\"]," +
+                "    \"url\": {" +
+                "      \"path\": \"/\"," +
+                "      \"paths\": [\"/\"]," +
+                "      \"parts\": {" +
+                "        \"index\": {" +
+                "          \"type\" : \"string\",\n" +
+                "          \"description\" : \"index part\"\n" +
+                "        }," +
+                "        \"type\": {" +
+                "          \"type\" : \"string\",\n" +
+                "          \"description\" : \"type part\"\n" +
+                "        }," +
+                "        \"index\": {" +
+                "          \"type\" : \"string\",\n" +
+                "          \"description\" : \"index parameter part\"\n" +
+                "        }" +
+                "      }," +
+                "      \"params\": {" +
+                "        \"type\" : \"boolean\",\n" +
+                "        \"description\" : \"Whether specified concrete indices should be ignored when unavailable (missing or closed)\"" +
+                "      }" +
+                "    }," +
+                "    \"body\": null" +
+                "  }" +
+                "}", "Found duplicate part [index]");
+    }
+
+    public void testDuplicateParams() throws Exception {
+        parseAndExpectFailure("{\n" +
+                "  \"ping\": {" +
+                "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
+                "    \"methods\": [\"PUT\"]," +
+                "    \"url\": {" +
+                "      \"path\": \"/\"," +
+                "      \"paths\": [\"/\"]," +
+                "      \"parts\": {" +
+                "      }," +
+                "      \"params\": {" +
+                "        \"timeout\": {" +
+                "          \"type\" : \"string\",\n" +
+                "          \"description\" : \"timeout parameter\"\n" +
+                "        }," +
+                "        \"refresh\": {" +
+                "          \"type\" : \"string\",\n" +
+                "          \"description\" : \"refresh parameter\"\n" +
+                "        }," +
+                "        \"timeout\": {" +
+                "          \"type\" : \"string\",\n" +
+                "          \"description\" : \"timeout parameter again\"\n" +
+                "        }" +
+                "      }" +
+                "    }," +
+                "    \"body\": null" +
+                "  }" +
+                "}", "Found duplicate param [timeout]");
+    }
+
     public void testBrokenSpecShouldThrowUsefulExceptionWhenParsingFailsOnParams() throws Exception {
         parseAndExpectFailure(BROKEN_SPEC_PARAMS, "Expected params field in rest api definition to contain an object");
     }
@@ -42,12 +145,10 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
 
     private void parseAndExpectFailure(String brokenJson, String expectedErrorMessage) throws Exception {
         XContentParser parser = JsonXContent.jsonXContent.createParser(brokenJson);
-        try {
-            new ClientYamlSuiteRestApiParser().parse("location", parser);
-            fail("Expected to fail parsing but did not happen");
-        } catch (IOException e) {
-            assertThat(e.getMessage(), containsString(expectedErrorMessage));
-        }
+        ClientYamlSuiteRestApiParser restApiParser = new ClientYamlSuiteRestApiParser();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> restApiParser.parse("location", parser));
+        assertThat(e.getMessage(), containsString(expectedErrorMessage));
     }
 
     // see params section is broken, an inside param is missing

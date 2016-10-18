@@ -20,15 +20,10 @@
 package org.elasticsearch.search.sort;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Rule;
-import org.junit.rules.ExpectedException;
 
 import java.util.Locale;
 
 public class SortModeTests extends ESTestCase {
-
-    @Rule
-    public ExpectedException exceptionRule = ExpectedException.none();
 
     public void testSortMode() {
         // we rely on these ordinals in serialization, so changing them breaks bwc.
@@ -50,16 +45,11 @@ public class SortModeTests extends ESTestCase {
         }
     }
 
-    public void testParseNull() {
-        exceptionRule.expect(NullPointerException.class);
-        exceptionRule.expectMessage("input string is null");
-        SortMode.fromString(null);
-    }
+    public void testParsingFromStringExceptions() {
+        Exception e = expectThrows(NullPointerException.class, () -> SortMode.fromString(null));
+        assertEquals("input string is null", e.getMessage());
 
-    public void testIllegalArgument() {
-        exceptionRule.expect(IllegalArgumentException.class);
-        exceptionRule.expectMessage("Unknown SortMode [xyz]");
-        SortMode.fromString("xyz");
+        e = expectThrows(IllegalArgumentException.class, () -> SortMode.fromString("xyz"));
+        assertEquals("Unknown SortMode [xyz]", e.getMessage());
     }
-
 }

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.transport.action.delete;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.SleepScriptEngine;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
+import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;

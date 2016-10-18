@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingLevel;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
+import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;

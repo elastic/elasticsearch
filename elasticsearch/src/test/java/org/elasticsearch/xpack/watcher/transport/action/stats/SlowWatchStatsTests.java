@@ -12,7 +12,7 @@ import org.elasticsearch.script.SleepScriptEngine;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
-import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
+import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionPhase;
 import org.elasticsearch.xpack.watcher.execution.QueuedWatch;
 import org.elasticsearch.xpack.watcher.input.InputBuilders;

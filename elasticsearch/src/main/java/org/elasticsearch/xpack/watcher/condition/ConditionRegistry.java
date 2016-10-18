@@ -6,26 +6,20 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.support.clock.Clock;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Set;
 
 public class ConditionRegistry {
 
     private final Map<String, ConditionFactory> factories;
+    private final Clock clock;
 
-    @Inject
-    public ConditionRegistry(Map<String, ConditionFactory> factories) {
+    public ConditionRegistry(Map<String, ConditionFactory> factories, Clock clock) {
+        this.clock = clock;
         this.factories = factories;
-    }
-
-    public Set<String> types() {
-        return factories.keySet();
     }
 
     /**
@@ -44,24 +38,9 @@ public class ConditionRegistry {
      *                                  Note: depending on the version, only conditions implementations that have a
      *                                  known legacy format will support this option, otherwise this is a noop.
      */
-    public ExecutableCondition parseExecutable(String watchId, XContentParser parser, boolean upgradeConditionSource) throws IOException {
-        Condition condition = parseCondition(watchId, parser, upgradeConditionSource);
-        return factories.get(condition.type()).createExecutable(condition);
-    }
-
-    /**
-     * Parses the xcontent and returns the appropriate condition. Expecting the following format:
-     * <pre><code>
-     *     {
-     *         "condition_type" : {
-     *             ...              //condition body
-     *         }
-     *     }
-     * </code></pre>
-     */
-    public Condition parseCondition(String watchId, XContentParser parser, boolean upgradeConditionSource) throws IOException {
+    public Condition parseExecutable(String watchId, XContentParser parser, boolean upgradeConditionSource) throws IOException {
         Condition condition = null;
-        ConditionFactory factory = null;
+        ConditionFactory factory;
 
         String type = null;
         XContentParser.Token token;
@@ -77,7 +56,7 @@ public class ConditionRegistry {
                     throw new ElasticsearchParseException("could not parse condition for watch [{}]. unknown condition type [{}]",
                             watchId, type);
                 }
-                condition = factory.parseCondition(watchId, parser, upgradeConditionSource);
+                condition = factory.parse(clock, watchId, parser, upgradeConditionSource);
             }
         }
         if (condition == null) {

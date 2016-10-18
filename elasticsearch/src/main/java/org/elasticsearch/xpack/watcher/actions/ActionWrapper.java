@@ -20,9 +20,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.xpack.watcher.actions.throttler.Throttler;
-import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.condition.ConditionRegistry;
-import org.elasticsearch.xpack.watcher.condition.ExecutableCondition;
+import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
@@ -39,7 +38,7 @@ public class ActionWrapper implements ToXContent {
 
     private String id;
     @Nullable
-    private final ExecutableCondition condition;
+    private final Condition condition;
     @Nullable
     private final ExecutableTransform transform;
     private final ActionThrottler throttler;
@@ -50,7 +49,7 @@ public class ActionWrapper implements ToXContent {
     }
 
     public ActionWrapper(String id, ActionThrottler throttler,
-                         @Nullable ExecutableCondition condition,
+                         @Nullable Condition condition,
                          @Nullable ExecutableTransform transform,
                          ExecutableAction action) {
         this.id = id;
@@ -64,7 +63,7 @@ public class ActionWrapper implements ToXContent {
         return id;
     }
 
-    public ExecutableCondition condition() {
+    public Condition condition() {
         return condition;
     }
 
@@ -202,7 +201,7 @@ public class ActionWrapper implements ToXContent {
 
         assert parser.currentToken() == XContentParser.Token.START_OBJECT;
 
-        ExecutableCondition condition = null;
+        Condition condition = null;
         ExecutableTransform transform = null;
         TimeValue throttlePeriod = null;
         ExecutableAction action = null;

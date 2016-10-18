@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.common.http.auth.basic.ApplicableBasicAuth;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;

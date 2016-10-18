@@ -3,37 +3,36 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.watcher.condition.compare;
+package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.common.xcontent.XContentUtils;
+import org.elasticsearch.xpack.support.clock.Clock;
+import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
-public class CompareCondition implements Condition {
 
+public final class CompareCondition extends AbstractCompareCondition {
     public static final String TYPE = "compare";
-
-    private String path;
-    private Op op;
-    private Object value;
+    private final String path;
+    private final Op op;
+    private final Object value;
 
     public CompareCondition(String path, Op op, Object value) {
+        this(path, op, value, null);
+    }
+
+    CompareCondition(String path, Op op, Object value, Clock clock) {
+        super(TYPE, clock);
         this.path = path;
         this.op = op;
         this.value = value;
-    }
-
-    @Override
-    public final String type() {
-        return TYPE;
     }
 
     public String getPath() {
@@ -48,36 +47,7 @@ public class CompareCondition implements Condition {
         return value;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        CompareCondition condition = (CompareCondition) o;
-
-        if (!path.equals(condition.path)) return false;
-        if (op != condition.op) return false;
-        return !(value != null ? !value.equals(condition.value) : condition.value != null);
-    }
-
-    @Override
-    public int hashCode() {
-        int result = path.hashCode();
-        result = 31 * result + op.hashCode();
-        result = 31 * result + (value != null ? value.hashCode() : 0);
-        return result;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-                .startObject(path)
-                    .field(op.id(), value)
-                .endObject()
-            .endObject();
-    }
-
-    public static CompareCondition parse(String watchId, XContentParser parser) throws IOException {
+    public static Condition parse(Clock clock, String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected an object but found [{}] " +
                     "instead", TYPE, watchId, parser.currentToken());
@@ -122,32 +92,43 @@ public class CompareCondition implements Condition {
                         "but found [{}] instead", TYPE, watchId, path, token);
             }
         }
-
-        return new CompareCondition(path, op, value);
+        return new CompareCondition(path, op, value, clock);
     }
 
-    public static class Result extends Condition.Result {
+    @Override
+    protected Result doExecute(Map<String, Object> model, Map<String, Object> resolvedValues) {
+        Object configuredValue = resolveConfiguredValue(resolvedValues, model, value);
 
-        @Nullable private final Map<String, Object> resolveValues;
+        Object resolvedValue = ObjectPath.eval(path, model);
+        resolvedValues.put(path, resolvedValue);
 
-        Result(Map<String, Object> resolveValues, boolean met) {
-            super(TYPE, met);
-            this.resolveValues = resolveValues;
-        }
+        return new Result(resolvedValues, TYPE, op.eval(resolvedValue, configuredValue));
+    }
 
-        public Map<String, Object> getResolveValues() {
-            return resolveValues;
-        }
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
 
-        @Override
-        protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
-            if (resolveValues == null) {
-                return builder;
-            }
-            return builder.startObject(type)
-                    .field(Field.RESOLVED_VALUES.getPreferredName(), resolveValues)
-                    .endObject();
-        }
+        CompareCondition condition = (CompareCondition) o;
+
+        if (!Objects.equals(path, condition.path)) return false;
+        if (op != condition.op) return false;
+        return Objects.equals(value, condition.value);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(path, op, value);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject()
+                .startObject(path)
+                .field(op.id(), value)
+                .endObject()
+                .endObject();
     }
 
     public enum Op {
@@ -218,9 +199,5 @@ public class CompareCondition implements Condition {
         public static Op resolve(String id) {
             return Op.valueOf(id.toUpperCase(Locale.ROOT));
         }
-    }
-
-    interface Field extends Condition.Field {
-        ParseField RESOLVED_VALUES = new ParseField("resolved_values");
     }
 }

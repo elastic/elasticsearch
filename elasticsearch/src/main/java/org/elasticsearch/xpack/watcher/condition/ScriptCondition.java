@@ -1,0 +1,110 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.xpack.watcher.condition;
+
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.xpack.watcher.Watcher;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.watcher.support.Variables;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
+
+import static org.elasticsearch.xpack.watcher.support.Exceptions.invalidScript;
+
+/**
+ * This class executes a script against the ctx payload and returns a boolean
+ */
+public final class ScriptCondition extends Condition {
+    public static final String TYPE = "script";
+    private static final Result MET = new Result(null, TYPE, true);
+    private static final Result UNMET = new Result(null, TYPE, false);
+
+    private final ScriptService scriptService;
+    private final CompiledScript compiledScript;
+    private final Script script;
+
+    public ScriptCondition(Script script) {
+        super(TYPE);
+        this.script = script;
+        scriptService = null;
+        compiledScript = null;
+    }
+
+    ScriptCondition(Script script, ScriptService scriptService) {
+        super(TYPE);
+        this.scriptService = scriptService;
+        this.script = script;
+        compiledScript = scriptService.compile(script, Watcher.SCRIPT_CONTEXT, Collections.emptyMap());
+    }
+
+    public Script getScript() {
+        return script;
+    }
+
+    public static ScriptCondition parse(ScriptService scriptService, String watchId, XContentParser parser, boolean upgradeConditionSource,
+                                        String defaultLegacyScriptLanguage) throws IOException {
+        try {
+            Script script;
+            if (upgradeConditionSource) {
+                script = Script.parse(parser, ParseFieldMatcher.STRICT, defaultLegacyScriptLanguage);
+            } else {
+                script = Script.parse(parser, ParseFieldMatcher.STRICT);
+            }
+            return new ScriptCondition(script, scriptService);
+        } catch (ElasticsearchParseException pe) {
+            throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. failed to parse script", pe, TYPE,
+                    watchId);
+        }
+    }
+
+    @Override
+    public Result execute(WatchExecutionContext ctx) {
+        return doExecute(ctx);
+    }
+
+    public Result doExecute(WatchExecutionContext ctx) {
+        Map<String, Object> parameters = Variables.createCtxModel(ctx, ctx.payload());
+        if (script.getParams() != null && !script.getParams().isEmpty()) {
+            parameters.putAll(script.getParams());
+        }
+        ExecutableScript executable = scriptService.executable(compiledScript, parameters);
+        Object value = executable.run();
+        if (value instanceof Boolean) {
+            return (Boolean) value ? MET : UNMET;
+        }
+        throw invalidScript("condition [{}] must return a boolean value (true|false) but instead returned [{}]", type(), ctx.watch().id(),
+                script, value);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return script.toXContent(builder, params);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        ScriptCondition condition = (ScriptCondition) o;
+
+        return script.equals(condition.script);
+    }
+
+    @Override
+    public int hashCode() {
+        return script.hashCode();
+    }
+}

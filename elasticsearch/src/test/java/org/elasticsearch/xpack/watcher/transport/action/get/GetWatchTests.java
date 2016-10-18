@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher.transport.action.get;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchRequest;

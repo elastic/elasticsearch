@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.notification.hipchat.HipChatMessage;
 import org.elasticsearch.xpack.notification.hipchat.HipChatService;
 import org.elasticsearch.xpack.notification.hipchat.SentMessages;
 import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
-import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 

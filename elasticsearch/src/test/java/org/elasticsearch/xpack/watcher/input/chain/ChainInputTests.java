@@ -17,8 +17,8 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
-import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
@@ -171,7 +171,7 @@ public class ChainInputTests extends ESTestCase {
         Watch watch = new Watch("test-watch",
                 new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
                 new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
-                new ExecutableAlwaysCondition(logger),
+                AlwaysCondition.INSTANCE,
                 null,
                 null,
                 new ArrayList<>(),

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.watcher.condition.script;
+package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -22,7 +22,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.watch.Payload;
@@ -86,9 +86,9 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTestCa
                 .get();
 
         ScriptService scriptService = internalCluster().getInstance(ScriptService.class);
-        ExecutableScriptCondition condition = new ExecutableScriptCondition(
-                new ScriptCondition(new Script("ctx.payload.aggregations.rate.buckets[0]?.doc_count >= 5")),
-                logger, scriptService);
+        ScriptCondition condition = new ScriptCondition(
+                new Script("ctx.payload.aggregations.rate.buckets[0]?.doc_count >= 5"),
+                scriptService);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         assertFalse(condition.execute(ctx).met());
@@ -106,8 +106,8 @@ public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTestCa
 
     public void testExecuteAccessHits() throws Exception {
         ScriptService scriptService = internalCluster().getInstance(ScriptService.class);
-        ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(
-                new Script("ctx.payload.hits?.hits[0]?._score == 1.0")), logger, scriptService);
+        ScriptCondition condition = new ScriptCondition(
+                new Script("ctx.payload.hits?.hits[0]?._score == 1.0"), scriptService);
         InternalSearchHit hit = new InternalSearchHit(0, "1", new Text("type"), null);
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", new Index("a", "testUUID"), 0));

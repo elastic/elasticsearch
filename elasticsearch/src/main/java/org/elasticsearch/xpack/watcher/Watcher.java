@@ -24,13 +24,22 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.actions.WatcherActionModule;
 import org.elasticsearch.xpack.watcher.client.WatcherClientModule;
-import org.elasticsearch.xpack.watcher.condition.ConditionModule;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.ArrayCompareCondition;
+import org.elasticsearch.xpack.watcher.condition.CompareCondition;
+import org.elasticsearch.xpack.watcher.condition.ConditionFactory;
+import org.elasticsearch.xpack.watcher.condition.ConditionRegistry;
+import org.elasticsearch.xpack.watcher.condition.NeverCondition;
+import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionModule;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
@@ -77,7 +86,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
@@ -113,6 +124,18 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         validAutoCreateIndex(settings);
     }
 
+    public Collection<Object> createComponents(Clock clock, ScriptService scriptService) {
+        final Map<String, ConditionFactory> parsers = new HashMap<>();
+        parsers.put(AlwaysCondition.TYPE, (c, id, p, upgrade) -> AlwaysCondition.parse(id, p));
+        parsers.put(NeverCondition.TYPE, (c, id, p, upgrade) -> NeverCondition.parse(id, p));
+        parsers.put(ArrayCompareCondition.TYPE, (c, id, p, upgrade) -> ArrayCompareCondition.parse(c, id, p));
+        parsers.put(CompareCondition.TYPE, (c, id, p, upgrade) -> CompareCondition.parse(c, id, p));
+        String defaultLegacyScriptLanguage = ScriptSettings.getLegacyDefaultLang(settings);
+        parsers.put(ScriptCondition.TYPE, (c, id, p, upgrade) -> ScriptCondition.parse(scriptService, id, p, upgrade,
+                defaultLegacyScriptLanguage));
+        return Collections.singleton(new ConditionRegistry(Collections.unmodifiableMap(parsers), clock));
+    }
+
     public Collection<Module> nodeModules() {
         List<Module> modules = new ArrayList<>();
         modules.add(new WatcherModule(enabled, transportClient));
@@ -122,7 +145,6 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
             modules.add(new TransformModule());
             modules.add(new TriggerModule(settings));
             modules.add(new ScheduleModule());
-            modules.add(new ConditionModule());
             modules.add(new InputModule());
             modules.add(new WatcherActionModule());
             modules.add(new HistoryModule());

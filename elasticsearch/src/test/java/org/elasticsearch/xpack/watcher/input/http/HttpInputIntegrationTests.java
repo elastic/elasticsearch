@@ -15,7 +15,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Netty3Plugin;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
+import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;

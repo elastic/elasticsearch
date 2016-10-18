@@ -5,34 +5,64 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
 
-public interface Condition extends ToXContent {
+public abstract class Condition implements ToXContent {
 
-    String type();
+    protected final String type;
 
-    abstract class Result implements ToXContent {
+    protected Condition(String type) {
+        this.type = type;
+    }
+
+    /**
+     * @return the type of this condition
+     */
+    public final String type() {
+        return type;
+    }
+
+    /**
+     * Executes this condition
+     */
+    public abstract Result execute(WatchExecutionContext ctx);
+
+    @Override
+    public  XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject().endObject();
+    }
+
+    public static class Result implements ToXContent {
+
+        public Map<String,Object> getResolvedValues() {
+            return resolveValues;
+        }
 
         public enum Status {
             SUCCESS, FAILURE
         }
 
-        protected final String type;
-        protected final Status status;
+        private final String type;
+        private final Status status;
         private final String reason;
-        protected final boolean met;
+        private final boolean met;
+        @Nullable
+        private final Map<String, Object> resolveValues;
 
-        public Result(String type, boolean met) {
+        public Result(Map<String, Object> resolveValues, String type, boolean met) {
             // TODO: FAILURE status is never used, but a some code assumes that it is used
             this.status = Status.SUCCESS;
             this.type = type;
             this.met = met;
             this.reason = null;
+            this.resolveValues = resolveValues;
         }
 
         public String type() {
@@ -55,31 +85,24 @@ public interface Condition extends ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(Field.TYPE.getPreferredName(), type);
-            builder.field(Field.STATUS.getPreferredName(), status.name().toLowerCase(Locale.ROOT));
+            builder.field("type", type);
+            builder.field("status", status.name().toLowerCase(Locale.ROOT));
             switch (status) {
                 case SUCCESS:
                     assert reason == null;
-                    builder.field(Field.MET.getPreferredName(), met);
+                    builder.field("met", met);
                     break;
                 case FAILURE:
                     assert reason != null && !met;
-                    builder.field(Field.REASON.getPreferredName(), reason);
+                    builder.field("reason", reason);
                     break;
                 default:
                     assert false;
             }
-            typeXContent(builder, params);
+            if (resolveValues != null) {
+                builder.startObject(type).field("resolved_values", resolveValues).endObject();
+            }
             return builder.endObject();
         }
-
-        protected abstract XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException;
-    }
-
-    interface Field {
-        ParseField TYPE = new ParseField("type");
-        ParseField STATUS = new ParseField("status");
-        ParseField MET = new ParseField("met");
-        ParseField REASON = new ParseField("reason");
     }
 }

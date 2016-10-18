@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.notification.slack.SlackService;
 import org.elasticsearch.xpack.notification.slack.message.Attachment;
 import org.elasticsearch.xpack.notification.slack.message.SlackMessage;
 import org.elasticsearch.xpack.watcher.actions.slack.SlackAction;
-import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.joda.time.DateTime;

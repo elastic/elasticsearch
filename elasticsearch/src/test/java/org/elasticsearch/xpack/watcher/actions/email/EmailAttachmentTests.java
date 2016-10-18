@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.notification.email.attachment.HttpRequestAttachme
 import org.elasticsearch.xpack.notification.email.support.EmailServer;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
+import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.Scheme;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;

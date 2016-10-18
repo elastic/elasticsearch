@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.notification.pagerduty.IncidentEventContext;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.xpack.notification.pagerduty.SentEvent;
-import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.watch.Payload;

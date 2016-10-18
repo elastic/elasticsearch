@@ -3,12 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.watcher.condition.compare;
+package org.elasticsearch.xpack.watcher.condition;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.support.clock.Clock;
-import org.elasticsearch.xpack.watcher.condition.Condition;
-import org.elasticsearch.xpack.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
@@ -21,20 +18,20 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public abstract class AbstractExecutableCompareCondition<C extends Condition, R extends Condition.Result>
-        extends ExecutableCondition<C, R> {
+abstract class AbstractCompareCondition
+        extends Condition {
     static final Pattern DATE_MATH_PATTERN = Pattern.compile("<\\{(.+)\\}>");
     static final Pattern PATH_PATTERN = Pattern.compile("\\{\\{(.+)\\}\\}");
 
     private final Clock clock;
 
-    public AbstractExecutableCompareCondition(C condition, Logger logger, Clock clock) {
-        super(condition, logger);
+    protected AbstractCompareCondition(String type, Clock clock) {
+        super(type);
         this.clock = clock;
     }
 
     @Override
-    public R execute(WatchExecutionContext ctx) {
+    public final Result execute(WatchExecutionContext ctx) {
         Map<String, Object> resolvedValues = new HashMap<>();
         Map<String, Object> model = Variables.createCtxModel(ctx, ctx.payload());
         return doExecute(model, resolvedValues);
@@ -62,5 +59,5 @@ public abstract class AbstractExecutableCompareCondition<C extends Condition, R 
         return configuredValue;
     }
 
-    protected abstract R doExecute(Map<String, Object> model, Map<String, Object> resolvedValues);
+    protected abstract Result doExecute(Map<String, Object> model, Map<String, Object> resolvedValues);
 }

@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;

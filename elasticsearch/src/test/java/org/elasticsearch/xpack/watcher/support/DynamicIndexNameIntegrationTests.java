@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.support;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;

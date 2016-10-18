@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.watcher.transport.action.execute;
 
 import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.Wid;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;

@@ -61,17 +61,17 @@ public abstract class WatchRecord implements ToXContent {
     }
 
     public WatchRecord(WatchRecord record, ExecutionState state) {
-        this(record.id, record.triggerEvent, state, record.vars, record.input, record.condition(), record.metadata, record.executionResult);
+        this(record.id, record.triggerEvent, state, record.vars, record.input, record.condition, record.metadata, record.executionResult);
     }
 
     public WatchRecord(WatchExecutionContext context, ExecutionState state) {
-        this(context.id(), context.triggerEvent(), state, context.vars(), context.watch().input(), context.watch().condition().condition(),
+        this(context.id(), context.triggerEvent(), state, context.vars(), context.watch().input(), context.watch().condition(),
                 context.watch().metadata(), null);
     }
 
     public WatchRecord(WatchExecutionContext context, WatchExecutionResult executionResult) {
         this(context.id(), context.triggerEvent(), getState(executionResult), context.vars(), context.watch().input(),
-                context.watch().condition().condition(), context.watch().metadata(), executionResult);
+                context.watch().condition(), context.watch().metadata(), executionResult);
     }
 
     private static ExecutionState getState(WatchExecutionResult executionResult) {
@@ -103,10 +103,6 @@ public abstract class WatchRecord implements ToXContent {
     }
 
     public ExecutableInput input() { return input; }
-
-    public Condition condition() {
-        return condition;
-    }
 
     public ExecutionState state() {
         return state;

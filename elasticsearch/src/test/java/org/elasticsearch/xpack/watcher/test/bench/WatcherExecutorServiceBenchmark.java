@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
+import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.xpack.watcher.trigger.TriggerModule;

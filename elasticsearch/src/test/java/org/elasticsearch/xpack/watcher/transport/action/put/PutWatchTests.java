@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.watcher.transport.action.put;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 

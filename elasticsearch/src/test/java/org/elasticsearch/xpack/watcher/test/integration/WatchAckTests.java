@@ -16,7 +16,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
+import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;

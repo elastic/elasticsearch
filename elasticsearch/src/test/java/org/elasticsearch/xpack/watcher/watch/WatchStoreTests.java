@@ -34,8 +34,8 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
-import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
-import org.elasticsearch.xpack.watcher.condition.never.ExecutableNeverCondition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
@@ -277,8 +277,8 @@ public class WatchStoreTests extends ESTestCase {
             when(watch.input()).thenReturn(randomFrom(new ExecutableNoneInput(logger), null));
 
             // random conditions
-            when(watch.condition()).thenReturn(randomFrom(new ExecutableAlwaysCondition(logger), null,
-                    new ExecutableNeverCondition(logger)));
+            when(watch.condition()).thenReturn(randomFrom(AlwaysCondition.INSTANCE, null,
+                    NeverCondition.INSTANCE));
 
             // random actions
             ActionWrapper actionWrapper = mock(ActionWrapper.class);

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.watcher.condition.compare;
+package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -48,13 +49,12 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
                         .dateHistogramInterval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
                 .get();
 
-        ExecutableCompareCondition condition = new ExecutableCompareCondition(
-                new CompareCondition("ctx.payload.aggregations.rate.buckets.0.doc_count", CompareCondition.Op.GTE, 5),
-                logger, SystemClock.INSTANCE);
+        CompareCondition condition = new CompareCondition("ctx.payload.aggregations.rate.buckets.0.doc_count", CompareCondition.Op.GTE, 5,
+                SystemClock.INSTANCE);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         CompareCondition.Result result = condition.execute(ctx);
         assertThat(result.met(), is(false));
-        Map<String, Object> resolvedValues = result.getResolveValues();
+        Map<String, Object> resolvedValues = result.getResolvedValues();
         assertThat(resolvedValues, notNullValue());
         assertThat(resolvedValues.size(), is(1));
         assertThat(resolvedValues, hasEntry("ctx.payload.aggregations.rate.buckets.0.doc_count", (Object) 4));
@@ -70,16 +70,15 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         ctx = mockExecutionContext("_name", new Payload.XContent(response));
         result = condition.execute(ctx);
         assertThat(result.met(), is(true));
-        resolvedValues = result.getResolveValues();
+        resolvedValues = result.getResolvedValues();
         assertThat(resolvedValues, notNullValue());
         assertThat(resolvedValues.size(), is(1));
         assertThat(resolvedValues, hasEntry("ctx.payload.aggregations.rate.buckets.0.doc_count", (Object) 5));
     }
 
     public void testExecuteAccessHits() throws Exception {
-        ExecutableCompareCondition condition = new ExecutableCompareCondition(
-                new CompareCondition("ctx.payload.hits.hits.0._score", CompareCondition.Op.EQ, 1),
-                logger, SystemClock.INSTANCE);
+        CompareCondition condition = new CompareCondition("ctx.payload.hits.hits.0._score", CompareCondition.Op.EQ, 1,
+                SystemClock.INSTANCE);
         InternalSearchHit hit = new InternalSearchHit(0, "1", new Text("type"), null);
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", new Index("a", "indexUUID"), 0));
@@ -94,7 +93,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         when(ctx.payload()).thenReturn(new Payload.XContent(response));
         CompareCondition.Result result = condition.execute(ctx);
         assertThat(result.met(), is(false));
-        Map<String, Object> resolvedValues = result.getResolveValues();
+        Map<String, Object> resolvedValues = result.getResolvedValues();
         assertThat(resolvedValues, notNullValue());
         assertThat(resolvedValues.size(), is(1));
         assertThat(resolvedValues, hasEntry(is("ctx.payload.hits.hits.0._score"), notNullValue()));

@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.watcher.execution;
 
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.xpack.watcher.condition.ExecutableCondition;
-import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.Condition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class TriggeredWatchStoreLifeCycleTests extends AbstractWatcherIntegrationTestCase {
     public void testPutLoadUpdate() throws Exception {
-        ExecutableCondition condition = new ExecutableAlwaysCondition(logger);
+        Condition condition = AlwaysCondition.INSTANCE;
         TriggeredWatchStore triggeredWatchStore = getInstanceFromMaster(TriggeredWatchStore.class);
         Watch watch = new Watch("_name", null, new ExecutableNoneInput(logger), condition, null, null, null, null, null);
 

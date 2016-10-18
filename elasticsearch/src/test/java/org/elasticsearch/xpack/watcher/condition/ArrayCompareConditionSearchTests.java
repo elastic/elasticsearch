@@ -3,11 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.watcher.condition.compare.array;
+package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.xpack.watcher.condition.ArrayCompareCondition;
+import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -47,15 +49,12 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
                 .addAggregation(AggregationBuilders.terms("top_tweeters").field("user.screen_name.keyword").size(3)).get();
 
 
-        ExecutableArrayCompareCondition condition = new ExecutableArrayCompareCondition(
-                new ArrayCompareCondition("ctx.payload.aggregations.top_tweeters.buckets" , "doc_count", op,
-                        numberOfDocumentsWatchingFor, quantifier),
-                logger,
-                SystemClock.INSTANCE
+        ArrayCompareCondition condition = new ArrayCompareCondition("ctx.payload.aggregations.top_tweeters.buckets" , "doc_count", op,
+                        numberOfDocumentsWatchingFor, quantifier, SystemClock.INSTANCE
         );
 
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
-        ArrayCompareCondition.Result result = condition.execute(ctx);
+        Condition.Result result = condition.execute(ctx);
 
         boolean met = quantifier.eval(Arrays.<Object>asList(numberOfDocuments, numberOfDocuments), numberOfDocumentsWatchingFor, op);
         assertEquals(met, result.met());

@@ -10,7 +10,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
+import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.delete.DeleteWatchResponse;

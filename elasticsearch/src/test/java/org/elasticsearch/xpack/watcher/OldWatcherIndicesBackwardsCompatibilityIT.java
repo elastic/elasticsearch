@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;

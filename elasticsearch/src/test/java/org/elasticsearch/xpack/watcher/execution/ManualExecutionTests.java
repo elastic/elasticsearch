@@ -14,15 +14,14 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
-import org.elasticsearch.xpack.watcher.condition.never.NeverCondition;
-import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.NeverCondition;
+import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
@@ -143,7 +142,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
         }
 
         if (ignoreCondition) {
-            ctxBuilder.withCondition(AlwaysCondition.Result.INSTANCE);
+            ctxBuilder.withCondition(AlwaysCondition.RESULT_INSTANCE);
         }
 
         ctxBuilder.recordExecution(recordExecution);

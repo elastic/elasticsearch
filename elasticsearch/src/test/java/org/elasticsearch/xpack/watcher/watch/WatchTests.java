@@ -21,6 +21,7 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpClient;
@@ -56,20 +57,13 @@ import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookActionFactory;
 import org.elasticsearch.xpack.watcher.condition.ConditionFactory;
 import org.elasticsearch.xpack.watcher.condition.ConditionRegistry;
-import org.elasticsearch.xpack.watcher.condition.ExecutableCondition;
-import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
-import org.elasticsearch.xpack.watcher.condition.always.AlwaysConditionFactory;
-import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
-import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
-import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition.Op;
-import org.elasticsearch.xpack.watcher.condition.compare.CompareConditionFactory;
-import org.elasticsearch.xpack.watcher.condition.compare.ExecutableCompareCondition;
-import org.elasticsearch.xpack.watcher.condition.compare.array.ArrayCompareCondition;
-import org.elasticsearch.xpack.watcher.condition.compare.array.ArrayCompareConditionFactory;
-import org.elasticsearch.xpack.watcher.condition.compare.array.ExecutableArrayCompareCondition;
-import org.elasticsearch.xpack.watcher.condition.script.ExecutableScriptCondition;
-import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
-import org.elasticsearch.xpack.watcher.condition.script.ScriptConditionFactory;
+import org.elasticsearch.xpack.watcher.condition.Condition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysConditionTests;
+import org.elasticsearch.xpack.watcher.condition.CompareCondition;
+import org.elasticsearch.xpack.watcher.condition.ArrayCompareCondition;
+import org.elasticsearch.xpack.watcher.condition.NeverCondition;
+import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.input.InputBuilders;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
@@ -185,7 +179,7 @@ public class WatchTests extends ESTestCase {
         ExecutableInput input = randomInput();
         InputRegistry inputRegistry = registry(input.type());
 
-        ExecutableCondition condition = randomCondition();
+        Condition condition = AlwaysConditionTests.randomCondition(scriptService);
         ConditionRegistry conditionRegistry = conditionRegistry();
 
         ExecutableTransform transform = randomTransform();
@@ -277,7 +271,7 @@ public class WatchTests extends ESTestCase {
         assertThat(watch, notNullValue());
         assertThat(watch.trigger(), instanceOf(ScheduleTrigger.class));
         assertThat(watch.input(), instanceOf(ExecutableNoneInput.class));
-        assertThat(watch.condition(), instanceOf(ExecutableAlwaysCondition.class));
+        assertThat(watch.condition(), instanceOf(AlwaysCondition.class));
         assertThat(watch.transform(), nullValue());
         assertThat(watch.actions(), notNullValue());
         assertThat(watch.actions().size(), is(0));
@@ -347,14 +341,14 @@ public class WatchTests extends ESTestCase {
 
         // parse in default mode:
         Watch watch = watchParser.parse("_id", false, builder.bytes());
-        assertThat(((ScriptCondition) watch.condition().condition()).getScript().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
+        assertThat(((ScriptCondition) watch.condition()).getScript().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         WatcherSearchTemplateRequest request = ((SearchInput) watch.input().input()).getRequest();
         SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
         assertThat(((ScriptQueryBuilder) searchRequest.source().query()).script().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
 
         // parse in legacy mode:
         watch = watchParser.parse("_id", false, builder.bytes(), true);
-        assertThat(((ScriptCondition) watch.condition().condition()).getScript().getLang(), equalTo("groovy"));
+        assertThat(((ScriptCondition) watch.condition()).getScript().getLang(), equalTo("groovy"));
         request = ((SearchInput) watch.input().input()).getRequest();
         searchRequest = searchTemplateService.toSearchRequest(request);
         assertThat(((ScriptQueryBuilder) searchRequest.source().query()).script().getLang(), equalTo("groovy"));
@@ -442,30 +436,18 @@ public class WatchTests extends ESTestCase {
         }
     }
 
-    private ExecutableCondition randomCondition() {
-        String type = randomFrom(ScriptCondition.TYPE, AlwaysCondition.TYPE, CompareCondition.TYPE, ArrayCompareCondition.TYPE);
-        switch (type) {
-            case ScriptCondition.TYPE:
-                return new ExecutableScriptCondition(new ScriptCondition(new Script("_script")), logger, scriptService);
-            case CompareCondition.TYPE:
-                return new ExecutableCompareCondition(new CompareCondition("_path", randomFrom(Op.values()), randomFrom(5, "3")), logger,
-                        SystemClock.INSTANCE);
-            case ArrayCompareCondition.TYPE:
-                return new ExecutableArrayCompareCondition(new ArrayCompareCondition("_array_path", "_path",
-                        randomFrom(ArrayCompareCondition.Op.values()), randomFrom(5, "3"), ArrayCompareCondition.Quantifier.SOME),
-                        logger, SystemClock.INSTANCE);
-            default:
-                return new ExecutableAlwaysCondition(logger);
-        }
-    }
+
 
     private ConditionRegistry conditionRegistry() {
         Map<String, ConditionFactory> parsers = new HashMap<>();
-        parsers.put(ScriptCondition.TYPE, new ScriptConditionFactory(settings, scriptService));
-        parsers.put(CompareCondition.TYPE, new CompareConditionFactory(settings, SystemClock.INSTANCE));
-        parsers.put(ArrayCompareCondition.TYPE, new ArrayCompareConditionFactory(settings, SystemClock.INSTANCE));
-        parsers.put(AlwaysCondition.TYPE, new AlwaysConditionFactory(settings));
-        return new ConditionRegistry(parsers);
+        parsers.put(AlwaysCondition.TYPE, (c, id, p, upgrade) -> AlwaysCondition.parse(id, p));
+        parsers.put(NeverCondition.TYPE, (c, id, p, upgrade) -> NeverCondition.parse(id, p));
+        parsers.put(ArrayCompareCondition.TYPE, (c, id, p, upgrade) -> ArrayCompareCondition.parse(c, id, p));
+        parsers.put(CompareCondition.TYPE, (c, id, p, upgrade) -> CompareCondition.parse(c, id, p));
+        String defaultLegacyScriptLanguage = ScriptSettings.getLegacyDefaultLang(settings);
+        parsers.put(ScriptCondition.TYPE, (c, id, p, upgrade) -> ScriptCondition.parse(scriptService, id, p, upgrade,
+                defaultLegacyScriptLanguage));
+        return new ConditionRegistry(parsers, new ClockMock());
     }
 
     private ExecutableTransform randomTransform() {
@@ -510,14 +492,16 @@ public class WatchTests extends ESTestCase {
         if (randomBoolean()) {
             EmailAction action = new EmailAction(EmailTemplate.builder().build(), null, null, Profile.STANDARD,
                     randomFrom(DataAttachment.JSON, DataAttachment.YAML), EmailAttachments.EMPTY_ATTACHMENTS);
-            list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), randomThrottler(), randomCondition(), randomTransform(),
+            list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), randomThrottler(),
+                    AlwaysConditionTests.randomCondition(scriptService), randomTransform(),
                     new ExecutableEmailAction(action, logger, emailService, templateEngine, htmlSanitizer, Collections.emptyMap())));
         }
         if (randomBoolean()) {
             DateTimeZone timeZone = randomBoolean() ? DateTimeZone.UTC : null;
             TimeValue timeout = randomBoolean() ? timeValueSeconds(between(1, 10000)) : null;
             IndexAction action = new IndexAction("_index", "_type", null, timeout, timeZone);
-            list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomThrottler(), randomCondition(),  randomTransform(),
+            list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomThrottler(),
+                    AlwaysConditionTests.randomCondition(scriptService),  randomTransform(),
                     new ExecutableIndexAction(action, logger, client, null)));
         }
         if (randomBoolean()) {
@@ -526,7 +510,8 @@ public class WatchTests extends ESTestCase {
                     .path(new TextTemplate("_url"))
                     .build();
             WebhookAction action = new WebhookAction(httpRequest);
-            list.add(new ActionWrapper("_webhook_" + randomAsciiOfLength(8), randomThrottler(), randomCondition(), randomTransform(),
+            list.add(new ActionWrapper("_webhook_" + randomAsciiOfLength(8), randomThrottler(),
+                    AlwaysConditionTests.randomCondition(scriptService), randomTransform(),
                     new ExecutableWebhookAction(action, logger, httpClient, templateEngine)));
         }
         return list;

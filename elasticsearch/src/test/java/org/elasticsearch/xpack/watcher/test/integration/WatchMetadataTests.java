@@ -9,8 +9,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingLevel;
-import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
-import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.common.text.TextTemplate;
@@ -85,7 +85,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0 0 0 1 1 ? 2050")))
                         .input(searchInput(templateRequest(searchSource().query(matchAllQuery()), "my-index")))
-                        .condition(new AlwaysCondition())
+                        .condition(AlwaysCondition.INSTANCE)
                         .addAction("testLogger", loggingAction)
                         .defaultThrottlePeriod(TimeValue.timeValueSeconds(0))
                         .metadata(metadata))

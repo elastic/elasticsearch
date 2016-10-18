@@ -12,8 +12,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.condition.Condition;
-import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
-import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatch;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
@@ -122,7 +122,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         DateTime now = DateTime.now(UTC);
         Wid wid = new Wid("_id", 1, now);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
-        Condition condition = new AlwaysCondition();
+        Condition condition = AlwaysCondition.INSTANCE;
         String index = HistoryStore.getHistoryIndexNameForTime(now);
         client().prepareIndex(index, HistoryStore.DOC_TYPE, wid.value())
                 .setSource(jsonBuilder().startObject()
@@ -188,8 +188,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         DateTime now = DateTime.now(UTC);
         Wid wid = new Wid("_id", 1, now);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
-        Condition condition = new AlwaysCondition();
-
         client().prepareIndex(TriggeredWatchStore.INDEX_NAME, TriggeredWatchStore.DOC_TYPE, wid.value())
                 .setSource(jsonBuilder().startObject()
                         .startObject(WatchRecord.Field.TRIGGER_EVENT.getPreferredName())

@@ -44,7 +44,7 @@ import org.elasticsearch.xpack.watcher.actions.email.EmailAction;
 import org.elasticsearch.xpack.watcher.actions.email.ExecutableEmailAction;
 import org.elasticsearch.xpack.watcher.actions.webhook.ExecutableWebhookAction;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
-import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.Wid;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
@@ -232,7 +232,7 @@ public final class WatcherTestUtils {
                 watchName,
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
                 new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(inputData)), logger),
-                new ExecutableAlwaysCondition(logger),
+                AlwaysCondition.INSTANCE,
                 new ExecutableSearchTransform(searchTransform, logger, client, searchTemplateService, null),
                 new TimeValue(0),
                 actions,

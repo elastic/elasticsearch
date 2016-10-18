@@ -3,31 +3,25 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.watcher.condition.never;
+package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.watcher.condition.Condition;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 
 import java.io.IOException;
 
-public class NeverCondition implements Condition {
+public final class NeverCondition extends Condition {
 
     public static final String TYPE = "never";
-    public static final NeverCondition INSTANCE = new NeverCondition();
+    public static final Result RESULT_INSTANCE = new Result(null, TYPE, false);
+    public static final Condition INSTANCE = new NeverCondition();
 
-    @Override
-    public final String type() {
-        return TYPE;
+    private NeverCondition() {
+        super(TYPE);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().endObject();
-    }
-
-    public static NeverCondition parse(String watchId, XContentParser parser) throws IOException {
+    public static Condition parse(String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected an empty object but found [{}]",
                     TYPE, watchId, parser.currentName());
@@ -40,17 +34,19 @@ public class NeverCondition implements Condition {
         return INSTANCE;
     }
 
-    public static class Result extends Condition.Result {
+    @Override
+    public Result execute(WatchExecutionContext ctx) {
+        return RESULT_INSTANCE;
+    }
 
-        public static final Result INSTANCE = new Result();
+    @Override
+    public boolean equals(Object obj) {
+        return obj instanceof NeverCondition;
+    }
 
-        private Result() {
-            super(TYPE, false);
-        }
-
-        @Override
-        protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder;
-        }
+    @Override
+    public int hashCode() {
+        // All instances has to produce the same hashCode because they are all equal
+        return 0;
     }
 }

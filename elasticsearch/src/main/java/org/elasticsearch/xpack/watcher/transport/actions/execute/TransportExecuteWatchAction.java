@@ -24,7 +24,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.support.clock.Clock;
-import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.ManualExecutionContext;
@@ -117,7 +117,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
                 ctxBuilder.withInput(new SimpleInput.Result(new Payload.Simple(request.getAlternativeInput())));
             }
             if (request.isIgnoreCondition()) {
-                ctxBuilder.withCondition(AlwaysCondition.Result.INSTANCE);
+                ctxBuilder.withCondition(AlwaysCondition.RESULT_INSTANCE);
             }
             ctxBuilder.recordExecution(request.isRecordExecution());
 

@@ -3,44 +3,46 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.watcher.condition.compare.array;
+package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.xcontent.XContentUtils;
-import org.elasticsearch.xpack.watcher.condition.Condition;
-import org.elasticsearch.xpack.watcher.condition.compare.LenientCompare;
+import org.elasticsearch.xpack.support.clock.Clock;
+import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-public class ArrayCompareCondition implements Condition {
+public final class ArrayCompareCondition extends AbstractCompareCondition {
+
     public static final String TYPE = "array_compare";
+    private final String arrayPath;
+    private final String path;
+    private final Op op;
+    private final Object value;
+    private final Quantifier quantifier;
 
-    private String arrayPath;
-    private String path;
-    private Op op;
-    private Object value;
-    private Quantifier quantifier;
+    public ArrayCompareCondition(String arrayPath, String path, Op op, Object value,
+                                 Quantifier quantifier) {
+        this(arrayPath, path, op, value, quantifier, null);
+    }
 
-    public ArrayCompareCondition(String arrayPath, String path, Op op, Object value, Quantifier quantifier) {
+    ArrayCompareCondition(String arrayPath, String path, Op op, Object value,
+                                 Quantifier quantifier,
+                                 Clock clock) {
+        super(TYPE, clock);
         this.arrayPath = arrayPath;
         this.path = path;
         this.op = op;
         this.value = value;
         this.quantifier = quantifier;
-    }
-
-    @Override
-    public String type() {
-        return TYPE;
     }
 
     public String getArrayPath() {
@@ -51,7 +53,7 @@ public class ArrayCompareCondition implements Condition {
         return path;
     }
 
-    public Op getOp() {
+    public ArrayCompareCondition.Op getOp() {
         return op;
     }
 
@@ -59,43 +61,11 @@ public class ArrayCompareCondition implements Condition {
         return value;
     }
 
-    public Quantifier getQuantifier() {
+    public ArrayCompareCondition.Quantifier getQuantifier() {
         return quantifier;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ArrayCompareCondition that = (ArrayCompareCondition) o;
-        return Objects.equals(getArrayPath(), that.getArrayPath()) &&
-                Objects.equals(getPath(), that.getPath()) &&
-                Objects.equals(getOp(), that.getOp()) &&
-                Objects.equals(getValue(), that.getValue()) &&
-                Objects.equals(getQuantifier(), that.getQuantifier());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(getArrayPath(), getPath(), getOp(), getValue(), getQuantifier());
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return
-                builder
-                        .startObject()
-                            .startObject(arrayPath)
-                                .field(Field.PATH.getPreferredName(), path)
-                                .startObject(op.id())
-                                    .field(Field.VALUE.getPreferredName(), value)
-                                    .field(Field.QUANTIFIER.getPreferredName(), quantifier.id())
-                                .endObject()
-                            .endObject()
-                        .endObject();
-    }
-
-    public static ArrayCompareCondition parse(String watchId, XContentParser parser) throws IOException {
+    public static Condition parse(Clock clock, String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. expected an object but found [{}] " +
                     "instead", TYPE, watchId, parser.currentToken());
@@ -117,7 +87,7 @@ public class ArrayCompareCondition implements Condition {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
-                        if (ParseFieldMatcher.STRICT.match(parser.currentName(), Field.PATH)) {
+                        if (parser.currentName().equals("path")) {
                             parser.nextToken();
                             path = parser.text();
                         } else {
@@ -136,7 +106,7 @@ public class ArrayCompareCondition implements Condition {
                             if (token == XContentParser.Token.START_OBJECT) {
                                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                     if (token == XContentParser.Token.FIELD_NAME) {
-                                        if (ParseFieldMatcher.STRICT.match(parser.currentName(), Field.VALUE)) {
+                                        if (parser.currentName().equals("value")) {
                                             if (haveValue) {
                                                 throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. " +
                                                         "encountered duplicate field \"value\", but already saw value [{}].", TYPE,
@@ -151,7 +121,7 @@ public class ArrayCompareCondition implements Condition {
                                             }
                                             value = XContentUtils.readValue(parser, token);
                                             haveValue = true;
-                                        } else if (ParseFieldMatcher.STRICT.match(parser.currentName(), Field.QUANTIFIER)) {
+                                        } else if (parser.currentName().equals("quantifier")) {
                                             if (quantifier != null) {
                                                 throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. " +
                                                         "encountered duplicate field \"quantifier\", but already saw quantifier [{}].",
@@ -198,34 +168,58 @@ public class ArrayCompareCondition implements Condition {
             quantifier = Quantifier.SOME;
         }
 
-        return new ArrayCompareCondition(arrayPath, path, op, value, quantifier);
+        return new ArrayCompareCondition(arrayPath, path, op, value, quantifier, clock);
     }
 
-    public static class Result extends Condition.Result {
-        @Nullable private final Map<String, Object> resolvedValues;
+    public Result doExecute(Map<String, Object> model, Map<String, Object> resolvedValues) {
+        Object configuredValue = resolveConfiguredValue(resolvedValues, model, value);
 
-        Result(Map<String, Object> resolvedValues, boolean met) {
-            super(TYPE, met);
-            this.resolvedValues = resolvedValues;
+        Object object = ObjectPath.eval(arrayPath, model);
+        if (object != null && !(object instanceof List)) {
+            throw new IllegalStateException("array path " + arrayPath + " did not evaluate to array, was " + object);
         }
 
-        public Map<String, Object> getResolvedValues() {
-            return resolvedValues;
-        }
+        @SuppressWarnings("unchecked")
+        List<Object> resolvedArray = object != null ? (List<Object>) object : Collections.emptyList();
 
-        @Override
-        protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
-            if (resolvedValues == null) {
-                return builder;
-            }
-            return builder.startObject(type)
-                        .field(Field.RESOLVED_VALUES.getPreferredName(), resolvedValues)
+        List<Object> resolvedValue = new ArrayList<>(resolvedArray.size());
+        for (int i = 0; i < resolvedArray.size(); i++) {
+            resolvedValue.add(ObjectPath.eval(path, resolvedArray.get(i)));
+        }
+        resolvedValues.put(arrayPath, resolvedArray);
+
+        return new Result(resolvedValues, TYPE, quantifier.eval(resolvedValue,
+                configuredValue, op));
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ArrayCompareCondition that = (ArrayCompareCondition) o;
+        return Objects.equals(getArrayPath(), that.getArrayPath()) &&
+                Objects.equals(getPath(), that.getPath()) &&
+                Objects.equals(getOp(), that.getOp()) &&
+                Objects.equals(getValue(), that.getValue()) &&
+                Objects.equals(getQuantifier(), that.getQuantifier());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(arrayPath, path, op, value, quantifier);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject()
+                        .startObject(arrayPath)
+                            .field("path", path)
+                            .startObject(op.id())
+                                .field("value", value)
+                                .field("quantifier", quantifier.id())
+                            .endObject()
+                        .endObject()
                     .endObject();
-        }
-
-        public interface Field extends Condition.Field {
-            ParseField RESOLVED_VALUES = new ParseField("resolved_values");
-        }
     }
 
     public enum Op {
@@ -328,11 +322,5 @@ public class ArrayCompareCondition implements Condition {
         public String id() {
             return name().toLowerCase(Locale.ROOT);
         }
-    }
-
-    interface Field {
-        ParseField PATH = new ParseField("path");
-        ParseField VALUE = new ParseField("value");
-        ParseField QUANTIFIER = new ParseField("quantifier");
     }
 }

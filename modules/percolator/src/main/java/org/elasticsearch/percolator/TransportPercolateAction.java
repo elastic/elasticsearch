@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -69,9 +70,9 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
     @Inject
     public TransportPercolateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                    Client client, SearchRequestParsers searchRequestParsers) {
+                                    Client client, SearchRequestParsers searchRequestParsers, DestructiveOperations destructiveOperations) {
         super(settings, PercolateAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, PercolateRequest::new);
+                indexNameExpressionResolver, PercolateRequest::new, destructiveOperations);
         this.client = client;
         this.searchRequestParsers = searchRequestParsers;
         this.parseFieldMatcher = new ParseFieldMatcher(settings);

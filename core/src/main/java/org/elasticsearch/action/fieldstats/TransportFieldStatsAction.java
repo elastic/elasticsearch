@@ -23,6 +23,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -36,8 +37,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -61,12 +60,12 @@ public class TransportFieldStatsAction extends
 
     @Inject
     public TransportFieldStatsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                              TransportService transportService, ActionFilters actionFilters,
-                                              IndexNameExpressionResolver indexNameExpressionResolver,
-                                              IndicesService indicesService) {
+                                     TransportService transportService, ActionFilters actionFilters,
+                                     IndexNameExpressionResolver indexNameExpressionResolver,
+                                     IndicesService indicesService, DestructiveOperations destructiveOperations) {
         super(settings, FieldStatsAction.NAME, threadPool, clusterService, transportService,
             actionFilters, indexNameExpressionResolver, FieldStatsRequest::new,
-            FieldStatsShardRequest::new, ThreadPool.Names.MANAGEMENT);
+            FieldStatsShardRequest::new, ThreadPool.Names.MANAGEMENT, destructiveOperations);
         this.indicesService = indicesService;
     }
 

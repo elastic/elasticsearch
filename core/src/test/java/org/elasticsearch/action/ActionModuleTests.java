@@ -22,6 +22,7 @@ package org.elasticsearch.action;
 import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.TransportMainAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -69,8 +70,9 @@ public class ActionModuleTests extends ESTestCase {
         }
         class FakeTransportAction extends TransportAction<FakeRequest, ActionResponse> {
             protected FakeTransportAction(Settings settings, String actionName, ThreadPool threadPool, ActionFilters actionFilters,
-                    IndexNameExpressionResolver indexNameExpressionResolver, TaskManager taskManager) {
-                super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, taskManager);
+                                          IndexNameExpressionResolver indexNameExpressionResolver, TaskManager taskManager,
+                                          DestructiveOperations destructiveOperations) {
+                super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, taskManager, destructiveOperations);
             }
 
             @Override

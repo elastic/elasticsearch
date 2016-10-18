@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
@@ -44,8 +45,10 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     @Inject
     public TransportDeleteByQueryAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver resolver, Client client, TransportService transportService,
-                                        ScriptService scriptService, ClusterService clusterService) {
-        super(settings, DeleteByQueryAction.NAME, threadPool, transportService, actionFilters, resolver, DeleteByQueryRequest::new);
+                                        ScriptService scriptService, ClusterService clusterService,
+                                        DestructiveOperations destructiveOperations) {
+        super(settings, DeleteByQueryAction.NAME, threadPool, transportService, actionFilters, resolver, DeleteByQueryRequest::new,
+                destructiveOperations);
         this.client = client;
         this.scriptService = scriptService;
         this.clusterService = clusterService;

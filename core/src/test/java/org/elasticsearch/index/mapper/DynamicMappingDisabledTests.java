@@ -25,6 +25,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -109,7 +110,7 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
     public void testDynamicDisabled() {
         TransportIndexAction action = new TransportIndexAction(settings, transportService, clusterService,
                 indicesService, THREAD_POOL, shardStateAction, null, null, actionFilters, indexNameExpressionResolver,
-                autoCreateIndex);
+                autoCreateIndex, new DestructiveOperations(clusterService.getSettings(), clusterService.getClusterSettings()));
 
         IndexRequest request = new IndexRequest("index", "type", "1");
         request.source("foo", 3);

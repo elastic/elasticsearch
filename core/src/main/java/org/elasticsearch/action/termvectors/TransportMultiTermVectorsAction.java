@@ -21,6 +21,7 @@ package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -47,8 +48,8 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
     @Inject
     public TransportMultiTermVectorsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                            ClusterService clusterService, TransportShardMultiTermsVectorAction shardAction,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, MultiTermVectorsAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiTermVectorsRequest::new);
+                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
+        super(settings, MultiTermVectorsAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiTermVectorsRequest::new, destructiveOperations);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
     }

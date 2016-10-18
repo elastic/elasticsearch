@@ -23,8 +23,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
@@ -53,6 +53,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -88,8 +89,8 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
     class TestTransportInstanceSingleOperationAction extends TransportInstanceSingleOperationAction<Request, Response> {
         private final Map<ShardId, Object> shards = new HashMap<>();
 
-        public TestTransportInstanceSingleOperationAction(Settings settings, String actionName, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-            super(settings, actionName, THREAD_POOL, TransportInstanceSingleOperationActionTests.this.clusterService, transportService, actionFilters, indexNameExpressionResolver, request);
+        public TestTransportInstanceSingleOperationAction(Settings settings, String actionName, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request, DestructiveOperations destructiveOperations) {
+            super(settings, actionName, THREAD_POOL, TransportInstanceSingleOperationActionTests.this.clusterService, transportService, actionFilters, indexNameExpressionResolver, request, destructiveOperations);
         }
 
         public Map<ShardId, Object> getResults() {
@@ -150,10 +151,10 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
                 Settings.EMPTY,
                 "indices:admin/test",
                 transportService,
-                new ActionFilters(new HashSet<ActionFilter>()),
+                new ActionFilters(Collections.emptySet()),
                 new MyResolver(),
-                Request::new
-        );
+                Request::new,
+                new DestructiveOperations(clusterService.getSettings(), clusterService.getClusterSettings()));
     }
 
     @After
@@ -303,8 +304,8 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
                 transportService,
                 new ActionFilters(new HashSet<>()),
                 new MyResolver(),
-                Request::new
-        ) {
+                Request::new,
+                new DestructiveOperations(clusterService.getSettings(), clusterService.getClusterSettings())) {
             @Override
             protected void resolveRequest(ClusterState state, Request request) {
                 throw new IllegalStateException("request cannot be resolved");

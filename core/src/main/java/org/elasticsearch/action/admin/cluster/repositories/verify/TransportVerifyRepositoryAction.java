@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.repositories.verify;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -45,8 +46,9 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<V
     @Inject
     public TransportVerifyRepositoryAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                            RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                           IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, VerifyRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, VerifyRepositoryRequest::new);
+                                           IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations
+                                                       destructiveOperations) {
+        super(settings, VerifyRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, VerifyRepositoryRequest::new, destructiveOperations);
         this.repositoriesService = repositoriesService;
     }
 

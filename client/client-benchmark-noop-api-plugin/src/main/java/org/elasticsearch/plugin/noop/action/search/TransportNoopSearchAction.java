@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
@@ -41,9 +42,9 @@ import java.util.Collections;
 public class TransportNoopSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
     @Inject
     public TransportNoopSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters
-        actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+            actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
         super(settings, NoopSearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-            SearchRequest::new);
+            SearchRequest::new, destructiveOperations);
     }
 
     @Override

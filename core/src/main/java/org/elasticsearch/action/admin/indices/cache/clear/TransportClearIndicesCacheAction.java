@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.cache.clear;
 
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -52,9 +53,10 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
     @Inject
     public TransportClearIndicesCacheAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                             TransportService transportService, IndicesService indicesService, ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver) {
+                                            IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations
+                                                        destructiveOperations) {
         super(settings, ClearIndicesCacheAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                ClearIndicesCacheRequest::new, ThreadPool.Names.MANAGEMENT, false);
+                ClearIndicesCacheRequest::new, ThreadPool.Names.MANAGEMENT, false, destructiveOperations);
         this.indicesService = indicesService;
     }
 

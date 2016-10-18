@@ -27,6 +27,7 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportActions;
@@ -86,17 +87,17 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
     final String transportNodeBroadcastAction;
 
     public TransportBroadcastByNodeAction(
-        Settings settings,
-        String actionName,
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<Request> request,
-        String executor) {
+            Settings settings,
+            String actionName,
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<Request> request,
+            String executor, DestructiveOperations destructiveOperations) {
         this(settings, actionName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, request,
-            executor, true);
+            executor, true, destructiveOperations);
     }
 
     public TransportBroadcastByNodeAction(
@@ -109,9 +110,9 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<Request> request,
             String executor,
-            boolean canTripCircuitBreaker) {
+            boolean canTripCircuitBreaker, DestructiveOperations destructiveOperations) {
         super(settings, actionName, canTripCircuitBreaker, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-            request);
+            request, destructiveOperations);
 
         this.clusterService = clusterService;
         this.transportService = transportService;

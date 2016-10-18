@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -55,8 +56,10 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     public TransportSearchTemplateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                          ActionFilters actionFilters, IndexNameExpressionResolver resolver,
                                          ScriptService scriptService,
-                                         TransportSearchAction searchAction, SearchRequestParsers searchRequestParsers) {
-        super(settings, SearchTemplateAction.NAME, threadPool, transportService, actionFilters, resolver, SearchTemplateRequest::new);
+                                         TransportSearchAction searchAction, SearchRequestParsers searchRequestParsers,
+                                         DestructiveOperations destructiveOperations) {
+        super(settings, SearchTemplateAction.NAME, threadPool, transportService, actionFilters, resolver, SearchTemplateRequest::new,
+                destructiveOperations);
         this.scriptService = scriptService;
         this.searchAction = searchAction;
         this.searchRequestParsers = searchRequestParsers;

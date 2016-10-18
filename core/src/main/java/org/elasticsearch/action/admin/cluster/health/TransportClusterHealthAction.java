@@ -24,6 +24,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -51,9 +52,9 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     @Inject
     public TransportClusterHealthAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                         ThreadPool threadPool, ActionFilters actionFilters,
-                                        IndexNameExpressionResolver indexNameExpressionResolver, GatewayAllocator gatewayAllocator) {
+                                        IndexNameExpressionResolver indexNameExpressionResolver, GatewayAllocator gatewayAllocator, DestructiveOperations destructiveOperations) {
         super(settings, ClusterHealthAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, ClusterHealthRequest::new);
+            indexNameExpressionResolver, ClusterHealthRequest::new, destructiveOperations);
         this.gatewayAllocator = gatewayAllocator;
     }
 

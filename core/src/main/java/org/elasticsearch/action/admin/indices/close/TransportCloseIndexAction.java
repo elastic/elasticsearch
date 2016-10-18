@@ -48,7 +48,6 @@ import org.elasticsearch.transport.TransportService;
 public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIndexRequest, CloseIndexResponse> {
 
     private final MetaDataIndexStateService indexStateService;
-    private final DestructiveOperations destructiveOperations;
     private volatile boolean closeIndexEnabled;
     public static final Setting<Boolean> CLUSTER_INDICES_CLOSE_ENABLE_SETTING =
         Setting.boolSetting("cluster.indices.close.enable", true, Property.Dynamic, Property.NodeScope);
@@ -58,9 +57,9 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
                                      ThreadPool threadPool, MetaDataIndexStateService indexStateService,
                                      ClusterSettings clusterSettings, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
-        super(settings, CloseIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, CloseIndexRequest::new);
+        super(settings, CloseIndexAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                indexNameExpressionResolver, CloseIndexRequest::new, destructiveOperations);
         this.indexStateService = indexStateService;
-        this.destructiveOperations = destructiveOperations;
         this.closeIndexEnabled = CLUSTER_INDICES_CLOSE_ENABLE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_INDICES_CLOSE_ENABLE_SETTING, this::setCloseIndexEnabled);
     }
@@ -82,20 +81,22 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
 
     @Override
     protected void doExecute(Task task, CloseIndexRequest request, ActionListener<CloseIndexResponse> listener) {
-        destructiveOperations.failDestructive(request.indices());
         if (closeIndexEnabled == false) {
-            throw new IllegalStateException("closing indices is disabled - set [" + CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey() + ": true] to enable it. NOTE: closed indices still consume a significant amount of diskspace");
+            throw new IllegalStateException("closing indices is disabled - set [" + CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey() +
+                    ": true] to enable it. NOTE: closed indices still consume a significant amount of diskspace");
         }
         super.doExecute(task, request, listener);
     }
 
     @Override
     protected ClusterBlockException checkBlock(CloseIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
+        String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, request);
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndexNames);
     }
 
     @Override
-    protected void masterOperation(final CloseIndexRequest request, final ClusterState state, final ActionListener<CloseIndexResponse> listener) {
+    protected void masterOperation(final CloseIndexRequest request, final ClusterState state,
+                                   final ActionListener<CloseIndexResponse> listener) {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         CloseIndexClusterStateUpdateRequest updateRequest = new CloseIndexClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())

@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
@@ -108,10 +109,11 @@ public abstract class TransportReplicationAction<
     protected TransportReplicationAction(Settings settings, String actionName, TransportService transportService,
                                          ClusterService clusterService, IndicesService indicesService,
                                          ThreadPool threadPool, ShardStateAction shardStateAction,
-                                         ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
-                                         Supplier<ReplicaRequest> replicaRequest, String executor) {
-        super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
+                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                         Supplier<Request> request, Supplier<ReplicaRequest> replicaRequest, String executor,
+                                         DestructiveOperations destructiveOperations) {
+        super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager(),
+                destructiveOperations);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;

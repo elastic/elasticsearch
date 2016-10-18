@@ -22,6 +22,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -47,8 +48,8 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
     @Inject
     public TransportPutIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                            ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, IndexScopedSettings indexScopedSettings) {
-        super(settings, PutIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutIndexTemplateRequest::new);
+                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, IndexScopedSettings indexScopedSettings, DestructiveOperations destructiveOperations) {
+        super(settings, PutIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutIndexTemplateRequest::new, destructiveOperations);
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
     }

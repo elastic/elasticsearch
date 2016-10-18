@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportBroadcastReplicationAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -42,8 +43,8 @@ public class TransportFlushAction extends TransportBroadcastReplicationAction<Fl
     public TransportFlushAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                 TransportService transportService, ActionFilters actionFilters,
                                 IndexNameExpressionResolver indexNameExpressionResolver,
-                                TransportShardFlushAction replicatedFlushAction) {
-        super(FlushAction.NAME, FlushRequest::new, settings, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, replicatedFlushAction);
+                                TransportShardFlushAction replicatedFlushAction, DestructiveOperations destructiveOperations) {
+        super(FlushAction.NAME, FlushRequest::new, settings, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, replicatedFlushAction, destructiveOperations);
     }
 
     @Override

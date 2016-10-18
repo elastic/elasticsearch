@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -40,9 +41,10 @@ public class TransportPutStoredScriptAction extends TransportMasterNodeAction<Pu
     @Inject
     public TransportPutStoredScriptAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool, ActionFilters actionFilters,
-                                          IndexNameExpressionResolver indexNameExpressionResolver, ScriptService scriptService) {
+                                          IndexNameExpressionResolver indexNameExpressionResolver, ScriptService scriptService,
+                                          DestructiveOperations destructiveOperations) {
         super(settings, PutStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PutStoredScriptRequest::new);
+                indexNameExpressionResolver, PutStoredScriptRequest::new, destructiveOperations);
         this.scriptService = scriptService;
     }
 

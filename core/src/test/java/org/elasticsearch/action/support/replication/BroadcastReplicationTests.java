@@ -26,8 +26,8 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
-import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -58,7 +58,6 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -101,7 +100,8 @@ public class BroadcastReplicationTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         broadcastReplicationAction = new TestBroadcastReplicationAction(Settings.EMPTY, threadPool, clusterService, transportService,
-                new ActionFilters(new HashSet<ActionFilter>()), new IndexNameExpressionResolver(Settings.EMPTY), null);
+                new ActionFilters(Collections.emptySet()), new IndexNameExpressionResolver(Settings.EMPTY), null,
+                new DestructiveOperations(clusterService.getSettings(), clusterService.getClusterSettings()));
     }
 
     @After
@@ -205,9 +205,9 @@ public class BroadcastReplicationTests extends ESTestCase {
 
         public TestBroadcastReplicationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                               TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                              TransportReplicationAction replicatedBroadcastShardAction) {
+                                              TransportReplicationAction replicatedBroadcastShardAction, DestructiveOperations destructiveOperations) {
             super("test-broadcast-replication-action", DummyBroadcastRequest::new, settings, threadPool, clusterService, transportService,
-                    actionFilters, indexNameExpressionResolver, replicatedBroadcastShardAction);
+                    actionFilters, indexNameExpressionResolver, replicatedBroadcastShardAction, destructiveOperations);
         }
 
         @Override

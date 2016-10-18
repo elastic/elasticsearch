@@ -19,11 +19,18 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.transport.TransportRequest;
 
 /**
  * Helper for dealing with destructive operations and wildcard usage.
@@ -40,38 +47,37 @@ public final class DestructiveOperations extends AbstractComponent {
     public DestructiveOperations(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         destructiveRequiresName = REQUIRES_NAME_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(REQUIRES_NAME_SETTING, this::setDestructiveRequiresName);
-    }
-
-    private void setDestructiveRequiresName(boolean destructiveRequiresName) {
-        this.destructiveRequiresName = destructiveRequiresName;
+        clusterSettings.addSettingsUpdateConsumer(REQUIRES_NAME_SETTING,
+                (destructiveRequiresName) -> this.destructiveRequiresName = destructiveRequiresName);
     }
 
     /**
-     * Fail if there is wildcard usage in indices and the named is required for destructive operations.
+     * Returns true if the action is destructive and must be blocked, based on its name and the indices it operates on.
+     * An operation is considered destructive if it is disruptive and executed against all indices or wildcard expressions.
+     * Whether destructive operations against all indices or wildcard expressions should be blocked or not can be controlled through the
+     * "action.destructive_requires_name" cluster setting.
      */
-    public void failDestructive(String[] aliasesOrIndices) {
-        if (!destructiveRequiresName) {
-            return;
-        }
-
-        if (aliasesOrIndices == null || aliasesOrIndices.length == 0) {
-            throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
-        } else if (aliasesOrIndices.length == 1) {
-            if (hasWildcardUsage(aliasesOrIndices[0])) {
-                throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
+    public boolean mustBlockDestructiveOperation(String action, TransportRequest request) {
+        if (isDestructiveAction(action) && destructiveRequiresName) {
+            assert request instanceof IndicesRequest;
+            String[] aliasesOrIndices = ((IndicesRequest) request).indices();
+            if (aliasesOrIndices == null || aliasesOrIndices.length == 0) {
+                return true;
             }
-        } else {
             for (String aliasesOrIndex : aliasesOrIndices) {
                 if (hasWildcardUsage(aliasesOrIndex)) {
-                    throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
+                    return true;
                 }
             }
         }
+        return false;
+    }
+
+    private static boolean isDestructiveAction(String action) {
+        return DeleteIndexAction.NAME.equals(action) || CloseIndexAction.NAME.equals(action) || OpenIndexAction.NAME.equals(action);
     }
 
     private static boolean hasWildcardUsage(String aliasOrIndex) {
-        return "_all".equals(aliasOrIndex) || aliasOrIndex.indexOf('*') != -1;
+        return MetaData.ALL.equals(aliasOrIndex) || Regex.isSimpleMatchPattern(aliasOrIndex);
     }
-
 }

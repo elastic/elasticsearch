@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.tasks;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -41,8 +42,8 @@ public class TransportPendingClusterTasksAction extends TransportMasterNodeReadA
 
     @Inject
     public TransportPendingClusterTasksAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                              ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, PendingClusterTasksAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PendingClusterTasksRequest::new);
+                                              ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
+        super(settings, PendingClusterTasksAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PendingClusterTasksRequest::new, destructiveOperations);
         this.clusterService = clusterService;
     }
 

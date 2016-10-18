@@ -36,6 +36,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
@@ -92,10 +93,12 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     @Inject
     public TransportReindexAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, ScriptService scriptService,
-            AutoCreateIndex autoCreateIndex, Client client, TransportService transportService, @Nullable HttpServer httpServer) {
+                                  IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService,
+                                  ScriptService scriptService, AutoCreateIndex autoCreateIndex, Client client,
+                                  TransportService transportService, @Nullable HttpServer httpServer,
+                                  DestructiveOperations destructiveOperations) {
         super(settings, ReindexAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                ReindexRequest::new);
+                ReindexRequest::new, destructiveOperations);
         this.clusterService = clusterService;
         this.scriptService = scriptService;
         this.autoCreateIndex = autoCreateIndex;

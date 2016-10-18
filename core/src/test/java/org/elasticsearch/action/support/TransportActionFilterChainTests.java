@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
@@ -41,8 +42,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
-import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -71,7 +70,9 @@ public class TransportActionFilterChainTests extends ESTestCase {
 
         String actionName = randomAsciiOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
-        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null, new TaskManager(Settings.EMPTY)) {
+        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null, new TaskManager(Settings.EMPTY),
+                new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                        Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING)))) {
             @Override
             protected void doExecute(TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());
@@ -79,12 +80,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         };
 
         ArrayList<ActionFilter> actionFiltersByOrder = new ArrayList<>(filters);
-        Collections.sort(actionFiltersByOrder, new Comparator<ActionFilter>() {
-            @Override
-            public int compare(ActionFilter o1, ActionFilter o2) {
-                return Integer.compare(o1.order(), o2.order());
-            }
-        });
+        Collections.sort(actionFiltersByOrder, (o1, o2) -> Integer.compare(o1.order(), o2.order()));
 
         List<ActionFilter> expectedActionFilters = new ArrayList<>();
         boolean errorExpected = false;
@@ -112,12 +108,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         for (ActionFilter actionFilter : actionFilters.filters()) {
             testFiltersByLastExecution.add((RequestTestFilter) actionFilter);
         }
-        Collections.sort(testFiltersByLastExecution, new Comparator<RequestTestFilter>() {
-            @Override
-            public int compare(RequestTestFilter o1, RequestTestFilter o2) {
-                return Integer.compare(o1.executionToken, o2.executionToken);
-            }
-        });
+        Collections.sort(testFiltersByLastExecution, (o1, o2) -> Integer.compare(o1.executionToken, o2.executionToken));
 
         ArrayList<RequestTestFilter> finalTestFilters = new ArrayList<>();
         for (ActionFilter filter : testFiltersByLastExecution) {
@@ -151,7 +142,9 @@ public class TransportActionFilterChainTests extends ESTestCase {
 
         String actionName = randomAsciiOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
-        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null, new TaskManager(Settings.EMPTY)) {
+        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null, new TaskManager(Settings.EMPTY),
+                new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                        Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING)))) {
             @Override
             protected void doExecute(TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());
@@ -235,7 +228,9 @@ public class TransportActionFilterChainTests extends ESTestCase {
 
         String actionName = randomAsciiOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
-        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null, new TaskManager(Settings.EMPTY)) {
+        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null, new TaskManager(Settings.EMPTY),
+                new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                        Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING)))) {
             @Override
             protected void doExecute(TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());
@@ -292,7 +287,9 @@ public class TransportActionFilterChainTests extends ESTestCase {
 
         String actionName = randomAsciiOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
-        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null, new TaskManager(Settings.EMPTY)) {
+        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null, new TaskManager(Settings.EMPTY),
+                new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                        Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING)))) {
             @Override
             protected void doExecute(TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());

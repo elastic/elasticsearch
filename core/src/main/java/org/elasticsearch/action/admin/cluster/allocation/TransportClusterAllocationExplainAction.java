@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -81,9 +82,9 @@ public class TransportClusterAllocationExplainAction
                                                    IndexNameExpressionResolver indexNameExpressionResolver,
                                                    ClusterInfoService clusterInfoService, AllocationDeciders allocationDeciders,
                                                    ShardsAllocator shardAllocator, TransportIndicesShardStoresAction shardStoresAction,
-                                                   GatewayAllocator gatewayAllocator) {
+                                                   GatewayAllocator gatewayAllocator, DestructiveOperations destructiveOperations) {
         super(settings, ClusterAllocationExplainAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, ClusterAllocationExplainRequest::new);
+                indexNameExpressionResolver, ClusterAllocationExplainRequest::new, destructiveOperations);
         this.clusterInfoService = clusterInfoService;
         this.allocationDeciders = allocationDeciders;
         this.shardAllocator = shardAllocator;

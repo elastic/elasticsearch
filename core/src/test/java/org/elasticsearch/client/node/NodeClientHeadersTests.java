@@ -24,11 +24,12 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -51,16 +52,19 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
     private static class Actions extends HashMap<GenericAction, TransportAction> {
 
         private Actions(Settings settings, ThreadPool threadPool, GenericAction[] actions) {
+            DestructiveOperations destructiveOperations = new DestructiveOperations(Settings.EMPTY,
+                    new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING)));
             for (GenericAction action : actions) {
-                put(action, new InternalTransportAction(settings, action.name(), threadPool));
+                put(action, new InternalTransportAction(settings, action.name(), threadPool, destructiveOperations));
             }
         }
     }
 
     private static class InternalTransportAction extends TransportAction {
 
-        private InternalTransportAction(Settings settings, String actionName, ThreadPool threadPool) {
-            super(settings, actionName, threadPool, EMPTY_FILTERS, null, new TaskManager(settings));
+        private InternalTransportAction(Settings settings, String actionName, ThreadPool threadPool,
+                                        DestructiveOperations destructiveOperations) {
+            super(settings, actionName, threadPool, EMPTY_FILTERS, null, new TaskManager(settings), destructiveOperations);
         }
 
         @Override

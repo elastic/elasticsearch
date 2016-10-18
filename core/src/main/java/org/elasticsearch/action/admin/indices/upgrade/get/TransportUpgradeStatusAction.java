@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.upgrade.get;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -49,9 +50,9 @@ public class TransportUpgradeStatusAction extends TransportBroadcastByNodeAction
 
     @Inject
     public TransportUpgradeStatusAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                        IndicesService indicesService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                        IndicesService indicesService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
         super(settings, UpgradeStatusAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                UpgradeStatusRequest::new, ThreadPool.Names.MANAGEMENT);
+                UpgradeStatusRequest::new, ThreadPool.Names.MANAGEMENT, destructiveOperations);
         this.indicesService = indicesService;
     }
 

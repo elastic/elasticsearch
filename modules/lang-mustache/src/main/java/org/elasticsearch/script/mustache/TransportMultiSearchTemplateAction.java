@@ -21,6 +21,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
@@ -38,9 +39,10 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
     @Inject
     public TransportMultiSearchTemplateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                               ActionFilters actionFilters, IndexNameExpressionResolver resolver,
-                                              TransportSearchTemplateAction searchTemplateAction) {
+                                              TransportSearchTemplateAction searchTemplateAction,
+                                              DestructiveOperations destructiveOperations) {
         super(settings, MultiSearchTemplateAction.NAME, threadPool, transportService, actionFilters, resolver,
-                MultiSearchTemplateRequest::new);
+                MultiSearchTemplateRequest::new, destructiveOperations);
         this.searchTemplateAction = searchTemplateAction;
     }
 

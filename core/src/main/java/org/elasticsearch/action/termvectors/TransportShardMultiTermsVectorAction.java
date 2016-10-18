@@ -23,6 +23,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -48,9 +49,10 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
     @Inject
     public TransportShardMultiTermsVectorAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                                 IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                                IndexNameExpressionResolver indexNameExpressionResolver) {
+                                                IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations
+                                                            destructiveOperations) {
         super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                MultiTermVectorsShardRequest::new, ThreadPool.Names.GET);
+                MultiTermVectorsShardRequest::new, ThreadPool.Names.GET, destructiveOperations);
         this.indicesService = indicesService;
     }
 

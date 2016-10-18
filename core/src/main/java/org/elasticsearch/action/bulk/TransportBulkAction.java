@@ -32,6 +32,7 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -82,19 +83,20 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
                                TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               AutoCreateIndex autoCreateIndex) {
+                               AutoCreateIndex autoCreateIndex, DestructiveOperations destructiveOperations) {
         this(settings, threadPool, transportService, clusterService,
                 shardBulkAction, createIndexAction,
                 actionFilters, indexNameExpressionResolver,
                 autoCreateIndex,
-                System::nanoTime);
+                System::nanoTime, destructiveOperations);
     }
 
     public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService,
                                TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               AutoCreateIndex autoCreateIndex, LongSupplier relativeTimeProvider) {
-        super(settings, BulkAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, BulkRequest::new);
+                               AutoCreateIndex autoCreateIndex, LongSupplier relativeTimeProvider, DestructiveOperations
+                                       destructiveOperations) {
+        super(settings, BulkAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, BulkRequest::new, destructiveOperations);
         Objects.requireNonNull(relativeTimeProvider);
         this.clusterService = clusterService;
         this.shardBulkAction = shardBulkAction;

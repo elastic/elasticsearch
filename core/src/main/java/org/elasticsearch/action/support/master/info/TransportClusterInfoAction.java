@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.master.info;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -36,8 +37,9 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
 
     public TransportClusterInfoAction(Settings settings, String actionName, TransportService transportService,
                                       ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        super(settings, actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
+                                      IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request, DestructiveOperations destructiveOperations) {
+        super(settings, actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request,
+                destructiveOperations);
     }
 
     @Override

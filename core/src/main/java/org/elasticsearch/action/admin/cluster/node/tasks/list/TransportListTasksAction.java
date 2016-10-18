@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.node.tasks.list;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -52,9 +53,10 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
 
     @Inject
     public TransportListTasksAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-            TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                    TransportService transportService, ActionFilters actionFilters,
+                                    IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
         super(settings, ListTasksAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                ListTasksRequest::new, ListTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+                ListTasksRequest::new, ListTasksResponse::new, ThreadPool.Names.MANAGEMENT, destructiveOperations);
     }
 
     @Override

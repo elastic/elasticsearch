@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.segments;
 
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -47,9 +48,9 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
 
     @Inject
     public TransportIndicesSegmentsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                          IndicesService indicesService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                          IndicesService indicesService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
         super(settings, IndicesSegmentsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                IndicesSegmentsRequest::new, ThreadPool.Names.MANAGEMENT);
+                IndicesSegmentsRequest::new, ThreadPool.Names.MANAGEMENT, destructiveOperations);
         this.indicesService = indicesService;
     }
 

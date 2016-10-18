@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -45,15 +46,18 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
 
     protected TransportMasterNodeReadAction(Settings settings, String actionName, TransportService transportService,
                                             ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        this(settings, actionName, true, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,request);
+                                            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
+                                            DestructiveOperations destructiveOperations) {
+        this(settings, actionName, true, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,request,
+                destructiveOperations);
     }
 
     protected TransportMasterNodeReadAction(Settings settings, String actionName, boolean checkSizeLimit, TransportService transportService,
                                             ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
+                                            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
+                                            DestructiveOperations destructiveOperations) {
         super(settings, actionName, checkSizeLimit, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver,request);
+            indexNameExpressionResolver,request, destructiveOperations);
         this.forceLocal = FORCE_LOCAL_SETTING.get(settings);
     }
 

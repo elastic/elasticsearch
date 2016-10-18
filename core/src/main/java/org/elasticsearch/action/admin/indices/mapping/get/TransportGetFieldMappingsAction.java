@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -45,8 +46,8 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     @Inject
     public TransportGetFieldMappingsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                            ThreadPool threadPool, TransportGetFieldMappingsIndexAction shardAction,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetFieldMappingsAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, GetFieldMappingsRequest::new);
+                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
+        super(settings, GetFieldMappingsAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, GetFieldMappingsRequest::new, destructiveOperations);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
     }

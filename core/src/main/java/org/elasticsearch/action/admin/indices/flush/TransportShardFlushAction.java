@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -40,9 +41,11 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     @Inject
     public TransportShardFlushAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                      IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                     DestructiveOperations destructiveOperations) {
         super(settings, NAME, transportService, clusterService, indicesService, threadPool, shardStateAction,
-            actionFilters, indexNameExpressionResolver, ShardFlushRequest::new, ShardFlushRequest::new, ThreadPool.Names.FLUSH);
+            actionFilters, indexNameExpressionResolver, ShardFlushRequest::new, ShardFlushRequest::new, ThreadPool.Names.FLUSH,
+                destructiveOperations);
     }
 
     @Override

@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -45,16 +44,15 @@ import org.elasticsearch.transport.TransportService;
 public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenIndexRequest, OpenIndexResponse> {
 
     private final MetaDataIndexStateService indexStateService;
-    private final DestructiveOperations destructiveOperations;
 
     @Inject
     public TransportOpenIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     ThreadPool threadPool, MetaDataIndexStateService indexStateService,
                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                     DestructiveOperations destructiveOperations) {
-        super(settings, OpenIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, OpenIndexRequest::new);
+        super(settings, OpenIndexAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                indexNameExpressionResolver, OpenIndexRequest::new, destructiveOperations);
         this.indexStateService = indexStateService;
-        this.destructiveOperations = destructiveOperations;
     }
 
     @Override
@@ -69,18 +67,14 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
     }
 
     @Override
-    protected void doExecute(Task task, OpenIndexRequest request, ActionListener<OpenIndexResponse> listener) {
-        destructiveOperations.failDestructive(request.indices());
-        super.doExecute(task, request, listener);
-    }
-
-    @Override
     protected ClusterBlockException checkBlock(OpenIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
+        String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, request);
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndexNames);
     }
 
     @Override
-    protected void masterOperation(final OpenIndexRequest request, final ClusterState state, final ActionListener<OpenIndexResponse> listener) {
+    protected void masterOperation(final OpenIndexRequest request, final ClusterState state,
+                                   final ActionListener<OpenIndexResponse> listener) {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())

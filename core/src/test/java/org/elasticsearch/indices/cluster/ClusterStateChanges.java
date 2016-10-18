@@ -173,11 +173,14 @@ public class ClusterStateChanges extends AbstractComponent {
         transportDeleteIndexAction = new TransportDeleteIndexAction(settings, transportService,
             clusterService, threadPool, deleteIndexService, actionFilters, indexNameExpressionResolver, destructiveOperations);
         transportUpdateSettingsAction = new TransportUpdateSettingsAction(settings,
-            transportService, clusterService, threadPool, metaDataUpdateSettingsService, actionFilters, indexNameExpressionResolver);
+            transportService, clusterService, threadPool, metaDataUpdateSettingsService, actionFilters, indexNameExpressionResolver,
+                destructiveOperations);
         transportClusterRerouteAction = new TransportClusterRerouteAction(settings,
-            transportService, clusterService, threadPool, allocationService, actionFilters, indexNameExpressionResolver);
+            transportService, clusterService, threadPool, allocationService, actionFilters, indexNameExpressionResolver,
+                destructiveOperations);
         transportCreateIndexAction = new TransportCreateIndexAction(settings,
-            transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver);
+            transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver,
+                destructiveOperations);
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {

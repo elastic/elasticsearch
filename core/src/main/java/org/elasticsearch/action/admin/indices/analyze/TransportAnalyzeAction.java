@@ -30,6 +30,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -80,8 +81,10 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
     @Inject
     public TransportAnalyzeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                   IndicesService indicesService, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver, Environment environment) {
-        super(settings, AnalyzeAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, AnalyzeRequest::new, ThreadPool.Names.INDEX);
+                                  IndexNameExpressionResolver indexNameExpressionResolver, Environment environment, DestructiveOperations
+                                              destructiveOperations) {
+        super(settings, AnalyzeAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+                AnalyzeRequest::new, ThreadPool.Names.INDEX, destructiveOperations);
         this.indicesService = indicesService;
         this.environment = environment;
     }

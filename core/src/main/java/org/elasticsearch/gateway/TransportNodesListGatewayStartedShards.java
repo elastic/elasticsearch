@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
@@ -75,10 +76,11 @@ public class TransportNodesListGatewayStartedShards extends
                                                   ClusterService clusterService, TransportService transportService,
                                                   ActionFilters actionFilters,
                                                   IndexNameExpressionResolver indexNameExpressionResolver,
-                                                  NodeEnvironment env, IndicesService indicesService) {
+                                                  NodeEnvironment env, IndicesService indicesService, DestructiveOperations
+                                                              destructiveOperations) {
         super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
               indexNameExpressionResolver, Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STARTED,
-              NodeGatewayStartedShards.class);
+              NodeGatewayStartedShards.class, destructiveOperations);
         this.nodeEnv = env;
         this.indicesService = indicesService;
     }

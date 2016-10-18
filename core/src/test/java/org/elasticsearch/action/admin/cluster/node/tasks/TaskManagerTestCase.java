@@ -23,6 +23,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
@@ -141,10 +142,10 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
         AbstractTestNodesAction(Settings settings, String actionName, ThreadPool threadPool,
                                 ClusterService clusterService, TransportService transportService, Supplier<NodesRequest> request,
-                                Supplier<NodeRequest> nodeRequest) {
+                                Supplier<NodeRequest> nodeRequest, DestructiveOperations destructiveOperations) {
             super(settings, actionName, threadPool, clusterService, transportService,
                     new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
-                    request, nodeRequest, ThreadPool.Names.GENERIC, NodeResponse.class);
+                    request, nodeRequest, ThreadPool.Names.GENERIC, NodeResponse.class, destructiveOperations);
         }
 
         @Override
@@ -188,10 +189,12 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                     emptyMap(), emptySet(), Version.CURRENT);
             IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
             ActionFilters actionFilters = new ActionFilters(emptySet());
+            DestructiveOperations destructiveOperations = new DestructiveOperations(clusterService.getSettings(),
+                    clusterService.getClusterSettings());
             transportListTasksAction = new TransportListTasksAction(settings, threadPool, clusterService, transportService,
-                    actionFilters, indexNameExpressionResolver);
+                    actionFilters, indexNameExpressionResolver, destructiveOperations);
             transportCancelTasksAction = new TransportCancelTasksAction(settings, threadPool, clusterService,
-                    transportService, actionFilters, indexNameExpressionResolver);
+                    transportService, actionFilters, indexNameExpressionResolver, destructiveOperations);
             transportService.acceptIncomingRequests();
         }
 

@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -48,7 +50,7 @@ import static org.mockito.Mockito.when;
 public class TransportMultiSearchActionTests extends ESTestCase {
 
     public void testBatchExecute() throws Exception {
-        // Initialize depedencies of TransportMultiSearchAction
+        // Initialize dependencies of TransportMultiSearchAction
         Settings settings = Settings.builder()
                 .put("node.name", TransportMultiSearchActionTests.class.getSimpleName())
                 .build();
@@ -72,8 +74,10 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         int maxAllowedConcurrentSearches = scaledRandomIntBetween(1, 20);
         AtomicInteger counter = new AtomicInteger();
         AtomicReference<AssertionError> errorHolder = new AtomicReference<>();
+        final DestructiveOperations destructiveOperations = new DestructiveOperations(Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING)));
         TransportAction<SearchRequest, SearchResponse> searchAction = new TransportAction<SearchRequest, SearchResponse>
-                (Settings.EMPTY, "action", threadPool, actionFilters, resolver, taskManager) {
+                (Settings.EMPTY, "action", threadPool, actionFilters, resolver, taskManager, destructiveOperations) {
             @Override
             protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
                 int currentConcurrentSearches = counter.incrementAndGet();
@@ -94,7 +98,8 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             }
         };
         TransportMultiSearchAction action =
-                new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction, resolver, 10);
+                new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction, resolver, 10,
+                        destructiveOperations);
 
         // Execute the multi search api and fail if we find an error after executing:
         try {

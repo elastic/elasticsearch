@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
@@ -153,7 +154,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         shardStateAction = new ShardStateAction(Settings.EMPTY, clusterService, transportService, null, null, threadPool);
-        action = new Action(Settings.EMPTY, "testAction", transportService, clusterService, shardStateAction, threadPool);
+        action = new Action(Settings.EMPTY, "testAction", transportService, clusterService, shardStateAction, threadPool,
+                new DestructiveOperations(clusterService.getSettings(), clusterService.getClusterSettings()));
     }
 
     @After
@@ -710,7 +712,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         boolean throwException = randomBoolean();
         final ReplicationTask task = maybeTask();
         Action action = new Action(Settings.EMPTY, "testActionWithExceptions", transportService, clusterService, shardStateAction,
-            threadPool) {
+            threadPool, new DestructiveOperations(clusterService.getSettings(), clusterService.getClusterSettings())) {
             @Override
             protected ReplicaResult shardOperationOnReplica(Request request, IndexShard replica) {
                 assertIndexShardCounter(1);
@@ -830,7 +832,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         AtomicBoolean throwException = new AtomicBoolean(true);
         final ReplicationTask task = maybeTask();
         Action action = new Action(Settings.EMPTY, "testActionWithExceptions", transportService, clusterService, shardStateAction,
-            threadPool) {
+            threadPool, new DestructiveOperations(clusterService.getSettings(), clusterService.getClusterSettings())) {
             @Override
             protected ReplicaResult shardOperationOnReplica(Request request, IndexShard replica) {
                 assertPhase(task, "replica");
@@ -945,11 +947,11 @@ public class TransportReplicationActionTests extends ESTestCase {
         Action(Settings settings, String actionName, TransportService transportService,
                ClusterService clusterService,
                ShardStateAction shardStateAction,
-               ThreadPool threadPool) {
+               ThreadPool threadPool, DestructiveOperations destructiveOperations) {
             super(settings, actionName, transportService, clusterService, mockIndicesService(clusterService), threadPool,
                 shardStateAction,
                 new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
-                Request::new, Request::new, ThreadPool.Names.SAME);
+                Request::new, Request::new, ThreadPool.Names.SAME, destructiveOperations);
         }
 
         @Override

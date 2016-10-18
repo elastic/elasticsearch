@@ -21,6 +21,7 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -42,8 +43,8 @@ public class DeletePipelineTransportAction extends TransportMasterNodeAction<Del
     @Inject
     public DeletePipelineTransportAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                          TransportService transportService, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver, NodeService nodeService) {
-        super(settings, DeletePipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeletePipelineRequest::new);
+                                         IndexNameExpressionResolver indexNameExpressionResolver, NodeService nodeService, DestructiveOperations destructiveOperations) {
+        super(settings, DeletePipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeletePipelineRequest::new, destructiveOperations);
         this.clusterService = clusterService;
         this.pipelineStore = nodeService.getIngestService().getPipelineStore();
     }

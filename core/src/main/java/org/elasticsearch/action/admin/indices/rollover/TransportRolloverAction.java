@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
@@ -71,9 +72,10 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     public TransportRolloverAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                   MetaDataIndexAliasesService indexAliasesService, Client client) {
+                                   MetaDataIndexAliasesService indexAliasesService, Client client, DestructiveOperations
+                                               destructiveOperations) {
         super(settings, RolloverAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            RolloverRequest::new);
+            RolloverRequest::new, destructiveOperations);
         this.createIndexService = createIndexService;
         this.indexAliasesService = indexAliasesService;
         this.client = client;

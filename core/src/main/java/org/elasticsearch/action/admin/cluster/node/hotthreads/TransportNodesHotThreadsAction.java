@@ -22,9 +22,9 @@ package org.elasticsearch.action.admin.cluster.node.hotthreads;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -46,9 +46,11 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
     @Inject
     public TransportNodesHotThreadsAction(Settings settings, ThreadPool threadPool,
                                           ClusterService clusterService, TransportService transportService,
-                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                          DestructiveOperations destructiveOperations) {
         super(settings, NodesHotThreadsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-              indexNameExpressionResolver, NodesHotThreadsRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeHotThreads.class);
+              indexNameExpressionResolver, NodesHotThreadsRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeHotThreads.class,
+                destructiveOperations);
     }
 
     @Override

@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -62,10 +63,11 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
 
     @Inject
     public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-            TransportService transportService, SearchService searchService, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver) {
+                                        TransportService transportService, SearchService searchService, ActionFilters actionFilters,
+                                        IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
         super(settings, ValidateQueryAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, ValidateQueryRequest::new, ShardValidateQueryRequest::new, ThreadPool.Names.SEARCH);
+                indexNameExpressionResolver, ValidateQueryRequest::new, ShardValidateQueryRequest::new, ThreadPool.Names.SEARCH,
+                destructiveOperations);
         this.searchService = searchService;
     }
 

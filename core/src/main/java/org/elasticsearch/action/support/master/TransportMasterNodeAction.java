@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -58,16 +59,17 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     protected TransportMasterNodeAction(Settings settings, String actionName, TransportService transportService,
                                         ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                        IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        this(settings, actionName, true, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
+                                        IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
+                                        DestructiveOperations destructiveOperations) {
+        this(settings, actionName, true, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request, destructiveOperations);
     }
 
     protected TransportMasterNodeAction(Settings settings, String actionName, boolean canTripCircuitBreaker,
                                         TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        Supplier<Request> request) {
+                                        Supplier<Request> request, DestructiveOperations destructiveOperations) {
         super(settings, actionName, canTripCircuitBreaker, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-            request);
+            request, destructiveOperations);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.executor = executor();

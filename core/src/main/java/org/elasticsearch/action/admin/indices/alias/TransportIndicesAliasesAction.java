@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.alias;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -55,8 +56,8 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
     @Inject
     public TransportIndicesAliasesAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, MetaDataIndexAliasesService indexAliasesService,
-                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, IndicesAliasesRequest::new);
+                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
+        super(settings, IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, IndicesAliasesRequest::new, destructiveOperations);
         this.indexAliasesService = indexAliasesService;
     }
 

@@ -21,9 +21,11 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -35,6 +37,7 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -63,7 +66,7 @@ public class TransportWriteActionTests extends ESTestCase {
     }
 
     private <Result, Response> void noRefreshCall(ThrowingTriFunction<TestAction, TestRequest, IndexShard, Result> action,
-                                        BiConsumer<Result, CapturingActionListener<Response>> responder)
+                                                  BiConsumer<Result, CapturingActionListener<Response>> responder)
             throws Exception {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.NONE); // The default, but we'll set it anyway just to be explicit
@@ -108,7 +111,7 @@ public class TransportWriteActionTests extends ESTestCase {
 
     private <Result, Response> void waitForRefresh(ThrowingTriFunction<TestAction, TestRequest, IndexShard, Result> action,
                                                    BiConsumer<Result, CapturingActionListener<Response>> responder,
-                                         BiConsumer<Response, Boolean> resultChecker) throws Exception {
+                                                   BiConsumer<Response, Boolean> resultChecker) throws Exception {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         Result result = action.apply(new TestAction(), request, indexShard);
@@ -133,7 +136,9 @@ public class TransportWriteActionTests extends ESTestCase {
             super(Settings.EMPTY, "test",
                     new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null), null, null, null,
                     null, new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY), TestRequest::new,
-                    ThreadPool.Names.SAME);
+                    ThreadPool.Names.SAME,
+                    new DestructiveOperations(Settings.EMPTY, new ClusterSettings(
+                            Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))));
         }
 
         @Override

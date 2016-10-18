@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
@@ -170,8 +171,9 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     abstract class TestNodesAction extends AbstractTestNodesAction<NodesRequest, NodeRequest> {
 
         TestNodesAction(Settings settings, String actionName, ThreadPool threadPool,
-                        ClusterService clusterService, TransportService transportService) {
-            super(settings, actionName, threadPool, clusterService, transportService, NodesRequest::new, NodeRequest::new);
+                        ClusterService clusterService, TransportService transportService, DestructiveOperations destructiveOperations) {
+            super(settings, actionName, threadPool, clusterService, transportService, NodesRequest::new, NodeRequest::new,
+                    destructiveOperations);
         }
 
         @Override
@@ -252,10 +254,11 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     abstract static class TestTasksAction extends TransportTasksAction<Task, TestTasksRequest, TestTasksResponse, TestTaskResponse> {
 
         protected TestTasksAction(Settings settings, String actionName, ThreadPool threadPool,
-                ClusterService clusterService, TransportService transportService) {
+                                  ClusterService clusterService, TransportService transportService,
+                                  DestructiveOperations destructiveOperations) {
             super(settings, actionName, threadPool, clusterService, transportService, new ActionFilters(new HashSet<>()),
                     new IndexNameExpressionResolver(Settings.EMPTY), TestTasksRequest::new, TestTasksResponse::new,
-                    ThreadPool.Names.MANAGEMENT);
+                    ThreadPool.Names.MANAGEMENT, destructiveOperations);
         }
 
         @Override
@@ -297,8 +300,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         TestNodesAction[] actions = new TestNodesAction[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
-            actions[i] = new TestNodesAction(CLUSTER_SETTINGS, "testAction", threadPool, testNodes[i].clusterService,
-                    testNodes[i].transportService) {
+            TestNode testNode = testNodes[i];
+            actions[i] = new TestNodesAction(CLUSTER_SETTINGS, "testAction", threadPool, testNode.clusterService,
+                    testNode.transportService,
+                    new DestructiveOperations(testNode.clusterService.getSettings(), testNode.clusterService.getClusterSettings())) {
                 @Override
                 protected NodeResponse nodeOperation(NodeRequest request) {
                     logger.info("Action on node {}", node);
@@ -309,7 +314,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                         Thread.currentThread().interrupt();
                     }
                     logger.info("Action on node {} finished", node);
-                    return new NodeResponse(testNodes[node].discoveryNode);
+                    return new NodeResponse(testNode.discoveryNode);
                 }
             };
         }
@@ -582,8 +587,10 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         RecordingTaskManagerListener[] listeners = setupListeners(testNodes, "testAction*");
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
-            actions[i] = new TestNodesAction(CLUSTER_SETTINGS, "testAction", threadPool, testNodes[i].clusterService,
-                    testNodes[i].transportService) {
+            final TestNode testNode = testNodes[i];
+            actions[i] = new TestNodesAction(CLUSTER_SETTINGS, "testAction", threadPool, testNode.clusterService,
+                    testNode.transportService, new DestructiveOperations(testNode.clusterService.getSettings(),
+                    testNode.clusterService.getClusterSettings())) {
                 @Override
                 protected NodeResponse nodeOperation(NodeRequest request) {
                     logger.info("Action on node {}", node);
@@ -621,9 +628,11 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         final int failTaskOnNode = randomIntBetween(1, nodesCount - 1);
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
+            final TestNode testNode = testNodes[i];
             // Simulate task action that fails on one of the tasks on one of the nodes
-            tasksActions[i] = new TestTasksAction(CLUSTER_SETTINGS, "testTasksAction", threadPool, testNodes[i].clusterService,
-                    testNodes[i].transportService) {
+            tasksActions[i] = new TestTasksAction(CLUSTER_SETTINGS, "testTasksAction", threadPool, testNode.clusterService,
+                    testNode.transportService, new DestructiveOperations(testNode.clusterService.getSettings(),
+                    testNode.clusterService.getClusterSettings())) {
                 @Override
                 protected TestTaskResponse taskOperation(TestTasksRequest request, Task task) {
                     logger.info("Task action on node {}", node);
@@ -678,10 +687,12 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         TestTasksAction[] tasksActions = new TestTasksAction[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
             final int node = i;
+            final TestNode testNode = testNodes[i];
             // Simulate a task action that works on all nodes except nodes listed in filterNodes.
             // We are testing that it works.
             tasksActions[i] = new TestTasksAction(CLUSTER_SETTINGS, "testTasksAction", threadPool,
-                testNodes[i].clusterService, testNodes[i].transportService) {
+                testNode.clusterService, testNode.transportService, new DestructiveOperations(testNode.clusterService.getSettings(),
+                    testNode.clusterService.getClusterSettings())) {
 
                 @Override
                 protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {

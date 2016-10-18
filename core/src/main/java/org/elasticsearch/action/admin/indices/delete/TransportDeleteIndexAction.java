@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -49,15 +48,15 @@ import java.util.Set;
 public class TransportDeleteIndexAction extends TransportMasterNodeAction<DeleteIndexRequest, DeleteIndexResponse> {
 
     private final MetaDataDeleteIndexService deleteIndexService;
-    private final DestructiveOperations destructiveOperations;
 
     @Inject
     public TransportDeleteIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, MetaDataDeleteIndexService deleteIndexService, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
-        super(settings, DeleteIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeleteIndexRequest::new);
+                                      IndexNameExpressionResolver indexNameExpressionResolver,
+                                      DestructiveOperations destructiveOperations) {
+        super(settings, DeleteIndexAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                indexNameExpressionResolver, DeleteIndexRequest::new, destructiveOperations);
         this.deleteIndexService = deleteIndexService;
-        this.destructiveOperations = destructiveOperations;
     }
 
     @Override
@@ -71,18 +70,14 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
     }
 
     @Override
-    protected void doExecute(Task task, DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener) {
-        destructiveOperations.failDestructive(request.indices());
-        super.doExecute(task, request, listener);
-    }
-
-    @Override
     protected ClusterBlockException checkBlock(DeleteIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
+        String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, request);
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndexNames);
     }
 
     @Override
-    protected void masterOperation(final DeleteIndexRequest request, final ClusterState state, final ActionListener<DeleteIndexResponse> listener) {
+    protected void masterOperation(final DeleteIndexRequest request, final ClusterState state,
+                                   final ActionListener<DeleteIndexResponse> listener) {
         final Set<Index> concreteIndices = new HashSet<>(Arrays.asList(indexNameExpressionResolver.concreteIndices(state, request)));
         if (concreteIndices.isEmpty()) {
             listener.onResponse(new DeleteIndexResponse(true));

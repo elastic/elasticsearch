@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
@@ -92,6 +93,8 @@ public class TransportBulkActionTookTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         IndexNameExpressionResolver resolver = new Resolver(Settings.EMPTY);
+        DestructiveOperations destructiveOperations = new DestructiveOperations(clusterService.getSettings(), clusterService
+                .getClusterSettings());
         ActionFilters actionFilters = new ActionFilters(new HashSet<>());
 
         TransportCreateIndexAction createIndexAction = new TransportCreateIndexAction(
@@ -101,7 +104,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 threadPool,
                 null,
                 actionFilters,
-                resolver);
+                resolver, destructiveOperations);
 
         if (controlled) {
 
@@ -115,7 +118,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     actionFilters,
                     resolver,
                     null,
-                    expected::get) {
+                    expected::get, destructiveOperations) {
                 @Override
                 public void executeBulk(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
                     expected.set(1000000);
@@ -144,7 +147,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     actionFilters,
                     resolver,
                     null,
-                    System::nanoTime) {
+                    System::nanoTime, destructiveOperations) {
                 @Override
                 public void executeBulk(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
                     long elapsed = spinForAtLeastOneMillisecond();
@@ -231,7 +234,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 ActionFilters actionFilters,
                 IndexNameExpressionResolver indexNameExpressionResolver,
                 AutoCreateIndex autoCreateIndex,
-                LongSupplier relativeTimeProvider) {
+                LongSupplier relativeTimeProvider, DestructiveOperations destructiveOperations) {
             super(
                     settings,
                     threadPool,
@@ -242,7 +245,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     actionFilters,
                     indexNameExpressionResolver,
                     autoCreateIndex,
-                    relativeTimeProvider);
+                    relativeTimeProvider, destructiveOperations);
         }
 
         @Override
@@ -266,8 +269,9 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 ThreadPool threadPool,
                 MetaDataCreateIndexService createIndexService,
                 ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(settings, transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver);
+                IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
+            super(settings, transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver,
+                    destructiveOperations);
         }
 
         @Override

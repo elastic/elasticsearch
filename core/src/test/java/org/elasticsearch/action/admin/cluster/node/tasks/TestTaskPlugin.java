@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
@@ -250,10 +251,11 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
 
         @Inject
         public TransportTestTaskAction(Settings settings, ThreadPool threadPool,
-                                       ClusterService clusterService, TransportService transportService) {
+                                       ClusterService clusterService, TransportService transportService, DestructiveOperations
+                                                       destructiveOperations) {
             super(settings, TestTaskAction.NAME, threadPool, clusterService, transportService,
                   new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
-                  NodesRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeResponse.class);
+                  NodesRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeResponse.class, destructiveOperations);
         }
 
         @Override
@@ -417,12 +419,12 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
         UnblockTestTasksResponse, UnblockTestTaskResponse> {
 
         @Inject
-        public TransportUnblockTestTasksAction(Settings settings,ThreadPool threadPool, ClusterService
-            clusterService,
-                                               TransportService transportService) {
+        public TransportUnblockTestTasksAction(Settings settings, ThreadPool threadPool, ClusterService
+                clusterService,
+                                               TransportService transportService, DestructiveOperations destructiveOperations) {
             super(settings, UnblockTestTasksAction.NAME, threadPool, clusterService, transportService, new ActionFilters(new
                 HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
-                UnblockTestTasksRequest::new, UnblockTestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+                UnblockTestTasksRequest::new, UnblockTestTasksResponse::new, ThreadPool.Names.MANAGEMENT, destructiveOperations);
         }
 
         @Override

@@ -21,6 +21,7 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -41,8 +42,8 @@ public class GetPipelineTransportAction extends TransportMasterNodeReadAction<Ge
     @Inject
     public GetPipelineTransportAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                       TransportService transportService, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver, NodeService nodeService) {
-        super(settings, GetPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetPipelineRequest::new);
+                                      IndexNameExpressionResolver indexNameExpressionResolver, NodeService nodeService, DestructiveOperations destructiveOperations) {
+        super(settings, GetPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetPipelineRequest::new, destructiveOperations);
         this.pipelineStore = nodeService.getIngestService().getPipelineStore();
     }
 

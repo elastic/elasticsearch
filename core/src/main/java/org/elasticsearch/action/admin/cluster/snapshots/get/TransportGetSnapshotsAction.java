@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -53,9 +54,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     @Inject
     public TransportGetSnapshotsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver) {
+                                       IndexNameExpressionResolver indexNameExpressionResolver,
+                                       DestructiveOperations destructiveOperations) {
         super(settings, GetSnapshotsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-              GetSnapshotsRequest::new);
+              GetSnapshotsRequest::new, destructiveOperations);
         this.snapshotsService = snapshotsService;
     }
 

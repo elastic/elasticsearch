@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -70,8 +71,10 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
 
     @Inject
     public TransportGetTaskAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, Client client) {
-        super(settings, GetTaskAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, GetTaskRequest::new);
+                                  IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, Client client,
+                                  DestructiveOperations destructiveOperations) {
+        super(settings, GetTaskAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
+                GetTaskRequest::new, destructiveOperations);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.client = client;

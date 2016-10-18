@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
@@ -57,9 +58,11 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     @Inject
     public TransportNodesListGatewayMetaState(Settings settings, ThreadPool threadPool,
                                               ClusterService clusterService, TransportService transportService,
-                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                              DestructiveOperations destructiveOperations) {
         super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
-              indexNameExpressionResolver, Request::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeGatewayMetaState.class);
+              indexNameExpressionResolver, Request::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeGatewayMetaState.class,
+                destructiveOperations);
     }
 
     TransportNodesListGatewayMetaState init(GatewayMetaState metaState) {

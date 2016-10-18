@@ -23,6 +23,7 @@ package org.elasticsearch.action.admin.indices.get;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -48,8 +49,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
 
     @Inject
     public TransportGetIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                   ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetIndexRequest::new);
+                                   ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
+        super(settings, GetIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetIndexRequest::new, destructiveOperations);
     }
 
     @Override

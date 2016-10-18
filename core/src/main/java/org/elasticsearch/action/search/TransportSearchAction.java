@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -66,8 +67,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     public TransportSearchAction(Settings settings, ThreadPool threadPool, BigArrays bigArrays, ScriptService scriptService,
                                  TransportService transportService, SearchService searchService,
                                  ClusterService clusterService, ActionFilters actionFilters, IndexNameExpressionResolver
-                                             indexNameExpressionResolver) {
-        super(settings, SearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SearchRequest::new);
+                                             indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
+        super(settings, SearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SearchRequest::new,
+                destructiveOperations);
         this.searchPhaseController = new SearchPhaseController(settings, bigArrays, scriptService, clusterService);;
         this.searchTransportService = new SearchTransportService(settings, transportService);
         SearchTransportService.registerRequestHandler(transportService, searchService);

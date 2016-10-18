@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -60,9 +61,9 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     @Inject
     public TransportExplainAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                   TransportService transportService, SearchService searchService, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver) {
+                                  IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
         super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                ExplainRequest::new, ThreadPool.Names.GET);
+                ExplainRequest::new, ThreadPool.Names.GET, destructiveOperations);
         this.searchService = searchService;
     }
 

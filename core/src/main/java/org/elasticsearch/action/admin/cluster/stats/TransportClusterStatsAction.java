@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -61,10 +62,10 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
     public TransportClusterStatsAction(Settings settings, ThreadPool threadPool,
                                        ClusterService clusterService, TransportService transportService,
                                        NodeService nodeService, IndicesService indicesService,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
         super(settings, ClusterStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
               indexNameExpressionResolver, ClusterStatsRequest::new, ClusterStatsNodeRequest::new, ThreadPool.Names.MANAGEMENT,
-              ClusterStatsNodeResponse.class);
+              ClusterStatsNodeResponse.class, destructiveOperations);
         this.nodeService = nodeService;
         this.indicesService = indicesService;
     }

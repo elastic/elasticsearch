@@ -23,6 +23,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
@@ -59,8 +60,8 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
 
     protected TransportBroadcastAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
                                        TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       Supplier<Request> request, Supplier<ShardRequest> shardRequest, String shardExecutor) {
-        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
+                                       Supplier<Request> request, Supplier<ShardRequest> shardRequest, String shardExecutor, DestructiveOperations destructiveOperations) {
+        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request, destructiveOperations);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.transportShardAction = actionName + "[s]";

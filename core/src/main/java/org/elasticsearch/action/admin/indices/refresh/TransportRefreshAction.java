@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.refresh;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportBroadcastReplicationAction;
@@ -44,8 +45,8 @@ public class TransportRefreshAction extends TransportBroadcastReplicationAction<
     public TransportRefreshAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                   TransportService transportService, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver,
-                                  TransportShardRefreshAction shardRefreshAction) {
-        super(RefreshAction.NAME, RefreshRequest::new, settings, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, shardRefreshAction);
+                                  TransportShardRefreshAction shardRefreshAction, DestructiveOperations destructiveOperations) {
+        super(RefreshAction.NAME, RefreshRequest::new, settings, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, shardRefreshAction, destructiveOperations);
     }
 
     @Override

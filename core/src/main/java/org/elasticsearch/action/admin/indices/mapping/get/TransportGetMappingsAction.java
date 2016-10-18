@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -38,8 +39,8 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
 
     @Inject
     public TransportGetMappingsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetMappingsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetMappingsRequest::new);
+                                      ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
+        super(settings, GetMappingsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetMappingsRequest::new, destructiveOperations);
     }
 
     @Override

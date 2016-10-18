@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -53,8 +54,8 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
     public PutPipelineTransportAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                       TransportService transportService, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver, NodeService nodeService,
-                                      TransportNodesInfoAction nodesInfoAction) {
-        super(settings, PutPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutPipelineRequest::new);
+                                      TransportNodesInfoAction nodesInfoAction, DestructiveOperations destructiveOperations) {
+        super(settings, PutPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutPipelineRequest::new, destructiveOperations);
         this.clusterService = clusterService;
         this.nodesInfoAction = nodesInfoAction;
         this.pipelineStore = nodeService.getIngestService().getPipelineStore();

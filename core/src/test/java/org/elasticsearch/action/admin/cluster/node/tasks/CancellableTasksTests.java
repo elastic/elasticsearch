@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
@@ -140,10 +141,10 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         final CountDownLatch actionStartedLatch;
 
         CancellableTestNodesAction(Settings settings, String actionName, ThreadPool threadPool,
-                                   ClusterService clusterService, TransportService transportService, boolean shouldBlock, CountDownLatch
-                                       actionStartedLatch) {
+                                   ClusterService clusterService, TransportService transportService, boolean shouldBlock,
+                                   CountDownLatch actionStartedLatch, DestructiveOperations destructiveOperations) {
             super(settings, actionName, threadPool, clusterService, transportService, CancellableNodesRequest::new,
-                CancellableNodeRequest::new);
+                CancellableNodeRequest::new, destructiveOperations);
             this.shouldBlock = shouldBlock;
             this.actionStartedLatch = actionStartedLatch;
         }
@@ -199,10 +200,12 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         CountDownLatch actionLatch = waitForActionToStart ? new CountDownLatch(nodesCount) : null;
         CancellableTestNodesAction[] actions = new CancellableTestNodesAction[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
-            boolean shouldBlock = blockOnNodes.contains(testNodes[i]);
-            logger.info("The action in the node [{}] should block: [{}]", testNodes[i].discoveryNode.getId(), shouldBlock);
-            actions[i] = new CancellableTestNodesAction(CLUSTER_SETTINGS, "testAction", threadPool, testNodes[i]
-                .clusterService, testNodes[i].transportService, shouldBlock, actionLatch);
+            TestNode testNode = testNodes[i];
+            boolean shouldBlock = blockOnNodes.contains(testNode);
+            logger.info("The action in the node [{}] should block: [{}]", testNode.discoveryNode.getId(), shouldBlock);
+            actions[i] = new CancellableTestNodesAction(CLUSTER_SETTINGS, "testAction", threadPool, testNode
+                .clusterService, testNode.transportService, shouldBlock, actionLatch,
+                    new DestructiveOperations(testNode.clusterService.getSettings(), testNode.clusterService.getClusterSettings()));
         }
         Task task = actions[0].execute(request, listener);
         if (waitForActionToStart) {

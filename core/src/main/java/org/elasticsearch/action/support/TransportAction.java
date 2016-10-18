@@ -46,9 +46,11 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
     protected final ParseFieldMatcher parseFieldMatcher;
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
     protected final TaskManager taskManager;
+    private final DestructiveOperations destructiveOperations;
 
     protected TransportAction(Settings settings, String actionName, ThreadPool threadPool, ActionFilters actionFilters,
-                              IndexNameExpressionResolver indexNameExpressionResolver, TaskManager taskManager) {
+                              IndexNameExpressionResolver indexNameExpressionResolver, TaskManager taskManager,
+                              DestructiveOperations destructiveOperations) {
         super(settings);
         this.threadPool = threadPool;
         this.actionName = actionName;
@@ -56,6 +58,7 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.taskManager = taskManager;
+        this.destructiveOperations = destructiveOperations;
     }
 
     public final ActionFuture<Response> execute(Request request) {
@@ -131,6 +134,12 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             listener.onFailure(validationException);
+            return;
+        }
+
+        if (destructiveOperations.mustBlockDestructiveOperation(actionName, request)) {
+            listener.onFailure(new IllegalArgumentException("Wildcard expressions or all indices are not allowed for action [" +
+                    actionName + "]"));
             return;
         }
 

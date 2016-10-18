@@ -26,6 +26,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -78,8 +79,9 @@ public abstract class TransportTasksAction<
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver, Supplier<TasksRequest> requestSupplier,
                                    Supplier<TasksResponse> responseSupplier,
-                                   String nodeExecutor) {
-        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, requestSupplier);
+                                   String nodeExecutor, DestructiveOperations destructiveOperations) {
+        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, requestSupplier,
+                destructiveOperations);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.transportNodeAction = actionName + "[n]";

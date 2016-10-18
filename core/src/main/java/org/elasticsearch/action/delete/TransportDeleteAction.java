@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -59,9 +60,9 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
                                  IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                  TransportCreateIndexAction createIndexAction, ActionFilters actionFilters,
                                  IndexNameExpressionResolver indexNameExpressionResolver,
-                                 AutoCreateIndex autoCreateIndex) {
+                                 AutoCreateIndex autoCreateIndex, DestructiveOperations destructiveOperations) {
         super(settings, DeleteAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-                indexNameExpressionResolver, DeleteRequest::new, ThreadPool.Names.INDEX);
+                indexNameExpressionResolver, DeleteRequest::new, ThreadPool.Names.INDEX, destructiveOperations);
         this.createIndexAction = createIndexAction;
         this.autoCreateIndex = autoCreateIndex;
     }

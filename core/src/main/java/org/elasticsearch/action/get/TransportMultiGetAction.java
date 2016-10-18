@@ -21,6 +21,7 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -47,8 +48,10 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
     @Inject
     public TransportMultiGetAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                    ClusterService clusterService, TransportShardMultiGetAction shardAction,
-                                   ActionFilters actionFilters, IndexNameExpressionResolver resolver) {
-        super(settings, MultiGetAction.NAME, threadPool, transportService, actionFilters, resolver, MultiGetRequest::new);
+                                   ActionFilters actionFilters, IndexNameExpressionResolver resolver,
+                                   DestructiveOperations destructiveOperations) {
+        super(settings, MultiGetAction.NAME, threadPool, transportService, actionFilters, resolver, MultiGetRequest::new,
+                destructiveOperations);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
     }

@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -56,9 +57,10 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
     @Inject
     public TransportShrinkAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                  ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
-                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Client client) {
+                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Client client,
+                                 DestructiveOperations destructiveOperations) {
         super(settings, ShrinkAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            ShrinkRequest::new);
+            ShrinkRequest::new, destructiveOperations);
         this.createIndexService = createIndexService;
         this.client = client;
     }

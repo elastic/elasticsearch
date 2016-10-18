@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.nodes;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeActionTests;
 import org.elasticsearch.cluster.ClusterName;
@@ -31,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -217,8 +219,9 @@ public class TransportNodesActionTests extends ESTestCase {
                 new ActionFilters(Collections.emptySet()),
                 TestNodesRequest::new,
                 TestNodeRequest::new,
-                ThreadPool.Names.SAME
-        );
+                ThreadPool.Names.SAME,
+                new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                        Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))));
     }
 
     public DataNodesOnlyTransportNodesAction getDataNodesOnlyTransportNodesAction(TransportService transportService) {
@@ -230,8 +233,8 @@ public class TransportNodesActionTests extends ESTestCase {
             new ActionFilters(Collections.emptySet()),
             TestNodesRequest::new,
             TestNodeRequest::new,
-            ThreadPool.Names.SAME
-        );
+            ThreadPool.Names.SAME, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))));
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNode.Role> roles) {
@@ -244,9 +247,9 @@ public class TransportNodesActionTests extends ESTestCase {
 
         TestTransportNodesAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService
                 transportService, ActionFilters actionFilters, Supplier<TestNodesRequest> request,
-                                 Supplier<TestNodeRequest> nodeRequest, String nodeExecutor) {
+                                 Supplier<TestNodeRequest> nodeRequest, String nodeExecutor, DestructiveOperations destructiveOperations) {
             super(settings, "indices:admin/test", threadPool, clusterService, transportService, actionFilters,
-                    null, request, nodeRequest, nodeExecutor, TestNodeResponse.class);
+                    null, request, nodeRequest, nodeExecutor, TestNodeResponse.class, destructiveOperations);
         }
 
         @Override
@@ -280,9 +283,11 @@ public class TransportNodesActionTests extends ESTestCase {
         extends TestTransportNodesAction {
 
         DataNodesOnlyTransportNodesAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService
-            transportService, ActionFilters actionFilters, Supplier<TestNodesRequest> request,
-                                          Supplier<TestNodeRequest> nodeRequest, String nodeExecutor) {
-            super(settings, threadPool, clusterService, transportService, actionFilters, request, nodeRequest, nodeExecutor);
+                transportService, ActionFilters actionFilters, Supplier<TestNodesRequest> request,
+                                          Supplier<TestNodeRequest> nodeRequest, String nodeExecutor,
+                                          DestructiveOperations destructiveOperations) {
+            super(settings, threadPool, clusterService, transportService, actionFilters, request, nodeRequest, nodeExecutor,
+                    destructiveOperations);
         }
 
         @Override

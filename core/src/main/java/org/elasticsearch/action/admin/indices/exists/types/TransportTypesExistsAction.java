@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.indices.exists.types;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -40,8 +41,8 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadAction<Ty
 
     @Inject
     public TransportTypesExistsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, TypesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, TypesExistsRequest::new);
+                                      ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
+        super(settings, TypesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, TypesExistsRequest::new, destructiveOperations);
     }
 
     @Override

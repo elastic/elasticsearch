@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.exists.indices;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,8 +42,8 @@ public class TransportIndicesExistsAction extends TransportMasterNodeReadAction<
 
     @Inject
     public TransportIndicesExistsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                        ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, IndicesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, IndicesExistsRequest::new);
+                                        ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
+        super(settings, IndicesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, IndicesExistsRequest::new, destructiveOperations);
     }
 
     @Override

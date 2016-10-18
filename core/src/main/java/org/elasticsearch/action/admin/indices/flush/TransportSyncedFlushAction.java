@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
@@ -40,8 +41,8 @@ public class TransportSyncedFlushAction extends HandledTransportAction<SyncedFlu
     public TransportSyncedFlushAction(Settings settings, ThreadPool threadPool,
                                       TransportService transportService, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver,
-                                      SyncedFlushService syncedFlushService) {
-        super(settings, SyncedFlushAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SyncedFlushRequest::new);
+                                      SyncedFlushService syncedFlushService, DestructiveOperations destructiveOperations) {
+        super(settings, SyncedFlushAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SyncedFlushRequest::new, destructiveOperations);
         this.syncedFlushService = syncedFlushService;
     }
 

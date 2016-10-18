@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.replication;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -51,11 +52,12 @@ public abstract class TransportWriteAction<
         > extends TransportReplicationAction<Request, Request, Response> {
 
     protected TransportWriteAction(Settings settings, String actionName, TransportService transportService,
-            ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
-            String executor) {
+                                   ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
+                                   ShardStateAction shardStateAction, ActionFilters actionFilters,
+                                   IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
+                                   String executor, DestructiveOperations destructiveOperations) {
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-                indexNameExpressionResolver, request, request, executor);
+                indexNameExpressionResolver, request, request, executor, destructiveOperations);
     }
 
     /**

@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
@@ -59,7 +58,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     /** Definition of the quality metric, e.g. precision at N */
     private RankedListQualityMetric metric;
     /** optional: Template to base test requests on */
-    private String template = "";
+    private Script script;
 
     public RankEvalSpec() {
         // TODO think if no args ctor is okay
@@ -77,7 +76,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
             ratedRequests.add(new RatedRequest(in));
         }
         metric = in.readNamedWriteable(RankedListQualityMetric.class);
-        template = in.readString();
+        script = new Script(in);
     }
 
     @Override
@@ -87,7 +86,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
             spec.writeTo(out);
         }
         out.writeNamedWriteable(metric);
-        out.writeString(template);
+        script.writeTo(out);
     }
 
     public void setEval(RankedListQualityMetric eval) {
@@ -114,17 +113,17 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
         this.ratedRequests = specifications;
     }
     
-    /** Set the template to base test requests on. */
-    public void setTemplate(String template) {
-        this.template = template;
+    /** Set the script to base test requests on. */
+    public void setScript(Script script) {
+        this.script = script;
     }
     
-    /** Returns the template to base test requests on. */
-    public String getTemplate() {
-        return this.template;
+    /** Returns the script to base test requests on. */
+    public Script getScript() {
+        return this.script;
     }
 
-    private static final ParseField TEMPLATE_FIELD = new ParseField("template");
+    private static final ParseField SCRIPT_FIELD = new ParseField("script");
     private static final ParseField METRIC_FIELD = new ParseField("metric");
     private static final ParseField REQUESTS_FIELD = new ParseField("requests");
     private static final ObjectParser<RankEvalSpec, RankEvalContext> PARSER = new ObjectParser<>("rank_eval", RankEvalSpec::new);
@@ -137,7 +136,13 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
                 throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
             }
         } , METRIC_FIELD);
-        PARSER.declareString(RankEvalSpec::setTemplate, TEMPLATE_FIELD);
+        PARSER.declareObject(RankEvalSpec::setScript, (p, c) -> {
+            try {
+                return Script.parse(p, c.getParseFieldMatcher(), "mustache");
+            } catch (IOException ex) {
+                throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
+            }
+        }, SCRIPT_FIELD);
         PARSER.declareObjectArray(RankEvalSpec::setSpecifications, (p, c) -> {
             try {
                 return RatedRequest.fromXContent(p, c);
@@ -150,21 +155,20 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     public static RankEvalSpec parse(XContentParser parser, RankEvalContext context, boolean templated) throws IOException {
         RankEvalSpec spec = PARSER.parse(parser, context);
 
-        logger.trace("request received: {}", spec.toString());
         if (templated) {
-            String template = spec.getTemplate();
-            logger.trace("template: {}",  template);
+            logger.trace("template: {}",  spec.script);
             for (RatedRequest query_spec : spec.getSpecifications()) {
                 @SuppressWarnings({ "unchecked", "rawtypes" })
                 Map<String, String> params = (Map) query_spec.getParams();
-                Script script = new Script(template, ScriptService.ScriptType.INLINE, "mustache", params);
+                logger.trace("params: {}", params);
+                Script scriptWithParams = new Script(spec.script.getScript(), spec.script.getType(), spec.script.getLang(), params);
                 String resolvedRequest = 
                         ((BytesReference) 
-                                (context.getScriptService().executable(script, ScriptContext.Standard.SEARCH, params)
+                                (context.getScriptService().executable(scriptWithParams, ScriptContext.Standard.SEARCH, params)
                                         .run()))
                         .utf8ToString();
                 try (XContentParser subParser = XContentFactory.xContent(resolvedRequest).createParser(resolvedRequest)) {
-                    QueryParseContext parseContext = 
+                    QueryParseContext parseContext =
                             new QueryParseContext(
                                     context.getSearchRequestParsers().queryParsers, 
                                     subParser, 
@@ -188,7 +192,11 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(TEMPLATE_FIELD.getPreferredName(), this.template);
+        if (this.script != null) {
+            builder.startObject(SCRIPT_FIELD.getPreferredName());
+            this.script.toXContent(builder, params);
+            builder.endObject();
+        }
         builder.startArray(REQUESTS_FIELD.getPreferredName());
         for (RatedRequest spec : this.ratedRequests) {
             spec.toXContent(builder, params);

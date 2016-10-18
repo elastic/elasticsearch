@@ -97,7 +97,7 @@ You can specify multiple IDs to return more than one pipeline. Wildcards are als
 Pipelines can optionally add a `version` number, which can be any integer value,
 in order to simplify pipeline management by external systems. The `version`
 field is completely optional and it is meant solely for external management of
-pipelines. To unset a `version`, simply replace the template without specifying
+pipelines. To unset a `version`, simply replace the pipeline without specifying
 one.
 
 [source,js]

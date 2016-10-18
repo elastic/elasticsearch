@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -79,6 +80,10 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     private Map<String, IndexMetaData.Custom> customs = new HashMap<>();
 
     private Integer version;
+
+    private boolean validation = DEFAULT_VALIDATION;
+
+    public static final boolean DEFAULT_VALIDATION = true;
 
     public PutIndexTemplateRequest() {
     }
@@ -317,6 +322,18 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     }
 
     /**
+     * Set to <tt>true</tt> to validate
+     */
+    public PutIndexTemplateRequest validation(boolean validation) {
+        this.validation = validation;
+        return this;
+    }
+
+    public boolean validation() {
+        return validation;
+    }
+
+    /**
      * The template source definition.
      */
     @SuppressWarnings("unchecked")
@@ -350,6 +367,12 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 }
             } else if (name.equals("aliases")) {
                 aliases((Map<String, Object>) entry.getValue());
+            } else if (name.equals("validate")) {
+                if (entry.getValue() instanceof Boolean) {
+                    validation((Boolean)entry.getValue());
+                } else if (entry.getValue() instanceof String) {
+                    validation(Booleans.parseBoolean((String)entry.getValue(), DEFAULT_VALIDATION));
+                }
             } else {
                 // maybe custom?
                 IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
@@ -539,6 +562,9 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             aliases.add(Alias.read(in));
         }
         version = in.readOptionalVInt();
+        if (in.getVersion().onOrAfter(Version.V_5_1_0)) {
+            validation = in.readBoolean();
+        }
     }
 
     @Override
@@ -565,5 +591,9 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             alias.writeTo(out);
         }
         out.writeOptionalVInt(version);
+        if (out.getVersion().onOrAfter(Version.V_5_1_0)) {
+            out.writeBoolean(validation);
+        }
+
     }
 }

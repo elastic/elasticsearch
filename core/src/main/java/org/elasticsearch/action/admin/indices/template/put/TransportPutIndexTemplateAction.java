@@ -86,6 +86,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
                 .aliases(request.aliases())
                 .customs(request.customs())
                 .create(request.create())
+                .validation(request.validation())
                 .masterTimeout(request.masterNodeTimeout())
                 .version(request.version()),
 

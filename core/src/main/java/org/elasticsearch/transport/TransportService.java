@@ -173,8 +173,8 @@ public class TransportService extends AbstractLifecycleComponent {
         this.tracerLogInclude = tracerLogInclude.toArray(Strings.EMPTY_ARRAY);
     }
 
-    void setTracerLogExclude(List<String> tracelLogExclude) {
-        this.tracerLogExclude = tracelLogExclude.toArray(Strings.EMPTY_ARRAY);
+    void setTracerLogExclude(List<String> tracerLogExclude) {
+        this.tracerLogExclude = tracerLogExclude.toArray(Strings.EMPTY_ARRAY);
     }
 
     @Override

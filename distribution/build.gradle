@@ -201,7 +201,7 @@ configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.nam
       with libFiles
       into('config') {
         dirMode 0750
-        fileMode 0640
+        fileMode 0660
         with configFiles
       }
       into('bin') {
@@ -372,7 +372,7 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     configurationFile '/etc/elasticsearch/log4j2.properties'
     into('/etc/elasticsearch') {
       dirMode 0750
-      fileMode 0640
+      fileMode 0660
       permissionGroup 'elasticsearch'
       includeEmptyDirs true
       createDirectoryEntry true
@@ -401,7 +401,7 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     configurationFile project.expansions['path.env']
     into(new File(project.expansions['path.env']).getParent()) {
       fileType CONFIG | NOREPLACE
-      fileMode 0640
+      fileMode 0660
       from "${project.packagingFiles}/env/elasticsearch"
     }
 

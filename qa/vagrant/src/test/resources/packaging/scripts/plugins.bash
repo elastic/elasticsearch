@@ -92,7 +92,7 @@ install_jvm_example() {
     config_owner=$(find "$ESCONFIG" -maxdepth 0 -printf "%g")
     # directories should user the user file-creation mask
     assert_file "$ESCONFIG/jvm-example" d $config_user $config_owner 750
-    assert_file "$ESCONFIG/jvm-example/example.yaml" f $config_user $config_owner 640
+    assert_file "$ESCONFIG/jvm-example/example.yaml" f $config_user $config_owner 660
 
     run sudo -E -u vagrant LANG="en_US.UTF-8" cat "$ESCONFIG/jvm-example/example.yaml"
     [ $status = 1 ]

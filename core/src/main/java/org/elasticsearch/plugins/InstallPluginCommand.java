@@ -151,45 +151,22 @@ class InstallPluginCommand extends SettingCommand {
 
     static {
         // Bin directory get chmod 755
-        Set<PosixFilePermission> binPerms = new HashSet<>(7);
-        binPerms.add(PosixFilePermission.OWNER_EXECUTE);
-        binPerms.add(PosixFilePermission.OWNER_READ);
-        binPerms.add(PosixFilePermission.OWNER_WRITE);
-        binPerms.add(PosixFilePermission.GROUP_EXECUTE);
-        binPerms.add(PosixFilePermission.GROUP_READ);
-        binPerms.add(PosixFilePermission.OTHERS_READ);
-        binPerms.add(PosixFilePermission.OTHERS_EXECUTE);
-        BIN_DIR_PERMS = Collections.unmodifiableSet(binPerms);
+        BIN_DIR_PERMS = Collections.unmodifiableSet(PosixFilePermissions.fromString("rwxr-xr-x"));
 
-        // Bin files get chmod 755
+        // Bin files also get chmod 755
         BIN_FILES_PERMS = BIN_DIR_PERMS;
 
         // Config directory get chmod 750
-        Set<PosixFilePermission> configDirPerms = new HashSet<>(5);
-        configDirPerms.add(PosixFilePermission.OWNER_EXECUTE);
-        configDirPerms.add(PosixFilePermission.OWNER_READ);
-        configDirPerms.add(PosixFilePermission.OWNER_WRITE);
-        configDirPerms.add(PosixFilePermission.GROUP_EXECUTE);
-        configDirPerms.add(PosixFilePermission.GROUP_READ);
-        CONFIG_DIR_PERMS = Collections.unmodifiableSet(configDirPerms);
+        CONFIG_DIR_PERMS = Collections.unmodifiableSet(PosixFilePermissions.fromString("rwxr-x---"));
 
-        // Config files get chmod 640
-        Set<PosixFilePermission> configFilesPerms = new HashSet<>(3);
-        configFilesPerms.add(PosixFilePermission.OWNER_READ);
-        configFilesPerms.add(PosixFilePermission.OWNER_WRITE);
-        configFilesPerms.add(PosixFilePermission.GROUP_READ);
-        CONFIG_FILES_PERMS = Collections.unmodifiableSet(configFilesPerms);
+        // Config files get chmod 660
+        CONFIG_FILES_PERMS = Collections.unmodifiableSet(PosixFilePermissions.fromString("rw-rw----"));
 
         // Plugin directory get chmod 755
         PLUGIN_DIR_PERMS = BIN_DIR_PERMS;
 
         // Plugins files get chmod 644
-        Set<PosixFilePermission> pluginFilesPerms = new HashSet<>(4);
-        pluginFilesPerms.add(PosixFilePermission.OWNER_READ);
-        pluginFilesPerms.add(PosixFilePermission.OWNER_WRITE);
-        pluginFilesPerms.add(PosixFilePermission.GROUP_READ);
-        pluginFilesPerms.add(PosixFilePermission.OTHERS_READ);
-        PLUGIN_FILES_PERMS = Collections.unmodifiableSet(pluginFilesPerms);
+        PLUGIN_FILES_PERMS = Collections.unmodifiableSet(PosixFilePermissions.fromString("rw-r--r--"));
     }
 
     InstallPluginCommand() {

@@ -185,15 +185,15 @@ public final class UnassignedInfo implements ToXContent, Writeable {
             }
         }
 
-        public static AllocationStatus fromDecision(Decision decision) {
+        public static AllocationStatus fromDecision(Decision.Type decision) {
             Objects.requireNonNull(decision);
-            switch (decision.type()) {
+            switch (decision) {
                 case NO:
                     return DECIDERS_NO;
                 case THROTTLE:
                     return DECIDERS_THROTTLED;
                 default:
-                    throw new IllegalArgumentException("no allocation attempt from decision[" + decision.type() + "]");
+                    throw new IllegalArgumentException("no allocation attempt from decision[" + decision + "]");
             }
         }
 

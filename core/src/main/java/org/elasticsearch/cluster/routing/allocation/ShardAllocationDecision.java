@@ -35,7 +35,7 @@ import java.util.Objects;
 public class ShardAllocationDecision {
     /** a constant representing a shard decision where no decision was taken */
     public static final ShardAllocationDecision DECISION_NOT_TAKEN =
-        new ShardAllocationDecision(null, null, null, null, null, null);
+        new ShardAllocationDecision(null, null, null, null, null, null, null);
     /**
      * a map of cached common no/throttle decisions that don't need explanations,
      * this helps prevent unnecessary object allocations for the non-explain API case
@@ -44,15 +44,15 @@ public class ShardAllocationDecision {
     static {
         Map<AllocationStatus, ShardAllocationDecision> cachedDecisions = new HashMap<>();
         cachedDecisions.put(AllocationStatus.FETCHING_SHARD_DATA,
-            new ShardAllocationDecision(Type.NO, AllocationStatus.FETCHING_SHARD_DATA, null, null, null, null));
+            new ShardAllocationDecision(Type.NO, AllocationStatus.FETCHING_SHARD_DATA, null, null, null, null, null));
         cachedDecisions.put(AllocationStatus.NO_VALID_SHARD_COPY,
-            new ShardAllocationDecision(Type.NO, AllocationStatus.NO_VALID_SHARD_COPY, null, null, null, null));
+            new ShardAllocationDecision(Type.NO, AllocationStatus.NO_VALID_SHARD_COPY, null, null, null, null, null));
         cachedDecisions.put(AllocationStatus.DECIDERS_NO,
-            new ShardAllocationDecision(Type.NO, AllocationStatus.DECIDERS_NO, null, null, null, null));
+            new ShardAllocationDecision(Type.NO, AllocationStatus.DECIDERS_NO, null, null, null, null, null));
         cachedDecisions.put(AllocationStatus.DECIDERS_THROTTLED,
-            new ShardAllocationDecision(Type.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, null, null, null, null));
+            new ShardAllocationDecision(Type.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, null, null, null, null, null));
         cachedDecisions.put(AllocationStatus.DELAYED_ALLOCATION,
-            new ShardAllocationDecision(Type.NO, AllocationStatus.DELAYED_ALLOCATION, null, null, null, null));
+            new ShardAllocationDecision(Type.NO, AllocationStatus.DELAYED_ALLOCATION, null, null, null, null, null));
         CACHED_DECISIONS = Collections.unmodifiableMap(cachedDecisions);
     }
 
@@ -67,14 +67,17 @@ public class ShardAllocationDecision {
     @Nullable
     private final String allocationId;
     @Nullable
-    private final Map<String, Decision> nodeDecisions;
+    private final Map<String, NodeExplanation> nodeExplanations;
+    @Nullable
+    private final Decision shardDecision;
 
     private ShardAllocationDecision(Type finalDecision,
                                     AllocationStatus allocationStatus,
                                     String finalExplanation,
                                     String assignedNodeId,
                                     String allocationId,
-                                    Map<String, Decision> nodeDecisions) {
+                                    Map<String, NodeExplanation> nodeExplanations,
+                                    Decision shardDecision) {
         assert assignedNodeId != null || finalDecision == null || finalDecision != Type.YES :
             "a yes decision must have a node to assign the shard to";
         assert allocationStatus != null || finalDecision == null || finalDecision == Type.YES :
@@ -86,7 +89,19 @@ public class ShardAllocationDecision {
         this.finalExplanation = finalExplanation;
         this.assignedNodeId = assignedNodeId;
         this.allocationId = allocationId;
-        this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;
+        this.nodeExplanations = nodeExplanations != null ? Collections.unmodifiableMap(nodeExplanations) : null;
+        this.shardDecision = shardDecision;
+    }
+
+    /**
+     * Returns a NO decision with the given shard-level decision and explanation (if in explain mode).
+     */
+    public static ShardAllocationDecision no(Decision shardDecision, @Nullable String explanation) {
+        if (explanation != null) {
+            return new ShardAllocationDecision(Type.NO, AllocationStatus.DECIDERS_NO, explanation, null, null, null, shardDecision);
+        } else {
+            return getCachedDecision(AllocationStatus.DECIDERS_NO);
+        }
     }
 
     /**
@@ -104,7 +119,7 @@ public class ShardAllocationDecision {
                                              @Nullable Map<String, Decision> nodeDecisions) {
         Objects.requireNonNull(allocationStatus, "allocationStatus must not be null");
         if (explanation != null) {
-            return new ShardAllocationDecision(Type.NO, allocationStatus, explanation, null, null, nodeDecisions);
+            return new ShardAllocationDecision(Type.NO, allocationStatus, explanation, null, null, asExplanations(nodeDecisions), null);
         } else {
             return getCachedDecision(allocationStatus);
         }
@@ -116,7 +131,8 @@ public class ShardAllocationDecision {
      */
     public static ShardAllocationDecision throttle(@Nullable String explanation, @Nullable Map<String, Decision> nodeDecisions) {
         if (explanation != null) {
-            return new ShardAllocationDecision(Type.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, explanation, null, null, nodeDecisions);
+            return new ShardAllocationDecision(Type.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, explanation, null, null,
+                                               asExplanations(nodeDecisions), null);
         } else {
             return getCachedDecision(AllocationStatus.DECIDERS_THROTTLED);
         }
@@ -130,12 +146,36 @@ public class ShardAllocationDecision {
     public static ShardAllocationDecision yes(String assignedNodeId, @Nullable String explanation, @Nullable String allocationId,
                                               @Nullable Map<String, Decision> nodeDecisions) {
         Objects.requireNonNull(assignedNodeId, "assignedNodeId must not be null");
-        return new ShardAllocationDecision(Type.YES, null, explanation, assignedNodeId, allocationId, nodeDecisions);
+        return new ShardAllocationDecision(Type.YES, null, explanation, assignedNodeId, allocationId, asExplanations(nodeDecisions), null);
+    }
+
+    /**
+     * Creates a {@link ShardAllocationDecision} from the given {@link Decision} and the assigned node, if any.
+     */
+    public static ShardAllocationDecision fromDecision(Decision decision, @Nullable String assignedNodeId, @Nullable String explanation,
+                                                       @Nullable Map<String, NodeExplanation> nodeExplanations) {
+        final Type decisionType = decision.type();
+        AllocationStatus allocationStatus = null;
+        if (decisionType != Type.YES) {
+            allocationStatus = AllocationStatus.fromDecision(decisionType);
+        }
+        return new ShardAllocationDecision(decisionType, allocationStatus, explanation, assignedNodeId, null, nodeExplanations, null);
     }
 
     private static ShardAllocationDecision getCachedDecision(AllocationStatus allocationStatus) {
         ShardAllocationDecision decision = CACHED_DECISIONS.get(allocationStatus);
         return Objects.requireNonNull(decision, "precomputed decision not found for " + allocationStatus);
+    }
+
+    private static Map<String, NodeExplanation> asExplanations(Map<String, Decision> decisionMap) {
+        if (decisionMap != null) {
+            Map<String, NodeExplanation> explanationMap = new HashMap<>();
+            for (Map.Entry<String, Decision> entry : decisionMap.entrySet()) {
+                explanationMap.put(entry.getKey(), new NodeExplanation(entry.getValue(), Float.POSITIVE_INFINITY));
+            }
+            return explanationMap;
+        }
+        return null;
     }
 
     /**
@@ -205,12 +245,75 @@ public class ShardAllocationDecision {
     }
 
     /**
-     * Gets the individual node-level decisions that went into making the final decision as represented by
+     * Gets the individual node-level explanations that went into making the final decision as represented by
      * {@link #getFinalDecision()}.  The map that is returned has the node id as the key and a {@link Decision}
      * as the decision for the given node.
      */
     @Nullable
-    public Map<String, Decision> getNodeDecisions() {
-        return nodeDecisions;
+    public Map<String, NodeExplanation> getNodeDecisions() {
+        return nodeExplanations;
+    }
+
+    /**
+     * Gets the decision on allocating a shard, without examining any specific nodes to allocate to
+     * (e.g. a replica can never be allocated if the primary is not allocated, so this is a shard-level
+     * decision, not having taken any node into account).
+     */
+    @Nullable
+    public Decision getShardDecision() {
+        return shardDecision;
+    }
+
+    /**
+     * This class represents the shard allocation explanation for a single node,
+     * including the {@link Decision} whether to allocate to the node and the
+     * weight assigned to the node for the shard in question.
+     */
+    public static final class NodeExplanation {
+
+        private final Decision decision;
+        private final float weight;
+
+        public NodeExplanation(Decision decision) {
+            this.decision = Objects.requireNonNull(decision);
+            this.weight = Float.POSITIVE_INFINITY;
+        }
+
+        public NodeExplanation(Decision decision, float weight) {
+            this.decision = Objects.requireNonNull(decision);
+            this.weight = Objects.requireNonNull(weight);
+        }
+
+        /**
+         * The decision for allocating to the node.
+         */
+        public Decision getDecision() {
+            return decision;
+        }
+
+        /**
+         * The calculated weight for allocating a shard to the node.  A value of {@link Float#POSITIVE_INFINITY}
+         * means the weight was not calculated or factored into the decision.
+         */
+        public float getWeight() {
+            return weight;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
+            NodeExplanation that = (NodeExplanation) other;
+            return decision.equals(that.decision) && Float.compare(weight, that.weight) == 0;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(decision, weight);
+        }
     }
 }

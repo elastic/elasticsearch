@@ -178,38 +178,19 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
     }
 
-    private static class StoredScriptCacheKey {
-        private final String id;
-        private final String code;
+    private static class StoredScriptWrapper {
+        private final StoredScriptSource source;
+        private final CompiledScript compiled;
 
-        private StoredScriptCacheKey(String id, String code) {
-            this.id = id;
-            this.code = code;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            StoredScriptCacheKey that = (StoredScriptCacheKey)o;
-
-            if (!id.equals(that.id)) return false;
-            return code.equals(that.code);
-
-        }
-
-        @Override
-        public int hashCode() {
-            int result = id.hashCode();
-            result = 31 * result + code.hashCode();
-            return result;
+        private StoredScriptWrapper(StoredScriptSource source, CompiledScript compiled) {
+            this.source = source;
+            this.compiled = compiled;
         }
     }
 
-    private class StoredCacheRemovalListener implements RemovalListener<StoredScriptCacheKey, CompiledScript> {
+    private class StoredCacheRemovalListener implements RemovalListener<StoredScriptLookup, StoredScriptWrapper> {
         @Override
-        public void onRemoval(RemovalNotification<StoredScriptCacheKey, CompiledScript> notification) {
+        public void onRemoval(RemovalNotification<StoredScriptLookup, StoredScriptWrapper> notification) {
             if (logger.isDebugEnabled()) {
                 logger.debug("removed [{}] from stored cache, reason [{}]", notification.getValue(), notification.getRemovalReason());
             }
@@ -251,7 +232,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     private final Path fileScriptsDirectory;
     private final ConcurrentMap<FileScriptLookup, CompiledScript> fileCache = ConcurrentCollections.newConcurrentMap();
 
-    private final Cache<StoredScriptCacheKey, CompiledScript> storedCache;
+    private final Cache<StoredScriptLookup, StoredScriptWrapper> storedCache;
     private final Cache<InlineScriptLookup, CompiledScript> inlineCache;
 
     private ClusterState clusterState;
@@ -304,7 +285,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             fileWatcher.init();
         }
 
-        CacheBuilder<StoredScriptCacheKey, CompiledScript> storedCacheBuilder = CacheBuilder.builder();
+        CacheBuilder<StoredScriptLookup, StoredScriptWrapper> storedCacheBuilder = CacheBuilder.builder();
         CacheBuilder<InlineScriptLookup, CompiledScript> inlineCacheBuilder = CacheBuilder.builder();
         int cacheMaxSize = SCRIPT_CACHE_SIZE_SETTING.get(settings);
         TimeValue cacheExpire = SCRIPT_CACHE_EXPIRE_SETTING.get(settings);
@@ -484,7 +465,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return ScriptMetaData.getScript(state, request.id());
     }
 
-    protected CompiledScript getFileScript(ScriptContext context, FileScriptLookup lookup) {
+    public CompiledScript getFileScript(ScriptContext context, FileScriptLookup lookup) {
         CompiledScript compiled = fileCache.get(lookup);
 
         if (compiled == null) {
@@ -496,7 +477,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return compiled;
     }
 
-    protected CompiledScript getStoredScript(ScriptContext context, StoredScriptLookup lookup) {
+    public CompiledScript getStoredScript(ScriptContext context, StoredScriptLookup lookup) {
         StoredScriptSource source = ScriptMetaData.getScript(clusterState, lookup.id);
 
         if (source == null) {
@@ -505,24 +486,24 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         canExecuteScriptInSpecificContext(context, STORED, source.lang);
 
-        StoredScriptCacheKey key = new StoredScriptCacheKey(lookup.id, source.code);
-        CompiledScript compiled = storedCache.get(key);
+        StoredScriptWrapper wrapper = storedCache.get(lookup);
 
-        if (compiled == null) {
+        if (wrapper == null || !source.equals(wrapper.source)) {
             synchronized(this) {
-                compiled = storedCache.get(key);
+                wrapper = storedCache.get(lookup);
 
-                if (compiled == null) {
-                    compiled = compile(true, STORED, lookup.id, source.lang, source.code, source.options);
-                    storedCache.put(key, compiled);
+                if (wrapper == null || !source.equals(wrapper.source)) {
+                    CompiledScript compiled = compile(true, STORED, lookup.id, source.lang, source.code, source.options);
+                    wrapper = new StoredScriptWrapper(source, compiled);
+                    storedCache.put(lookup, wrapper);
                 }
             }
         }
 
-        return compiled;
+        return wrapper.compiled;
     }
 
-    protected CompiledScript getInlineScript(ScriptContext context, InlineScriptLookup lookup) {
+    public CompiledScript getInlineScript(ScriptContext context, InlineScriptLookup lookup) {
         canExecuteScriptInSpecificContext(context, INLINE, lookup.lang);
 
         CompiledScript compiled = inlineCache.get(lookup);
@@ -561,7 +542,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             // TODO: remove this try-catch completely, when all script engines have good exceptions!
             throw exception; // its already good
         } catch (Exception exception) {
-            throw new GeneralScriptException("failed to compile " + type + " script [" + id + "] using lang [" + lang + "]", exception);
+            throw new GeneralScriptException("failed to compile " +
+                "[" + type + "] script [" + id + "] using lang [" + lang + "] with code [" + code + "]", exception);
         }
     }
 }

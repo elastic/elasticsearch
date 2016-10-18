@@ -108,7 +108,7 @@ GET /_search
 {
     "query": {
         "template": {
-            "id": "my_template", <1>
+            "stored": "my_template", <1>
             "params" : {
                 "query_string" : "all about search"
             }

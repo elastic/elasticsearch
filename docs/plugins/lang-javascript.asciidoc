@@ -123,7 +123,7 @@ GET test/_search
     "function_score": {
       "script_score": {
         "script": {
-          "id": "my_script", <2>
+          "stored": "my_script", <2>
           "params": {
             "factor": 2
           }
@@ -176,7 +176,6 @@ GET test/_search
       "script_score": {
         "script": {
           "file": "my_script", <1>
-          "lang": "javascript",
           "params": {
             "factor": 2
           }

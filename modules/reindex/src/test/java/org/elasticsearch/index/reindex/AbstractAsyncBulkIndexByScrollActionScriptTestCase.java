@@ -26,7 +26,9 @@ import org.elasticsearch.index.reindex.AbstractAsyncBulkIndexByScrollAction.OpTy
 import org.elasticsearch.index.reindex.AbstractAsyncBulkIndexByScrollAction.RequestWrapper;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script.InlineScriptLookup;
 import org.elasticsearch.script.Script.ScriptInput;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.junit.Before;
 import org.mockito.Matchers;
@@ -59,8 +61,10 @@ public abstract class AbstractAsyncBulkIndexByScrollActionScriptTestCase<
         IndexRequest index = new IndexRequest("index", "type", "1").source(singletonMap("foo", "bar"));
         ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "type", "id", 0);
         ExecutableScript executableScript = new SimpleExecutableScript(scriptBody);
+        CompiledScript compiled = mock(CompiledScript.class);
 
-        when(any(CompiledScript.class).bindExecutable(Matchers.<Map<String, Object>>any())).thenReturn(executableScript);
+        when(scriptService.getInlineScript(any(ScriptContext.Standard.class), any(InlineScriptLookup.class))).thenReturn(compiled);
+        when(compiled.bindExecutable(Matchers.any())).thenReturn(executableScript);
         AbstractAsyncBulkIndexByScrollAction<Request> action = action(scriptService, request().setScript(EMPTY_SCRIPT));
         RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc);
         return (result != null) ? (T) result.self() : null;

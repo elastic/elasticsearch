@@ -26,20 +26,23 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.discovery.MockZenPing;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -61,25 +64,25 @@ public class TribeUnitTests extends ESTestCase {
         Settings baseSettings = Settings.builder()
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
             .put("transport.type", "local")
-            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local")
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
             .build();
 
+        final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(MockZenPing.TestPlugin.class);
         tribe1 = new TribeClientNode(
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe1")
                 .put("node.name", "tribe1_node")
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
-                .build(), Collections.emptyList()).start();
+                .build(), mockPlugins).start();
         tribe2 = new TribeClientNode(
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe2")
                 .put("node.name", "tribe2_node")
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
-                .build(), Collections.emptyList()).start();
+                .build(), mockPlugins).start();
     }
 
     @AfterClass
@@ -103,11 +106,10 @@ public class TribeUnitTests extends ESTestCase {
         Settings settings = Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).put("node.name", "tribe_node")
                 .put("transport.type", "local").put("discovery.type", "local")
                 .put("tribe.t1.transport.type", "local").put("tribe.t2.transport.type", "local")
-                .put("tribe.t1.discovery.type", "local").put("tribe.t2.discovery.type", "local")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(extraSettings).build();
 
-        try (Node node = new Node(settings).start()) {
+        try (Node node = new MockNode(settings, Collections.singletonList(MockZenPing.TestPlugin.class)).start()) {
             try (Client client = node.client()) {
                 assertBusy(() -> {
                     ClusterState state = client.admin().cluster().prepareState().clear().setNodes(true).get().getState();

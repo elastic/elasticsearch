@@ -47,6 +47,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class IndexingMasterFailoverIT extends ESIntegTestCase {
 
     @Override
+    protected boolean addMockZenPings() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final HashSet<Class<? extends Plugin>> classes = new HashSet<>(super.nodePlugins());
         classes.add(MockTransportService.TestPlugin.class);

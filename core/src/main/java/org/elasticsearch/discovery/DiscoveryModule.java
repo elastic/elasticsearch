@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
-import org.elasticsearch.discovery.local.LocalDiscovery;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
@@ -59,11 +58,9 @@ public class DiscoveryModule extends AbstractModule {
 
     public DiscoveryModule(Settings settings) {
         this.settings = settings;
-        addDiscoveryType("local", LocalDiscovery.class);
+        addDiscoveryType("none", NoneDiscovery.class);
         addDiscoveryType("zen", ZenDiscovery.class);
         addElectMasterService("zen", ElectMasterService.class);
-        // always add the unicast hosts, or things get angry!
-        addZenPing(UnicastZenPing.class);
     }
 
     /**
@@ -113,7 +110,7 @@ public class DiscoveryModule extends AbstractModule {
             throw new IllegalArgumentException("Unknown Discovery type [" + discoveryType + "]");
         }
 
-        if (discoveryType.equals("local") == false) {
+        if (discoveryType.equals("none") == false) {
             String masterServiceTypeKey = ZEN_MASTER_SERVICE_TYPE_SETTING.get(settings);
             final Class<? extends ElectMasterService> masterService = masterServiceType.get(masterServiceTypeKey);
             if (masterService == null) {
@@ -129,6 +126,9 @@ public class DiscoveryModule extends AbstractModule {
             for (Class<? extends UnicastHostsProvider> unicastHostProvider :
                     unicastHostProviders.getOrDefault(discoveryType, Collections.emptyList())) {
                 unicastHostsProviderMultibinder.addBinding().to(unicastHostProvider);
+            }
+            if (zenPings.isEmpty()) {
+                zenPings.registerExtension(UnicastZenPing.class);
             }
             zenPings.bind(binder());
         }

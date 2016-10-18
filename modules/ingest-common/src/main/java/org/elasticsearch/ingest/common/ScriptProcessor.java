@@ -69,6 +69,10 @@ public final class ScriptProcessor extends AbstractProcessor {
         return TYPE;
     }
 
+    Script getScript() {
+        return script;
+    }
+
     public static final class Factory implements Processor.Factory {
 
         private final ScriptService scriptService;
@@ -80,7 +84,7 @@ public final class ScriptProcessor extends AbstractProcessor {
         @Override
         public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                       Map<String, Object> config) throws Exception {
-            String lang = readStringProperty(TYPE, processorTag, config, "lang");
+            String lang = readOptionalStringProperty(TYPE, processorTag, config, "lang");
             String inline = readOptionalStringProperty(TYPE, processorTag, config, "inline");
             String file = readOptionalStringProperty(TYPE, processorTag, config, "file");
             String id = readOptionalStringProperty(TYPE, processorTag, config, "id");

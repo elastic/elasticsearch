@@ -11,7 +11,7 @@ integTest {
     setting 'script.inline', 'true'
     plugin ':x-plugins:elasticsearch'
     // Whitelist reindexing from the local node so we can test it.
-    setting 'reindex.remote.whitelist', 'myself'
+    setting 'reindex.remote.whitelist', '127.0.0.1:*'
     extraConfigFile 'x-pack/roles.yml', 'roles.yml'
     [
       test_admin: 'superuser',

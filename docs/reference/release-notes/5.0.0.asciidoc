@@ -1,0 +1,71 @@
+[[release-notes-5.0.0-GA]]
+== 5.0.0 GA Release Notes
+
+The list below cover changes between 5.0.0-rc1 and 5.0.0 GA only.
+
+Also see <<breaking-changes-5.0>>.
+
+[[enhancement-5.0.0-GA]]
+[float]
+=== Enhancements
+
+Circuit Breakers::
+* Cluster Settings Updates should not trigger circuit breakers. {pull}20827[#20827]
+
+Plugins::
+* Revert "Display plugins versions" {pull}20807[#20807] (issues: {issue}18683[#18683], {issue}20668[#20668])
+
+REST::
+* Add a REST spec for the create API {pull}20924[#20924]
+
+Settings::
+* Add precise logging on unknown or invalid settings {pull}20951[#20951] (issue: {issue}20946[#20946])
+
+
+
+[[bug-5.0.0-GA]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fixed writeable name from range to geo_distance {pull}20860[#20860]
+
+Allocation::
+* Keep a shadow replicas' allocation id when it is promoted to primary {pull}20863[#20863] (issue: {issue}20650[#20650])
+
+Index APIs::
+* Only negate index expression on all indices with preceding wildcard {pull}20898[#20898] (issues: {issue}19800[#19800], {issue}20033[#20033])
+
+Internal::
+* Prevent AbstractArrays from release bytes more than once {pull}20819[#20819]
+
+Mapping::
+* Allow position_gap_increment for fields in indices created prior to 5.0 {pull}20806[#20806] (issues: {issue}19510[#19510], {issue}20413[#20413])
+
+Network::
+* Fix connection close header handling {pull}20956[#20956] (issue: {issue}20938[#20938])
+* Ensure port range is readable in the exception message {pull}20893[#20893]
+
+Plugin Repository S3::
+* Fixes leading forward slash in S3 repository base_path {pull}20861[#20861]
+
+Query DSL::
+* Fixes MultiMatchQuery so that it doesn't provide a null context {pull}20882[#20882]
+* Fix match_phrase_prefix query with single term on _all field {pull}20471[#20471] (issue: {issue}20470[#20470])
+
+Scripting::
+* Add support for booleans in scripts {pull}20950[#20950] (issue: {issue}20949[#20949])
+
+Search::
+* Do not cache script queries. {pull}20799[#20799] (issue: {issue}20763[#20763])
+
+
+
+[[regression-5.0.0-GA]]
+[float]
+=== Regressions
+
+Highlighting::
+* Handle SynonymQuery extraction for the FastVectorHighlighter {pull}20829[#20829] (issue: {issue}20781[#20781])
+
+

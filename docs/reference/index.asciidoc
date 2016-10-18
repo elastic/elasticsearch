@@ -1,14 +1,14 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
-:version:        5.0.0-rc1
+:version:        5.0.0
 :major-version:  5.x
 
 //////////
 release-state can be: released | prerelease | unreleased
 //////////
 
-:release-state:  prerelease
+:release-state:  released
 :lucene_version: 6.2.0
 :branch:         master
 :jdk:            1.8.0_73

@@ -35,7 +35,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Singleton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -68,17 +67,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
         return Arrays.asList(TestPlugin.class);
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen").build();
-    }
-
     public void testAckedUpdateTask() throws Exception {
-        Settings settings = Settings.builder()
-                .put("discovery.type", "local")
-                .build();
-        internalCluster().startNode(settings);
+        internalCluster().startNode();
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
 
         final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
@@ -151,10 +141,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
     }
 
     public void testAckedUpdateTaskSameClusterState() throws Exception {
-        Settings settings = Settings.builder()
-                .put("discovery.type", "local")
-                .build();
-        internalCluster().startNode(settings);
+        internalCluster().startNode();
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
 
         final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
@@ -222,10 +209,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
     }
 
     public void testAckedUpdateTaskNoAckExpected() throws Exception {
-        Settings settings = Settings.builder()
-                .put("discovery.type", "local")
-                .build();
-        internalCluster().startNode(settings);
+        internalCluster().startNode();
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
 
         final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
@@ -294,10 +278,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
     }
 
     public void testAckedUpdateTaskTimeoutZero() throws Exception {
-        Settings settings = Settings.builder()
-                .put("discovery.type", "local")
-                .build();
-        internalCluster().startNode(settings);
+        internalCluster().startNode();
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
 
         final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
@@ -371,11 +352,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
     @TestLogging("_root:debug,org.elasticsearch.action.admin.cluster.tasks:trace")
     public void testPendingUpdateTask() throws Exception {
-        Settings settings = Settings.builder()
-                .put("discovery.type", "local")
-                .build();
-        String node_0 = internalCluster().startNode(settings);
-        internalCluster().startCoordinatingOnlyNode(settings);
+        String node_0 = internalCluster().startNode();
+        internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node_0);
         final CountDownLatch block1 = new CountDownLatch(1);
@@ -507,7 +485,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
     public void testLocalNodeMasterListenerCallbacks() throws Exception {
         Settings settings = Settings.builder()
-                .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 1)
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "400ms")
                 .put("discovery.initial_state_timeout", "500ms")

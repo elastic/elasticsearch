@@ -225,7 +225,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                             // we only find a template when its an API call (a new index)
                             // find templates, highest order are better matching
-                            List<IndexTemplateMetaData> templates = findTemplates(request, currentState);
+                            List<IndexTemplateMetaData> templates = findTemplates(request.index(), currentState);
 
                             Map<String, Custom> customs = new HashMap<>();
 
@@ -452,11 +452,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 });
     }
 
-    private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws IOException {
-        List<IndexTemplateMetaData> templates = new ArrayList<>();
+    ArrayList<IndexTemplateMetaData> findTemplates(String indexName, ClusterState state) throws IOException {
+        ArrayList<IndexTemplateMetaData> templates = new ArrayList<>();
         for (ObjectCursor<IndexTemplateMetaData> cursor : state.metaData().templates().values()) {
             IndexTemplateMetaData template = cursor.value;
-            if (Regex.simpleMatch(template.template(), request.index())) {
+            if (Regex.simpleMatch(template.template(), indexName)) {
                 templates.add(template);
             }
         }

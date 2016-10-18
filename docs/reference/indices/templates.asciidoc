@@ -181,3 +181,13 @@ for indices of that start with `te*`, source will still be enabled.
 Note, for mappings, the merging is "deep", meaning that specific
 object/property based mappings can easily be added/overridden on higher
 order templates, with lower order templates providing the basis.
+
+=== Template validation
+
+After 5.0, Elasticsearch validate an index template during creation.
+If an index template has some error, Elasticsearch doesn't create and user gets the error message.
+If multiple index templates match the template pattern that you put,
+Elasticsearch validates the final configuration that merged matched templates.
+This means, you have multiple templates, you should create templates in dependency order.
+And a template validation is only applied at creation and updates time.
+If a dependent template is deleted, there is no error message and user only knows the error when user creates an index.

@@ -138,17 +138,17 @@ setup:
       msearch_template:
         body:
           - index: index_*
-          - id: stored_template_1
+          - stored: stored_template_1
             params:
               field: "foo"
               value: "foo"
           - index: _all
-          - id: stored_template_1
+          - stored: stored_template_1
             params:
               field: "foo"
               value: "bar"
           - index: index_2
-          - id: stored_template_1
+          - stored: stored_template_1
             params:
               field: "foo"
               value: "foo"

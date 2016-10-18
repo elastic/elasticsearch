@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptType;
 
 import java.io.IOException;

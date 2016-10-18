@@ -121,7 +121,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
     }
 
     public void testParseStoredTemplate() throws Exception {
-        String source = "{'id' : 'storedTemplate'}";
+        String source = "{'stored' : 'storedTemplate'}";
 
         SearchTemplateRequest request = RestSearchTemplateAction.parse(newBytesReference(source));
         assertThat(request.getScript(), equalTo("storedTemplate"));
@@ -130,7 +130,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
     }
 
     public void testParseStoredTemplateWithParams() throws Exception {
-        String source = "{'id' : 'another_template', 'params' : {'bar': 'foo'}}";
+        String source = "{'stored' : 'another_template', 'params' : {'bar': 'foo'}}";
 
         SearchTemplateRequest request = RestSearchTemplateAction.parse(newBytesReference(source));
         assertThat(request.getScript(), equalTo("another_template"));
@@ -141,7 +141,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
 
     public void testParseWrongTemplate() {
         // Unclosed template id
-        expectThrows(ParsingException.class, () -> RestSearchTemplateAction.parse(newBytesReference("{'id' : 'another_temp }")));
+        expectThrows(ParsingException.class, () -> RestSearchTemplateAction.parse(newBytesReference("{'stored' : 'another_temp }")));
     }
 
     /**

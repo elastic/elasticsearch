@@ -9,14 +9,14 @@
 
   - do:
       render_search_template:
-        body: { "id": "1", "params": { "my_value": "foo", "my_field": "field1" } }
+        body: { "stored": "1", "params": { "my_value": "foo", "my_field": "field1" } }
 
   - match: { template_output.query.match.text: "foo" }
   - match: { template_output.aggs.my_terms.terms.field: "field1" }
 
   - do:
       render_search_template:
-        body: { "id": "1", "params": { "my_value": "bar", "my_field": "my_other_field" } }
+        body: { "stored": "1", "params": { "my_value": "bar", "my_field": "my_other_field" } }
 
   - match: { template_output.query.match.text: "bar" }
   - match: { template_output.aggs.my_terms.terms.field: "my_other_field" }
@@ -78,14 +78,14 @@
 
   - do:
       render_search_template:
-        body: { "id": "1", "params": { "my_value": "foo", "my_size": 20 } }
+        body: { "stored": "1", "params": { "my_value": "foo", "my_size": 20 } }
 
   - match: { template_output.query.match.text: "foo" }
   - match: { template_output.size: 20 }
 
   - do:
       render_search_template:
-        body: { "id": "1", "params": { "my_value": "bar", "my_size": 100 } }
+        body: { "stored": "1", "params": { "my_value": "bar", "my_size": 100 } }
 
   - match: { template_output.query.match.text: "bar" }
   - match: { template_output.size: 100 }
@@ -146,11 +146,11 @@
 
   - do:
       search_template:
-        body: {  "id" : "1", "params" : { "my_value" : "value1_foo", "my_size" : 1 } }
+        body: {  "stored" : "1", "params" : { "my_value" : "value1_foo", "my_size" : 1 } }
   - match: { hits.total: 1 }
 
   - do:
-      catch: /Unable.to.find.on.disk.file.script.\[simple1\].using.lang.\[mustache\]/
+      catch: /file script \[simple1\] does not exist/
       search_template:
-        body: { "file" : "simple1"}
+        body: { "file" : "simple1" }
 

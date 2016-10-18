@@ -53,7 +53,7 @@
         body: { "template": { "query": { "match{{}}_all": {}}, "size": "{{my_size}}" } }
 
   - do:
-      catch: /Unable\sto\sparse.*/
+      catch: /failed to compile stored script/
       put_template:
         id: "1"
         body: { "template": { "query": { "match{{}}_all": {}}, "size": "{{my_size}}" } }

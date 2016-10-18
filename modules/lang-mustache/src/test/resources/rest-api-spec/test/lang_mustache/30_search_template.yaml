@@ -36,7 +36,7 @@
 
   - do:
       search_template:
-        body: { "id" : "1", "params": { "template": "value1" } }
+        body: { "stored" : "1", "params": { "template": "value1" } }
   - match: { hits.total: 1 }
 
   - do:
@@ -51,7 +51,7 @@
   - do:
       catch: missing
       search_template:
-        body: { "id" : "unknown", "params": { "template": "value1" } }
+        body: { "stored" : "unknown", "params": { "template": "value1" } }
 
 ---
 "Test that parameters can be used":

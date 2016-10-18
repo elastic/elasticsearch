@@ -135,8 +135,8 @@ public final class Script {
             );
 
         static {
-                CONSTRUCTOR.declareString(optionalConstructorArg(), ScriptField.LANG);
-                CONSTRUCTOR.declareString(constructorArg(), ScriptField.CODE);
+            CONSTRUCTOR.declareString(optionalConstructorArg(), ScriptField.LANG);
+            CONSTRUCTOR.declareString(constructorArg(), ScriptField.CODE);
         }
 
         public static StoredScriptSource parse(XContentParser parser) throws IOException {
@@ -167,7 +167,7 @@ public final class Script {
                 }
             } else if (parser.currentToken() == Token.FIELD_NAME && ScriptField.TEMPLATE.getPreferredName().equals(parser.currentName())) {
                 if (parser.nextToken() == Token.VALUE_STRING) {
-                    source = new StoredScriptSource(true, "mustache", parser.text(), Collections.emptyMap());
+                    source = new StoredScriptSource(true, DEFAULT_TEMPLATE_LANG, parser.text(), Collections.emptyMap());
                 } else if (parser.currentToken() == Token.START_OBJECT) {
                     if (parser.contentType() != XContentType.JSON) {
                         throw new IllegalArgumentException("unexpected content type [" + parser.contentType().mediaType() + "]" +
@@ -177,7 +177,7 @@ public final class Script {
                     XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
                     builder.copyCurrentStructure(parser);
 
-                    source = new StoredScriptSource(true, "mustache", builder.bytes().utf8ToString(),
+                    source = new StoredScriptSource(true, DEFAULT_TEMPLATE_LANG, builder.bytes().utf8ToString(),
                         Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
@@ -878,6 +878,7 @@ public final class Script {
         }
     }
 
+    public static final String DEFAULT_TEMPLATE_LANG = "mustache";
     public static final String DEFAULT_SCRIPT_LANG = "painless";
     public static final String DEFAULT_SCRIPT_NAME = "<inline>";
 

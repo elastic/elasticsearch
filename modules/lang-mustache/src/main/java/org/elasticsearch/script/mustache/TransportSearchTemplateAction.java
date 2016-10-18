@@ -43,6 +43,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 public class TransportSearchTemplateAction extends HandledTransportAction<SearchTemplateRequest, SearchTemplateResponse> {
 
@@ -68,13 +70,18 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         final SearchTemplateResponse response = new SearchTemplateResponse();
         try {
             ScriptInput script;
+            Map<String, Object> params = request.getScriptParams();
+
+            if (params == null) {
+                params = new HashMap<>();
+            }
 
             if (request.getScriptType() == ScriptType.FILE) {
-                script = ScriptInput.file(request.getScript(), request.getScriptParams());
+                script = ScriptInput.file(request.getScript(), params);
             } else if (request.getScriptType() == ScriptType.STORED) {
-                script = ScriptInput.stored(request.getScript(), request.getScriptParams());
-            } else{
-                script = ScriptInput.inline(TEMPLATE_LANG, request.getScript(), Collections.emptyMap(), request.getScriptParams());
+                script = ScriptInput.stored(request.getScript(), params);
+            } else {
+                script = ScriptInput.inline(TEMPLATE_LANG, request.getScript(), Collections.emptyMap(), params);
             }
 
             ExecutableScript executable =

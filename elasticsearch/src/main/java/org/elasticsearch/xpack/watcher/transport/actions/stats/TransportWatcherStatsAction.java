@@ -8,17 +8,16 @@ package org.elasticsearch.xpack.watcher.transport.actions.stats;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.watcher.WatcherBuild;
 import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
 import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
@@ -65,7 +64,6 @@ public class TransportWatcherStatsAction extends WatcherTransportAction<WatcherS
         statsResponse.setThreadPoolQueueSize(executionService.executionThreadPoolQueueSize());
         statsResponse.setWatchesCount(watcherService.watchesCount());
         statsResponse.setThreadPoolMaxSize(executionService.executionThreadPoolMaxSize());
-        statsResponse.setBuild(WatcherBuild.CURRENT);
         statsResponse.setWatcherMetaData(lifeCycleService.watcherMetaData());
 
         if (request.includeCurrentWatches()) {
@@ -82,6 +80,4 @@ public class TransportWatcherStatsAction extends WatcherTransportAction<WatcherS
     protected ClusterBlockException checkBlock(WatcherStatsRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
-
-
 }

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.transport.action.stats;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xpack.watcher.WatcherBuild;
 import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
@@ -43,7 +42,6 @@ public class WatcherStatsTests extends AbstractWatcherIntegrationTestCase {
         assertThat(response.getThreadPoolQueueSize(), is(0L));
         assertThat(response.getWatchesCount(), is(0L));
         assertThat(response.getThreadPoolMaxSize(), is(timeWarped() ? 1L : 0L));
-        assertThat(response.getBuild(), is(WatcherBuild.CURRENT));
     }
 
     public void testWatchCountStats() throws Exception {

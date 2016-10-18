@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.watcher.WatcherBuild;
 import org.elasticsearch.xpack.watcher.WatcherMetaData;
 import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.execution.QueuedWatch;
@@ -24,7 +23,6 @@ import java.util.Locale;
 
 public class WatcherStatsResponse extends ActionResponse implements ToXContent {
 
-    private WatcherBuild build;
     private long watchesCount;
     private WatcherState watcherState;
     private long threadPoolQueueSize;
@@ -81,17 +79,6 @@ public class WatcherStatsResponse extends ActionResponse implements ToXContent {
         this.watcherState = watcherServiceState;
     }
 
-    /**
-     * @return The watcher plugin build information.
-     */
-    public WatcherBuild getBuild() {
-        return build;
-    }
-
-    void setBuild(WatcherBuild build) {
-        this.build = build;
-    }
-
     @Nullable
     public List<WatchExecutionSnapshot> getSnapshots() {
         return snapshots;
@@ -125,7 +112,6 @@ public class WatcherStatsResponse extends ActionResponse implements ToXContent {
         threadPoolQueueSize = in.readLong();
         threadPoolMaxSize = in.readLong();
         watcherState = WatcherState.fromId(in.readByte());
-        build = WatcherBuild.readBuild(in);
 
         if (in.readBoolean()) {
             int size = in.readVInt();
@@ -151,7 +137,6 @@ public class WatcherStatsResponse extends ActionResponse implements ToXContent {
         out.writeLong(threadPoolQueueSize);
         out.writeLong(threadPoolMaxSize);
         out.writeByte(watcherState.getId());
-        WatcherBuild.writeBuild(build, out);
 
         if (snapshots != null) {
             out.writeBoolean(true);

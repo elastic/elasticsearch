@@ -542,6 +542,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             }
 
             Set<String> result = null;
+            boolean wildcardSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
                 String expression = expressions.get(i);
                 if (metaData.getAliasAndIndexLookup().containsKey(expression)) {
@@ -562,23 +563,14 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                     add = true;
                     expression = expression.substring(1);
                 } else if (expression.charAt(0) == '-') {
-                    // if its the first, fill it with all the indices...
-                    if (i == 0) {
-                        String[] concreteIndices;
-                        if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
-                            concreteIndices = metaData.concreteAllIndices();
-                        } else if (options.expandWildcardsOpen()) {
-                            concreteIndices = metaData.concreteAllOpenIndices();
-                        } else if (options.expandWildcardsClosed()) {
-                            concreteIndices = metaData.concreteAllClosedIndices();
-                        } else {
-                            assert false : "Shouldn't end up here";
-                            concreteIndices = Strings.EMPTY_ARRAY;
-                        }
-                        result = new HashSet<>(Arrays.asList(concreteIndices));
+                    // if there is a negation without a wildcard being previously seen, add it verbatim,
+                    // otherwise return the expression
+                    if (wildcardSeen) {
+                        add = false;
+                        expression = expression.substring(1);
+                    } else {
+                        add = true;
                     }
-                    add = false;
-                    expression = expression.substring(1);
                 }
                 if (result == null) {
                     // add all the previous ones...
@@ -654,6 +646,10 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                     IndexNotFoundException infe = new IndexNotFoundException(expression);
                     infe.setResources("index_or_alias", expression);
                     throw infe;
+                }
+
+                if (Regex.isSimpleMatchPattern(expression)) {
+                    wildcardSeen = true;
                 }
             }
             if (result == null) {

@@ -715,6 +715,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                     .put("location", repositoryLocation)
                     .put("random", randomAsciiOfLength(10))
                     .put("use_lucene_corruption", true)
+                    .put("max_failure_number", 10000000L)
                     .put("random_data_file_io_exception_rate", 1.0)));
 
         // Test restore after index deletion

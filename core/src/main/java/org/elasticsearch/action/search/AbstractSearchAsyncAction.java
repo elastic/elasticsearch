@@ -27,104 +27,71 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
-import static org.elasticsearch.action.search.TransportSearchHelper.internalSearchRequest;
 
 abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> extends AbstractAsyncAction {
 
     protected final Logger logger;
     protected final SearchTransportService searchTransportService;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
-    protected final SearchPhaseController searchPhaseController;
-    protected final ThreadPool threadPool;
+    private final Executor executor;
     protected final ActionListener<SearchResponse> listener;
-    protected final GroupShardsIterator shardsIts;
+    private final GroupShardsIterator shardsIts;
     protected final SearchRequest request;
-    protected final ClusterState clusterState;
-    protected final DiscoveryNodes nodes;
+    /** Used by subclasses to resolve node ids to DiscoveryNodes. **/
+    protected final Function<String, DiscoveryNode> nodeIdToDiscoveryNode;
     protected final int expectedSuccessfulOps;
     private final int expectedTotalOps;
     protected final AtomicInteger successfulOps = new AtomicInteger();
     private final AtomicInteger totalOps = new AtomicInteger();
     protected final AtomicArray<FirstResult> firstResults;
+    private final Map<String, AliasFilter> aliasFilter;
+    private final long clusterStateVersion;
     private volatile AtomicArray<ShardSearchFailure> shardFailures;
     private final Object shardFailuresMutex = new Object();
     protected volatile ScoreDoc[] sortedShardDocs;
 
-    protected AbstractSearchAsyncAction(Logger logger, SearchTransportService searchTransportService, ClusterService clusterService,
-                                        IndexNameExpressionResolver indexNameExpressionResolver,
-                                        SearchPhaseController searchPhaseController, ThreadPool threadPool, SearchRequest request,
-                                        ActionListener<SearchResponse> listener) {
+    protected AbstractSearchAsyncAction(Logger logger, SearchTransportService searchTransportService,
+                                        Function<String, DiscoveryNode> nodeIdToDiscoveryNode,
+                                        Map<String, AliasFilter> aliasFilter, Executor executor, SearchRequest request,
+                                        ActionListener<SearchResponse> listener, GroupShardsIterator shardsIts, long startTime,
+                                        long clusterStateVersion) {
+        super(startTime);
         this.logger = logger;
         this.searchTransportService = searchTransportService;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.searchPhaseController = searchPhaseController;
-        this.threadPool = threadPool;
+        this.executor = executor;
         this.request = request;
         this.listener = listener;
-
-        this.clusterState = clusterService.state();
-        nodes = clusterState.nodes();
-
-        clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
-
-        // TODO: I think startTime() should become part of ActionRequest and that should be used both for index name
-        // date math expressions and $now in scripts. This way all apis will deal with now in the same way instead
-        // of just for the _search api
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request.indicesOptions(),
-            startTime(), request.indices());
-
-        for (String index : concreteIndices) {
-            clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index);
-        }
-
-        Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, request.routing(),
-            request.indices());
-
-        shardsIts = clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, request.preference());
-        final int shardCount = shardsIts.size();
-        failIfOverShardCountLimit(clusterService, shardCount);
-        expectedSuccessfulOps = shardCount;
+        this.nodeIdToDiscoveryNode = nodeIdToDiscoveryNode;
+        this.clusterStateVersion = clusterStateVersion;
+        this.shardsIts = shardsIts;
+        expectedSuccessfulOps = shardsIts.size();
         // we need to add 1 for non active partition, since we count it in the total!
         expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
-
         firstResults = new AtomicArray<>(shardsIts.size());
+        this.aliasFilter = aliasFilter;
     }
 
-    private void failIfOverShardCountLimit(ClusterService clusterService, int shardCount) {
-        final long shardCountLimit = clusterService.getClusterSettings().get(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING);
-        if (shardCount > shardCountLimit) {
-            throw new IllegalArgumentException("Trying to query " + shardCount + " shards, which is over the limit of "
-                    + shardCountLimit + ". This limit exists because querying many shards at the same time can make the "
-                    + "job of the coordinating node very CPU and/or memory intensive. It is usually a better idea to "
-                    + "have a smaller number of larger shards. Update [" + TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey()
-                    + "] to a greater value if you really want to query that many shards at the same time.");
-        }
-    }
+
 
     public void start() {
         if (expectedSuccessfulOps == 0) {
@@ -152,14 +119,14 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
             // no more active shards... (we should not really get here, but just for safety)
             onFirstPhaseResult(shardIndex, null, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
         } else {
-            final DiscoveryNode node = nodes.get(shard.currentNodeId());
+            final DiscoveryNode node = nodeIdToDiscoveryNode.apply(shard.currentNodeId());
             if (node == null) {
                 onFirstPhaseResult(shardIndex, shard, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
             } else {
-                String[] filteringAliases = indexNameExpressionResolver.filteringAliases(clusterState,
-                    shard.index().getName(), request.indices());
-                sendExecuteFirstPhase(node, internalSearchRequest(shard, shardsIts.size(), request, filteringAliases,
-                    startTime()), new ActionListener<FirstResult>() {
+                AliasFilter filter = this.aliasFilter.get(shard.index().getName());
+                ShardSearchTransportRequest transportRequest = new ShardSearchTransportRequest(request, shard, shardsIts.size(),
+                    filter, startTime());
+                sendExecuteFirstPhase(node, transportRequest , new ActionListener<FirstResult>() {
                         @Override
                         public void onResponse(FirstResult result) {
                             onFirstPhaseResult(shardIndex, shard, result, shardIt);
@@ -319,7 +286,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     private void raiseEarlyFailure(Exception e) {
         for (AtomicArray.Entry<FirstResult> entry : firstResults.asList()) {
             try {
-                DiscoveryNode node = nodes.get(entry.value.shardTarget().nodeId());
+                DiscoveryNode node = nodeIdToDiscoveryNode.apply(entry.value.shardTarget().nodeId());
                 sendReleaseSearchContext(entry.value.id(), node);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
@@ -344,7 +311,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                 if (queryResult.hasHits()
                     && docIdsToLoad.get(entry.index) == null) { // but none of them made it to the global top docs
                     try {
-                        DiscoveryNode node = nodes.get(entry.value.queryResult().shardTarget().nodeId());
+                        DiscoveryNode node = nodeIdToDiscoveryNode.apply(entry.value.queryResult().shardTarget().nodeId());
                         sendReleaseSearchContext(entry.value.queryResult().id(), node);
                     } catch (Exception e) {
                         logger.trace("failed to release context", e);
@@ -402,7 +369,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                 sb.append(result.shardTarget());
             }
 
-            logger.trace("Moving to second phase, based on results from: {} (cluster state version: {})", sb, clusterState.version());
+            logger.trace("Moving to second phase, based on results from: {} (cluster state version: {})", sb, clusterStateVersion);
         }
         moveToSecondPhase();
     }
@@ -410,4 +377,9 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     protected abstract void moveToSecondPhase() throws Exception;
 
     protected abstract String firstPhaseName();
+
+    protected Executor getExecutor() {
+        return executor;
+    }
+
 }

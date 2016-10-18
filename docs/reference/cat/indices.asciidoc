@@ -67,6 +67,7 @@ GET /_cat/indices?v&s=store.size:desc
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+// TEST[s/^/POST _flush\n/]
 
 Which looks like:
 

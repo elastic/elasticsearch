@@ -19,10 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -34,31 +31,28 @@ public class EvalQueryQualityTests extends ESTestCase {
     private static NamedWriteableRegistry namedWritableRegistry = new NamedWriteableRegistry(new RankEvalPlugin().getNamedWriteables());
 
     public static EvalQueryQuality randomEvalQueryQuality() {
-        List<RatedDocumentKey> unknownDocs = new ArrayList<>();
+        List<DocumentKey> unknownDocs = new ArrayList<>();
         int numberOfUnknownDocs = randomInt(5);
         for (int i = 0; i < numberOfUnknownDocs; i++) {
-            unknownDocs.add(RatedDocumentKeyTests.createRandomRatedDocumentKey());
+            unknownDocs.add(DocumentKeyTests.createRandomRatedDocumentKey());
         }
-        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(randomAsciiOfLength(10), randomDoubleBetween(0.0, 1.0, true), unknownDocs);
+        int numberOfSearchHits = randomInt(5);
+        List<RatedSearchHit> ratedHits = new ArrayList<>();
+        for (int i = 0; i < numberOfSearchHits; i++) {
+            ratedHits.add(RatedSearchHitTests.randomRatedSearchHit());
+        }
+        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(randomAsciiOfLength(10), randomDoubleBetween(0.0, 1.0, true));
         if (randomBoolean()) {
             // TODO randomize this
             evalQueryQuality.addMetricDetails(new PrecisionAtN.Breakdown(1, 5));
         }
+        evalQueryQuality.addHitsAndRatings(ratedHits);
         return evalQueryQuality;
-    }
-
-    private static EvalQueryQuality copy(EvalQueryQuality original) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWritableRegistry)) {
-                return new EvalQueryQuality(in);
-            }
-        }
     }
 
     public void testSerialization() throws IOException {
         EvalQueryQuality original = randomEvalQueryQuality();
-        EvalQueryQuality deserialized = copy(original);
+        EvalQueryQuality deserialized = RankEvalTestHelper.copy(original, EvalQueryQuality::new, namedWritableRegistry);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
@@ -67,14 +61,14 @@ public class EvalQueryQualityTests extends ESTestCase {
     public void testEqualsAndHash() throws IOException {
         EvalQueryQuality testItem = randomEvalQueryQuality();
         RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
-                copy(testItem));
+                RankEvalTestHelper.copy(testItem, EvalQueryQuality::new, namedWritableRegistry));
     }
 
     private static EvalQueryQuality mutateTestItem(EvalQueryQuality original) {
         String id = original.getId();
         double qualityLevel = original.getQualityLevel();
-        List<RatedDocumentKey> unknownDocs = original.getUnknownDocs();
-        MetricDetails breakdown = original.getMetricDetails();
+        List<RatedSearchHit> ratedHits = new ArrayList<>(original.getHitsAndRatings());
+        MetricDetails metricDetails = original.getMetricDetails();
         switch (randomIntBetween(0, 3)) {
         case 0:
             id = id + "_";
@@ -83,23 +77,21 @@ public class EvalQueryQualityTests extends ESTestCase {
             qualityLevel = qualityLevel + 0.1;
             break;
         case 2:
-            unknownDocs = new ArrayList<>(unknownDocs);
-            unknownDocs.add(RatedDocumentKeyTests.createRandomRatedDocumentKey());
-            break;
-        case 3:
-            if (breakdown == null) {
-                breakdown = new PrecisionAtN.Breakdown(1, 5);
+            if (metricDetails == null) {
+                metricDetails = new PrecisionAtN.Breakdown(1, 5);
             } else {
-                breakdown = null;
+                metricDetails = null;
             }
             break;
+        case 3:
+            ratedHits.add(RatedSearchHitTests.randomRatedSearchHit());
+            break;
         default:
-            throw new IllegalStateException("The test should only allow three parameters mutated");
+            throw new IllegalStateException("The test should only allow four parameters mutated");
         }
-        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(id, qualityLevel, unknownDocs);
-        evalQueryQuality.addMetricDetails(breakdown);
+        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(id, qualityLevel);
+        evalQueryQuality.addMetricDetails(metricDetails);
+        evalQueryQuality.addHitsAndRatings(ratedHits);
         return evalQueryQuality;
     }
-
-
 }

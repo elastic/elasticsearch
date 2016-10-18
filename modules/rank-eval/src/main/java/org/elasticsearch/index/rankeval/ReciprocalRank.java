@@ -29,20 +29,20 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
+import java.util.Optional;
 
 import javax.naming.directory.SearchResult;
+
+import static org.elasticsearch.index.rankeval.RankedListQualityMetric.joinHitsWithRatings;
 
 /**
  * Evaluate reciprocal rank.
  * By default documents with a rating equal or bigger than 1 are considered to be "relevant" for the reciprocal rank
  * calculation. This value can be changes using the "relevant_rating_threshold" parameter.
  * */
-public class ReciprocalRank extends RankedListQualityMetric {
+public class ReciprocalRank implements RankedListQualityMetric {
 
     public static final String NAME = "reciprocal_rank";
     public static final int DEFAULT_MAX_ACCEPTABLE_RANK = 10;
@@ -114,34 +114,24 @@ public class ReciprocalRank extends RankedListQualityMetric {
      **/
     @Override
     public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
-        Set<RatedDocumentKey> relevantDocIds = new HashSet<>();
-        Set<RatedDocumentKey> irrelevantDocIds = new HashSet<>();
-        for (RatedDocument doc : ratedDocs) {
-            if (doc.getRating() >= this.relevantRatingThreshhold) {
-                relevantDocIds.add(doc.getKey());
-            } else {
-                irrelevantDocIds.add(doc.getKey());
-            }
-        }
-
-        List<RatedDocumentKey> unknownDocIds = new ArrayList<>();
+        List<RatedSearchHit> ratedHits = joinHitsWithRatings(hits, ratedDocs);
         int firstRelevant = -1;
-        boolean found = false;
-        for (int i = 0; i < hits.length; i++) {
-            RatedDocumentKey key = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].getId());
-            if (relevantDocIds.contains(key)) {
-                if (found == false && i < maxAcceptableRank) {
-                    firstRelevant = i + 1; // add one because rank is not 0-based
-                    found = true;
+        int rank = 1;
+        for (RatedSearchHit hit : ratedHits.subList(0, Math.min(maxAcceptableRank, ratedHits.size()))) {
+            Optional<Integer> rating = hit.getRating();
+            if (rating.isPresent()) {
+                if (rating.get() >= this.relevantRatingThreshhold) {
+                    firstRelevant = rank;
+                    break;
                 }
-            } else {
-                unknownDocIds.add(key);
             }
+            rank++;
         }
 
         double reciprocalRank = (firstRelevant == -1) ? 0 : 1.0d / firstRelevant;
-        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, reciprocalRank, unknownDocIds);
+        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, reciprocalRank);
         evalQueryQuality.addMetricDetails(new Breakdown(firstRelevant));
+        evalQueryQuality.addHitsAndRatings(ratedHits);
         return evalQueryQuality;
     }
 

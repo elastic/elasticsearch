@@ -54,7 +54,7 @@ PUT child_example/answer/1?parent=1&refresh
         "display_name": "Sam",
         "id": 48
     },
-    "body": "<p>Unfortunately your pretty much limited to FTP...",
+    "body": "<p>Unfortunately you're pretty much limited to FTP...",
     "creation_date": "2009-05-04T13:45:37.030"
 }
 PUT child_example/answer/2?parent=1&refresh

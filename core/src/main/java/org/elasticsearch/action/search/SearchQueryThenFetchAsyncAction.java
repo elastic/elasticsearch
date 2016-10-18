@@ -26,31 +26,38 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySearchResultProvider> {
 
     final AtomicArray<FetchSearchResult> fetchResults;
     final AtomicArray<IntArrayList> docIdsToLoad;
+    private final SearchPhaseController searchPhaseController;
 
-    SearchQueryThenFetchAsyncAction(Logger logger, SearchTransportService searchService,
-                                            ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
-                                            SearchPhaseController searchPhaseController, ThreadPool threadPool,
-                                            SearchRequest request, ActionListener<SearchResponse> listener) {
-        super(logger, searchService, clusterService, indexNameExpressionResolver, searchPhaseController, threadPool, request, listener);
+    SearchQueryThenFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
+                                    Function<String, DiscoveryNode> nodeIdToDiscoveryNode, Map<String,
+        AliasFilter> aliasFilter,
+                                    SearchPhaseController searchPhaseController, Executor executor,
+                                    SearchRequest request, ActionListener<SearchResponse> listener,
+                                    GroupShardsIterator shardsIts, long startTime, long clusterStateVersion) {
+        super(logger, searchTransportService, nodeIdToDiscoveryNode, aliasFilter, executor, request, listener,
+            shardsIts, startTime, clusterStateVersion);
+        this.searchPhaseController = searchPhaseController;
         fetchResults = new AtomicArray<>(firstResults.length());
         docIdsToLoad = new AtomicArray<>(firstResults.length());
     }
@@ -82,7 +89,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
         final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
         for (AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
             QuerySearchResultProvider queryResult = firstResults.get(entry.index);
-            DiscoveryNode node = nodes.get(queryResult.shardTarget().nodeId());
+            DiscoveryNode node = nodeIdToDiscoveryNode.apply(queryResult.shardTarget().nodeId());
             ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult(), entry, lastEmittedDocPerShard);
             executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
         }
@@ -125,7 +132,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
     }
 
     private void finishHim() {
-        threadPool.executor(ThreadPool.Names.SEARCH).execute(new ActionRunnable<SearchResponse>(listener) {
+        getExecutor().execute(new ActionRunnable<SearchResponse>(listener) {
             @Override
             public void doRun() throws IOException {
                 final boolean isScrollRequest = request.scroll() != null;

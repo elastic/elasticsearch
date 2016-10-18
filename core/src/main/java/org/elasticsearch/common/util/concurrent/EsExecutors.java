@@ -40,16 +40,17 @@ public class EsExecutors {
      * This is used to adjust thread pools sizes etc. per node.
      */
     public static final Setting<Integer> PROCESSORS_SETTING =
-        Setting.intSetting("processors", Math.min(32, Runtime.getRuntime().availableProcessors()), 1, Property.NodeScope);
+        Setting.intSetting("processors", Runtime.getRuntime().availableProcessors(), 1, Property.NodeScope);
 
     /**
-     * Returns the number of processors available but at most <tt>32</tt>.
+     * Returns the number of available processors. Defaults to
+     * {@link Runtime#availableProcessors()} but can be overridden by passing a {@link Settings}
+     * instance with the key "processors" set to the desired value.
+     *
+     * @param settings a {@link Settings} instance from which to derive the available processors
+     * @return the number of available processors
      */
-    public static int boundedNumberOfProcessors(Settings settings) {
-        /* This relates to issues where machines with large number of cores
-         * ie. >= 48 create too many threads and run into OOM see #3478
-         * We just use an 32 core upper-bound here to not stress the system
-         * too much with too many created threads */
+    public static int numberOfProcessors(final Settings settings) {
         return PROCESSORS_SETTING.get(settings);
     }
 

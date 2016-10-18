@@ -79,7 +79,15 @@ public class RatedRequestsTests extends ESTestCase {
             ratedDocs.add(RatedDocumentTests.createRatedDocument());
         }
 
-        return new RatedRequest(specId, testRequest, indices, types, ratedDocs);
+        RatedRequest ratedRequest = new RatedRequest(specId, testRequest, indices, types, ratedDocs);
+
+        List<String> summaryFields = new ArrayList<>();
+        int numSummaryFields = randomIntBetween(0, 5);
+        for (int i = 0; i < numSummaryFields; i++) {
+            summaryFields.add(randomAsciiOfLength(5));
+        }
+        ratedRequest.setSummaryFields(summaryFields);
+        return ratedRequest;
     }
 
     public void testXContentRoundtrip() throws IOException {
@@ -126,6 +134,7 @@ public class RatedRequestsTests extends ESTestCase {
          + "           },\n"
          + "           \"size\": 10\n"
          + "   },\n"
+         + "   \"summary_fields\" : [\"title\"],\n"
          + "   \"ratings\": [ "
          + "        {\"_index\": \"test\", \"_type\": \"testtype\", \"_id\": \"1\", \"rating\" : 1 }, "
          + "        {\"_type\": \"testtype\", \"_index\": \"test\", \"_id\": \"2\", \"rating\" : 0 }, "

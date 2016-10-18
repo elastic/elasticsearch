@@ -22,25 +22,18 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -55,7 +48,6 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
@@ -70,8 +62,6 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.AliasFilterParsingException;
-import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -89,7 +79,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -476,7 +465,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * used for rewriting since it does not know about the current {@link IndexReader}.
      */
     public QueryShardContext newQueryShardContext() {
-        return newQueryShardContext(0, null, threadPool::estimatedTimeInMillis);
+        return newQueryShardContext(0, null, System::currentTimeMillis);
     }
 
     /**
@@ -595,64 +584,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     shard.fieldData().onRemoval(shardId, fieldName, wasEvicted, sizeInBytes);
                 }
             }
-        }
-    }
-
-    /**
-     * Returns the filter associated with listed filtering aliases.
-     * <p>
-     * The list of filtering aliases should be obtained by calling MetaData.filteringAliases.
-     * Returns <tt>null</tt> if no filtering is required.</p>
-     */
-    public Query aliasFilter(QueryShardContext context, String... aliasNames) {
-        if (aliasNames == null || aliasNames.length == 0) {
-            return null;
-        }
-        final ImmutableOpenMap<String, AliasMetaData> aliases = indexSettings.getIndexMetaData().getAliases();
-        if (aliasNames.length == 1) {
-            AliasMetaData alias = aliases.get(aliasNames[0]);
-            if (alias == null) {
-                // This shouldn't happen unless alias disappeared after filteringAliases was called.
-                throw new InvalidAliasNameException(index(), aliasNames[0], "Unknown alias name was passed to alias Filter");
-            }
-            return parse(alias, context);
-        } else {
-            // we need to bench here a bit, to see maybe it makes sense to use OrFilter
-            BooleanQuery.Builder combined = new BooleanQuery.Builder();
-            for (String aliasName : aliasNames) {
-                AliasMetaData alias = aliases.get(aliasName);
-                if (alias == null) {
-                    // This shouldn't happen unless alias disappeared after filteringAliases was called.
-                    throw new InvalidAliasNameException(indexSettings.getIndex(), aliasNames[0],
-                        "Unknown alias name was passed to alias Filter");
-                }
-                Query parsedFilter = parse(alias, context);
-                if (parsedFilter != null) {
-                    combined.add(parsedFilter, BooleanClause.Occur.SHOULD);
-                } else {
-                    // The filter might be null only if filter was removed after filteringAliases was called
-                    return null;
-                }
-            }
-            return combined.build();
-        }
-    }
-
-    private Query parse(AliasMetaData alias, QueryShardContext shardContext) {
-        if (alias.filter() == null) {
-            return null;
-        }
-        try {
-            byte[] filterSource = alias.filter().uncompressed();
-            try (XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource)) {
-                Optional<QueryBuilder> innerQueryBuilder = shardContext.newParseContext(parser).parseInnerQueryBuilder();
-                if (innerQueryBuilder.isPresent()) {
-                    return shardContext.toFilter(innerQueryBuilder.get()).query();
-                }
-                return null;
-            }
-        } catch (IOException ex) {
-            throw new AliasFilterParsingException(shardContext.index(), alias.getAlias(), "Invalid alias filter", ex);
         }
     }
 

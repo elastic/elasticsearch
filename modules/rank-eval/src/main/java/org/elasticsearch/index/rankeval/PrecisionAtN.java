@@ -29,12 +29,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.naming.directory.SearchResult;
+
+import static org.elasticsearch.index.rankeval.RankedListQualityMetric.joinHitsWithRatings;
 
 /**
  * Evaluate Precision at N, N being the number of search results to consider for precision calculation.
@@ -42,7 +43,7 @@ import javax.naming.directory.SearchResult;
  * By default documents with a rating equal or bigger than 1 are considered to be "relevant" for the precision
  * calculation. This value can be changes using the "relevant_rating_threshold" parameter.
  * */
-public class PrecisionAtN extends RankedListQualityMetric {
+public class PrecisionAtN implements RankedListQualityMetric {
 
     /** Number of results to check against a given set of relevant results. */
     private int n;
@@ -121,33 +122,23 @@ public class PrecisionAtN extends RankedListQualityMetric {
      **/
     @Override
     public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
-
-        Collection<RatedDocumentKey> relevantDocIds = new ArrayList<>();
-        Collection<RatedDocumentKey> irrelevantDocIds = new ArrayList<>();
-        for (RatedDocument doc : ratedDocs) {
-            if (doc.getRating() >= this.relevantRatingThreshhold) {
-                relevantDocIds.add(doc.getKey());
-            } else {
-                irrelevantDocIds.add(doc.getKey());
-            }
-        }
-
         int good = 0;
         int bad = 0;
-        List<RatedDocumentKey> unknownDocIds = new ArrayList<>();
-        for (int i = 0; (i < n && i < hits.length); i++) {
-            RatedDocumentKey hitKey = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].getId());
-            if (relevantDocIds.contains(hitKey)) {
-                good++;
-            } else if (irrelevantDocIds.contains(hitKey)) {
-                bad++;
-            } else {
-                unknownDocIds.add(hitKey);
+        List<RatedSearchHit> ratedSearchHits = joinHitsWithRatings(hits, ratedDocs);
+        for (RatedSearchHit hit : ratedSearchHits) {
+            Optional<Integer> rating = hit.getRating();
+            if (rating.isPresent()) {
+                if (rating.get() >= this.relevantRatingThreshhold) {
+                    good++;
+                } else {
+                    bad++;
+                }
             }
         }
         double precision = (double) good / (good + bad);
-        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, precision, unknownDocIds);
+        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, precision);
         evalQueryQuality.addMetricDetails(new PrecisionAtN.Breakdown(good, good + bad));
+        evalQueryQuality.addHitsAndRatings(ratedSearchHits);
         return evalQueryQuality;
     }
 

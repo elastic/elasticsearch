@@ -5,21 +5,19 @@
  */
 package org.elasticsearch.xpack.security.support;
 
-import dk.brics.automaton.Automaton;
-import dk.brics.automaton.RunAutomaton;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 
 import java.util.function.Predicate;
 
+import static org.apache.lucene.util.automaton.Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+
 public class AutomatonPredicate implements Predicate<String> {
 
-    private final RunAutomaton automaton;
+    private final CharacterRunAutomaton automaton;
 
     public AutomatonPredicate(Automaton automaton) {
-        this(new RunAutomaton(automaton, false));
-    }
-
-    public AutomatonPredicate(RunAutomaton automaton) {
-        this.automaton = automaton;
+        this.automaton = new CharacterRunAutomaton(automaton, DEFAULT_MAX_DETERMINIZED_STATES);
     }
 
     @Override

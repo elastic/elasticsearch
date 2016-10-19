@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.security.authz.privilege;
 
-import dk.brics.automaton.Automaton;
-import dk.brics.automaton.BasicAutomata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.elasticsearch.xpack.security.support.Automatons;
 
 public class GeneralPrivilege extends AbstractAutomatonPrivilege<GeneralPrivilege> {
 
-    public static final GeneralPrivilege NONE = new GeneralPrivilege(Name.NONE, BasicAutomata.makeEmpty());
-    public static final GeneralPrivilege ALL = new GeneralPrivilege(Name.ALL, "*");
+    public static final GeneralPrivilege NONE = new GeneralPrivilege(Name.NONE, Automatons.EMPTY);
+    public static final GeneralPrivilege ALL = new GeneralPrivilege(Name.ALL, Automatons.MATCH_ALL);
 
     public GeneralPrivilege(String name, String... patterns) {
         super(name, patterns);

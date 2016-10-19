@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authz.privilege;
 
-import dk.brics.automaton.Automaton;
+import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;

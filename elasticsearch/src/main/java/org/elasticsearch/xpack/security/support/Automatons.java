@@ -5,24 +5,26 @@
  */
 package org.elasticsearch.xpack.security.support;
 
-import dk.brics.automaton.Automaton;
-import dk.brics.automaton.BasicAutomata;
-import dk.brics.automaton.BasicOperations;
-import dk.brics.automaton.RegExp;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.RegExp;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import static dk.brics.automaton.BasicOperations.minus;
-import static dk.brics.automaton.BasicOperations.union;
-import static dk.brics.automaton.MinimizationOperations.minimize;
+import static org.apache.lucene.util.automaton.MinimizationOperations.minimize;
+import static org.apache.lucene.util.automaton.Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+import static org.apache.lucene.util.automaton.Operations.concatenate;
+import static org.apache.lucene.util.automaton.Operations.determinize;
+import static org.apache.lucene.util.automaton.Operations.minus;
+import static org.apache.lucene.util.automaton.Operations.union;
 
 public final class Automatons {
 
-    public static final Automaton EMPTY = BasicAutomata.makeEmpty();
-    public static final Automaton MATCH_ALL = BasicAutomata.makeAnyString();
+    public static final Automaton EMPTY = Automata.makeEmpty();
+    public static final Automaton MATCH_ALL = Automata.makeAnyString();
 
     static final char WILDCARD_STRING = '*';     // String equality with support for wildcards
     static final char WILDCARD_CHAR = '?';       // Char equality with support for wildcards
@@ -43,7 +45,7 @@ public final class Automatons {
      */
     public static Automaton patterns(Collection<String> patterns) {
         if (patterns.isEmpty()) {
-            return BasicAutomata.makeEmpty();
+            return EMPTY;
         }
         Automaton automaton = null;
         for (String pattern : patterns) {
@@ -53,8 +55,7 @@ public final class Automatons {
                 automaton = union(automaton, pattern(pattern));
             }
         }
-        minimize(automaton); // minimal is also deterministic
-        return automaton;
+        return minimize(automaton, DEFAULT_MAX_DETERMINIZED_STATES); // minimal is also deterministic
     }
 
     /**
@@ -84,36 +85,34 @@ public final class Automatons {
             int length = 1;
             switch(c) {
                 case WILDCARD_STRING:
-                    automata.add(BasicAutomata.makeAnyString());
+                    automata.add(Automata.makeAnyString());
                     break;
                 case WILDCARD_CHAR:
-                    automata.add(BasicAutomata.makeAnyChar());
+                    automata.add(Automata.makeAnyChar());
                     break;
                 case WILDCARD_ESCAPE:
                     // add the next codepoint instead, if it exists
                     if (i + length < text.length()) {
                         final char nextChar = text.charAt(i + length);
                         length += 1;
-                        automata.add(BasicAutomata.makeChar(nextChar));
+                        automata.add(Automata.makeChar(nextChar));
                         break;
                     } // else fallthru, lenient parsing with a trailing \
                 default:
-                    automata.add(BasicAutomata.makeChar(c));
+                    automata.add(Automata.makeChar(c));
             }
             i += length;
         }
-        return BasicOperations.concatenate(automata);
+        return concatenate(automata);
     }
 
     public static Automaton unionAndDeterminize(Automaton a1, Automaton a2) {
         Automaton res = union(a1, a2);
-        res.determinize();
-        return res;
+        return determinize(res, DEFAULT_MAX_DETERMINIZED_STATES);
     }
 
     public static Automaton minusAndDeterminize(Automaton a1, Automaton a2) {
-        Automaton res = minus(a1, a2);
-        res.determinize();
-        return res;
+        Automaton res = minus(a1, a2, DEFAULT_MAX_DETERMINIZED_STATES);
+        return determinize(res, DEFAULT_MAX_DETERMINIZED_STATES);
     }
 }

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authz.privilege;
 
-import dk.brics.automaton.Automaton;
+import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.security.support.Automatons;
 

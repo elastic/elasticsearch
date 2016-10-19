@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.xpack.security.support;
 
-import dk.brics.automaton.Automaton;
-import dk.brics.automaton.RunAutomaton;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.apache.lucene.util.automaton.Operations.DEFAULT_MAX_DETERMINIZED_STATES;
 import static org.elasticsearch.xpack.security.support.Automatons.pattern;
 import static org.elasticsearch.xpack.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.security.support.Automatons.wildcard;
-import static org.hamcrest.Matchers.is;
 
 public class AutomatonsTests extends ESTestCase {
     public void testPatternsUnionOfMultiplePatterns() throws Exception {
@@ -54,13 +54,13 @@ public class AutomatonsTests extends ESTestCase {
     }
 
     private void assertMatch(Automaton automaton, String text) {
-        RunAutomaton runAutomaton = new RunAutomaton(automaton, false);
-        assertThat(runAutomaton.run(text), is(true));
+        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_MAX_DETERMINIZED_STATES);
+        assertTrue(runAutomaton.run(text));
     }
 
     private void assertMismatch(Automaton automaton, String text) {
-        RunAutomaton runAutomaton = new RunAutomaton(automaton, false);
-        assertThat(runAutomaton.run(text), is(false));
+        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_MAX_DETERMINIZED_STATES);
+        assertFalse(runAutomaton.run(text));
     }
 
     private void assertInvalidPattern(String text) {

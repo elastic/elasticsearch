@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.security.authz.privilege;
 
-import dk.brics.automaton.Automaton;
-import dk.brics.automaton.BasicOperations;
+import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.xpack.security.support.AutomatonPredicate;
 import org.elasticsearch.xpack.security.support.Automatons;
 
 import java.util.function.Predicate;
 
+import static org.apache.lucene.util.automaton.Operations.subsetOf;
 import static org.elasticsearch.xpack.security.support.Automatons.patterns;
 
 @SuppressWarnings("unchecked")
@@ -49,19 +49,9 @@ abstract class AbstractAutomatonPrivilege<P extends AbstractAutomatonPrivilege<P
         return create(name.add(other.name), Automatons.unionAndDeterminize(automaton, other.automaton));
     }
 
-    protected P minus(P other) {
-        if (other.implies((P) this)) {
-            return none();
-        }
-        if (other == none() || !this.implies(other)) {
-            return (P) this;
-        }
-        return create(name.remove(other.name), Automatons.minusAndDeterminize(automaton, other.automaton));
-    }
-
     @Override
     public boolean implies(P other) {
-        return BasicOperations.subsetOf(other.automaton, automaton);
+        return subsetOf(other.automaton, automaton);
     }
 
     @Override

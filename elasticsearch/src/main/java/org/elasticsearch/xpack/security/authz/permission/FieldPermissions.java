@@ -5,14 +5,13 @@
  */
 package org.elasticsearch.xpack.security.authz.permission;
 
-import dk.brics.automaton.Automaton;
+import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -26,6 +25,15 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
+
+import static org.apache.lucene.util.automaton.MinimizationOperations.minimize;
+import static org.apache.lucene.util.automaton.Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+import static org.apache.lucene.util.automaton.Operations.isTotal;
+import static org.apache.lucene.util.automaton.Operations.run;
+import static org.apache.lucene.util.automaton.Operations.sameLanguage;
+import static org.apache.lucene.util.automaton.Operations.subsetOf;
+import static org.apache.lucene.util.automaton.Operations.union;
+import static org.elasticsearch.xpack.security.support.Automatons.minusAndDeterminize;
 
 /**
  * Stores patterns to fields which access is granted or denied to and maintains an automaton that can be used to check if permission is
@@ -93,13 +101,13 @@ public class FieldPermissions implements Writeable, ToXContent {
         } else {
             deniedFieldsAutomaton = Automatons.patterns(deniedFieldsArray);
         }
-        if (deniedFieldsAutomaton.subsetOf(grantedFieldsAutomaton) == false) {
+        if (subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
             throw new ElasticsearchSecurityException("Exceptions for field permissions must be a subset of the " +
                     "granted fields but " + Arrays.toString(deniedFieldsArray) + " is not a subset of " +
                     Arrays.toString(grantedFieldsArray));
         }
 
-        grantedFieldsAutomaton = grantedFieldsAutomaton.minus(deniedFieldsAutomaton);
+        grantedFieldsAutomaton = minusAndDeterminize(grantedFieldsAutomaton, deniedFieldsAutomaton);
         return grantedFieldsAutomaton;
     }
 
@@ -176,27 +184,23 @@ public class FieldPermissions implements Writeable, ToXContent {
      * fieldName can be a wildcard.
      */
     public boolean grantsAccessTo(String fieldName) {
-        if (permittedFieldsAutomaton.isTotal()) {
-            return true;
-        } else {
-            return permittedFieldsAutomaton.run(fieldName);
-        }
+        return isTotal(permittedFieldsAutomaton) || run(permittedFieldsAutomaton, fieldName);
     }
 
     // Also, if one grants no access to fields and the other grants all access, merging should result in all access...
     public static FieldPermissions merge(FieldPermissions p1, FieldPermissions p2) {
         Automaton mergedPermittedFieldsAutomaton;
         // we only allow the union of the two automatons
-        mergedPermittedFieldsAutomaton = p1.permittedFieldsAutomaton.union(p2.permittedFieldsAutomaton);
+        mergedPermittedFieldsAutomaton = union(p1.permittedFieldsAutomaton, p2.permittedFieldsAutomaton);
         // need to minimize otherwise isTotal() might return false even if one of the merged ones returned true before
-        mergedPermittedFieldsAutomaton.minimize();
+        mergedPermittedFieldsAutomaton = minimize(mergedPermittedFieldsAutomaton, DEFAULT_MAX_DETERMINIZED_STATES);
         // if one of them allows access to _all we allow it for the merged too
         boolean allFieldIsAllowedInMerged = p1.allFieldIsAllowed || p2.allFieldIsAllowed;
         return new MergedFieldPermissions(mergedPermittedFieldsAutomaton, allFieldIsAllowedInMerged);
     }
 
     public boolean hasFieldLevelSecurity() {
-        return permittedFieldsAutomaton.isTotal() == false;
+        return isTotal(permittedFieldsAutomaton) == false;
     }
 
     public Set<String> resolveAllowedFields(Set<String> allowedMetaFields, MapperService mapperService) {
@@ -229,7 +233,7 @@ public class FieldPermissions implements Writeable, ToXContent {
         if (!Arrays.equals(grantedFieldsArray, that.grantedFieldsArray)) return false;
         // Probably incorrect - comparing Object[] arrays with Arrays.equals
         if (!Arrays.equals(deniedFieldsArray, that.deniedFieldsArray)) return false;
-        return permittedFieldsAutomaton.equals(that.permittedFieldsAutomaton);
+        return sameLanguage(permittedFieldsAutomaton, that.permittedFieldsAutomaton);
 
     }
 

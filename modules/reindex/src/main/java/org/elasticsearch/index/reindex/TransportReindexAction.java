@@ -48,7 +48,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -56,9 +55,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.TTLFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
@@ -93,12 +89,11 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     private final AutoCreateIndex autoCreateIndex;
     private final Client client;
     private final CharacterRunAutomaton remoteWhitelist;
-    private final HttpServer httpServer;
 
     @Inject
     public TransportReindexAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, ScriptService scriptService,
-            AutoCreateIndex autoCreateIndex, Client client, TransportService transportService, @Nullable HttpServer httpServer) {
+            AutoCreateIndex autoCreateIndex, Client client, TransportService transportService) {
         super(settings, ReindexAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 ReindexRequest::new);
         this.clusterService = clusterService;
@@ -106,12 +101,11 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         this.autoCreateIndex = autoCreateIndex;
         this.client = client;
         remoteWhitelist = buildRemoteWhitelist(REMOTE_CLUSTER_WHITELIST.get(settings));
-        this.httpServer = httpServer;
     }
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
-        checkRemoteWhitelist(request.getRemoteInfo());
+        checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
         ClusterState state = clusterService.state();
         validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(), indexNameExpressionResolver,
                 autoCreateIndex, state);
@@ -124,16 +118,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         throw new UnsupportedOperationException("task required");
     }
 
-    private void checkRemoteWhitelist(RemoteInfo remoteInfo) {
-        TransportAddress publishAddress = null;
-        HttpInfo httpInfo = httpServer == null ? null : httpServer.info();
-        if (httpInfo != null && httpInfo.getAddress() != null) {
-            publishAddress = httpInfo.getAddress().publishAddress();
-        }
-        checkRemoteWhitelist(remoteWhitelist, remoteInfo, publishAddress);
-    }
-
-    static void checkRemoteWhitelist(CharacterRunAutomaton whitelist, RemoteInfo remoteInfo, TransportAddress publishAddress) {
+    static void checkRemoteWhitelist(CharacterRunAutomaton whitelist, RemoteInfo remoteInfo) {
         if (remoteInfo == null) {
             return;
         }

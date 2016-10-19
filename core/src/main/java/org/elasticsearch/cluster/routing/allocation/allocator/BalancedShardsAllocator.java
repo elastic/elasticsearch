@@ -1173,7 +1173,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         /** a constant representing no decision taken */
         public static final MoveDecision DECISION_NOT_TAKEN = new MoveDecision(null, null, null, null, null);
         /** cached decisions so we don't have to recreate objects for common decisions when not in explain mode. */
-        private static final MoveDecision CACHED_STAY_DECISION = new MoveDecision(Decision.YES, null, null, null, null);
+        private static final MoveDecision CACHED_STAY_DECISION = new MoveDecision(Decision.YES, Type.NO, null, null, null);
         private static final MoveDecision CACHED_CANNOT_MOVE_DECISION = new MoveDecision(Decision.NO, Type.NO, null, null, null);
 
         @Nullable
@@ -1191,20 +1191,36 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         public static MoveDecision stay(Decision canRemainDecision, boolean explain) {
             assert canRemainDecision.type() != Type.NO;
             if (explain) {
-                return new MoveDecision(Objects.requireNonNull(canRemainDecision), null, null, null, null);
+                final String explanation;
+                if (explain) {
+                    explanation = "shard is allowed to remain on its current node, so no reason to move";
+                } else {
+                    explanation = null;
+                }
+                return new MoveDecision(Objects.requireNonNull(canRemainDecision), Type.NO, explanation, null, null);
             } else {
                 return CACHED_STAY_DECISION;
             }
         }
 
         /**
-         * Creates a move decision for the shard not being able to remain on its current node, but not allowed to
-         * move to any other node either.
+         * Creates a move decision for the shard not being able to remain on its current node.
+         *
+         * @param canRemainDecision the decision for whether the shard is allowed to remain on its current node
+         * @param finalDecision the decision of whether to move the shard to another node
+         * @param explain true if in explain mode
+         * @param currentNodeId the current node id where the shard is assigned
+         * @param assignedNodeId the node id for where the shard can move to
+         * @param nodeDecisions the node-level decisions that comprised the final decision, non-null iff explain is true
+         * @return the {@link MoveDecision} for moving the shard to another node
          */
         public static MoveDecision decision(Decision canRemainDecision, Type finalDecision, boolean explain, String currentNodeId,
                                             String assignedNodeId, Map<String, WeightedDecision> nodeDecisions) {
+            assert canRemainDecision != null;
+            assert canRemainDecision.type() != Type.YES : "create decision with MoveDecision#stay instead";
             String finalExplanation = null;
             if (explain) {
+                assert currentNodeId != null;
                 if (finalDecision == Type.YES) {
                     assert assignedNodeId != null;
                     finalExplanation = "shard cannot remain on node [" + currentNodeId + "], moving to node [" + assignedNodeId + "]";
@@ -1218,6 +1234,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 // the final decision is NO (no node to move the shard to) and we are not in explain mode, return a cached version
                 return CACHED_CANNOT_MOVE_DECISION;
             } else {
+                assert ((assignedNodeId == null) == (finalDecision == Type.NO));
                 return new MoveDecision(canRemainDecision, finalDecision, finalExplanation, assignedNodeId, nodeDecisions);
             }
         }

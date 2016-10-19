@@ -224,11 +224,12 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
         }
         RankEvalSpec other = (RankEvalSpec) obj;
         return Objects.equals(ratedRequests, other.ratedRequests) &&
-                Objects.equals(metric, other.metric);
+                Objects.equals(metric, other.metric) &&
+                Objects.equals(script, other.script);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(ratedRequests, metric);
+        return Objects.hash(ratedRequests, metric, script);
     }
 }

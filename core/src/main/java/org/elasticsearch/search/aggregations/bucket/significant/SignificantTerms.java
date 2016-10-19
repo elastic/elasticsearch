@@ -28,7 +28,7 @@ import java.util.List;
  * An aggregation that collects significant terms in comparison to a background set.
  */
 public interface SignificantTerms extends MultiBucketsAggregation, Iterable<SignificantTerms.Bucket> {
-    abstract static class Bucket extends InternalMultiBucketAggregation.InternalBucket {
+    abstract class Bucket extends InternalMultiBucketAggregation.InternalBucket {
 
         long subsetDf;
         long subsetSize;

@@ -317,7 +317,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     private static class InnerBuilder extends CompletionSuggestionBuilder {
         private String field;
 
-        public InnerBuilder() {
+        InnerBuilder() {
             super("_na_");
         }
 

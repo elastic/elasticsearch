@@ -68,9 +68,9 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
      */
     static class AsyncDeleteBySearchAction extends AbstractAsyncBulkIndexByScrollAction<DeleteByQueryRequest> {
 
-        public AsyncDeleteBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client, ThreadPool threadPool,
-                                         DeleteByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener,
-                                         ScriptService scriptService, ClusterState clusterState) {
+        AsyncDeleteBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client, ThreadPool threadPool,
+                                  DeleteByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener,
+                                  ScriptService scriptService, ClusterState clusterState) {
             super(task, logger, client, threadPool, request, listener, scriptService, clusterState);
         }
 

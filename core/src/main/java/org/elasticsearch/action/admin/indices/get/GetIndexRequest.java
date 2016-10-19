@@ -34,7 +34,7 @@ import java.util.List;
  */
 public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
 
-    public static enum Feature {
+    public enum Feature {
         ALIASES((byte) 0, "_aliases", "_alias"),
         MAPPINGS((byte) 1, "_mappings", "_mapping"),
         SETTINGS((byte) 2, "_settings");
@@ -52,7 +52,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         private final String preferredName;
         private final byte id;
 
-        private Feature(byte id, String... validNames) {
+        Feature(byte id, String... validNames) {
             assert validNames != null && validNames.length > 0;
             this.id = id;
             this.validNames = Arrays.asList(validNames);

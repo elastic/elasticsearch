@@ -147,7 +147,7 @@ public class AzureStorageServiceTests extends ESTestCase {
      * This internal class just overload createClient method which is called by AzureStorageServiceImpl.doStart()
      */
     class AzureStorageServiceMock extends AzureStorageServiceImpl {
-        public AzureStorageServiceMock(Settings settings) {
+        AzureStorageServiceMock(Settings settings) {
             super(settings);
         }
 

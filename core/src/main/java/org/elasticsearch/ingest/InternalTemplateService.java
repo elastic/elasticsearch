@@ -72,7 +72,7 @@ public class InternalTemplateService implements TemplateService {
 
         private final String value;
 
-        public StringTemplate(String value) {
+        StringTemplate(String value) {
             this.value = value;
         }
 

@@ -57,7 +57,7 @@ final class PerThreadIDAndVersionLookup {
     /**
      * Initialize lookup for the provided segment
      */
-    public PerThreadIDAndVersionLookup(LeafReader reader) throws IOException {
+    PerThreadIDAndVersionLookup(LeafReader reader) throws IOException {
         TermsEnum termsEnum = null;
         NumericDocValues versions = null;
 

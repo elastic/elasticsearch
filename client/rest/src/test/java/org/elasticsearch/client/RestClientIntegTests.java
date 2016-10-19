@@ -209,7 +209,7 @@ public class RestClientIntegTests extends RestClientTestCase {
         final HttpContext context =
             httpServer.createContext("/" + pathPrefix + statusCode + uniqueContextSuffix, new ResponseHandler(statusCode));
 
-        try (final RestClient client =
+        try (RestClient client =
                 RestClient.builder(new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort()))
                     .setPathPrefix((randomBoolean() ? "/" : "") + pathPrefix).build()) {
 

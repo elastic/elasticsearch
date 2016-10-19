@@ -109,7 +109,7 @@ public class LegacyShortFieldMapper extends LegacyNumberFieldMapper {
 
     static final class ShortFieldType extends NumberFieldType {
 
-        public ShortFieldType() {
+        ShortFieldType() {
             super(LegacyNumericType.INT);
         }
 

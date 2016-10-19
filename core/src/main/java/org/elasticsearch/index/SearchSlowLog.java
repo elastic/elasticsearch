@@ -145,7 +145,7 @@ public final class SearchSlowLog implements SearchOperationListener {
         private final long tookInNanos;
         private final boolean reformat;
 
-        public SlowLogSearchContextPrinter(SearchContext context, long tookInNanos, boolean reformat) {
+        SlowLogSearchContextPrinter(SearchContext context, long tookInNanos, boolean reformat) {
             this.context = context;
             this.tookInNanos = tookInNanos;
             this.reformat = reformat;

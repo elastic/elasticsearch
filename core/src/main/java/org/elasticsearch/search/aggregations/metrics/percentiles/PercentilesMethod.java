@@ -40,7 +40,7 @@ public enum PercentilesMethod implements Writeable {
 
     private String name;
 
-    private PercentilesMethod(String name) {
+    PercentilesMethod(String name) {
         this.name = name;
     }
 

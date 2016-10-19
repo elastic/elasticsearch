@@ -625,7 +625,7 @@ public class GeolocationContextMapping extends ContextMapping {
         private final GeolocationContextMapping mapping;
         private final Collection<String> locations;
 
-        public GeoConfig(GeolocationContextMapping mapping, Collection<String> locations) {
+        GeoConfig(GeolocationContextMapping mapping, Collection<String> locations) {
             this.locations = locations;
             this.mapping = mapping;
         }
@@ -712,7 +712,7 @@ public class GeolocationContextMapping extends ContextMapping {
         private final String location;
         private final int[] precisions;
 
-        public GeoQuery(String name, String location, int...precisions) {
+        GeoQuery(String name, String location, int...precisions) {
             super(name);
             this.location = location;
             this.precisions = precisions;

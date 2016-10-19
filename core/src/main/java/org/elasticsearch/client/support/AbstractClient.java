@@ -671,7 +671,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         private final ClusterAdmin clusterAdmin;
         private final IndicesAdmin indicesAdmin;
 
-        public Admin(ElasticsearchClient client) {
+        Admin(ElasticsearchClient client) {
             this.clusterAdmin = new ClusterAdmin(client);
             this.indicesAdmin = new IndicesAdmin(client);
         }
@@ -691,7 +691,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
 
         private final ElasticsearchClient client;
 
-        public ClusterAdmin(ElasticsearchClient client) {
+        ClusterAdmin(ElasticsearchClient client) {
             this.client = client;
         }
 
@@ -1202,7 +1202,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
 
         private final ElasticsearchClient client;
 
-        public IndicesAdmin(ElasticsearchClient client) {
+        IndicesAdmin(ElasticsearchClient client) {
             this.client = client;
         }
 

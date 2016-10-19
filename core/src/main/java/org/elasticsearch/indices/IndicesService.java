@@ -868,7 +868,7 @@ public class IndicesService extends AbstractLifecycleComponent
         /**
          * Creates a new pending delete of an index
          */
-        public PendingDelete(ShardId shardId, IndexSettings settings) {
+        PendingDelete(ShardId shardId, IndexSettings settings) {
             this.index = shardId.getIndex();
             this.shardId = shardId.getId();
             this.settings = settings;
@@ -878,7 +878,7 @@ public class IndicesService extends AbstractLifecycleComponent
         /**
          * Creates a new pending delete of a shard
          */
-        public PendingDelete(Index index, IndexSettings settings) {
+        PendingDelete(Index index, IndexSettings settings) {
             this.index = index;
             this.shardId = -1;
             this.settings = settings;
@@ -1025,7 +1025,7 @@ public class IndicesService extends AbstractLifecycleComponent
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final IndicesRequestCache requestCache;
 
-        public CacheCleaner(IndicesFieldDataCache cache, IndicesRequestCache requestCache, Logger logger, ThreadPool threadPool, TimeValue interval) {
+        CacheCleaner(IndicesFieldDataCache cache, IndicesRequestCache requestCache, Logger logger, ThreadPool threadPool, TimeValue interval) {
             this.cache = cache;
             this.requestCache = requestCache;
             this.logger = logger;

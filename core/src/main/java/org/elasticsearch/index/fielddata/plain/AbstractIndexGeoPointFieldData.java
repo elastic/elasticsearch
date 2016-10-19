@@ -99,7 +99,7 @@ abstract class AbstractIndexGeoPointFieldData extends AbstractIndexFieldData<Ato
         }
     }
 
-    public AbstractIndexGeoPointFieldData(IndexSettings indexSettings, String fieldName, IndexFieldDataCache cache) {
+    AbstractIndexGeoPointFieldData(IndexSettings indexSettings, String fieldName, IndexFieldDataCache cache) {
         super(indexSettings, fieldName, cache);
     }
 

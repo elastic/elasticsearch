@@ -200,7 +200,7 @@ public final class TermVectorsFields extends Fields {
         private long sumDocFreq;
         private int docCount;
 
-        public TermVector(BytesReference termVectors, long readOffset) throws IOException {
+        TermVector(BytesReference termVectors, long readOffset) throws IOException {
             this.perFieldTermVectorInput = termVectors.streamInput();
             this.readOffset = readOffset;
             reset();

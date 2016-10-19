@@ -35,7 +35,7 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
     private long[][] pages;
 
     /** Constructor. */
-    public BigDoubleArray(long size, BigArrays bigArrays, boolean clearOnResize) {
+    BigDoubleArray(long size, BigArrays bigArrays, boolean clearOnResize) {
         super(LONG_PAGE_SIZE, bigArrays, clearOnResize);
         this.size = size;
         pages = new long[numPages(size)][];

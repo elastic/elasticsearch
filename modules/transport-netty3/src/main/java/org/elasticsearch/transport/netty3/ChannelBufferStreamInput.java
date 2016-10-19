@@ -35,7 +35,7 @@ class ChannelBufferStreamInput extends StreamInput {
     private final int startIndex;
     private final int endIndex;
 
-    public ChannelBufferStreamInput(ChannelBuffer buffer, int length) {
+    ChannelBufferStreamInput(ChannelBuffer buffer, int length) {
         if (length > buffer.readableBytes()) {
             throw new IndexOutOfBoundsException();
         }

@@ -634,7 +634,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         private final String recoveryActionToBlock;
         private final CountDownLatch requestBlocked;
 
-        public RecoveryActionBlocker(boolean dropRequests, String recoveryActionToBlock, Transport delegate, CountDownLatch requestBlocked) {
+        RecoveryActionBlocker(boolean dropRequests, String recoveryActionToBlock, Transport delegate, CountDownLatch requestBlocked) {
             super(delegate);
             this.dropRequests = dropRequests;
             this.recoveryActionToBlock = recoveryActionToBlock;

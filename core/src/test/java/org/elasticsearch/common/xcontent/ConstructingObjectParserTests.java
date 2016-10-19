@@ -235,7 +235,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     public void testCalledOneTime() throws IOException {
         boolean ctorArgOptional = randomBoolean();
         class CalledOneTime {
-            public CalledOneTime(String yeah) {
+            CalledOneTime(String yeah) {
                 Matcher<String> yeahMatcher = equalTo("!");
                 if (ctorArgOptional) {
                     // either(yeahMatcher).or(nullValue) is broken by https://github.com/hamcrest/JavaHamcrest/issues/49
@@ -292,7 +292,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 + "}");
         class TestStruct {
             public final String test;
-            public TestStruct(String test) {
+            TestStruct(String test) {
                 this.test = test;
             }
         }
@@ -315,7 +315,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
         String c;
         boolean d;
 
-        public HasCtorArguments(@Nullable String animal, @Nullable Integer vegetable) {
+        HasCtorArguments(@Nullable String animal, @Nullable Integer vegetable) {
             this.animal = animal;
             this.vegetable = vegetable;
         }

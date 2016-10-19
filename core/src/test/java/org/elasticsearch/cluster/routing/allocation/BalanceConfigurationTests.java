@@ -391,7 +391,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
 
     private class NoopGatewayAllocator extends GatewayAllocator {
 
-        public NoopGatewayAllocator() {
+        NoopGatewayAllocator() {
             super(Settings.EMPTY, null, null);
         }
 

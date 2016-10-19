@@ -139,6 +139,8 @@ class PrecommitTasks {
             configProperties = [
                 suppressions: checkstyleSuppressions
             ]
+            showViolations = true
+            toolVersion = "${org.elasticsearch.gradle.VersionProperties.versions['checkstyle']}"
         }
         for (String taskName : ['checkstyleMain', 'checkstyleTest']) {
             Task task = project.tasks.findByName(taskName)

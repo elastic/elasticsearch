@@ -108,7 +108,7 @@ public class LegacyFloatFieldMapper extends LegacyNumberFieldMapper {
 
     static final class FloatFieldType extends NumberFieldType {
 
-        public FloatFieldType() {
+        FloatFieldType() {
             super(LegacyNumericType.FLOAT);
         }
 

@@ -219,7 +219,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
     private static final class IndexNodePredicate implements Predicate<Settings> {
         private final Set<String> nodesWithShard;
 
-        public IndexNodePredicate(String index) {
+        IndexNodePredicate(String index) {
             this.nodesWithShard = findNodesWithShard(index);
         }
 

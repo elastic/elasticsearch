@@ -47,7 +47,7 @@ public enum SnapshotState {
 
     private boolean restorable;
 
-    private SnapshotState(byte value, boolean completed, boolean restorable) {
+    SnapshotState(byte value, boolean completed, boolean restorable) {
         this.value = value;
         this.completed = completed;
         this.restorable = restorable;

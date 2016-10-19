@@ -70,7 +70,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
 
         private final String text;
 
-        public BlobObj(String text) {
+        BlobObj(String text) {
             this.text = text;
         }
 
@@ -125,7 +125,7 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
 
         protected final boolean compress;
 
-        public LegacyEmulationBlobStoreFormat(String blobNameFormat, FromXContentBuilder<T> reader, ParseFieldMatcher parseFieldMatcher, boolean compress, XContentType xContentType) {
+        LegacyEmulationBlobStoreFormat(String blobNameFormat, FromXContentBuilder<T> reader, ParseFieldMatcher parseFieldMatcher, boolean compress, XContentType xContentType) {
             super(blobNameFormat, reader, parseFieldMatcher);
             this.xContentType = xContentType;
             this.compress = compress;

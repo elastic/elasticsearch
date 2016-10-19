@@ -502,7 +502,7 @@ public class ClusterService extends AbstractLifecycleComponent {
     abstract static class SourcePrioritizedRunnable extends PrioritizedRunnable {
         protected final String source;
 
-        public SourcePrioritizedRunnable(Priority priority, String source) {
+        SourcePrioritizedRunnable(Priority priority, String source) {
             super(priority);
             this.source = source;
         }
@@ -787,7 +787,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         private final ClusterStateTaskListener listener;
         private final Logger logger;
 
-        public SafeClusterStateTaskListener(ClusterStateTaskListener listener, Logger logger) {
+        SafeClusterStateTaskListener(ClusterStateTaskListener listener, Logger logger) {
             this.listener = listener;
             this.logger = logger;
         }
@@ -836,7 +836,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         private final AckedClusterStateTaskListener listener;
         private final Logger logger;
 
-        public SafeAckedClusterStateTaskListener(AckedClusterStateTaskListener listener, Logger logger) {
+        SafeAckedClusterStateTaskListener(AckedClusterStateTaskListener listener, Logger logger) {
             super(listener, logger);
             this.listener = listener;
             this.logger = logger;

@@ -60,12 +60,12 @@ final class Grok {
     private final String expression;
 
 
-    public Grok(Map<String, String> patternBank, String grokPattern) {
+    Grok(Map<String, String> patternBank, String grokPattern) {
         this(patternBank, grokPattern, true);
     }
 
     @SuppressWarnings("unchecked")
-    public Grok(Map<String, String> patternBank, String grokPattern, boolean namedCaptures) {
+    Grok(Map<String, String> patternBank, String grokPattern, boolean namedCaptures) {
         this.patternBank = patternBank;
         this.namedCaptures = namedCaptures;
 

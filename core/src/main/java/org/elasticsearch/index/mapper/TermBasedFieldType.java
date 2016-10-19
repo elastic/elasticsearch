@@ -35,7 +35,7 @@ import org.elasticsearch.index.query.QueryShardContext;
  *  with the inverted index. */
 abstract class TermBasedFieldType extends MappedFieldType {
 
-    public TermBasedFieldType() {}
+    TermBasedFieldType() {}
 
     protected TermBasedFieldType(MappedFieldType ref) {
         super(ref);

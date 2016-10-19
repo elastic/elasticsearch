@@ -140,7 +140,7 @@ public class TermsParser extends AbstractTermsParser {
         private final String key;
         private final boolean asc;
 
-        public OrderElement(String key, boolean asc) {
+        OrderElement(String key, boolean asc) {
             this.key = key;
             this.asc = asc;
         }

@@ -263,7 +263,7 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
          */
         private Value targetObject;
 
-        public Target(XContentParser parser) {
+        Target(XContentParser parser) {
             this.parser = parser;
         }
 
@@ -356,7 +356,7 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
         final ParseField field;
         final boolean required;
 
-        public ConstructorArgInfo(ParseField field, boolean required) {
+        ConstructorArgInfo(ParseField field, boolean required) {
             this.field = field;
             this.required = required;
         }

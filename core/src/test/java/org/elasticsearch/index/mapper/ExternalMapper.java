@@ -123,7 +123,7 @@ public class ExternalMapper extends FieldMapper {
 
     static class ExternalFieldType extends TermBasedFieldType {
 
-        public ExternalFieldType() {}
+        ExternalFieldType() {}
 
         protected ExternalFieldType(ExternalFieldType ref) {
             super(ref);

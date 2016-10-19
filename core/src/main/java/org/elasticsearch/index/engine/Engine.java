@@ -413,7 +413,7 @@ public abstract class Engine implements Closeable {
      */
     public final SegmentsStats segmentsStats(boolean includeSegmentFileSizes) {
         ensureOpen();
-        try (final Searcher searcher = acquireSearcher("segments_stats")) {
+        try (Searcher searcher = acquireSearcher("segments_stats")) {
             SegmentsStats stats = new SegmentsStats();
             for (LeafReaderContext reader : searcher.reader().leaves()) {
                 final SegmentReader segmentReader = segmentReader(reader.reader());

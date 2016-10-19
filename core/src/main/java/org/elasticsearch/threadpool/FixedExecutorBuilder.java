@@ -123,7 +123,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         private final int size;
         private final int queueSize;
 
-        public FixedExecutorSettings(final String nodeName, final int size, final int queueSize) {
+        FixedExecutorSettings(final String nodeName, final int size, final int queueSize) {
             super(nodeName);
             this.size = size;
             this.queueSize = queueSize;

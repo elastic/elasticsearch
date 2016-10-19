@@ -35,7 +35,7 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
     private int[][] pages;
 
     /** Constructor. */
-    public BigIntArray(long size, BigArrays bigArrays, boolean clearOnResize) {
+    BigIntArray(long size, BigArrays bigArrays, boolean clearOnResize) {
         super(INT_PAGE_SIZE, bigArrays, clearOnResize);
         this.size = size;
         pages = new int[numPages(size)][];

@@ -397,7 +397,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         }
     }
 
-    private static enum RequestOperation implements RequestCallback {
+    private enum RequestOperation implements RequestCallback {
         CONTINUE_PROCESSING {
             @Override
             public <Request extends ActionRequest<Request>, Response extends ActionResponse> void execute(Task task, String action, Request request,
@@ -422,7 +422,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         }
     }
 
-    private static enum ResponseOperation implements ResponseCallback {
+    private enum ResponseOperation implements ResponseCallback {
         CONTINUE_PROCESSING {
             @Override
             public <Response extends ActionResponse> void execute(String action, Response response, ActionListener<Response> listener,

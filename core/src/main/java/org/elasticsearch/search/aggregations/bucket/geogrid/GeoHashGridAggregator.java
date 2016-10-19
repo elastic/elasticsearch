@@ -98,7 +98,7 @@ public class GeoHashGridAggregator extends BucketsAggregator {
 
         long bucketOrd;
 
-        public OrdinalBucket() {
+        OrdinalBucket() {
             super(0, 0, (InternalAggregations) null);
         }
 

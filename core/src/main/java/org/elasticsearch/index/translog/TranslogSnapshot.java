@@ -40,7 +40,7 @@ final class TranslogSnapshot extends BaseTranslogReader implements Translog.Snap
      * Create a snapshot of translog file channel. The length parameter should be consistent with totalOperations and point
      * at the end of the last operation in this snapshot.
      */
-    public TranslogSnapshot(long generation, FileChannel channel, Path path, long firstOperationOffset, long length, int totalOperations) {
+    TranslogSnapshot(long generation, FileChannel channel, Path path, long firstOperationOffset, long length, int totalOperations) {
         super(generation, channel, path, firstOperationOffset);
         this.length = length;
         this.totalOperations = totalOperations;

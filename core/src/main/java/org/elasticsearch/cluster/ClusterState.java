@@ -89,7 +89,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
     public static final ClusterState PROTO = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
 
-    public static enum ClusterStateStatus {
+    public enum ClusterStateStatus {
         UNKNOWN((byte) 0),
         RECEIVED((byte) 1),
         BEING_APPLIED((byte) 2),
@@ -342,7 +342,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
         private final String value;
 
-        private Metric(String value) {
+        Metric(String value) {
             this.value = value;
         }
 
@@ -788,7 +788,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
         private final Diff<ImmutableOpenMap<String, Custom>> customs;
 
-        public ClusterStateDiff(ClusterState before, ClusterState after) {
+        ClusterStateDiff(ClusterState before, ClusterState after) {
             fromUuid = before.stateUUID;
             toUuid = after.stateUUID;
             toVersion = after.version;
@@ -800,7 +800,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer());
         }
 
-        public ClusterStateDiff(StreamInput in, ClusterState proto) throws IOException {
+        ClusterStateDiff(StreamInput in, ClusterState proto) throws IOException {
             clusterName = new ClusterName(in);
             fromUuid = in.readString();
             toUuid = in.readString();

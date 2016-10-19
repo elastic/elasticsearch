@@ -186,7 +186,7 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
             final DateMathParser forcedDateParser;
             private QueryShardContext context;
 
-            public LateParsingQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, DateTimeZone timeZone,
+            LateParsingQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, DateTimeZone timeZone,
                     DateMathParser forcedDateParser, QueryShardContext context) {
                 this.lowerTerm = lowerTerm;
                 this.upperTerm = upperTerm;

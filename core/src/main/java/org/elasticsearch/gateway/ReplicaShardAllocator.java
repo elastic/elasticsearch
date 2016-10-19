@@ -325,7 +325,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         @Nullable
         private final Map<String, Decision> nodeDecisions;
 
-        public MatchingNodes(ObjectLongMap<DiscoveryNode> nodesToSize, @Nullable Map<String, Decision> nodeDecisions) {
+        MatchingNodes(ObjectLongMap<DiscoveryNode> nodesToSize, @Nullable Map<String, Decision> nodeDecisions) {
             this.nodesToSize = nodesToSize;
             this.nodeDecisions = nodeDecisions;
 

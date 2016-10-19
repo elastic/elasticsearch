@@ -381,7 +381,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
         }
     }
 
-    public static enum Orientation {
+    public enum Orientation {
         LEFT,
         RIGHT;
 
@@ -427,7 +427,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
     /**
      * Enumeration that lists all {@link GeoShapeType}s that can be handled
      */
-    public static enum GeoShapeType {
+    public enum GeoShapeType {
         POINT("point"),
         MULTIPOINT("multipoint"),
         LINESTRING("linestring"),
@@ -440,7 +440,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
 
         private final String shapename;
 
-        private GeoShapeType(String shapename) {
+        GeoShapeType(String shapename) {
             this.shapename = shapename;
         }
 

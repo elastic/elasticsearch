@@ -188,7 +188,7 @@ public class ShardStateAction extends AbstractComponent {
         private final ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
         private final Logger logger;
 
-        public ShardFailedTransportHandler(ClusterService clusterService, ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor, Logger logger) {
+        ShardFailedTransportHandler(ClusterService clusterService, ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor, Logger logger) {
             this.clusterService = clusterService;
             this.shardFailedClusterStateTaskExecutor = shardFailedClusterStateTaskExecutor;
             this.logger = logger;
@@ -352,7 +352,7 @@ public class ShardStateAction extends AbstractComponent {
         private final ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
         private final Logger logger;
 
-        public ShardStartedTransportHandler(ClusterService clusterService, ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor, Logger logger) {
+        ShardStartedTransportHandler(ClusterService clusterService, ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor, Logger logger) {
             this.clusterService = clusterService;
             this.shardStartedClusterStateTaskExecutor = shardStartedClusterStateTaskExecutor;
             this.logger = logger;

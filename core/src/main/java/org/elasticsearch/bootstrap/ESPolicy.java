@@ -47,7 +47,7 @@ final class ESPolicy extends Policy {
     final PermissionCollection dynamic;
     final Map<String,Policy> plugins;
 
-    public ESPolicy(PermissionCollection dynamic, Map<String,Policy> plugins, boolean filterBadDefaults) {
+    ESPolicy(PermissionCollection dynamic, Map<String,Policy> plugins, boolean filterBadDefaults) {
         this.template = Security.readPolicy(getClass().getResource(POLICY_RESOURCE), JarHell.parseClassPath());
         this.untrusted = Security.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), new URL[0]);
         if (filterBadDefaults) {

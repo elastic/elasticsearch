@@ -34,7 +34,7 @@ class SingleMethodInjector implements SingleMemberInjector {
     final SingleParameterInjector<?>[] parameterInjectors;
     final InjectionPoint injectionPoint;
 
-    public SingleMethodInjector(InjectorImpl injector, InjectionPoint injectionPoint, Errors errors)
+    SingleMethodInjector(InjectorImpl injector, InjectionPoint injectionPoint, Errors errors)
             throws ErrorsException {
         this.injectionPoint = injectionPoint;
         final Method method = (Method) injectionPoint.getMember();

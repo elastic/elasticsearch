@@ -326,7 +326,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
             private final SortedNumericDocValues values;
 
-            public Long(SortedNumericDocValues values) {
+            Long(SortedNumericDocValues values) {
                 this.values = values;
             }
 
@@ -350,7 +350,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
             private final SortedNumericDoubleValues values;
 
-            public Double(SortedNumericDoubleValues values) {
+            Double(SortedNumericDoubleValues values) {
                 this.values = values;
             }
 
@@ -376,7 +376,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
             private final SortedBinaryDocValues values;
 
-            public Bytes(SortedBinaryDocValues values) {
+            Bytes(SortedBinaryDocValues values) {
                 this.values = values;
             }
 

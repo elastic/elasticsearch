@@ -243,7 +243,7 @@ public final class ScriptMetaData implements MetaData.Custom {
             this.pipelines = DiffableUtils.diff(before.scripts, after.scripts, DiffableUtils.getStringKeySerializer());
         }
 
-        public ScriptMetadataDiff(StreamInput in) throws IOException {
+        ScriptMetadataDiff(StreamInput in) throws IOException {
             pipelines = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), new ScriptAsBytes(null));
         }
 
@@ -260,7 +260,7 @@ public final class ScriptMetaData implements MetaData.Custom {
 
     static final class ScriptAsBytes extends AbstractDiffable<ScriptAsBytes> {
 
-        public ScriptAsBytes(BytesReference script) {
+        ScriptAsBytes(BytesReference script) {
             this.script = script;
         }
 

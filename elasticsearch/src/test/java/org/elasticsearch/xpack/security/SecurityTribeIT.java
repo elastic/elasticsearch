@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
@@ -167,34 +168,37 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         tribeClient = getClientWrapper().apply(tribeNode.client());
         ClusterStateObserver observer = new ClusterStateObserver(tribeNode.injector().getInstance(ClusterService.class),
                 logger, new ThreadContext(settings));
-        CountDownLatch latch = new CountDownLatch(1);
         final int cluster1Nodes = internalCluster().size();
         final int cluster2Nodes = cluster2.size();
         logger.info("waiting for [{}] nodes to be added to the tribe cluster state", cluster1Nodes + cluster2Nodes + 2);
-        observer.waitForNextChange(new ClusterStateObserver.Listener() {
-            @Override
-            public void onNewClusterState(ClusterState state) {
-                latch.countDown();
-            }
+        final Predicate<ClusterState> nodeCountPredicate = state -> state.nodes().getSize() == cluster1Nodes + cluster2Nodes + 3;
+        if (nodeCountPredicate.test(observer.observedState()) == false) {
+            CountDownLatch latch = new CountDownLatch(1);
+            observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    latch.countDown();
+                }
 
-            @Override
-            public void onClusterServiceClose() {
-                fail("tribe cluster service closed");
-                latch.countDown();
-            }
+                @Override
+                public void onClusterServiceClose() {
+                    fail("tribe cluster service closed");
+                    latch.countDown();
+                }
 
-            @Override
-            public void onTimeout(TimeValue timeout) {
-                fail("timed out waiting for nodes to be added to tribe's cluster state");
-                latch.countDown();
-            }
-        }, new ClusterStateObserver.ValidationPredicate() {
-            @Override
-            protected boolean validate(ClusterState newState) {
-                return newState.nodes().getSize() == cluster1Nodes + cluster2Nodes + 3;
-            }
-        });
-        latch.await();
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    fail("timed out waiting for nodes to be added to tribe's cluster state");
+                    latch.countDown();
+                }
+            }, new ClusterStateObserver.ValidationPredicate() {
+                @Override
+                protected boolean validate(ClusterState newState) {
+                    return nodeCountPredicate.test(newState);
+                }
+            });
+            latch.await();
+        }
     }
 
     public void testThatTribeCanAuthenticateElasticUser() throws Exception {

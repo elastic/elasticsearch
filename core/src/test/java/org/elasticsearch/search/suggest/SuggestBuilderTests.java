@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,9 +32,9 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.completion.CompletionSuggesterBuilderTests;
-import org.elasticsearch.search.suggest.completion.WritableTestCase;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilderTests;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilderTests;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -43,9 +42,11 @@ import java.io.IOException;
 import java.util.Map.Entry;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
-public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
+public class SuggestBuilderTests extends ESTestCase {
 
+    private static final int NUMBER_OF_RUNS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;
     private static Suggesters suggesters;
 
@@ -65,17 +66,12 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
         suggesters = null;
     }
 
-    @Override
-    protected NamedWriteableRegistry provideNamedWritableRegistry() {
-        return namedWriteableRegistry;
-    }
-
     /**
      *  creates random suggestion builder, renders it to xContent and back to new instance that should be equal to original
      */
     public void testFromXContent() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
-            SuggestBuilder suggestBuilder = createTestModel();
+            SuggestBuilder suggestBuilder = randomSuggestBuilder();
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
                 xContentBuilder.prettyPrint();
@@ -87,6 +83,30 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
             assertNotSame(suggestBuilder, secondSuggestBuilder);
             assertEquals(suggestBuilder, secondSuggestBuilder);
             assertEquals(suggestBuilder.hashCode(), secondSuggestBuilder.hashCode());
+        }
+    }
+
+    /**
+     * Test equality and hashCode properties
+     */
+    public void testEqualsAndHashcode() throws IOException {
+        for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
+            checkEqualsAndHashCode(randomSuggestBuilder(), original -> {
+                return copyWriteable(original, namedWriteableRegistry, SuggestBuilder::new);
+            }, this::createMutation);
+        }
+    }
+
+    /**
+     * Test serialization and deserialization
+     */
+    public void testSerialization() throws IOException {
+        for (int i = 0; i < NUMBER_OF_RUNS; i++) {
+            SuggestBuilder suggestBuilder = randomSuggestBuilder();
+            SuggestBuilder deserializedModel = copyWriteable(suggestBuilder, namedWriteableRegistry, SuggestBuilder::new);
+            assertEquals(suggestBuilder, deserializedModel);
+            assertEquals(suggestBuilder.hashCode(), deserializedModel.hashCode());
+            assertNotSame(suggestBuilder, deserializedModel);
         }
     }
 
@@ -107,12 +127,6 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
         }
     }
 
-    @Override
-    protected SuggestBuilder createTestModel() {
-        return randomSuggestBuilder();
-    }
-
-    @Override
     protected SuggestBuilder createMutation(SuggestBuilder original) throws IOException {
         SuggestBuilder mutation = new SuggestBuilder().setGlobalText(original.getGlobalText());
         for (Entry<String, SuggestionBuilder<?>> suggestionBuilder : original.getSuggestions().entrySet()) {
@@ -124,11 +138,6 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
             mutation.addSuggestion(randomAsciiOfLength(10), PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder());
         }
         return mutation;
-    }
-
-    @Override
-    protected SuggestBuilder readFrom(StreamInput in) throws IOException {
-        return new SuggestBuilder(in);
     }
 
     public static SuggestBuilder randomSuggestBuilder() {

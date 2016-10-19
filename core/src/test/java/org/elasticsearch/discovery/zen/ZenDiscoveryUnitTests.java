@@ -218,9 +218,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
     private ZenDiscovery buildZenDiscovery(Settings settings, TransportService service, ClusterService clusterService, ThreadPool threadPool) {
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ZenPingService zenPingService = new ZenPingService(settings, Collections.emptySet());
-        ElectMasterService electMasterService = new ElectMasterService(settings);
-        ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service, clusterService,
-                                                        clusterSettings, zenPingService, electMasterService);
+        ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service, clusterService, clusterSettings, zenPingService);
         zenDiscovery.start();
         return zenDiscovery;
     }

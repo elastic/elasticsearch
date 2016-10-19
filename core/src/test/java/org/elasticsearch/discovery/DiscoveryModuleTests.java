@@ -33,21 +33,6 @@ public class DiscoveryModuleTests extends ModuleTestCase {
         }
     }
 
-    public void testRegisterMasterElectionService() {
-        Settings settings = Settings.builder().put(DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING.getKey(), "custom").build();
-        DiscoveryModule module = new DiscoveryModule(settings);
-        module.addElectMasterService("custom", DummyMasterElectionService.class);
-        assertBinding(module, ElectMasterService.class, DummyMasterElectionService.class);
-        assertBinding(module, Discovery.class, ZenDiscovery.class);
-    }
-
-    public void testLoadUnregisteredMasterElectionService() {
-        Settings settings = Settings.builder().put(DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING.getKey(), "foobar").build();
-        DiscoveryModule module = new DiscoveryModule(settings);
-        module.addElectMasterService("custom", DummyMasterElectionService.class);
-        assertBindingFailure(module, "Unknown master service type [foobar]");
-    }
-
     public void testRegisterDefaults() {
         Settings settings = Settings.EMPTY;
         DiscoveryModule module = new DiscoveryModule(settings);
@@ -60,6 +45,4 @@ public class DiscoveryModuleTests extends ModuleTestCase {
         module.addDiscoveryType("custom", NoopDiscovery.class);
         assertBinding(module, Discovery.class, NoopDiscovery.class);
     }
-
-
 }

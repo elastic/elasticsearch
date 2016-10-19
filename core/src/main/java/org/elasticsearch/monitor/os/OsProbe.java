@@ -210,6 +210,7 @@ public class OsProbe {
     }
 
     // visible for testing
+    @SuppressForbidden(reason = "access /proc/self/cgroup")
     List<String> readProcSelfCgroup() throws IOException {
         return Files.readAllLines(PathUtils.get("/proc/self/cgroup"));
     }
@@ -228,6 +229,7 @@ public class OsProbe {
     }
 
     // visible for testing
+    @SuppressForbidden(reason = "access /sys/fs/cgroup/cpuacct")
     List<String> readSysFsCgroupCpuAcctCpuAcctUsage(final String path) throws IOException {
         return Files.readAllLines(PathUtils.get("/sys/fs/cgroup/cpuacct", path, "cpuacct.usage"));
     }
@@ -246,6 +248,7 @@ public class OsProbe {
     }
 
     // visible for testing
+    @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu")
     List<String> readSysFsCgroupCpuAcctCpuCfsPeriod(final String path) throws IOException {
         return Files.readAllLines(PathUtils.get("/sys/fs/cgroup/cpu", path, "cpu.cfs_period_us"));
     }
@@ -264,6 +267,7 @@ public class OsProbe {
     }
 
     // visible for testing
+    @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu")
     List<String> readSysFsCgroupCpuAcctCpuAcctCfsQuota(final String path) throws IOException {
         return Files.readAllLines(PathUtils.get("/sys/fs/cgroup/cpu", path, "cpu.cfs_quota_us"));
     }
@@ -299,6 +303,7 @@ public class OsProbe {
     }
 
     // visible for testing
+    @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu")
     List<String> readSysFsCgroupCpuAcctCpuStat(final String path) throws IOException {
         return Files.readAllLines(PathUtils.get("/sys/fs/cgroup/cpu", path, "cpu.stat"));
     }

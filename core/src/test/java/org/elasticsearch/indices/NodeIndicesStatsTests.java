@@ -34,7 +34,9 @@ public class NodeIndicesStatsTests extends ESTestCase {
         final String level = randomAsciiOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> stats.toXContent(null, params));
-        assertThat(e, hasToString(containsString("level parameter must be one of [indices] or [node] or [shards] but was [" + level + "]")));
+        assertThat(
+            e,
+            hasToString(containsString("level parameter must be one of [indices] or [node] or [shards] but was [" + level + "]")));
     }
 
 }

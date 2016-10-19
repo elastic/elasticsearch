@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
@@ -290,21 +289,11 @@ final class DefaultSearchContext extends SearchContext {
     static Query createSearchFilter(String[] types, Query aliasFilter, boolean hasNestedFields) {
         Query typesFilter = null;
         if (types != null && types.length >= 1) {
-            final int threshold = Math.min(16, BooleanQuery.getMaxClauseCount());
-            if (types.length < threshold) {
-                BooleanQuery.Builder builder = new BooleanQuery.Builder();
-                for (String type : types) {
-                    BytesRef typeBytes = new BytesRef(type);
-                    builder.add(new TypeFieldMapper.TypeQuery(typeBytes), Occur.SHOULD);
-                }
-                typesFilter = builder.build();
-            } else {
-                BytesRef[] typesBytes = new BytesRef[types.length];
-                for (int i = 0; i < typesBytes.length; i++) {
-                    typesBytes[i] = new BytesRef(types[i]);
-                }
-                typesFilter = new TermsQuery(TypeFieldMapper.NAME, typesBytes);
+            BytesRef[] typesBytes = new BytesRef[types.length];
+            for (int i = 0; i < typesBytes.length; i++) {
+                typesBytes[i] = new BytesRef(types[i]);
             }
+            typesFilter = new TypeFieldMapper.TypesQuery(typesBytes);
         }
 
         if (typesFilter == null && aliasFilter == null && hasNestedFields == false) {

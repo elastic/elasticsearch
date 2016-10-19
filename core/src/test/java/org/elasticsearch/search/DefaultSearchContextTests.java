@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -29,7 +28,6 @@ import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
-import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -38,21 +36,13 @@ public class DefaultSearchContextTests extends ESTestCase {
     public void testCreateSearchFilter() {
         Query searchFilter = DefaultSearchContext.createSearchFilter(new String[]{"type1", "type2"}, null, randomBoolean());
         Query expectedQuery = new BooleanQuery.Builder()
-            .add(new BooleanQuery.Builder()
-                .add(new TypeFieldMapper.TypeQuery(new BytesRef("type1")), SHOULD)
-                .add(new TypeFieldMapper.TypeQuery(new BytesRef("type2")), SHOULD)
-                .build(), FILTER
-            )
+            .add(new TypeFieldMapper.TypesQuery(new BytesRef("type1"), new BytesRef("type2")), FILTER)
             .build();
         assertThat(searchFilter, equalTo(expectedQuery));
 
         searchFilter = DefaultSearchContext.createSearchFilter(new String[]{"type1", "type2"}, new MatchAllDocsQuery(), randomBoolean());
         expectedQuery = new BooleanQuery.Builder()
-            .add(new BooleanQuery.Builder()
-                .add(new TypeFieldMapper.TypeQuery(new BytesRef("type1")), SHOULD)
-                .add(new TypeFieldMapper.TypeQuery(new BytesRef("type2")), SHOULD)
-                .build(), FILTER
-            )
+            .add(new TypeFieldMapper.TypesQuery(new BytesRef("type1"), new BytesRef("type2")), FILTER)
             .add(new MatchAllDocsQuery(), FILTER)
             .build();
         assertThat(searchFilter, equalTo(expectedQuery));
@@ -74,19 +64,6 @@ public class DefaultSearchContextTests extends ESTestCase {
         searchFilter = DefaultSearchContext.createSearchFilter(null, new MatchAllDocsQuery(), false);
         expectedQuery = new BooleanQuery.Builder()
             .add(new MatchAllDocsQuery(), FILTER)
-            .build();
-        assertThat(searchFilter, equalTo(expectedQuery));
-
-        int size = randomIntBetween(17, 100);
-        String[] types = new String[size];
-        BytesRef[] typesBytes = new BytesRef[size];
-        for (int i = 0; i < size; i++) {
-            types[i] = "types" + i;
-            typesBytes[i] = new BytesRef(types[i]);
-        }
-        searchFilter = DefaultSearchContext.createSearchFilter(types, null, randomBoolean());
-        expectedQuery = new BooleanQuery.Builder()
-            .add(new TermsQuery(TypeFieldMapper.NAME, typesBytes), FILTER)
             .build();
         assertThat(searchFilter, equalTo(expectedQuery));
     }

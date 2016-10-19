@@ -25,6 +25,9 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermContext;
+import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -41,6 +44,7 @@ import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -202,6 +206,66 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             return "_type:" + type;
         }
 
+    }
+
+    /**
+     * Specialization for a disjunction over many _type
+     */
+    public static class TypesQuery extends Query {
+        // Same threshold as TermsQuery
+        private static final int BOOLEAN_REWRITE_TERM_COUNT_THRESHOLD = 16;
+
+        private final BytesRef[] types;
+
+        public TypesQuery(BytesRef... types) {
+            this.types = Objects.requireNonNull(types);
+        }
+
+        @Override
+        public Query rewrite(IndexReader reader) throws IOException {
+            final int threshold = Math.min(BOOLEAN_REWRITE_TERM_COUNT_THRESHOLD, BooleanQuery.getMaxClauseCount());
+            if (types.length <= threshold) {
+                BooleanQuery.Builder bq = new BooleanQuery.Builder();
+                for (BytesRef type : types) {
+                    Query tq = new TypeQuery(BytesRef.deepCopyOf(type)).rewrite(reader);
+                    if (tq instanceof MatchAllDocsQuery) {
+                        // The reader contains a single _type
+                        return tq;
+                    }
+                    if (tq instanceof ConstantScoreQuery) {
+                        bq.add(((ConstantScoreQuery) tq).getQuery(), BooleanClause.Occur.SHOULD);
+                    }
+                }
+                return new ConstantScoreQuery(bq.build());
+            }
+            return new TermsQuery(CONTENT_TYPE, types);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (sameClassAs(obj) == false) {
+                return false;
+            }
+            TypesQuery that = (TypesQuery) obj;
+            return Arrays.equals(types, that.types);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * classHash() + Arrays.hashCode(types);
+        }
+
+        @Override
+        public String toString(String field) {
+            StringBuilder builder = new StringBuilder();
+            for (BytesRef type : types) {
+                if (builder.length() > 0) {
+                    builder.append(' ');
+                }
+                builder.append(new Term(CONTENT_TYPE, type).toString());
+            }
+            return builder.toString();
+        }
     }
 
     private TypeFieldMapper(Settings indexSettings, MappedFieldType existing) {

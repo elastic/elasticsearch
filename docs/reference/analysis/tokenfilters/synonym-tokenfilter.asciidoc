@@ -36,6 +36,8 @@ settings are: `ignore_case` (defaults to `false`), and `expand`
 The `tokenizer` parameter controls the tokenizers that will be used to
 tokenize the synonym, and defaults to the `whitespace` tokenizer.
 
+Since the introduction of the security manager in ElasticSearch version 2.0, it is no longer possible to set a custom file path outside of the configuration directory for `path` settings in char or token filters. You must instead specify either path relative to the configuration directory location, or an absolute path inside that directory.
+
 Two synonym formats are supported: Solr, WordNet.
 
 [float]

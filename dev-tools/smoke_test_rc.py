@@ -55,7 +55,6 @@ import json
 import base64
 from urllib.parse import urlparse
 
-from prepare_release_candidate import run
 from http.client import HTTPConnection
 
 DEFAULT_PLUGINS = ["analysis-icu",
@@ -87,6 +86,18 @@ except KeyError:
   Please set JAVA_HOME in the env before running release tool
   On OSX use: export JAVA_HOME=`/usr/libexec/java_home -v '1.8*'`""")
 
+# console colors
+COLOR_OK = '\033[92m'
+COLOR_END = '\033[0m'
+
+def run(command, env_vars=None):
+  if env_vars:
+    for key, value in env_vars.items():
+      os.putenv(key, value)
+  print('*** Running: %s%s%s' % (COLOR_OK, command, COLOR_END))
+  if os.system(command):
+    raise RuntimeError('    FAILED: %s' % (command))
+
 def java_exe():
   path = JAVA_HOME
   return 'export JAVA_HOME="%s" PATH="%s/bin:$PATH" JAVACMD="%s/bin/java"' % (path, path, path)
@@ -96,7 +107,6 @@ def verify_java_version(version):
   if ' version "%s.' % version not in s:
     raise RuntimeError('got wrong version for java %s:\n%s' % (version, s))
 
-
 def sha1(file):
   with open(file, 'rb') as f:
     return hashlib.sha1(f.read()).hexdigest()
@@ -104,7 +114,6 @@ def sha1(file):
 def read_fully(file):
   with open(file, encoding='utf-8') as f:
      return f.read()
-
 
 def wait_for_node_startup(es_dir, timeout=60, header={}):
   print('     Waiting until node becomes available for at most %s seconds' % timeout)
@@ -226,7 +235,7 @@ def smoke_test_release(release, files, expected_hash, plugins):
           if expected_hash != version['build_hash'].strip():
             raise RuntimeError('HEAD hash does not match expected [%s] but got [%s]' % (expected_hash, version['build_hash']))
           print('  Verify if plugins are listed in _nodes')
-          conn.request('GET', '/_nodes?plugin=true&pretty=true', headers=headers)
+          conn.request('GET', '/_nodes/plugins?pretty=true', headers=headers)
           res = conn.getresponse()
           if res.status == 200:
             nodes = json.loads(res.read().decode("utf-8"))['nodes']

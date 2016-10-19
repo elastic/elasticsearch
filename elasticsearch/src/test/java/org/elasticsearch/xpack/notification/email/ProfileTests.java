@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.notification.email;
 
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -13,6 +14,8 @@ import javax.mail.Part;
 import javax.mail.Session;
 import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
+
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -33,12 +36,13 @@ public class ProfileTests extends ESTestCase {
                 .build();
 
         Settings settings = Settings.builder()
-                .put("default_account", "foo")
-                .put("account.foo.smtp.host", "_host")
+                .put("xpack.notification.email.default_account", "foo")
+                .put("xpack.notification.email.account.foo.smtp.host", "_host")
                 .build();
 
-        Accounts accounts = new Accounts(settings, null, logger);
-        Session session = accounts.account("foo").getConfig().createSession();
+        EmailService service = new EmailService(settings, null,
+                new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
+        Session session = service.getAccount("foo").getConfig().createSession();
         MimeMessage mimeMessage = Profile.STANDARD.toMimeMessage(email, session);
 
         Object content = ((MimeMultipart) mimeMessage.getContent()).getBodyPart(0).getContent();

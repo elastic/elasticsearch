@@ -34,10 +34,7 @@ public class ExecutableHipChatAction extends ExecutableAction<HipChatAction> {
     @Override
     public Action.Result execute(final String actionId, WatchExecutionContext ctx, Payload payload) throws Exception {
 
-        HipChatAccount account = action.account != null ?
-                hipchatService.getAccount(action.account) :
-                hipchatService.getDefaultAccount();
-
+        HipChatAccount account = hipchatService.getAccount(action.account);
         // lets validate the message again, in case the hipchat service were updated since the
         // watch/action were created.
         account.validateParsedTemplate(ctx.id().watchId(), actionId, action.message);

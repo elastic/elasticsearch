@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.notification.pagerduty;
 
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -37,14 +39,14 @@ public class PagerDutyAccountsTests extends ESTestCase {
 
     public void testSingleAccount() throws Exception {
         Settings.Builder builder = Settings.builder()
-                .put("default_account", "account1");
+                .put("xpack.notification.pagerduty.default_account", "account1");
         addAccountSettings("account1", builder);
-
-        PagerDutyAccounts accounts = new PagerDutyAccounts(builder.build(), httpClient, logger);
-        PagerDutyAccount account = accounts.account("account1");
+        PagerDutyService service = new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
+                Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING)));
+        PagerDutyAccount account = service.getAccount("account1");
         assertThat(account, notNullValue());
         assertThat(account.name, equalTo("account1"));
-        account = accounts.account(null); // falling back on the default
+        account = service.getAccount(null); // falling back on the default
         assertThat(account, notNullValue());
         assertThat(account.name, equalTo("account1"));
     }
@@ -53,85 +55,90 @@ public class PagerDutyAccountsTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         addAccountSettings("account1", builder);
 
-        PagerDutyAccounts accounts = new PagerDutyAccounts(builder.build(), httpClient, logger);
-        PagerDutyAccount account = accounts.account("account1");
+        PagerDutyService service = new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
+                Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING)));
+        PagerDutyAccount account = service.getAccount("account1");
         assertThat(account, notNullValue());
         assertThat(account.name, equalTo("account1"));
-        account = accounts.account(null); // falling back on the default
+        account = service.getAccount(null); // falling back on the default
         assertThat(account, notNullValue());
         assertThat(account.name, equalTo("account1"));
     }
 
     public void testMultipleAccounts() throws Exception {
         Settings.Builder builder = Settings.builder()
-                .put("default_account", "account1");
+                .put("xpack.notification.pagerduty.default_account", "account1");
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
 
-        PagerDutyAccounts accounts = new PagerDutyAccounts(builder.build(), httpClient, logger);
-        PagerDutyAccount account = accounts.account("account1");
+        PagerDutyService service = new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
+                Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING)));
+        PagerDutyAccount account = service.getAccount("account1");
         assertThat(account, notNullValue());
         assertThat(account.name, equalTo("account1"));
-        account = accounts.account("account2");
+        account = service.getAccount("account2");
         assertThat(account, notNullValue());
         assertThat(account.name, equalTo("account2"));
-        account = accounts.account(null); // falling back on the default
+        account = service.getAccount(null); // falling back on the default
         assertThat(account, notNullValue());
         assertThat(account.name, equalTo("account1"));
     }
 
     public void testMultipleAccounts_NoExplicitDefault() throws Exception {
         Settings.Builder builder = Settings.builder()
-                .put("default_account", "account1");
+                .put("xpack.notification.pagerduty.default_account", "account1");
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
 
-        PagerDutyAccounts accounts = new PagerDutyAccounts(builder.build(), httpClient, logger);
-        PagerDutyAccount account = accounts.account("account1");
+        PagerDutyService service = new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
+                Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING)));
+        PagerDutyAccount account = service.getAccount("account1");
         assertThat(account, notNullValue());
         assertThat(account.name, equalTo("account1"));
-        account = accounts.account("account2");
+        account = service.getAccount("account2");
         assertThat(account, notNullValue());
         assertThat(account.name, equalTo("account2"));
-        account = accounts.account(null);
+        account = service.getAccount(null);
         assertThat(account, notNullValue());
         assertThat(account.name, isOneOf("account1", "account2"));
     }
 
     public void testMultipleAccounts_UnknownDefault() throws Exception {
-        try {
+        expectThrows(SettingsException.class, () -> {
             Settings.Builder builder = Settings.builder()
-                    .put("default_account", "unknown");
+                    .put("xpack.notification.pagerduty.default_account", "unknown");
             addAccountSettings("account1", builder);
             addAccountSettings("account2", builder);
-            new PagerDutyAccounts(builder.build(), httpClient, logger);
-            fail("Expected a SettingsException to happen");
-        } catch (SettingsException e) {}
+            new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
+                    Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING)));
+        });
     }
 
     public void testNoAccount() throws Exception {
-        try {
+        expectThrows(IllegalArgumentException.class, () -> {
             Settings.Builder builder = Settings.builder();
-            PagerDutyAccounts accounts = new PagerDutyAccounts(builder.build(), httpClient, logger);
-            accounts.account(null);
-            fail("no accounts are configured so trying to get the default account should throw an IllegalStateException");
-        } catch (IllegalStateException e) {}
+            PagerDutyService service = new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
+                    Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING)));
+            service.getAccount(null);
+        });
     }
 
     public void testNoAccount_WithDefaultAccount() throws Exception {
         try {
             Settings.Builder builder = Settings.builder()
-                    .put("default_account", "unknown");
-            new PagerDutyAccounts(builder.build(), httpClient, logger);
+                    .put("xpack.notification.pagerduty.default_account", "unknown");
+            new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
+                    Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING)));
             fail("Expected a SettingsException to happen");
         } catch (SettingsException e) {}
     }
 
     public void testProxy() throws Exception {
-        Settings.Builder builder = Settings.builder().put("default_account", "account1");
+        Settings.Builder builder = Settings.builder().put("xpack.notification.pagerduty.default_account", "account1");
         addAccountSettings("account1", builder);
-        PagerDutyAccounts accounts = new PagerDutyAccounts(builder.build(), httpClient, logger);
-        PagerDutyAccount account = accounts.account("account1");
+        PagerDutyService service = new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
+                Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING)));
+        PagerDutyAccount account = service.getAccount("account1");
 
         ArgumentCaptor<HttpRequest> argumentCaptor = ArgumentCaptor.forClass(HttpRequest.class);
         when(httpClient.execute(argumentCaptor.capture())).thenReturn(new HttpResponse(200));
@@ -145,10 +152,10 @@ public class PagerDutyAccountsTests extends ESTestCase {
     }
 
     private void addAccountSettings(String name, Settings.Builder builder) {
-        builder.put("account." + name + ".service_api_key", randomAsciiOfLength(50));
+        builder.put("xpack.notification.pagerduty.account." + name + ".service_api_key", randomAsciiOfLength(50));
         Settings defaults = SlackMessageDefaultsTests.randomSettings();
         for (Map.Entry<String, String> setting : defaults.getAsMap().entrySet()) {
-            builder.put("message_defaults." + setting.getKey(), setting.getValue());
+            builder.put("xpack.notification.pagerduty.message_defaults." + setting.getKey(), setting.getValue());
         }
     }
 }

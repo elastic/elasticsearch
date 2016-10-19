@@ -74,7 +74,7 @@ public class HipChatServiceTests extends ESTestCase {
         assertThat(((V1Account) account).defaults.notify, is(defaultNotify));
 
         // with a single account defined, making sure that that account is set to the default one.
-        assertThat(service.getDefaultAccount(), sameInstance(account));
+        assertThat(service.getAccount(null), sameInstance(account));
     }
 
     public void testSingleAccountIntegration() throws Exception {
@@ -117,7 +117,7 @@ public class HipChatServiceTests extends ESTestCase {
         assertThat(((IntegrationAccount) account).defaults.notify, is(defaultNotify));
 
         // with a single account defined, making sure that that account is set to the default one.
-        assertThat(service.getDefaultAccount(), sameInstance(account));
+        assertThat(service.getAccount(null), sameInstance(account));
     }
 
     public void testSingleAccountIntegrationNoRoomSetting() throws Exception {
@@ -179,7 +179,7 @@ public class HipChatServiceTests extends ESTestCase {
         assertThat(((UserAccount) account).defaults.notify, is(defaultNotify));
 
         // with a single account defined, making sure that that account is set to the default one.
-        assertThat(service.getDefaultAccount(), sameInstance(account));
+        assertThat(service.getAccount(null), sameInstance(account));
     }
 
     public void testMultipleAccounts() throws Exception {
@@ -190,7 +190,7 @@ public class HipChatServiceTests extends ESTestCase {
         String defaultAccount = "_a" + randomIntBetween(0, 4);
         settingsBuilder.put("xpack.notification.hipchat.default_account", defaultAccount);
 
-        boolean customGlobalServer = randomBoolean();
+        final boolean customGlobalServer = randomBoolean();
         if (customGlobalServer) {
             settingsBuilder.put("xpack.notification.hipchat.host", "_host_global");
             settingsBuilder.put("xpack.notification.hipchat.port", 299);
@@ -240,7 +240,7 @@ public class HipChatServiceTests extends ESTestCase {
             }
         }
 
-        assertThat(service.getDefaultAccount(), sameInstance(service.getAccount(defaultAccount)));
+        assertThat(service.getAccount(null), sameInstance(service.getAccount(defaultAccount)));
     }
 
     private void buildMessageDefaults(String account, Settings.Builder settingsBuilder, String room, String user, String from,

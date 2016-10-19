@@ -5,46 +5,42 @@
  */
 package org.elasticsearch.xpack.notification.hipchat;
 
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.xpack.common.http.HttpClient;
+import org.elasticsearch.xpack.notification.NotificationService;
 
 /**
  * A component to store hipchat credentials.
  */
-public class HipChatService extends AbstractComponent {
+public class HipChatService extends NotificationService<HipChatAccount> {
 
     private final HttpClient httpClient;
-    private volatile HipChatAccounts accounts;
     public static final Setting<Settings> HIPCHAT_ACCOUNT_SETTING =
         Setting.groupSetting("xpack.notification.hipchat.", Setting.Property.Dynamic, Setting.Property.NodeScope);
+    private HipChatServer defaultServer;
 
     public HipChatService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
         super(settings);
         this.httpClient = httpClient;
-        clusterSettings.addSettingsUpdateConsumer(HIPCHAT_ACCOUNT_SETTING, this::setHipchatAccountSetting);
-        setHipchatAccountSetting(HIPCHAT_ACCOUNT_SETTING.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(HIPCHAT_ACCOUNT_SETTING, this::setAccountSetting);
+        setAccountSetting(HIPCHAT_ACCOUNT_SETTING.get(settings));
     }
 
-    private void setHipchatAccountSetting(Settings setting) {
-        accounts = new HipChatAccounts(setting, httpClient, logger);
+    @Override
+    protected synchronized void setAccountSetting(Settings settings) {
+        defaultServer = new HipChatServer(settings);
+        super.setAccountSetting(settings);
     }
 
-    /**
-     * @return The default hipchat account.
-     */
-    public HipChatAccount getDefaultAccount() {
-        return accounts.account(null);
+    @Override
+    protected HipChatAccount createAccount(String name, Settings accountSettings) {
+        HipChatAccount.Profile profile = HipChatAccount.Profile.resolve(accountSettings, "profile", null);
+        if (profile == null) {
+            throw new SettingsException("missing [profile] setting for hipchat account [" + name + "]");
+        }
+        return profile.createAccount(name, accountSettings, defaultServer, httpClient, logger);
     }
-
-    /**
-     * @return  The account identified by the given name. If the given name is {@code null} the default
-     *          account will be returned.
-     */
-    public HipChatAccount getAccount(String name) {
-        return accounts.account(name);
-    }
-
 }

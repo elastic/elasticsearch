@@ -34,10 +34,7 @@ public class ExecutablePagerDutyAction extends ExecutableAction<PagerDutyAction>
     @Override
     public Action.Result execute(final String actionId, WatchExecutionContext ctx, Payload payload) throws Exception {
 
-        PagerDutyAccount account = action.event.account != null ?
-                pagerDutyService.getAccount(action.event.account) :
-                pagerDutyService.getDefaultAccount();
-
+        PagerDutyAccount account = pagerDutyService.getAccount(action.event.account);
         if (account == null) {
             // the account associated with this action was deleted
             throw new IllegalStateException("account [" + action.event.account + "] was not found. perhaps it was deleted");

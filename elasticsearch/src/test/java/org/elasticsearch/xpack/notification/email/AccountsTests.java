@@ -5,9 +5,13 @@
  */
 package org.elasticsearch.xpack.notification.email;
 
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.notification.NotificationService;
+
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -19,12 +23,12 @@ public class AccountsTests extends ESTestCase {
         Settings.Builder builder = Settings.builder()
                 .put("default_account", "account1");
         addAccountSettings("account1", builder);
-
-        Accounts accounts = new Accounts(builder.build(), null, logger);
-        Account account = accounts.account("account1");
+        EmailService service = new EmailService(builder.build(), null,
+                new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
+        Account account = service.getAccount("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
-        account = accounts.account(null); // falling back on the default
+        account = service.getAccount(null); // falling back on the default
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
     }
@@ -32,30 +36,31 @@ public class AccountsTests extends ESTestCase {
     public void testSingleAccountNoExplicitDefault() throws Exception {
         Settings.Builder builder = Settings.builder();
         addAccountSettings("account1", builder);
-
-        Accounts accounts = new Accounts(builder.build(), null, logger);
-        Account account = accounts.account("account1");
+        EmailService service = new EmailService(builder.build(), null,
+                new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
+        Account account = service.getAccount("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
-        account = accounts.account(null); // falling back on the default
+        account = service.getAccount(null); // falling back on the default
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
     }
 
     public void testMultipleAccounts() throws Exception {
         Settings.Builder builder = Settings.builder()
-                .put("default_account", "account1");
+                .put("xpack.notification.email.default_account", "account1");
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
 
-        Accounts accounts = new Accounts(builder.build(), null, logger);
-        Account account = accounts.account("account1");
+        EmailService service = new EmailService(builder.build(), null,
+                new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
+        Account account = service.getAccount("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
-        account = accounts.account("account2");
+        account = service.getAccount("account2");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account2"));
-        account = accounts.account(null); // falling back on the default
+        account = service.getAccount(null); // falling back on the default
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
     }
@@ -66,54 +71,53 @@ public class AccountsTests extends ESTestCase {
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
 
-        Accounts accounts = new Accounts(builder.build(), null, logger);
-        Account account = accounts.account("account1");
+        EmailService service = new EmailService(builder.build(), null,
+                new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
+        Account account = service.getAccount("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
-        account = accounts.account("account2");
+        account = service.getAccount("account2");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account2"));
-        account = accounts.account(null);
+        account = service.getAccount(null);
         assertThat(account, notNullValue());
         assertThat(account.name(), isOneOf("account1", "account2"));
     }
 
     public void testMultipleAccountsUnknownDefault() throws Exception {
         Settings.Builder builder = Settings.builder()
-                .put("default_account", "unknown");
+                .put("xpack.notification.email.default_account", "unknown");
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
         try {
-            new Accounts(builder.build(), null, logger);
+            new EmailService(builder.build(), null,
+                    new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
             fail("Expected SettingsException");
         } catch (SettingsException e) {
-            assertThat(e.getMessage(), is("could not find default email account [unknown]"));
+            assertThat(e.getMessage(), is("could not find default account [unknown]"));
         }
     }
 
     public void testNoAccount() throws Exception {
         Settings.Builder builder = Settings.builder();
-        Accounts accounts = new Accounts(builder.build(), null, logger);
-        try {
-            accounts.account(null);
-            fail("no accounts are configured so trying to get the default account should throw an IllegalStateException");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), is("cannot find default email account as no accounts have been configured"));
-        }
+        EmailService service = new EmailService(builder.build(), null,
+                new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
+        expectThrows(IllegalArgumentException.class, () -> service.getAccount(null));
     }
 
     public void testNoAccountWithDefaultAccount() throws Exception {
         Settings.Builder builder = Settings.builder()
-                .put("default_account", "unknown");
+                .put("xpack.notification.email.default_account", "unknown");
         try {
-            new Accounts(builder.build(), null, logger);
+            new EmailService(builder.build(), null,
+                    new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
             fail("Expected SettingsException");
         } catch (SettingsException e) {
-            assertThat(e.getMessage(), is("could not find default email account [unknown]"));
+            assertThat(e.getMessage(), is("could not find default account [unknown]"));
         }
     }
 
     private void addAccountSettings(String name, Settings.Builder builder) {
-        builder.put("account." + name + ".smtp.host", "_host");
+        builder.put("xpack.notification.email.account." + name + ".smtp.host", "_host");
     }
 }

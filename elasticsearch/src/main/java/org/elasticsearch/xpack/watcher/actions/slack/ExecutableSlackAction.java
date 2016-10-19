@@ -33,9 +33,7 @@ public class ExecutableSlackAction extends ExecutableAction<SlackAction> {
     @Override
     public Action.Result execute(final String actionId, WatchExecutionContext ctx, Payload payload) throws Exception {
 
-        SlackAccount account = action.account != null ?
-                slackService.getAccount(action.account) :
-                slackService.getDefaultAccount();
+        SlackAccount account = slackService.getAccount(action.account);
 
         if (account == null) {
             // the account associated with this action was deleted

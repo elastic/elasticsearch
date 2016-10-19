@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.xpack.notification.email;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.notification.NotificationService;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 
 import javax.mail.MessagingException;
@@ -18,31 +17,32 @@ import javax.mail.MessagingException;
 /**
  * A component to store email credentials and handle sending email notifications.
  */
-public class EmailService extends AbstractComponent {
+public class EmailService extends NotificationService<Account> {
 
     private final CryptoService cryptoService;
     public static final Setting<Settings> EMAIL_ACCOUNT_SETTING =
         Setting.groupSetting("xpack.notification.email.", Setting.Property.Dynamic, Setting.Property.NodeScope);
 
-    private volatile Accounts accounts;
-
     public EmailService(Settings settings, @Nullable CryptoService cryptoService, ClusterSettings clusterSettings) {
         super(settings);
         this.cryptoService = cryptoService;
-        clusterSettings.addSettingsUpdateConsumer(EMAIL_ACCOUNT_SETTING, this::setEmailAccountSettings);
-        setEmailAccountSettings(EMAIL_ACCOUNT_SETTING.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(EMAIL_ACCOUNT_SETTING, this::setAccountSetting);
+        setAccountSetting(EMAIL_ACCOUNT_SETTING.get(settings));
     }
 
-    private void setEmailAccountSettings(Settings settings) {
-        this.accounts = createAccounts(settings, logger);
+    @Override
+    protected Account createAccount(String name, Settings accountSettings) {
+        Account.Config config = new Account.Config(name, accountSettings);
+        return new Account(config, cryptoService, logger);
     }
+
 
     public EmailSent send(Email email, Authentication auth, Profile profile) throws MessagingException {
         return send(email, auth, profile, (String) null);
     }
 
     public EmailSent send(Email email, Authentication auth, Profile profile, String accountName) throws MessagingException {
-        Account account = accounts.account(accountName);
+        Account account = getAccount(accountName);
         if (account == null) {
             throw new IllegalArgumentException("failed to send email with subject [" + email.subject() + "] via account [" + accountName
                 + "]. account does not exist");
@@ -59,10 +59,6 @@ public class EmailService extends AbstractComponent {
                 "]", me);
         }
         return new EmailSent(account.name(), email);
-    }
-
-    protected Accounts createAccounts(Settings settings, Logger logger) {
-        return new Accounts(settings, cryptoService, logger);
     }
 
     public static class EmailSent {

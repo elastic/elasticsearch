@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.notification.email;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -23,26 +22,23 @@ import static org.mockito.Mockito.when;
 
 public class EmailServiceTests extends ESTestCase {
     private EmailService service;
-    private Accounts accounts;
+    private Account account;
 
     @Before
     public void init() throws Exception {
-        accounts = mock(Accounts.class);
-        service = new EmailService(Settings.EMPTY, null,
+        account = mock(Account.class);
+        service = new EmailService(Settings.builder().put("xpack.notification.email.account.account1.foo", "bar").build(), null,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING))) {
             @Override
-            protected Accounts createAccounts(Settings settings, Logger logger) {
-                return accounts;
+            protected Account createAccount(String name, Settings accountSettings) {
+                return account;
             }
         };
     }
 
     public void testSend() throws Exception {
-        Account account = mock(Account.class);
         when(account.name()).thenReturn("account1");
-        when(accounts.account("account1")).thenReturn(account);
         Email email = mock(Email.class);
-
         Authentication auth = new Authentication("user", new Secret("passwd".toCharArray()));
         Profile profile = randomFrom(Profile.values());
         when(account.send(email, auth, profile)).thenReturn(email);
@@ -52,5 +48,4 @@ public class EmailServiceTests extends ESTestCase {
         assertThat(sent.email(), sameInstance(email));
         assertThat(sent.account(), is("account1"));
     }
-
 }

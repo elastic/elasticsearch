@@ -33,7 +33,12 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class OsProbe {
 
@@ -180,6 +185,124 @@ public class OsProbe {
         return Probes.getLoadAndScaleToPercent(getSystemCpuLoad, osMxBean);
     }
 
+    private Map<String, String> getCpuAccountingCGroup() {
+        try {
+            final List<String> lines = readProcSelfCgroup();
+            if (!lines.isEmpty()) {
+                final Map<String, String> controllerMap = new HashMap<>();
+                final Pattern pattern = Pattern.compile("\\d+:(\\w+(?:,\\w+)?):(/.*)");
+                for (final String line : lines) {
+                    final Matcher matcher = pattern.matcher(line);
+                    if (matcher.matches()) {
+                        final String[] controllers = matcher.group(1).split(",");
+                        for (final String controller : controllers) {
+                            controllerMap.put(controller, matcher.group(2));
+                        }
+                    }
+                }
+                return controllerMap;
+            }
+        } catch (final IOException e) {
+            // do not fail Elasticsearch if something unexpected happens here
+        }
+
+        return Collections.emptyMap();
+    }
+
+    // visible for testing
+    List<String> readProcSelfCgroup() throws IOException {
+        return Files.readAllLines(PathUtils.get("/proc/self/cgroup"));
+    }
+
+    private long getCgroupCpuAcctUsageNanos(final String path) {
+        try {
+            final List<String> lines = readSysFsCgroupCpuAcctCpuAcctUsage(path);
+            if (!lines.isEmpty()) {
+                return Long.parseLong(lines.get(0));
+            }
+        } catch (IOException e) {
+            // do not fail Elasticsearch is something unexpected happens here
+        }
+
+        return -1;
+    }
+
+    // visible for testing
+    List<String> readSysFsCgroupCpuAcctCpuAcctUsage(final String path) throws IOException {
+        return Files.readAllLines(PathUtils.get("/sys/fs/cgroup/cpuacct", path, "cpuacct.usage"));
+    }
+
+    private long getCgroupCpuAcctCpuCfsPeriodMicros(final String path) {
+        try {
+            final List<String> lines = readSysFsCgroupCpuAcctCpuCfsPeriod(path);
+            if (!lines.isEmpty()) {
+                return Long.parseLong(lines.get(0));
+            }
+        } catch (IOException e) {
+            // do not fail Elasticsearch is something unexpected happens here
+        }
+
+        return -1;
+    }
+
+    // visible for testing
+    List<String> readSysFsCgroupCpuAcctCpuCfsPeriod(final String path) throws IOException {
+        return Files.readAllLines(PathUtils.get("/sys/fs/cgroup/cpu", path, "cpu.cfs_period_us"));
+    }
+
+    private long getCGroupCpuAcctCpuCfsQuotaMicros(final String path) {
+        try {
+            final List<String> lines = readSysFsCgroupCpuAcctCpuAcctCfsQuota(path);
+            if (!lines.isEmpty()) {
+                return Long.parseLong(lines.get(0));
+            }
+        } catch (IOException e) {
+            // do not fail Elasticsearch is something unexpected happens here
+        }
+
+        return -1;
+    }
+
+    // visible for testing
+    List<String> readSysFsCgroupCpuAcctCpuAcctCfsQuota(final String path) throws IOException {
+        return Files.readAllLines(PathUtils.get("/sys/fs/cgroup/cpu", path, "cpu.cfs_quota_us"));
+    }
+
+    private OsStats.Cgroup.CpuStat getCgroupCpuAcctCpuStat(final String path) {
+        try {
+            final List<String> lines = readSysFsCgroupCpuAcctCpuStat(path);
+            long numberOfPeriods = -1;
+            long numberOfTimesThrottled = -1;
+            long timeThrottledNanos = -1;
+            if (!lines.isEmpty()) {
+                for (final String line : lines) {
+                    final String[] fields = line.split("\\s+");
+                    switch(fields[0]) {
+                        case "nr_periods":
+                            numberOfPeriods = Long.parseLong(fields[1]);
+                            break;
+                        case "nr_throttled":
+                            numberOfTimesThrottled = Long.parseLong(fields[1]);
+                            break;
+                        case "throttled_time":
+                            timeThrottledNanos = Long.parseLong(fields[1]);
+                            break;
+                    }
+                }
+            }
+            return new OsStats.Cgroup.CpuStat(numberOfPeriods, numberOfTimesThrottled, timeThrottledNanos);
+        } catch (IOException e) {
+            // do not fail Elasticsearch is something unexpected happens here
+        }
+
+        return null;
+    }
+
+    // visible for testing
+    List<String> readSysFsCgroupCpuAcctCpuStat(final String path) throws IOException {
+        return Files.readAllLines(PathUtils.get("/sys/fs/cgroup/cpu", path, "cpu.stat"));
+    }
+
     private static class OsProbeHolder {
         private static final OsProbe INSTANCE = new OsProbe();
     }
@@ -199,10 +322,35 @@ public class OsProbe {
     }
 
     public OsStats osStats() {
-        OsStats.Cpu cpu = new OsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage());
-        OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getFreePhysicalMemorySize());
-        OsStats.Swap swap = new OsStats.Swap(getTotalSwapSpaceSize(), getFreeSwapSpaceSize());
-        return new OsStats(System.currentTimeMillis(), cpu, mem , swap);
+        final OsStats.Cpu cpu = new OsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage());
+        final OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getFreePhysicalMemorySize());
+        final OsStats.Swap swap = new OsStats.Swap(getTotalSwapSpaceSize(), getFreeSwapSpaceSize());
+        final OsStats.Cgroup cgroup;
+        if (shouldReadCgroups()) {
+            final Map<String, String> controllerMap = getCpuAccountingCGroup();
+            if (controllerMap.containsKey("cpu") && controllerMap.containsKey("cpuacct")) {
+                final String cpuAcctControlGroup = controllerMap.get("cpuacct");
+                final String cpuControlGroup = controllerMap.get("cpu");
+                cgroup =
+                    new OsStats.Cgroup(
+                        cpuAcctControlGroup,
+                        getCgroupCpuAcctUsageNanos(cpuAcctControlGroup),
+                        cpuControlGroup,
+                        getCgroupCpuAcctCpuCfsPeriodMicros(cpuControlGroup),
+                        getCGroupCpuAcctCpuCfsQuotaMicros(cpuControlGroup),
+                        getCgroupCpuAcctCpuStat(cpuControlGroup));
+            } else {
+                cgroup = null;
+            }
+        } else {
+            cgroup = null;
+        }
+        return new OsStats(System.currentTimeMillis(), cpu, mem, swap, cgroup);
+    }
+
+    // visible for testing
+    boolean shouldReadCgroups() {
+        return Constants.LINUX;
     }
 
     /**
@@ -217,4 +365,5 @@ public class OsProbe {
             return null;
         }
     }
+
 }

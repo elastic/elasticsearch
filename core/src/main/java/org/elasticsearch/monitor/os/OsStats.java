@@ -36,12 +36,14 @@ public class OsStats implements Writeable, ToXContent {
     private final Cpu cpu;
     private final Mem mem;
     private final Swap swap;
+    private final Cgroup cgroup;
 
-    public OsStats(long timestamp, Cpu cpu, Mem mem, Swap swap) {
+    public OsStats(final long timestamp, final Cpu cpu, final Mem mem, final Swap swap, final Cgroup cgroup) {
         this.timestamp = timestamp;
-        this.cpu = Objects.requireNonNull(cpu, "cpu must not be null");
-        this.mem = Objects.requireNonNull(mem, "mem must not be null");;
-        this.swap = Objects.requireNonNull(swap, "swap must not be null");;
+        this.cpu = Objects.requireNonNull(cpu);
+        this.mem = Objects.requireNonNull(mem);
+        this.swap = Objects.requireNonNull(swap);
+        this.cgroup = cgroup;
     }
 
     public OsStats(StreamInput in) throws IOException {
@@ -49,6 +51,7 @@ public class OsStats implements Writeable, ToXContent {
         this.cpu = new Cpu(in);
         this.mem = new Mem(in);
         this.swap = new Swap(in);
+        this.cgroup = new Cgroup(in);
     }
 
     @Override
@@ -57,6 +60,7 @@ public class OsStats implements Writeable, ToXContent {
         cpu.writeTo(out);
         mem.writeTo(out);
         swap.writeTo(out);
+        cgroup.writeTo(out);
     }
 
     public long getTimestamp() {
@@ -71,6 +75,10 @@ public class OsStats implements Writeable, ToXContent {
 
     public Swap getSwap() {
         return swap;
+    }
+
+    public Cgroup getCgroup() {
+        return cgroup;
     }
 
     static final class Fields {
@@ -103,6 +111,7 @@ public class OsStats implements Writeable, ToXContent {
         cpu.toXContent(builder, params);
         mem.toXContent(builder, params);
         swap.toXContent(builder, params);
+        cgroup.toXContent(builder, params);
         builder.endObject();
         return builder;
     }
@@ -265,7 +274,160 @@ public class OsStats implements Writeable, ToXContent {
         }
     }
 
+    public static class Cgroup implements Writeable, ToXContent {
+
+        private final String cpuAcctControlGroup;
+        private final long cpuAcctUsageNanos;
+        private final String cpuControlGroup;
+        private final long cpuCfsPeriodMicros; // completely fair scheduler enforcement period
+        private final long cpuCfsQuotaMicros; // completely fair scheduler quota
+        private final CpuStat cpuStat;
+
+        public String getCpuAcctControlGroup() {
+            return cpuAcctControlGroup;
+        }
+
+        public long getCpuAcctUsageNanos() {
+            return cpuAcctUsageNanos;
+        }
+
+        public String getCpuControlGroup() {
+            return cpuControlGroup;
+        }
+
+        public long getCpuCfsPeriodMicros() {
+            return cpuCfsPeriodMicros;
+        }
+
+        public long getCpuCfsQuotaMicros() {
+            return cpuCfsQuotaMicros;
+        }
+
+        public CpuStat getCpuStat() {
+            return cpuStat;
+        }
+
+        public Cgroup(
+            final String cpuAcctControlGroup,
+            final long cpuAcctUsageNanos,
+            final String cpuControlGroup,
+            final long cpuCfsPeriodMicros,
+            final long cpuCfsQuotaMicros,
+            final CpuStat cpuStat) {
+            this.cpuAcctControlGroup = cpuAcctControlGroup;
+            this.cpuAcctUsageNanos = cpuAcctUsageNanos;
+            this.cpuControlGroup = cpuControlGroup;
+            this.cpuCfsPeriodMicros = cpuCfsPeriodMicros;
+            this.cpuCfsQuotaMicros = cpuCfsQuotaMicros;
+            this.cpuStat = cpuStat;
+        }
+
+        Cgroup(final StreamInput in) throws IOException {
+            cpuAcctControlGroup = in.readString();
+            cpuAcctUsageNanos = in.readLong();
+            cpuControlGroup = in.readString();
+            cpuCfsPeriodMicros = in.readLong();
+            cpuCfsQuotaMicros = in.readLong();
+            if (!in.readBoolean()) {
+                cpuStat = null;
+            } else {
+                cpuStat = new CpuStat(in);
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(cpuAcctControlGroup);
+            out.writeLong(cpuAcctUsageNanos);
+            out.writeString(cpuControlGroup);
+            out.writeLong(cpuCfsPeriodMicros);
+            out.writeLong(cpuCfsQuotaMicros);
+            if (cpuStat == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                cpuStat.writeTo(out);
+            }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject("cgroup");
+            {
+                builder.startObject("cpuacct");
+                {
+                    builder.field("control_group", cpuAcctControlGroup);
+                    builder.field("usage_nanos", cpuAcctUsageNanos);
+                }
+                builder.endObject();
+                builder.startObject("cpu");
+                {
+                    builder.field("control_group", cpuControlGroup);
+                    builder.field("cfs_period_micros", cpuCfsPeriodMicros);
+                    builder.field("cfs_quota_micros", cpuCfsQuotaMicros);
+                    cpuStat.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        public static class CpuStat implements Writeable, ToXContent {
+
+            private final long numberOfElapsedPeriods;
+            private final long numberOfTimesThrottled;
+            private final long timeThrottledNanos;
+
+            public long getNumberOfElapsedPeriods() {
+                return numberOfElapsedPeriods;
+            }
+
+            public long getNumberOfTimesThrottled() {
+                return numberOfTimesThrottled;
+            }
+
+            public long getTimeThrottledNanos() {
+                return timeThrottledNanos;
+            }
+
+            public CpuStat(final long numberOfElapsedPeriods, final long numberOfTimesThrottled, final long timeThrottledNanos) {
+                this.numberOfElapsedPeriods = numberOfElapsedPeriods;
+                this.numberOfTimesThrottled = numberOfTimesThrottled;
+                this.timeThrottledNanos = timeThrottledNanos;
+            }
+
+            CpuStat(final StreamInput in) throws IOException {
+                numberOfElapsedPeriods = in.readLong();
+                numberOfTimesThrottled = in.readLong();
+                timeThrottledNanos = in.readLong();
+            }
+
+            @Override
+            public void writeTo(final StreamOutput out) throws IOException {
+                out.writeLong(numberOfElapsedPeriods);
+                out.writeLong(numberOfTimesThrottled);
+                out.writeLong(timeThrottledNanos);
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject("stat");
+                {
+                    builder.field("number_of_elapsed_periods", numberOfElapsedPeriods);
+                    builder.field("number_of_times_throttled", numberOfTimesThrottled);
+                    builder.field("time_throttled_nanos", timeThrottledNanos);
+                }
+                builder.endObject();
+                return builder;
+            }
+
+        }
+
+    }
+
     public static short calculatePercentage(long used, long max) {
         return max <= 0 ? 0 : (short) (Math.round((100d * used) / max));
     }
+
 }

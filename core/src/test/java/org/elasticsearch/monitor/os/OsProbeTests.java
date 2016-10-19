@@ -22,6 +22,11 @@ package org.elasticsearch.monitor.os;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.both;
@@ -30,8 +35,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class OsProbeTests extends ESTestCase {
+
     private final OsProbe probe = OsProbe.getInstance();
 
     public void testOsInfo() {
@@ -102,6 +109,20 @@ public class OsProbeTests extends ESTestCase {
             assertThat(stats.getSwap().getFree().getBytes(), equalTo(0L));
             assertThat(stats.getSwap().getUsed().getBytes(), equalTo(0L));
         }
+
+        if (Constants.LINUX) {
+            if (stats.getCgroup() != null) {
+                assertThat(stats.getCgroup().getCpuAcctControlGroup(), notNullValue());
+                assertThat(stats.getCgroup().getCpuAcctUsageNanos(), greaterThan(0L));
+                assertThat(stats.getCgroup().getCpuCfsQuotaMicros(), anyOf(equalTo(-1L), greaterThanOrEqualTo(0L)));
+                assertThat(stats.getCgroup().getCpuCfsPeriodMicros(), greaterThanOrEqualTo(0L));
+                assertThat(stats.getCgroup().getCpuStat().getNumberOfElapsedPeriods(), greaterThanOrEqualTo(0L));
+                assertThat(stats.getCgroup().getCpuStat().getNumberOfTimesThrottled(), greaterThanOrEqualTo(0L));
+                assertThat(stats.getCgroup().getCpuStat().getTimeThrottledNanos(), greaterThanOrEqualTo(0L));
+            }
+        } else {
+            assertNull(stats.getCgroup());
+        }
     }
 
     public void testGetSystemLoadAverage() {
@@ -123,6 +144,72 @@ public class OsProbeTests extends ESTestCase {
         assertThat(systemLoadAverage[0], equalTo(Double.parseDouble("1.51")));
         assertThat(systemLoadAverage[1], equalTo(Double.parseDouble("1.69")));
         assertThat(systemLoadAverage[2], equalTo(Double.parseDouble("1.99")));
+    }
+
+    public void testCGroupProbe() {
+
+        final String hierarchy = randomAsciiOfLength(16);
+
+        final OsProbe probe = new OsProbe() {
+
+            @Override
+            List<String> readProcSelfCgroup() throws IOException {
+                return Arrays.asList(
+                    "11:freezer:/",
+                    "10:net_cls,net_prio:/",
+                    "9:pids:/",
+                    "8:cpuset:/",
+                    "7:blkio:/",
+                    "6:memory:/",
+                    "5:devices:/user.slice",
+                    "4:hugetlb:/",
+                    "3:perf_event:/",
+                    "2:cpu,cpuacct:/" + hierarchy,
+                    "1:name=systemd:/user.slice/user-1000.slice/session-2359.scope");
+            }
+
+            @Override
+            List<String> readSysFsCgroupCpuAcctCpuAcctUsage(String path) throws IOException {
+                assertThat(path, equalTo("/" + hierarchy));
+                return Collections.singletonList("364869866063112");
+            }
+
+            @Override
+            List<String> readSysFsCgroupCpuAcctCpuCfsPeriod(String path) throws IOException {
+                assertThat(path, equalTo("/" + hierarchy));
+                return Collections.singletonList("100000");
+            }
+
+            @Override
+            List<String> readSysFsCgroupCpuAcctCpuAcctCfsQuota(String path) throws IOException {
+                assertThat(path, equalTo("/" + hierarchy));
+                return Collections.singletonList("50000");
+            }
+
+            @Override
+            List<String> readSysFsCgroupCpuAcctCpuStat(String path) throws IOException {
+                return Arrays.asList(
+                    "nr_periods 17992",
+                    "nr_throttled 1311",
+                    "throttled_time 139298645489");
+            }
+
+            @Override
+            boolean shouldReadCgroups() {
+                return true;
+            }
+
+        };
+
+        final OsStats.Cgroup cgroup = probe.osStats().getCgroup();
+        assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
+        assertThat(cgroup.getCpuAcctUsageNanos(), equalTo(364869866063112L));
+        assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
+        assertThat(cgroup.getCpuCfsPeriodMicros(), equalTo(100000L));
+        assertThat(cgroup.getCpuCfsQuotaMicros(), equalTo(50000L));
+        assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo(17992L));
+        assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo(1311L));
+        assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo(139298645489L));
     }
 
 }

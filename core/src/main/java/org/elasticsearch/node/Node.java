@@ -447,7 +447,7 @@ public class Node implements Closeable {
             resourcesToClose.addAll(pluginLifecycleComponents);
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
 
-            client.intialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {}));
+            client.initialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {}));
 
             logger.info("initialized");
 

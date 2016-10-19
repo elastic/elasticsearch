@@ -197,16 +197,13 @@ public class TypeFieldMapper extends MetadataFieldMapper {
                         // this _type is not present in the reader
                         continue;
                     }
-                    if (context.docFreq() == reader.maxDoc()) {
-                        // All docs have the same type.
-                        // Using a match_all query will help Lucene perform some optimizations
-                        // For instance, match_all queries as filter clauses are automatically removed
-                        return new MatchAllDocsQuery();
-                    }
                     totalDocFreq += context.docFreq();
                     // strict equality should be enough ?
                     if (totalDocFreq >= reader.maxDoc()) {
-                        // matches all docs since _type is a single value field
+                        assert totalDocFreq == reader.maxDoc();
+                        // Matches all docs since _type is a single value field
+                        // Using a match_all query will help Lucene perform some optimizations
+                        // For instance, match_all queries as filter clauses are automatically removed
                         return new MatchAllDocsQuery();
                     }
                     bq.add(new TermQuery(term, context), BooleanClause.Occur.SHOULD);

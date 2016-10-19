@@ -147,14 +147,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     @Inject
     public ZenDiscovery(Settings settings, ThreadPool threadPool,
                         TransportService transportService, final ClusterService clusterService, ClusterSettings clusterSettings,
-                        ZenPingService pingService, ElectMasterService electMasterService) {
+                        ZenPingService pingService) {
         super(settings);
         this.clusterService = clusterService;
         this.clusterName = clusterService.getClusterName();
         this.transportService = transportService;
         this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
         this.pingService = pingService;
-        this.electMaster = electMasterService;
+        this.electMaster = new ElectMasterService(settings);
         this.pingTimeout = PING_TIMEOUT_SETTING.get(settings);
 
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);

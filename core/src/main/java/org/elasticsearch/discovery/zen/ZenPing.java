@@ -158,8 +158,8 @@ public interface ZenPing extends LifecycleComponent {
 
         @Override
         public String toString() {
-            return "ping_response{node [" + node + "], id[" + id + "], master [" + master + "], cluster_state_version [" + clusterStateVersion
-                + "], cluster_name[" + clusterName.value() + "]}";
+            return "ping_response{node [" + node + "], id[" + id + "], master [" + master + "]," +
+                   "cluster_state_version [" + clusterStateVersion + "], cluster_name[" + clusterName.value() + "]}";
         }
     }
 

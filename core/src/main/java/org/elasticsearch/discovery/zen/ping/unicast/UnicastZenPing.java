@@ -103,7 +103,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
     private final ThreadPool threadPool;
     private final TransportService transportService;
     private final ClusterName clusterName;
-    private final ElectMasterService electMasterService;
 
     private final int concurrentConnects;
 
@@ -132,12 +131,11 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
 
     @Inject
     public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
-                          ElectMasterService electMasterService, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
+                          @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
-        this.electMasterService = electMasterService;
 
         if (unicastHostsProviders != null) {
             for (UnicastHostsProvider unicastHostsProvider : unicastHostsProviders) {
@@ -361,7 +359,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
         }
 
         // sort the nodes by likelihood of being an active master
-        List<DiscoveryNode> sortedNodesToPing = electMasterService.sortByMasterLikelihood(nodesToPingSet);
+        List<DiscoveryNode> sortedNodesToPing = ElectMasterService.sortByMasterLikelihood(nodesToPingSet);
 
         // new add the unicast targets first
         List<DiscoveryNode> nodesToPing = CollectionUtils.arrayAsArrayList(configuredTargetNodes);

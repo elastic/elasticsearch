@@ -138,10 +138,9 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
         HttpRequestAttachment attachment = new HttpRequestAttachment("someid", requestTemplate, false, null);
         WatchExecutionContext ctx = createWatchExecutionContext();
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+        IOException exception = expectThrows(IOException.class,
                 () -> attachmentParsers.get(HttpEmailAttachementParser.TYPE).toAttachment(ctx, new Payload.Simple(), attachment));
-        assertThat(exception.getMessage(), is("Watch[watch1] attachment[someid] Error executing HTTP request host[localhost], port[80], " +
-                "method[GET], path[foo], exception[whatever]"));
+        assertThat(exception.getMessage(), is("whatever"));
     }
 
     private WatchExecutionContext createWatchExecutionContext() {

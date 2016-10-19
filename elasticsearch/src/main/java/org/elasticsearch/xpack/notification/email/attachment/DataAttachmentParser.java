@@ -10,10 +10,10 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.notification.email.Attachment;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
 import org.elasticsearch.xpack.watcher.watch.Payload;
-import org.elasticsearch.xpack.notification.email.Attachment;
 
 import java.io.IOException;
 import java.util.Map;
@@ -57,7 +57,7 @@ public class DataAttachmentParser implements EmailAttachmentParser<DataAttachmen
     }
 
     @Override
-    public Attachment toAttachment(WatchExecutionContext ctx, Payload payload, DataAttachment attachment) {
+    public Attachment toAttachment(WatchExecutionContext ctx, Payload payload, DataAttachment attachment) throws IOException {
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
         return attachment.getDataAttachment().create(attachment.id(), model);
     }

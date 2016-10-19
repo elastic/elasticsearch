@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.common.http.auth;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.common.http.auth.basic;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthFactory;
 import org.elasticsearch.xpack.security.crypto.CryptoService;

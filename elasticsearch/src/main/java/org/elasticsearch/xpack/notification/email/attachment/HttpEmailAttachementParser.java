@@ -5,14 +5,12 @@
  */
 package org.elasticsearch.xpack.notification.email.attachment;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpRequest;
@@ -39,14 +37,12 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
     private final HttpClient httpClient;
     private HttpRequestTemplate.Parser requestTemplateParser;
     private final TextTemplateEngine templateEngine;
-    private final Logger logger;
 
     public HttpEmailAttachementParser(HttpClient httpClient, HttpRequestTemplate.Parser requestTemplateParser,
                                       TextTemplateEngine templateEngine) {
         this.httpClient = httpClient;
         this.requestTemplateParser = requestTemplateParser;
         this.templateEngine = templateEngine;
-        this.logger = Loggers.getLogger(getClass());
     }
 
     @Override
@@ -86,36 +82,29 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
 
     @Override
     public Attachment toAttachment(WatchExecutionContext context, Payload payload,
-                                   HttpRequestAttachment attachment) throws ElasticsearchException {
+                                   HttpRequestAttachment attachment) throws IOException {
         Map<String, Object> model = Variables.createCtxModel(context, payload);
         HttpRequest httpRequest = attachment.getRequestTemplate().render(templateEngine, model);
 
-        try {
-            HttpResponse response = httpClient.execute(httpRequest);
-            // check for status 200, only then append attachment
-            if (response.status() >= 200 && response.status() < 300) {
-                if (response.hasContent()) {
-                    String contentType = attachment.getContentType();
-                    String attachmentContentType = Strings.hasLength(contentType) ? contentType : response.contentType();
-                    return new Attachment.Bytes(attachment.id(), BytesReference.toBytes(response.body()), attachmentContentType,
-                            attachment.inline());
-                } else {
-                    throw new ElasticsearchException("Watch[{}] attachment[{}] HTTP empty response body host[{}], port[{}], " +
-                            "method[{}], path[{}], status[{}]",
-                            context.watch().id(), attachment.id(), httpRequest.host(), httpRequest.port(), httpRequest.method(),
-                            httpRequest.path(), response.status());
-                }
+        HttpResponse response = httpClient.execute(httpRequest);
+        // check for status 200, only then append attachment
+        if (response.status() >= 200 && response.status() < 300) {
+            if (response.hasContent()) {
+                String contentType = attachment.getContentType();
+                String attachmentContentType = Strings.hasLength(contentType) ? contentType : response.contentType();
+                return new Attachment.Bytes(attachment.id(), BytesReference.toBytes(response.body()), attachmentContentType,
+                        attachment.inline());
             } else {
-                throw new ElasticsearchException("Watch[{}] attachment[{}] HTTP error status host[{}], port[{}], " +
+                throw new ElasticsearchException("Watch[{}] attachment[{}] HTTP empty response body host[{}], port[{}], " +
                         "method[{}], path[{}], status[{}]",
                         context.watch().id(), attachment.id(), httpRequest.host(), httpRequest.port(), httpRequest.method(),
                         httpRequest.path(), response.status());
             }
-        } catch (IOException e) {
-            throw new ElasticsearchException("Watch[{}] attachment[{}] Error executing HTTP request host[{}], port[{}], " +
-                    "method[{}], path[{}], exception[{}]",
+        } else {
+            throw new ElasticsearchException("Watch[{}] attachment[{}] HTTP error status host[{}], port[{}], " +
+                    "method[{}], path[{}], status[{}]",
                     context.watch().id(), attachment.id(), httpRequest.host(), httpRequest.port(), httpRequest.method(),
-                    httpRequest.path(), e.getMessage());
+                    httpRequest.path(), response.status());
         }
     }
 }

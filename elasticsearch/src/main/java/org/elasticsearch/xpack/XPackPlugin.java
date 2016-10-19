@@ -5,22 +5,6 @@
  */
 package org.elasticsearch.xpack;
 
-import java.io.IOException;
-import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -33,7 +17,6 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -85,6 +68,7 @@ import org.elasticsearch.xpack.notification.email.attachment.DataAttachmentParse
 import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentParser;
 import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentsParser;
 import org.elasticsearch.xpack.notification.email.attachment.HttpEmailAttachementParser;
+import org.elasticsearch.xpack.notification.email.attachment.ReportingAttachmentParser;
 import org.elasticsearch.xpack.notification.email.support.BodyPartSource;
 import org.elasticsearch.xpack.notification.hipchat.HipChatService;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
@@ -103,6 +87,22 @@ import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.WatcherFeatureSet;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin {
 
@@ -246,7 +246,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         components.add(httpClient);
 
         components.addAll(createNotificationComponents(clusterService.getClusterSettings(), httpClient,
-            httpTemplateParser, scriptService));
+            httpTemplateParser, scriptService, httpAuthRegistry));
 
         // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService);
@@ -254,7 +254,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     }
 
     private Collection<Object> createNotificationComponents(ClusterSettings clusterSettings, HttpClient httpClient,
-                                                            HttpRequestTemplate.Parser httpTemplateParser, ScriptService scriptService) {
+                                                            HttpRequestTemplate.Parser httpTemplateParser, ScriptService scriptService,
+                                                            HttpAuthRegistry httpAuthRegistry) {
         List<Object> components = new ArrayList<>();
         components.add(new EmailService(settings, security.getCryptoService(), clusterSettings));
         components.add(new HipChatService(settings, httpClient, clusterSettings));
@@ -266,6 +267,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         Map<String, EmailAttachmentParser> parsers = new HashMap<>();
         parsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, httpTemplateParser, textTemplateEngine));
         parsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
+        parsers.put(ReportingAttachmentParser.TYPE, new ReportingAttachmentParser(settings, httpClient, textTemplateEngine,
+                httpAuthRegistry));
         components.add(new EmailAttachmentsParser(parsers));
 
         return components;
@@ -316,6 +319,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         settings.add(EmailService.EMAIL_ACCOUNT_SETTING);
         settings.add(HipChatService.HIPCHAT_ACCOUNT_SETTING);
         settings.add(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING);
+        settings.add(ReportingAttachmentParser.RETRIES_SETTING);
+        settings.add(ReportingAttachmentParser.INTERVAL_SETTING);
 
         // http settings
         settings.add(Setting.simpleString("xpack.http.default_read_timeout", Setting.Property.NodeScope));

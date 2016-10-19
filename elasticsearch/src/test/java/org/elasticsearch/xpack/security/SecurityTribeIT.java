@@ -9,8 +9,12 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.MockNode;
@@ -21,7 +25,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.test.discovery.MockZenPing;
 import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.action.user.PutUserResponse;
@@ -33,13 +36,13 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
@@ -129,7 +132,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         return true;
     }
 
-    private void setupTribeNode(Settings settings) throws NodeValidationException {
+    private void setupTribeNode(Settings settings) throws NodeValidationException, InterruptedException {
         SecuritySettingsSource cluster2SettingsSource = new SecuritySettingsSource(1, useSSL, systemKey(), createTempDir(), Scope.TEST);
         Map<String,String> asMap = new HashMap<>(cluster2SettingsSource.nodeSettings(0).getAsMap());
         asMap.remove(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey());
@@ -162,6 +165,36 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         classpathPlugins.addAll(getMockPlugins());
         tribeNode = new MockNode(merged, classpathPlugins).start();
         tribeClient = getClientWrapper().apply(tribeNode.client());
+        ClusterStateObserver observer = new ClusterStateObserver(tribeNode.injector().getInstance(ClusterService.class),
+                logger, new ThreadContext(settings));
+        CountDownLatch latch = new CountDownLatch(1);
+        final int cluster1Nodes = internalCluster().size();
+        final int cluster2Nodes = cluster2.size();
+        logger.info("waiting for [{}] nodes to be added to the tribe cluster state", cluster1Nodes + cluster2Nodes + 2);
+        observer.waitForNextChange(new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                latch.countDown();
+            }
+
+            @Override
+            public void onClusterServiceClose() {
+                fail("tribe cluster service closed");
+                latch.countDown();
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                fail("timed out waiting for nodes to be added to tribe's cluster state");
+                latch.countDown();
+            }
+        }, new ClusterStateObserver.ValidationPredicate() {
+            @Override
+            protected boolean validate(ClusterState newState) {
+                return newState.nodes().getSize() == cluster1Nodes + cluster2Nodes + 3;
+            }
+        });
+        latch.await();
     }
 
     public void testThatTribeCanAuthenticateElasticUser() throws Exception {

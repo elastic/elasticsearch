@@ -233,7 +233,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
                                                     extensionsService.getExtensions()));
         components.addAll(monitoring.createComponents(internalClient, threadPool, clusterService, licenseService, sslService));
 
-        components.addAll(watcher.createComponents(getClock(), scriptService));
 
         // watcher http stuff
         Map<String, HttpAuthFactory> httpAuthFactories = new HashMap<>();
@@ -245,8 +244,13 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         final HttpClient httpClient = new HttpClient(settings, httpAuthRegistry, sslService);
         components.add(httpClient);
 
-        components.addAll(createNotificationComponents(clusterService.getClusterSettings(), httpClient,
-            httpTemplateParser, scriptService, httpAuthRegistry));
+        Collection<Object> notificationComponents = createNotificationComponents(clusterService.getClusterSettings(), httpClient,
+                httpTemplateParser, scriptService, httpAuthRegistry);
+        components.addAll(notificationComponents);
+
+        components.addAll(watcher.createComponents(getClock(), scriptService, internalClient, searchRequestParsers, licenseState,
+                httpClient, components));
+
 
         // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService);

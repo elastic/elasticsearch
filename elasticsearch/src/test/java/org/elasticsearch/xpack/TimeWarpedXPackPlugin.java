@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.watcher.test.TimeWarpedWatcher;
 import java.io.IOException;
 
 public class TimeWarpedXPackPlugin extends XPackPlugin {
+    private final ClockMock clock = new ClockMock();
 
     public TimeWarpedXPackPlugin(Settings settings) throws IOException {
         super(settings);
@@ -21,6 +22,6 @@ public class TimeWarpedXPackPlugin extends XPackPlugin {
 
     @Override
     protected Clock getClock() {
-        return new ClockMock();
+        return clock;
     }
 }

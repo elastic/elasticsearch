@@ -68,7 +68,7 @@ public class ChainTransform implements Transform {
         return builder.endArray();
     }
 
-    public static ChainTransform parse(String watchId, XContentParser parser, TransformRegistry transformRegistry,
+    static ChainTransform parse(String watchId, XContentParser parser, TransformRegistry transformRegistry,
                                        boolean upgradeSource) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token != XContentParser.Token.START_ARRAY) {

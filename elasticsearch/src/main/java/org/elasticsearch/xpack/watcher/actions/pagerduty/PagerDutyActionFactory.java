@@ -5,25 +5,21 @@
  */
 package org.elasticsearch.xpack.watcher.actions.pagerduty;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.actions.hipchat.ExecutableHipChatAction;
-import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
 
 import java.io.IOException;
 
-public class PagerDutyActionFactory extends ActionFactory<PagerDutyAction, ExecutablePagerDutyAction> {
+public class PagerDutyActionFactory extends ActionFactory {
 
     private final TextTemplateEngine templateEngine;
     private final PagerDutyService pagerDutyService;
 
-    @Inject
     public PagerDutyActionFactory(Settings settings, TextTemplateEngine templateEngine, PagerDutyService pagerDutyService) {
         super(Loggers.getLogger(ExecutableHipChatAction.class, settings));
         this.templateEngine = templateEngine;
@@ -31,24 +27,9 @@ public class PagerDutyActionFactory extends ActionFactory<PagerDutyAction, Execu
     }
 
     @Override
-    public String type() {
-        return PagerDutyAction.TYPE;
-    }
-
-    @Override
-    public PagerDutyAction parseAction(String watchId, String actionId, XContentParser parser) throws IOException {
+    public ExecutablePagerDutyAction parseExecutable(String watchId, String actionId, XContentParser parser) throws IOException {
         PagerDutyAction action = PagerDutyAction.parse(watchId, actionId, parser);
-        PagerDutyAccount account = pagerDutyService.getAccount(action.event.account);
-        if (account == null) {
-            throw new ElasticsearchParseException("could not parse [pagerduty] action [{}/{}]. unknown pager duty account [{}]", watchId,
-                    account, action.event.account);
-        }
-        return action;
-    }
-
-    @Override
-    public ExecutablePagerDutyAction createExecutable(PagerDutyAction action) {
+        pagerDutyService.getAccount(action.event.account);
         return new ExecutablePagerDutyAction(action, actionLogger, pagerDutyService, templateEngine);
     }
-
 }

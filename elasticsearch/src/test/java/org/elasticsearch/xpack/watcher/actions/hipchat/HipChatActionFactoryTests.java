@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.actions.hipchat;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -15,6 +16,8 @@ import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.notification.hipchat.HipChatAccount;
 import org.elasticsearch.xpack.notification.hipchat.HipChatService;
 import org.junit.Before;
+
+import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.hipchatAction;
@@ -43,24 +46,20 @@ public class HipChatActionFactoryTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
         parser.nextToken();
 
-        HipChatAction parsedAction = factory.parseAction("_w1", "_a1", parser);
-        assertThat(parsedAction, is(action));
+        ExecutableHipChatAction parsedAction = factory.parseExecutable("_w1", "_a1", parser);
+        assertThat(parsedAction.action(), is(action));
 
         verify(account, times(1)).validateParsedTemplate("_w1", "_a1", action.message);
     }
 
     public void testParseActionUnknownAccount() throws Exception {
-        when(hipchatService.getAccount("_unknown")).thenReturn(null);
-
+        hipchatService = new HipChatService(Settings.EMPTY, null, new ClusterSettings(Settings.EMPTY,
+                Collections.singleton(HipChatService.HIPCHAT_ACCOUNT_SETTING)));
+        factory = new HipChatActionFactory(Settings.EMPTY, mock(TextTemplateEngine.class), hipchatService);
         HipChatAction action = hipchatAction("_unknown", "_body").build();
         XContentBuilder jsonBuilder = jsonBuilder().value(action);
         XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
         parser.nextToken();
-        try {
-            factory.parseAction("_w1", "_a1", parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("could not parse [hipchat] action [_w1]. unknown hipchat account [_unknown]"));
-        }
+        expectThrows(IllegalArgumentException.class, () -> factory.parseExecutable("_w1", "_a1", parser));
     }
 }

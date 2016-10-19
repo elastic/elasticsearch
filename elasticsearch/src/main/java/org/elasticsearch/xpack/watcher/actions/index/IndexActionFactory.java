@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.actions.index;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -16,12 +15,11 @@ import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 
 import java.io.IOException;
 
-public class IndexActionFactory extends ActionFactory<IndexAction, ExecutableIndexAction> {
+public class IndexActionFactory extends ActionFactory {
 
     private final WatcherClientProxy client;
     private final TimeValue defaultTimeout;
 
-    @Inject
     public IndexActionFactory(Settings settings, InternalClient client) {
         this(settings, new WatcherClientProxy(settings, client));
     }
@@ -33,17 +31,7 @@ public class IndexActionFactory extends ActionFactory<IndexAction, ExecutableInd
     }
 
     @Override
-    public String type() {
-        return IndexAction.TYPE;
-    }
-
-    @Override
-    public IndexAction parseAction(String watchId, String actionId, XContentParser parser) throws IOException {
-        return IndexAction.parse(watchId, actionId, parser);
-    }
-
-    @Override
-    public ExecutableIndexAction createExecutable(IndexAction action) {
-        return new ExecutableIndexAction(action, actionLogger, client, defaultTimeout);
+    public ExecutableIndexAction parseExecutable(String watchId, String actionId, XContentParser parser) throws IOException {
+        return new ExecutableIndexAction(IndexAction.parse(watchId, actionId, parser), actionLogger, client, defaultTimeout);
     }
 }

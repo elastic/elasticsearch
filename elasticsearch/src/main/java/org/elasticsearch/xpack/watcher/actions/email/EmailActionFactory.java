@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.actions.email;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -17,14 +16,13 @@ import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentsPar
 
 import java.io.IOException;
 
-public class EmailActionFactory extends ActionFactory<EmailAction, ExecutableEmailAction> {
+public class EmailActionFactory extends ActionFactory {
 
     private final EmailService emailService;
     private final TextTemplateEngine templateEngine;
     private final HtmlSanitizer htmlSanitizer;
     private final EmailAttachmentsParser emailAttachmentsParser;
 
-    @Inject
     public EmailActionFactory(Settings settings, EmailService emailService, TextTemplateEngine templateEngine,
                               EmailAttachmentsParser emailAttachmentsParser) {
         super(Loggers.getLogger(ExecutableEmailAction.class, settings));
@@ -35,18 +33,9 @@ public class EmailActionFactory extends ActionFactory<EmailAction, ExecutableEma
     }
 
     @Override
-    public String type() {
-        return EmailAction.TYPE;
+    public ExecutableEmailAction parseExecutable(String watchId, String actionId, XContentParser parser) throws IOException {
+        return new ExecutableEmailAction(EmailAction.parse(watchId, actionId, parser, emailAttachmentsParser),
+                actionLogger, emailService, templateEngine, htmlSanitizer, emailAttachmentsParser.getParsers());
     }
 
-    @Override
-    public EmailAction parseAction(String watchId, String actionId, XContentParser parser) throws IOException {
-        return EmailAction.parse(watchId, actionId, parser, emailAttachmentsParser);
-    }
-
-    @Override
-    public ExecutableEmailAction createExecutable(EmailAction action) {
-        return new ExecutableEmailAction(action, actionLogger, emailService, templateEngine, htmlSanitizer,
-                emailAttachmentsParser.getParsers());
-    }
 }

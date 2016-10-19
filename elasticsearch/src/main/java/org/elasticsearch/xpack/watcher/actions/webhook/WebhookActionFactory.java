@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -16,13 +15,12 @@ import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 
 import java.io.IOException;
 
-public class WebhookActionFactory extends ActionFactory<WebhookAction, ExecutableWebhookAction> {
+public class WebhookActionFactory extends ActionFactory {
 
     private final HttpClient httpClient;
     private final HttpRequestTemplate.Parser requestTemplateParser;
     private final TextTemplateEngine templateEngine;
 
-    @Inject
     public WebhookActionFactory(Settings settings, HttpClient httpClient, HttpRequestTemplate.Parser requestTemplateParser,
                                 TextTemplateEngine templateEngine) {
 
@@ -33,17 +31,9 @@ public class WebhookActionFactory extends ActionFactory<WebhookAction, Executabl
     }
 
     @Override
-    public String type() {
-        return WebhookAction.TYPE;
-    }
+    public ExecutableWebhookAction parseExecutable(String watchId, String actionId, XContentParser parser) throws IOException {
+        return new ExecutableWebhookAction(WebhookAction.parse(watchId, actionId, parser, requestTemplateParser),
+                actionLogger, httpClient, templateEngine);
 
-    @Override
-    public WebhookAction parseAction(String watchId, String actionId, XContentParser parser) throws IOException {
-        return WebhookAction.parse(watchId, actionId, parser, requestTemplateParser);
-    }
-
-    @Override
-    public ExecutableWebhookAction createExecutable(WebhookAction action) {
-        return new ExecutableWebhookAction(action, actionLogger, httpClient, templateEngine);
     }
 }

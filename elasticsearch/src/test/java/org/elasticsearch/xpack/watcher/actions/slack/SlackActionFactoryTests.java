@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.actions.slack;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -15,6 +16,8 @@ import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.notification.slack.SlackAccount;
 import org.elasticsearch.xpack.notification.slack.SlackService;
 import org.junit.Before;
+
+import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.slackAction;
@@ -42,22 +45,18 @@ public class SlackActionFactoryTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
         parser.nextToken();
 
-        SlackAction parsedAction = factory.parseAction("_w1", "_a1", parser);
+        SlackAction parsedAction = SlackAction.parse("_w1", "_a1", parser);
         assertThat(parsedAction, is(action));
     }
 
     public void testParseActionUnknownAccount() throws Exception {
-        when(service.getAccount("_unknown")).thenReturn(null);
-
+        SlackService service = new SlackService(Settings.EMPTY, null, new ClusterSettings(Settings.EMPTY,
+                Collections.singleton(SlackService.SLACK_ACCOUNT_SETTING)));
+        factory = new SlackActionFactory(Settings.EMPTY, mock(TextTemplateEngine.class), service);
         SlackAction action = slackAction("_unknown", createRandomTemplate()).build();
         XContentBuilder jsonBuilder = jsonBuilder().value(action);
         XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
         parser.nextToken();
-        try {
-            factory.parseAction("_w1", "_a1", parser);
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("could not parse [slack] action [_w1]. unknown slack account [_unknown]"));
-        }
+        expectThrows(IllegalArgumentException.class, () -> factory.parseExecutable("_w1", "_a1", parser));
     }
 }

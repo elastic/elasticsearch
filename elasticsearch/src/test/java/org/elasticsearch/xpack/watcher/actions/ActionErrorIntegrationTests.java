@@ -5,26 +5,14 @@
  */
 package org.elasticsearch.xpack.watcher.actions;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
-import org.elasticsearch.xpack.watcher.watch.Payload;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -38,14 +26,6 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
         return true; // to have control over the execution
     }
 
-    @Override
-    protected List<Class<? extends Plugin>> pluginTypes() {
-        List<Class<? extends Plugin>> types = new ArrayList<>();
-        types.addAll(super.pluginTypes());
-        types.add(ErrorActionPlugin.class);
-        return Collections.unmodifiableList(types);
-    }
-
     /**
      * This test makes sure that when an action encounters an error it should
      * not be subject to throttling. Also, the ack status of the action in the
@@ -53,13 +33,16 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
      * fails.
      */
     public void testErrorInAction() throws Exception {
+        createIndex("foo");
+        client().admin().indices().prepareUpdateSettings("foo").setSettings(Settings.builder().put("index.blocks.write", true)).get();
+
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("10m")))
 
                         // adding an action that throws an error and is associated with a 60 minute throttle period
                         // with such a period, on successful execution we other executions of the watch will be
                         // throttled within the hour... but on failed execution there should be no throttling
-                .addAction("_action", TimeValue.timeValueMinutes(60), new ErrorAction.Builder()))
+                .addAction("_action", TimeValue.timeValueMinutes(60), IndexAction.builder("foo", "bar")))
                 .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
@@ -103,84 +86,5 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
         GetWatchResponse getWatchResponse = watcherClient().prepareGetWatch("_id").get();
         XContentSource watch = getWatchResponse.getSource();
         watch.getValue("status.actions._action.ack.awaits_successful_execution");
-    }
-
-
-
-    public static class ErrorActionPlugin extends Plugin {
-
-        public void onModule(WatcherActionModule module) {
-            module.registerAction(ErrorAction.TYPE, ErrorAction.Factory.class);
-        }
-    }
-
-    public static class ErrorAction implements Action {
-
-        static final String TYPE = "error";
-
-        @Override
-        public String type() {
-            return TYPE;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().endObject();
-        }
-
-        public static class Result extends Action.Result {
-            public Result() {
-                super(TYPE, Status.FAILURE);
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.startObject().endObject();
-            }
-        }
-
-        public static class Executable extends ExecutableAction<ErrorAction> {
-
-            public Executable(ErrorAction action, Logger logger) {
-                super(action, logger);
-            }
-
-            @Override
-            public Action.Result execute(String actionId, WatchExecutionContext context, Payload payload) throws Exception {
-                throw new RuntimeException("dummy error");
-            }
-        }
-
-        public static class Factory extends ActionFactory<ErrorAction, Executable> {
-
-            @Inject
-            public Factory(Settings settings) {
-                super(Loggers.getLogger(Executable.class, settings));
-            }
-
-            @Override
-            public String type() {
-                return TYPE;
-            }
-
-            @Override
-            public ErrorAction parseAction(String watchId, String actionId, XContentParser parser) throws IOException {
-                assert parser.currentToken() == XContentParser.Token.START_OBJECT;
-                assert parser.nextToken() == XContentParser.Token.END_OBJECT;
-                return new ErrorAction();
-            }
-
-            @Override
-            public Executable createExecutable(ErrorAction action) {
-                return new Executable(action, actionLogger);
-            }
-        }
-
-        public static class Builder implements Action.Builder<ErrorAction> {
-            @Override
-            public ErrorAction build() {
-                return new ErrorAction();
-            }
-        }
     }
 }

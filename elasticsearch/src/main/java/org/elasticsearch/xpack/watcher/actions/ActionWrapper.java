@@ -20,13 +20,11 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.xpack.watcher.actions.throttler.Throttler;
-import org.elasticsearch.xpack.watcher.condition.ConditionRegistry;
 import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.transform.Transform;
-import org.elasticsearch.xpack.watcher.transform.TransformRegistry;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 
@@ -195,9 +193,8 @@ public class ActionWrapper implements ToXContent {
         return builder.endObject();
     }
 
-    static ActionWrapper parse(String watchId, String actionId, XContentParser parser,
-                               ActionRegistry actionRegistry, ConditionRegistry conditionRegistry, TransformRegistry transformRegistry,
-                               Clock clock, XPackLicenseState licenseState, boolean upgradeActionSource) throws IOException {
+    static ActionWrapper parse(String watchId, String actionId, XContentParser parser, ActionRegistry actionRegistry, Clock clock,
+                               XPackLicenseState licenseState, boolean upgradeActionSource) throws IOException {
 
         assert parser.currentToken() == XContentParser.Token.START_OBJECT;
 
@@ -213,9 +210,9 @@ public class ActionWrapper implements ToXContent {
                 currentFieldName = parser.currentName();
             } else {
                 if (ParseFieldMatcher.STRICT.match(currentFieldName, Watch.Field.CONDITION)) {
-                    condition = conditionRegistry.parseExecutable(watchId, parser, upgradeActionSource);
+                    condition = actionRegistry.getConditionRegistry().parseExecutable(watchId, parser, upgradeActionSource);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Transform.Field.TRANSFORM)) {
-                    transform = transformRegistry.parse(watchId, parser, upgradeActionSource);
+                    transform = actionRegistry.getTransformRegistry().parse(watchId, parser, upgradeActionSource);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Throttler.Field.THROTTLE_PERIOD)) {
                     throttlePeriod = timeValueMillis(parser.longValue());
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Throttler.Field.THROTTLE_PERIOD_HUMAN)) {

@@ -20,18 +20,44 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.common.http.HttpClient;
+import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.notification.email.EmailService;
+import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentsParser;
+import org.elasticsearch.xpack.notification.hipchat.HipChatService;
+import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
+import org.elasticsearch.xpack.notification.slack.SlackService;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.support.clock.Clock;
-import org.elasticsearch.xpack.watcher.actions.WatcherActionModule;
+import org.elasticsearch.xpack.watcher.actions.ActionFactory;
+import org.elasticsearch.xpack.watcher.actions.ActionRegistry;
+import org.elasticsearch.xpack.watcher.actions.email.EmailAction;
+import org.elasticsearch.xpack.watcher.actions.email.EmailActionFactory;
+import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
+import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatActionFactory;
+import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
+import org.elasticsearch.xpack.watcher.actions.index.IndexActionFactory;
+import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
+import org.elasticsearch.xpack.watcher.actions.logging.LoggingActionFactory;
+import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyAction;
+import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyActionFactory;
+import org.elasticsearch.xpack.watcher.actions.slack.SlackAction;
+import org.elasticsearch.xpack.watcher.actions.slack.SlackActionFactory;
+import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
+import org.elasticsearch.xpack.watcher.actions.webhook.WebhookActionFactory;
 import org.elasticsearch.xpack.watcher.client.WatcherClientModule;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.ArrayCompareCondition;
@@ -58,7 +84,12 @@ import org.elasticsearch.xpack.watcher.rest.action.RestWatchServiceAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatcherStatsAction;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
-import org.elasticsearch.xpack.watcher.transform.TransformModule;
+import org.elasticsearch.xpack.watcher.transform.TransformFactory;
+import org.elasticsearch.xpack.watcher.transform.TransformRegistry;
+import org.elasticsearch.xpack.watcher.transform.script.ScriptTransform;
+import org.elasticsearch.xpack.watcher.transform.script.ScriptTransformFactory;
+import org.elasticsearch.xpack.watcher.transform.search.SearchTransform;
+import org.elasticsearch.xpack.watcher.transform.search.SearchTransformFactory;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.ack.TransportAckWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.activate.ActivateWatchAction;
@@ -90,6 +121,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 
@@ -124,7 +156,9 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         validAutoCreateIndex(settings);
     }
 
-    public Collection<Object> createComponents(Clock clock, ScriptService scriptService) {
+    public Collection<Object> createComponents(Clock clock, ScriptService scriptService, InternalClient internalClient,
+                                               SearchRequestParsers searchRequestParsers, XPackLicenseState licenseState,
+                                               HttpClient httpClient, Collection<Object> components) {
         final Map<String, ConditionFactory> parsers = new HashMap<>();
         parsers.put(AlwaysCondition.TYPE, (c, id, p, upgrade) -> AlwaysCondition.parse(id, p));
         parsers.put(NeverCondition.TYPE, (c, id, p, upgrade) -> NeverCondition.parse(id, p));
@@ -133,7 +167,40 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         String defaultLegacyScriptLanguage = ScriptSettings.getLegacyDefaultLang(settings);
         parsers.put(ScriptCondition.TYPE, (c, id, p, upgrade) -> ScriptCondition.parse(scriptService, id, p, upgrade,
                 defaultLegacyScriptLanguage));
-        return Collections.singleton(new ConditionRegistry(Collections.unmodifiableMap(parsers), clock));
+
+        final ConditionRegistry conditionRegistry = new ConditionRegistry(Collections.unmodifiableMap(parsers), clock);
+        final Map<String, TransformFactory> transformFactories = new HashMap<>();
+        transformFactories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
+        transformFactories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, internalClient, searchRequestParsers,
+                scriptService));
+        final TransformRegistry transformRegistry = new TransformRegistry(settings, Collections.unmodifiableMap(transformFactories));
+
+        final Map<String, ActionFactory> actionFactoryMap = new HashMap<>();
+        TextTemplateEngine templateEngine = getService(TextTemplateEngine.class, components);
+        actionFactoryMap.put(EmailAction.TYPE, new EmailActionFactory(settings, getService(EmailService.class, components), templateEngine,
+                getService(EmailAttachmentsParser.class, components)));
+        actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(settings, httpClient,
+                getService(HttpRequestTemplate.Parser.class, components), templateEngine));
+        actionFactoryMap.put(IndexAction.TYPE, new IndexActionFactory(settings, internalClient));
+        actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(settings, templateEngine));
+        actionFactoryMap.put(HipChatAction.TYPE, new HipChatActionFactory(settings, templateEngine,
+                getService(HipChatService.class, components)));
+        actionFactoryMap.put(SlackAction.TYPE, new SlackActionFactory(settings, templateEngine,
+                getService(SlackService.class, components)));
+        actionFactoryMap.put(PagerDutyAction.TYPE, new PagerDutyActionFactory(settings, templateEngine,
+                getService(PagerDutyService.class, components)));
+        final ActionRegistry registry = new ActionRegistry(actionFactoryMap, conditionRegistry, transformRegistry, clock, licenseState);
+        return Collections.singleton(registry);
+    }
+
+    private <T> T getService(Class<T> serviceClass, Collection<Object> services) {
+        List<Object> collect = services.stream().filter(o -> o.getClass() == serviceClass).collect(Collectors.toList());
+        if (collect.isEmpty()) {
+            throw new IllegalArgumentException("no service for class " + serviceClass.getName());
+        } else if (collect.size() > 1) {
+            throw new IllegalArgumentException("more than one service for class " + serviceClass.getName());
+        }
+        return (T) collect.get(0);
     }
 
     public Collection<Module> nodeModules() {
@@ -142,11 +209,9 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         if (enabled && transportClient == false) {
             modules.add(new WatchModule());
             modules.add(new WatcherClientModule());
-            modules.add(new TransformModule());
             modules.add(new TriggerModule(settings));
             modules.add(new ScheduleModule());
             modules.add(new InputModule());
-            modules.add(new WatcherActionModule());
             modules.add(new HistoryModule());
             modules.add(new ExecutionModule());
         }
@@ -295,6 +360,4 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
                 " that any future history indices after 6 months with the pattern " +
                 "[.watcher-history-YYYY.MM.dd] are allowed to be created", value);
     }
-
-
 }

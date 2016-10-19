@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.actions.ActionRegistry;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
-import org.elasticsearch.xpack.watcher.condition.ConditionRegistry;
 import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
@@ -36,7 +35,6 @@ import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
-import org.elasticsearch.xpack.watcher.transform.TransformRegistry;
 import org.elasticsearch.xpack.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
@@ -209,9 +207,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
 
     public static class Parser extends AbstractComponent {
 
-        private final ConditionRegistry conditionRegistry;
         private final TriggerService triggerService;
-        private final TransformRegistry transformRegistry;
         private final ActionRegistry actionRegistry;
         private final InputRegistry inputRegistry;
         private final CryptoService cryptoService;
@@ -221,13 +217,10 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         private final Clock clock;
 
         @Inject
-        public Parser(Settings settings, ConditionRegistry conditionRegistry, TriggerService triggerService,
-                      TransformRegistry transformRegistry, ActionRegistry actionRegistry,
-                      InputRegistry inputRegistry, @Nullable CryptoService cryptoService, Clock clock) {
+        public Parser(Settings settings, TriggerService triggerService, ActionRegistry actionRegistry, InputRegistry inputRegistry,
+                      @Nullable CryptoService cryptoService, Clock clock) {
 
             super(settings);
-            this.conditionRegistry = conditionRegistry;
-            this.transformRegistry = transformRegistry;
             this.triggerService = triggerService;
             this.actionRegistry = actionRegistry;
             this.inputRegistry = inputRegistry;
@@ -309,9 +302,9 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.INPUT)) {
                     input = inputRegistry.parse(id, parser, upgradeWatchSource);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.CONDITION)) {
-                    condition = conditionRegistry.parseExecutable(id, parser, upgradeWatchSource);
+                    condition = actionRegistry.getConditionRegistry().parseExecutable(id, parser, upgradeWatchSource);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TRANSFORM)) {
-                    transform = transformRegistry.parse(id, parser, upgradeWatchSource);
+                    transform = actionRegistry.getTransformRegistry().parse(id, parser, upgradeWatchSource);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.THROTTLE_PERIOD)) {
                     throttlePeriod = timeValueMillis(parser.longValue());
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.THROTTLE_PERIOD_HUMAN)) {

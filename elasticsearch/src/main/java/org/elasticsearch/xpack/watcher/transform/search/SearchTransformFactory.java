@@ -30,11 +30,11 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
     private final ParseFieldMatcher parseFieldMatcher;
     private final WatcherSearchTemplateService searchTemplateService;
 
-    @Inject
     public SearchTransformFactory(Settings settings, InternalClient client,
                                   SearchRequestParsers searchRequestParsers, ScriptService scriptService) {
         this(settings, new WatcherClientProxy(settings, client), searchRequestParsers, scriptService);
     }
+
     public SearchTransformFactory(Settings settings, WatcherClientProxy client,
                                   SearchRequestParsers searchRequestParsers, ScriptService scriptService) {
         super(Loggers.getLogger(ExecutableSearchTransform.class, settings));

@@ -13,7 +13,7 @@ import java.io.IOException;
 /**
  * Parses xcontent to a concrete action of the same type.
  */
-public abstract class ActionFactory<A extends Action, E extends ExecutableAction<A>> {
+public abstract class ActionFactory {
 
     protected final Logger actionLogger;
 
@@ -22,19 +22,7 @@ public abstract class ActionFactory<A extends Action, E extends ExecutableAction
     }
 
     /**
-     * @return  The type of the action
-     */
-    public abstract String type();
-
-    public abstract A parseAction(String watchId, String actionId, XContentParser parser) throws IOException;
-
-    public abstract E createExecutable(A action);
-
-    /**
      * Parses the given xcontent and creates a concrete action
      */
-    public E parseExecutable(String watchId, String actionId, XContentParser parser) throws IOException {
-        A action = parseAction(watchId, actionId, parser);
-        return createExecutable(action);
-    }
+    public abstract ExecutableAction parseExecutable(String watchId, String actionId, XContentParser parser) throws IOException;
 }

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.transform;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.transform.chain.ChainTransform;
@@ -21,7 +20,6 @@ public class TransformRegistry {
 
     private final Map<String, TransformFactory> factories;
 
-    @Inject
     public TransformRegistry(Settings settings, Map<String, TransformFactory> factories) {
         Map<String, TransformFactory> map = new HashMap<>(factories);
         map.put(ChainTransform.TYPE, new ChainTransformFactory(settings, this));
@@ -46,7 +44,7 @@ public class TransformRegistry {
         return transform;
     }
 
-    public ExecutableTransform parse(String watchId, String type, XContentParser parser,
+    private ExecutableTransform parse(String watchId, String type, XContentParser parser,
                                      boolean upgradeTransformSource) throws IOException {
         TransformFactory factory = factories.get(type);
         if (factory == null) {

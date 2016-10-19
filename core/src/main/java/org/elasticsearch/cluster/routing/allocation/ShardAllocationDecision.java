@@ -67,7 +67,7 @@ public class ShardAllocationDecision {
     @Nullable
     private final String allocationId;
     @Nullable
-    private final Map<String, NodeExplanation> nodeExplanations;
+    private final Map<String, WeightedDecision> nodeExplanations;
     @Nullable
     private final Decision shardDecision;
 
@@ -76,7 +76,7 @@ public class ShardAllocationDecision {
                                     String finalExplanation,
                                     String assignedNodeId,
                                     String allocationId,
-                                    Map<String, NodeExplanation> nodeExplanations,
+                                    Map<String, WeightedDecision> nodeExplanations,
                                     Decision shardDecision) {
         assert assignedNodeId != null || finalDecision == null || finalDecision != Type.YES :
             "a yes decision must have a node to assign the shard to";
@@ -152,10 +152,22 @@ public class ShardAllocationDecision {
     /**
      * Creates a {@link ShardAllocationDecision} from the given {@link Decision} and the assigned node, if any.
      */
-    public static ShardAllocationDecision fromDecision(Decision decision, @Nullable String assignedNodeId, @Nullable String explanation,
-                                                       @Nullable Map<String, NodeExplanation> nodeExplanations) {
+    public static ShardAllocationDecision fromDecision(Decision decision, @Nullable String assignedNodeId, boolean explain,
+                                                       @Nullable Map<String, WeightedDecision> nodeExplanations) {
         final Type decisionType = decision.type();
         AllocationStatus allocationStatus = decisionType != Type.YES ? AllocationStatus.fromDecision(decisionType) : null;
+        String explanation = null;
+        if (explain) {
+            if (decision.type() == Type.YES) {
+                assert assignedNodeId != null;
+                explanation = "shard assigned to node [" + assignedNodeId + "]";
+            } else if (decision.type() == Type.THROTTLE) {
+                assert assignedNodeId != null;
+                explanation = "shard assignment throttled on node [" + assignedNodeId + "]";
+            } else {
+                explanation = "shard cannot be assigned to any node in the cluster";
+            }
+        }
         return new ShardAllocationDecision(decisionType, allocationStatus, explanation, assignedNodeId, null, nodeExplanations, null);
     }
 
@@ -164,11 +176,11 @@ public class ShardAllocationDecision {
         return Objects.requireNonNull(decision, "precomputed decision not found for " + allocationStatus);
     }
 
-    private static Map<String, NodeExplanation> asExplanations(Map<String, Decision> decisionMap) {
+    private static Map<String, WeightedDecision> asExplanations(Map<String, Decision> decisionMap) {
         if (decisionMap != null) {
-            Map<String, NodeExplanation> explanationMap = new HashMap<>();
+            Map<String, WeightedDecision> explanationMap = new HashMap<>();
             for (Map.Entry<String, Decision> entry : decisionMap.entrySet()) {
-                explanationMap.put(entry.getKey(), new NodeExplanation(entry.getValue(), Float.POSITIVE_INFINITY));
+                explanationMap.put(entry.getKey(), new WeightedDecision(entry.getValue(), Float.POSITIVE_INFINITY));
             }
             return explanationMap;
         }
@@ -188,7 +200,7 @@ public class ShardAllocationDecision {
      * This value can only be {@code null} if {@link #isDecisionTaken()} returns {@code false}.
      */
     @Nullable
-    public Type getFinalDecision() {
+    public Type getFinalDecisionType() {
         return finalDecision;
     }
 
@@ -214,7 +226,7 @@ public class ShardAllocationDecision {
     }
 
     /**
-     * Returns the free-text explanation for the reason behind the decision taken in {@link #getFinalDecision()}.
+     * Returns the free-text explanation for the reason behind the decision taken in {@link #getFinalDecisionType()}.
      */
     @Nullable
     public String getFinalExplanation() {
@@ -222,7 +234,7 @@ public class ShardAllocationDecision {
     }
 
     /**
-     * Get the node id that the allocator will assign the shard to, unless {@link #getFinalDecision()} returns
+     * Get the node id that the allocator will assign the shard to, unless {@link #getFinalDecisionType()} returns
      * a value other than {@link Decision.Type#YES}, in which case this returns {@code null}.
      */
     @Nullable
@@ -243,11 +255,11 @@ public class ShardAllocationDecision {
 
     /**
      * Gets the individual node-level explanations that went into making the final decision as represented by
-     * {@link #getFinalDecision()}.  The map that is returned has the node id as the key and a {@link Decision}
+     * {@link #getFinalDecisionType()}.  The map that is returned has the node id as the key and a {@link Decision}
      * as the decision for the given node.
      */
     @Nullable
-    public Map<String, NodeExplanation> getNodeDecisions() {
+    public Map<String, WeightedDecision> getNodeDecisions() {
         return nodeExplanations;
     }
 
@@ -262,21 +274,21 @@ public class ShardAllocationDecision {
     }
 
     /**
-     * This class represents the shard allocation explanation for a single node,
+     * This class represents the shard allocation decision for a single node,
      * including the {@link Decision} whether to allocate to the node and the
      * weight assigned to the node for the shard in question.
      */
-    public static final class NodeExplanation {
+    public static final class WeightedDecision {
 
         private final Decision decision;
         private final float weight;
 
-        public NodeExplanation(Decision decision) {
+        public WeightedDecision(Decision decision) {
             this.decision = Objects.requireNonNull(decision);
             this.weight = Float.POSITIVE_INFINITY;
         }
 
-        public NodeExplanation(Decision decision, float weight) {
+        public WeightedDecision(Decision decision, float weight) {
             this.decision = Objects.requireNonNull(decision);
             this.weight = Objects.requireNonNull(weight);
         }
@@ -304,7 +316,7 @@ public class ShardAllocationDecision {
             if (other == null || getClass() != other.getClass()) {
                 return false;
             }
-            NodeExplanation that = (NodeExplanation) other;
+            WeightedDecision that = (WeightedDecision) other;
             return decision.equals(that.decision) && Float.compare(weight, that.weight) == 0;
         }
 

@@ -16,7 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.discovery.zen.publish;
+
+package org.elasticsearch.discovery.zen;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;

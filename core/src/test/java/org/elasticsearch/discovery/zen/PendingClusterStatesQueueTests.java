@@ -16,7 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.discovery.zen.publish;
+
+package org.elasticsearch.discovery.zen;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -25,7 +26,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.publish.PendingClusterStatesQueue.ClusterStateContext;
+import org.elasticsearch.discovery.zen.PendingClusterStatesQueue;
+import org.elasticsearch.discovery.zen.PendingClusterStatesQueue.ClusterStateContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;

@@ -31,6 +31,8 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.discovery.zen.MasterFaultDetection;
+import org.elasticsearch.discovery.zen.NodesFaultDetection;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -45,8 +47,8 @@ import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
  * This component is responsible for connecting to nodes once they are added to the cluster state, and disconnect when they are
  * removed. Also, it periodically checks that all connections are still open and if needed restores them.
  * Note that this component is *not* responsible for removing nodes from the cluster if they disconnect / do not respond
- * to pings. This is done by {@link org.elasticsearch.discovery.zen.fd.NodesFaultDetection}. Master fault detection
- * is done by {@link org.elasticsearch.discovery.zen.fd.MasterFaultDetection}.
+ * to pings. This is done by {@link NodesFaultDetection}. Master fault detection
+ * is done by {@link MasterFaultDetection}.
  */
 public class NodeConnectionsService extends AbstractLifecycleComponent {
 

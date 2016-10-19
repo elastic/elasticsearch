@@ -25,7 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.discovery.zen.publish.PendingClusterStateStats;
+import org.elasticsearch.discovery.zen.PendingClusterStateStats;
 
 import java.io.IOException;
 

@@ -26,13 +26,13 @@ esplugin {
 integTest {
   cluster {
     // Whitelist reindexing from the local node so we can test it.
-    setting 'reindex.remote.whitelist', 'myself'
+    setting 'reindex.remote.whitelist', '127.0.0.1:*'
   }
 }
 
 run {
   // Whitelist reindexing from the local node so we can test it.
-  setting 'reindex.remote.whitelist', 'myself'
+  setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
 
 dependencies {

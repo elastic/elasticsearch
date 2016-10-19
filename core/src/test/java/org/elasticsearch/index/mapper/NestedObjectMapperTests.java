@@ -22,13 +22,8 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -366,22 +361,16 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         createIndex("test1").mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_UPDATE, false);
 
         // explicitly setting limit to 0 prevents nested fields
-        try {
+        Exception e = expectThrows(IllegalArgumentException.class, () ->
             createIndex("test2", Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 0).build())
-                .mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_UPDATE, false);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("Limit of nested fields [0] in index [test2] has been exceeded"));
-        }
+                .mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_UPDATE, false));
+        assertThat(e.getMessage(), containsString("Limit of nested fields [0] in index [test2] has been exceeded"));
 
         // setting limit to 1 with 2 nested fields fails
-        try {
+        e = expectThrows(IllegalArgumentException.class, () ->
             createIndex("test3", Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 1).build())
-                .mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_UPDATE, false);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("Limit of nested fields [1] in index [test3] has been exceeded"));
-        }
+                .mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_UPDATE, false));
+        assertThat(e.getMessage(), containsString("Limit of nested fields [1] in index [test3] has been exceeded"));
 
         MapperService mapperService = createIndex("test4", Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 2)
             .build()).mapperService();
@@ -391,12 +380,9 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         // adding new fields from different type is not ok
         String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type3").startObject("properties").startObject("nested3")
             .field("type", "nested").startObject("properties").endObject().endObject().endObject().endObject().endObject().string();
-        try {
-            mapperService.merge("type3", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, false);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("Limit of nested fields [2] in index [test4] has been exceeded"));
-        }
+        e = expectThrows(IllegalArgumentException.class, () ->
+            mapperService.merge("type3", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, false));
+        assertThat(e.getMessage(), containsString("Limit of nested fields [2] in index [test4] has been exceeded"));
 
         // do not check nested fields limit if mapping is not updated
         createIndex("test5", Settings.builder().put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 0).build())

@@ -470,8 +470,6 @@ public class IndexShardTests extends IndexShardTestCase {
                         throw new RuntimeException(ex);
                     }
                 }
-
-                ;
             };
             thread[i].start();
         }
@@ -1172,6 +1170,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 throw new RuntimeException("boom");
             }
 
+            @Override
             public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
                 return searcher;
             }

@@ -410,8 +410,8 @@ basic auth or the password will be sent in plain text.
 Remote hosts have to be explicitly whitelisted in elasticsearch.yaml using the
 `reindex.remote.whitelist` property. It can be set to a comma delimited list
 of allowed remote `host` and `port` combinations (e.g.
-`otherhost:9200, another:9200`). Scheme is ignored by the whitelist - only host
-and port are used.
+`otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*`). Scheme is
+ignored by the whitelist - only host and port are used.
 
 This feature should work with remote clusters of any version of Elasticsearch
 you are likely to find. This should allow you to upgrade from any version of

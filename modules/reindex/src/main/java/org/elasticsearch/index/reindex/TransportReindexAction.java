@@ -28,6 +28,11 @@ import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.nio.reactor.IOReactorConfig;
 import org.apache.http.message.BasicHeader;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BackoffPolicy;
@@ -44,8 +49,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -65,11 +72,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -87,7 +92,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     private final ScriptService scriptService;
     private final AutoCreateIndex autoCreateIndex;
     private final Client client;
-    private final Set<String> remoteWhitelist;
+    private final CharacterRunAutomaton remoteWhitelist;
     private final HttpServer httpServer;
 
     @Inject
@@ -100,7 +105,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         this.scriptService = scriptService;
         this.autoCreateIndex = autoCreateIndex;
         this.client = client;
-        remoteWhitelist = new HashSet<>(REMOTE_CLUSTER_WHITELIST.get(settings));
+        remoteWhitelist = buildRemoteWhitelist(REMOTE_CLUSTER_WHITELIST.get(settings));
         this.httpServer = httpServer;
     }
 
@@ -128,20 +133,33 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         checkRemoteWhitelist(remoteWhitelist, remoteInfo, publishAddress);
     }
 
-    static void checkRemoteWhitelist(Set<String> whitelist, RemoteInfo remoteInfo, TransportAddress publishAddress) {
-        if (remoteInfo == null) return;
+    static void checkRemoteWhitelist(CharacterRunAutomaton whitelist, RemoteInfo remoteInfo, TransportAddress publishAddress) {
+        if (remoteInfo == null) {
+            return;
+        }
         String check = remoteInfo.getHost() + ':' + remoteInfo.getPort();
-        if (whitelist.contains(check)) return;
-        /*
-         * For testing we support the key "myself" to allow connecting to the local node. We can't just change the setting to include the
-         * local node because it is intentionally not a dynamic setting for security purposes. We can't use something like "localhost:9200"
-         * because we don't know up front which port we'll get because the tests bind to port 0. Instead we try to resolve it here, taking
-         * "myself" to mean "my published http address".
-         */
-        if (whitelist.contains("myself") && publishAddress != null && publishAddress.toString().equals(check)) {
+        if (whitelist.run(check)) {
             return;
         }
         throw new IllegalArgumentException('[' + check + "] not whitelisted in " + REMOTE_CLUSTER_WHITELIST.getKey());
+    }
+
+    /**
+     * Build the {@link CharacterRunAutomaton} that represents the reindex-from-remote whitelist and make sure that it doesn't whitelist
+     * the world.
+     */
+    static CharacterRunAutomaton buildRemoteWhitelist(List<String> whitelist) {
+        if (whitelist.isEmpty()) {
+            return new CharacterRunAutomaton(Automata.makeEmpty());
+        }
+        Automaton automaton = Regex.simpleMatchToAutomaton(whitelist.toArray(Strings.EMPTY_ARRAY));
+        automaton = MinimizationOperations.minimize(automaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+        if (Operations.isTotal(automaton)) {
+            throw new IllegalArgumentException("Refusing to start because whitelist " + whitelist + " accepts all addresses. "
+                    + "This would allow users to reindex-from-remote any URL they like effectively having Elasticsearch make HTTP GETs "
+                    + "for them.");
+        }
+        return new CharacterRunAutomaton(automaton);
     }
 
     /**

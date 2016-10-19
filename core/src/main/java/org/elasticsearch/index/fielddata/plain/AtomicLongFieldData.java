@@ -19,18 +19,11 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-
-import java.util.Collection;
-import java.util.Collections;
-
 
 /**
  * Specialization of {@link AtomicNumericFieldData} for integers.
@@ -38,9 +31,12 @@ import java.util.Collections;
 abstract class AtomicLongFieldData implements AtomicNumericFieldData {
 
     private final long ramBytesUsed;
+    /** True if this numeric data is for a boolean field, and so only has values 0 and 1. */
+    private final boolean isBoolean;
 
-    AtomicLongFieldData(long ramBytesUsed) {
+    AtomicLongFieldData(long ramBytesUsed, boolean isBoolean) {
         this.ramBytesUsed = ramBytesUsed;
+        this.isBoolean = isBoolean;
     }
 
     @Override
@@ -50,7 +46,11 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
 
     @Override
     public final ScriptDocValues getScriptValues() {
-        return new ScriptDocValues.Longs(getLongValues());
+        if (isBoolean) {
+            return new ScriptDocValues.Booleans(getLongValues());
+        } else {
+            return new ScriptDocValues.Longs(getLongValues());
+        }
     }
 
     @Override
@@ -63,24 +63,6 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
         return FieldData.castToDouble(getLongValues());
     }
 
-    public static AtomicNumericFieldData empty(final int maxDoc) {
-        return new AtomicLongFieldData(0) {
-
-            @Override
-            public SortedNumericDocValues getLongValues() {
-                return DocValues.emptySortedNumeric(maxDoc);
-            }
-
-            @Override
-            public Collection<Accountable> getChildResources() {
-                return Collections.emptyList();
-            }
-
-        };
-    }
-
     @Override
-    public void close() {
-    }
-
+    public void close() {}
 }

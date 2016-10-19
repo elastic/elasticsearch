@@ -30,13 +30,6 @@ Vagrant.configure(2) do |config|
     config.vm.box = "elastic/ubuntu-14.04-x86_64"
     ubuntu_common config
   end
-  config.vm.define "ubuntu-1504" do |config|
-    config.vm.box = "elastic/ubuntu-15.04-x86_64"
-    ubuntu_common config, extra: <<-SHELL
-      # Install Jayatana so we can work around it being present.
-      [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
-    SHELL
-  end
   config.vm.define "ubuntu-1604" do |config|
     config.vm.box = "elastic/ubuntu-16.04-x86_64"
     ubuntu_common config, extra: <<-SHELL

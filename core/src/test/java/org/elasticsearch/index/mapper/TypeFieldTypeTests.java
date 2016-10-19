@@ -57,7 +57,7 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         });
     }
 
-    public void testTermQuery() throws Exception {
+    public void testTermsQuery() throws Exception {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
         IndexReader reader = openReaderWithNewType("my_type", w);
@@ -76,32 +76,31 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         // ... and does not rewrite it if there is more than one type
         reader.close();
         reader = openReaderWithNewType("my_type2", w);
-        assertEquals(new ConstantScoreQuery(new TermQuery(new Term(TypeFieldMapper.NAME, "my_type"))), query.rewrite(reader));
+        Query expected = new ConstantScoreQuery(
+            new BooleanQuery.Builder()
+                .add(new TermQuery(new Term(TypeFieldMapper.NAME, "my_type")), Occur.SHOULD)
+            .build()
+        );
+        assertEquals(expected, query.rewrite(reader));
 
-        IOUtils.close(reader, w, dir);
-    }
-
-    public void testTermsQuery() throws Exception {
-        Directory dir = newDirectory();
-        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
-        IndexReader reader = openReaderWithNewType( "my_type", w);
         BytesRef[] types =
             new BytesRef[] {new BytesRef("my_type"), new BytesRef("my_type2"), new BytesRef("my_type3")};
-        Query query = new TypeFieldMapper.TypesQuery(types);
+        // the query should match all documents
+        query = new TypeFieldMapper.TypesQuery(types);
         assertEquals(new MatchAllDocsQuery(), query.rewrite(reader));
 
         reader.close();
-        reader = openReaderWithNewType("my_type2", w);
+        reader = openReaderWithNewType("unknown_type", w);
+        // the query cannot rewrite to a match all docs sinc unknown_type is not queried.
         query = new TypeFieldMapper.TypesQuery(types);
-        Query expected =
+        expected =
             new ConstantScoreQuery(
                 new BooleanQuery.Builder()
                     .add(new TermQuery(new Term(TypeFieldMapper.CONTENT_TYPE, types[0])), Occur.SHOULD)
                     .add(new TermQuery(new Term(TypeFieldMapper.CONTENT_TYPE, types[1])), Occur.SHOULD)
-                    .add(new TermQuery(new Term(TypeFieldMapper.CONTENT_TYPE, types[2])), Occur.SHOULD)
                 .build()
             );
-        Query rewritten = query.rewrite(reader);
+        rewritten = query.rewrite(reader);
         assertEquals(expected, rewritten);
 
         IOUtils.close(reader, w, dir);

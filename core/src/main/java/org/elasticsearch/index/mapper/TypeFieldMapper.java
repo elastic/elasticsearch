@@ -148,7 +148,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             if (indexOptions() == IndexOptions.NONE) {
                 throw new AssertionError();
             }
-            return new TypeQuery(indexedValueForSearch(value));
+            return new TypesQuery(indexedValueForSearch(value));
         }
 
         @Override
@@ -165,49 +165,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeQuery extends Query {
-
-        private final BytesRef type;
-
-        public TypeQuery(BytesRef type) {
-            this.type = Objects.requireNonNull(type);
-        }
-
-        @Override
-        public Query rewrite(IndexReader reader) throws IOException {
-            Term term = new Term(CONTENT_TYPE, type);
-            TermContext context = TermContext.build(reader.getContext(), term);
-            if (context.docFreq() == reader.maxDoc()) {
-                // All docs have the same type.
-                // Using a match_all query will help Lucene perform some optimizations
-                // For instance, match_all queries as filter clauses are automatically removed
-                return new MatchAllDocsQuery();
-            } else {
-                return new ConstantScoreQuery(new TermQuery(term, context));
-            }
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (sameClassAs(obj) == false) {
-                return false;
-            }
-            TypeQuery that = (TypeQuery) obj;
-            return type.equals(that.type);
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * classHash() + type.hashCode();
-        }
-
-        @Override
-        public String toString(String field) {
-            return "_type:" + type;
-        }
-
-    }
-
     /**
      * Specialization for a disjunction over many _type
      */
@@ -218,7 +175,13 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         private final BytesRef[] types;
 
         public TypesQuery(BytesRef... types) {
-            this.types = Objects.requireNonNull(types);
+            if (types == null) {
+                throw new NullPointerException("types cannot be null.");
+            }
+            if (types.length == 0) {
+                throw new IllegalArgumentException("types must contains at least one value.");
+            }
+            this.types = types;
         }
 
         @Override
@@ -226,15 +189,27 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             final int threshold = Math.min(BOOLEAN_REWRITE_TERM_COUNT_THRESHOLD, BooleanQuery.getMaxClauseCount());
             if (types.length <= threshold) {
                 BooleanQuery.Builder bq = new BooleanQuery.Builder();
+                int totalDocFreq = 0;
                 for (BytesRef type : types) {
-                    Query tq = new TypeQuery(BytesRef.deepCopyOf(type)).rewrite(reader);
-                    if (tq instanceof MatchAllDocsQuery) {
-                        // The reader contains a single _type
-                        return tq;
+                    Term term = new Term(CONTENT_TYPE, type);
+                    TermContext context = TermContext.build(reader.getContext(), term);
+                    if (context.docFreq() == 0) {
+                        // this _type is not present in the reader
+                        continue;
                     }
-                    if (tq instanceof ConstantScoreQuery) {
-                        bq.add(((ConstantScoreQuery) tq).getQuery(), BooleanClause.Occur.SHOULD);
+                    if (context.docFreq() == reader.maxDoc()) {
+                        // All docs have the same type.
+                        // Using a match_all query will help Lucene perform some optimizations
+                        // For instance, match_all queries as filter clauses are automatically removed
+                        return new MatchAllDocsQuery();
                     }
+                    totalDocFreq += context.docFreq();
+                    // strict equality should be enough ?
+                    if (totalDocFreq >= reader.maxDoc()) {
+                        // matches all docs since _type is a single value field
+                        return new MatchAllDocsQuery();
+                    }
+                    bq.add(new TermQuery(term, context), BooleanClause.Occur.SHOULD);
                 }
                 return new ConstantScoreQuery(bq.build());
             }

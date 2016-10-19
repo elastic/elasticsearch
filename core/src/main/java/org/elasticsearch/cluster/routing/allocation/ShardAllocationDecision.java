@@ -67,7 +67,7 @@ public class ShardAllocationDecision {
     @Nullable
     private final String allocationId;
     @Nullable
-    private final Map<String, WeightedDecision> nodeExplanations;
+    private final Map<String, WeightedDecision> nodeDecisions;
     @Nullable
     private final Decision shardDecision;
 
@@ -76,7 +76,7 @@ public class ShardAllocationDecision {
                                     String finalExplanation,
                                     String assignedNodeId,
                                     String allocationId,
-                                    Map<String, WeightedDecision> nodeExplanations,
+                                    Map<String, WeightedDecision> nodeDecisions,
                                     Decision shardDecision) {
         assert assignedNodeId != null || finalDecision == null || finalDecision != Type.YES :
             "a yes decision must have a node to assign the shard to";
@@ -89,7 +89,7 @@ public class ShardAllocationDecision {
         this.finalExplanation = finalExplanation;
         this.assignedNodeId = assignedNodeId;
         this.allocationId = allocationId;
-        this.nodeExplanations = nodeExplanations != null ? Collections.unmodifiableMap(nodeExplanations) : null;
+        this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;
         this.shardDecision = shardDecision;
     }
 
@@ -153,7 +153,7 @@ public class ShardAllocationDecision {
      * Creates a {@link ShardAllocationDecision} from the given {@link Decision} and the assigned node, if any.
      */
     public static ShardAllocationDecision fromDecision(Decision decision, @Nullable String assignedNodeId, boolean explain,
-                                                       @Nullable Map<String, WeightedDecision> nodeExplanations) {
+                                                       @Nullable Map<String, WeightedDecision> nodeDecisions) {
         final Type decisionType = decision.type();
         AllocationStatus allocationStatus = decisionType != Type.YES ? AllocationStatus.fromDecision(decisionType) : null;
         String explanation = null;
@@ -168,7 +168,7 @@ public class ShardAllocationDecision {
                 explanation = "shard cannot be assigned to any node in the cluster";
             }
         }
-        return new ShardAllocationDecision(decisionType, allocationStatus, explanation, assignedNodeId, null, nodeExplanations, null);
+        return new ShardAllocationDecision(decisionType, allocationStatus, explanation, assignedNodeId, null, nodeDecisions, null);
     }
 
     private static ShardAllocationDecision getCachedDecision(AllocationStatus allocationStatus) {
@@ -254,13 +254,13 @@ public class ShardAllocationDecision {
     }
 
     /**
-     * Gets the individual node-level explanations that went into making the final decision as represented by
+     * Gets the individual node-level decisions that went into making the final decision as represented by
      * {@link #getFinalDecisionType()}.  The map that is returned has the node id as the key and a {@link Decision}
      * as the decision for the given node.
      */
     @Nullable
     public Map<String, WeightedDecision> getNodeDecisions() {
-        return nodeExplanations;
+        return nodeDecisions;
     }
 
     /**

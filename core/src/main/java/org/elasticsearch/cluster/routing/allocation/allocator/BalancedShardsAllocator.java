@@ -534,7 +534,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          *      with the decision of moving to another node.  If {@link MoveDecision#finalDecision} returns YES, then
          *      {@link MoveDecision#assignedNodeId} will return a non-null value, otherwise the assignedNodeId will be null.
          *   4. If the method is invoked in explain mode (e.g. from the cluster allocation explain APIs), then
-         *      {@link MoveDecision#finalExplanation} and {@link MoveDecision#nodeExplanations} will have non-null values.
+         *      {@link MoveDecision#finalExplanation} and {@link MoveDecision#nodeDecisions} will have non-null values.
          */
         public MoveDecision makeMoveDecision(final ShardRouting shardRouting) {
             if (shardRouting.started() == false) {
@@ -783,7 +783,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
 
                 Decision currentDecision = allocation.deciders().canAllocate(shard, node.getRoutingNode(), allocation);
                 if (explain) {
-                    nodeExplanationMap.put(node.getNodeId(), new ShardAllocationDecision.WeightedDecision(currentDecision, currentWeight));
+                    nodeExplanationMap.put(node.getNodeId(), new WeightedDecision(currentDecision, currentWeight));
                 }
                 if (currentDecision.type() == Type.YES || currentDecision.type() == Type.THROTTLE) {
                     final boolean updateMinNode;
@@ -1113,14 +1113,14 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         @Nullable
         private final String assignedNodeId;
         @Nullable
-        private final Map<String, WeightedDecision> nodeExplanations;
+        private final Map<String, WeightedDecision> nodeDecisions;
 
         protected RelocationDecision(Type finalDecision, String finalExplanation, String assignedNodeId,
-                                     Map<String, WeightedDecision> nodeExplanations) {
+                                     Map<String, WeightedDecision> nodeDecisions) {
             this.finalDecision = finalDecision;
             this.finalExplanation = finalExplanation;
             this.assignedNodeId = assignedNodeId;
-            this.nodeExplanations = nodeExplanations;
+            this.nodeDecisions = nodeDecisions;
         }
 
         /**
@@ -1157,12 +1157,12 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         }
 
         /**
-         * Gets the individual node-level explanations that went into making the final decision as represented by
+         * Gets the individual node-level decisions that went into making the final decision as represented by
          * {@link #getFinalDecisionType()}.  The map that is returned has the node id as the key and a {@link WeightedDecision}.
          */
         @Nullable
-        public Map<String, ShardAllocationDecision.WeightedDecision> getNodeExplanations() {
-            return nodeExplanations;
+        public Map<String, WeightedDecision> getNodeDecisions() {
+            return nodeDecisions;
         }
     }
 
@@ -1180,8 +1180,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         private final Decision canRemainDecision;
 
         private MoveDecision(Decision canRemainDecision, Type finalDecision, String finalExplanation,
-                             String assignedNodeId, Map<String, WeightedDecision> nodeExplanations) {
-            super(finalDecision, finalExplanation, assignedNodeId, nodeExplanations);
+                             String assignedNodeId, Map<String, WeightedDecision> nodeDecisions) {
+            super(finalDecision, finalExplanation, assignedNodeId, nodeDecisions);
             this.canRemainDecision = canRemainDecision;
         }
 
@@ -1202,7 +1202,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          * move to any other node either.
          */
         public static MoveDecision decision(Decision canRemainDecision, Type finalDecision, boolean explain, String currentNodeId,
-                                            String assignedNodeId, Map<String, WeightedDecision> nodeExplanations) {
+                                            String assignedNodeId, Map<String, WeightedDecision> nodeDecisions) {
             String finalExplanation = null;
             if (explain) {
                 if (finalDecision == Type.YES) {
@@ -1218,7 +1218,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 // the final decision is NO (no node to move the shard to) and we are not in explain mode, return a cached version
                 return CACHED_CANNOT_MOVE_DECISION;
             } else {
-                return new MoveDecision(canRemainDecision, finalDecision, finalExplanation, assignedNodeId, nodeExplanations);
+                return new MoveDecision(canRemainDecision, finalDecision, finalExplanation, assignedNodeId, nodeDecisions);
             }
         }
 

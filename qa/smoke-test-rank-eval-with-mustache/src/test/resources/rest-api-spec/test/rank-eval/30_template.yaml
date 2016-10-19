@@ -41,7 +41,7 @@
   - do:
       rank_eval_template:
         body: {
-          "script": { 
+          "template": { 
             "inline": "{\"query\": { \"match\" : {\"text\" : \"{{query_string}}\" }}}"
           },
           "requests" : [

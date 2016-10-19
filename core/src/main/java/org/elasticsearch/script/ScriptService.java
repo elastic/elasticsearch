@@ -366,6 +366,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             throw new IllegalArgumentException("script context [" + context.getKey() + "] does not exist");
         }
 
+        getScriptEngineServiceForLang(lang);
+
         if (!scriptModes.getScriptEnabled(lang, type, context)) {
             throw new IllegalStateException(
                 "[" + type.name + "] scripts using lang [" + lang + "] with operation [" + context + "] are disabled");

@@ -63,8 +63,8 @@ public abstract class AbstractAsyncBulkIndexByScrollActionScriptTestCase<
         ExecutableScript executableScript = new SimpleExecutableScript(scriptBody);
         CompiledScript compiled = mock(CompiledScript.class);
 
-        when(scriptService.getInlineScript(any(ScriptContext.Standard.class), any(InlineScriptLookup.class))).thenReturn(compiled);
-        when(compiled.bindExecutable(Matchers.any())).thenReturn(executableScript);
+        when(scriptService.getInlineScript(any(), any())).thenReturn(compiled);
+        when(compiled.bindExecutable(any())).thenReturn(executableScript);
         AbstractAsyncBulkIndexByScrollAction<Request> action = action(scriptService, request().setScript(EMPTY_SCRIPT));
         RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc);
         return (result != null) ? (T) result.self() : null;

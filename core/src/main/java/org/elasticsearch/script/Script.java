@@ -593,7 +593,7 @@ public final class Script {
                 return inline(lang, idOrCode, options, params);
             } else {
                 throw new IllegalArgumentException("must specify [type] of script, " +
-                    "expected [" + FILE.name + ", " + STORED.name + "," + INLINE.name + "]");
+                    "expected [" + FILE.name + ", " + STORED.name + ", " + INLINE.name + "]");
             }
         }
 

@@ -20,10 +20,8 @@
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,8 +39,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 
 import static java.util.Collections.emptyList;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBuilder<SB>> extends ESTestCase {
 
@@ -77,7 +74,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     public void testSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SB original = randomTestBuilder();
-            SB deserialized = serializedCopy(original);
+            SB deserialized = copy(original);
             assertEquals(deserialized, original);
             assertEquals(deserialized.hashCode(), original.hashCode());
             assertNotSame(deserialized, original);
@@ -111,32 +108,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      */
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            SB firstBuilder = randomTestBuilder();
-            assertFalse("suggestion builder is equal to null", firstBuilder.equals(null));
-            assertFalse("suggestion builder is equal to incompatible type", firstBuilder.equals(""));
-            assertTrue("suggestion builder is not equal to self", firstBuilder.equals(firstBuilder));
-            assertThat("same suggestion builder's hashcode returns different values if called multiple times", firstBuilder.hashCode(),
-                    equalTo(firstBuilder.hashCode()));
-        final SB mutate = mutate(firstBuilder);
-        assertThat("different suggestion builders should not be equal", mutate, not(equalTo(firstBuilder)));
-
-            SB secondBuilder = serializedCopy(firstBuilder);
-            assertTrue("suggestion builder is not equal to self", secondBuilder.equals(secondBuilder));
-            assertTrue("suggestion builder is not equal to its copy", firstBuilder.equals(secondBuilder));
-            assertTrue("equals is not symmetric", secondBuilder.equals(firstBuilder));
-            assertThat("suggestion builder copy's hashcode is different from original hashcode", secondBuilder.hashCode(),
-                    equalTo(firstBuilder.hashCode()));
-
-            SB thirdBuilder = serializedCopy(secondBuilder);
-            assertTrue("suggestion builder is not equal to self", thirdBuilder.equals(thirdBuilder));
-            assertTrue("suggestion builder is not equal to its copy", secondBuilder.equals(thirdBuilder));
-            assertThat("suggestion builder copy's hashcode is different from original hashcode", secondBuilder.hashCode(),
-                    equalTo(thirdBuilder.hashCode()));
-            assertTrue("equals is not transitive", firstBuilder.equals(thirdBuilder));
-            assertThat("suggestion builder copy's hashcode is different from original hashcode", firstBuilder.hashCode(),
-                    equalTo(thirdBuilder.hashCode()));
-            assertTrue("equals is not symmetric", thirdBuilder.equals(secondBuilder));
-            assertTrue("equals is not symmetric", thirdBuilder.equals(firstBuilder));
+            checkEqualsAndHashCode(randomTestBuilder(), this::copy, this::mutate);
         }
     }
 
@@ -177,7 +149,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     }
 
     private SB mutate(SB firstBuilder) throws IOException {
-        SB mutation = serializedCopy(firstBuilder);
+        SB mutation = copy(firstBuilder);
         assertNotSame(mutation, firstBuilder);
         // change ither one of the shared SuggestionBuilder parameters, or delegate to the specific tests mutate method
         if (randomBoolean()) {
@@ -214,13 +186,9 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     protected abstract void mutateSpecificParameters(SB firstBuilder) throws IOException;
 
     @SuppressWarnings("unchecked")
-    protected SB serializedCopy(SB original) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.writeNamedWriteable(original);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                return (SB) in.readNamedWriteable(SuggestionBuilder.class);
-            }
-        }
+    protected SB copy(SB original) throws IOException {
+        return copyWriteable(original, namedWriteableRegistry,
+                (Writeable.Reader<SB>) namedWriteableRegistry.getReader(SuggestionBuilder.class, original.getWriteableName()));
     }
 
     protected static QueryParseContext newParseContext(final String xcontent) throws IOException {

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.watch;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -13,6 +14,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -80,8 +82,8 @@ public class WatchStoreTests extends ESTestCase {
 
     public void testStartNoPreviousWatchesIndex() throws Exception {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        MetaData.Builder metaDateBuilder = MetaData.builder();
-        csBuilder.metaData(metaDateBuilder);
+        MetaData.Builder metaDataBuilder = MetaData.builder();
+        csBuilder.metaData(metaDataBuilder);
         ClusterState cs = csBuilder.build();
 
         assertThat(watchStore.validate(cs), is(true));
@@ -96,14 +98,14 @@ public class WatchStoreTests extends ESTestCase {
 
     public void testStartPrimaryShardNotReady() {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        MetaData.Builder metaDateBuilder = MetaData.builder();
+        MetaData.Builder metaDataBuilder = MetaData.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         Settings settings = settings(Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
-        metaDateBuilder.put(IndexMetaData.builder(WatchStore.INDEX).settings(settings).numberOfShards(1).numberOfReplicas(1));
-        final Index index = metaDateBuilder.get(WatchStore.INDEX).getIndex();
+        metaDataBuilder.put(IndexMetaData.builder(WatchStore.INDEX).settings(settings).numberOfShards(1).numberOfReplicas(1));
+        final Index index = metaDataBuilder.get(WatchStore.INDEX).getIndex();
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(index, 0))
                 .addShard(TestShardRouting.newShardRouting(WatchStore.INDEX, 0, "_node_id", null, true,
@@ -111,7 +113,7 @@ public class WatchStoreTests extends ESTestCase {
                 .build());
         indexRoutingTableBuilder.addReplica();
         routingTableBuilder.add(indexRoutingTableBuilder.build());
-        csBuilder.metaData(metaDateBuilder);
+        csBuilder.metaData(metaDataBuilder);
         csBuilder.routingTable(routingTableBuilder.build());
 
         ClusterState cs = csBuilder.build();
@@ -378,26 +380,134 @@ public class WatchStoreTests extends ESTestCase {
         assertThat(watchStore.activeWatches(), hasSize(0));
     }
 
-    /*
-     * Creates the standard cluster state metadata for the watches index
-     * with shards/replicas being marked as started
-     */
-    private void createWatchIndexMetaData(ClusterState.Builder builder) {
-        MetaData.Builder metaDateBuilder = MetaData.builder();
+    // the elasticsearch migration helper is doing reindex using aliases, so we have to
+    // make sure that the watch store supports a single alias pointing to the watch index
+    public void testThatStartingWithWatchesIndexAsAliasWorks() throws Exception {
+        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
+
+        MetaData.Builder metaDataBuilder = MetaData.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         Settings settings = settings(Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
-        metaDateBuilder.put(IndexMetaData.builder(WatchStore.INDEX).settings(settings).numberOfShards(1).numberOfReplicas(1));
-        final Index index = metaDateBuilder.get(WatchStore.INDEX).getIndex();
+        metaDataBuilder.put(IndexMetaData.builder("watches-alias").settings(settings).numberOfShards(1).numberOfReplicas(1)
+                .putAlias(new AliasMetaData.Builder(WatchStore.INDEX).build()));
+
+        final Index index = metaDataBuilder.get("watches-alias").getIndex();
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+        indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(index, 0))
+                .addShard(TestShardRouting.newShardRouting("watches-alias", 0, "_node_id", null, true, ShardRoutingState.STARTED))
+                .build());
+        indexRoutingTableBuilder.addReplica();
+        routingTableBuilder.add(indexRoutingTableBuilder.build());
+        csBuilder.metaData(metaDataBuilder);
+        csBuilder.routingTable(routingTableBuilder.build());
+
+        RefreshResponse refreshResponse = mockRefreshResponse(1, 1);
+        when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
+
+        BytesReference source = new BytesArray("{}");
+        InternalSearchHit hit1 = new InternalSearchHit(0, "_id1", new Text("type"), Collections.<String, SearchHitField>emptyMap());
+        hit1.sourceRef(source);
+        InternalSearchHit hit2 = new InternalSearchHit(1, "_id2", new Text("type"), Collections.<String, SearchHitField>emptyMap());
+        hit2.sourceRef(source);
+        SearchResponse searchResponse1 = mockSearchResponse(1, 1, 2, hit1, hit2);
+
+        when(clientProxy.search(any(SearchRequest.class), any(TimeValue.class))).thenReturn(searchResponse1);
+
+        InternalSearchHit hit3 = new InternalSearchHit(2, "_id3", new Text("type"), Collections.<String, SearchHitField>emptyMap());
+        hit3.sourceRef(source);
+        InternalSearchHit hit4 = new InternalSearchHit(3, "_id4", new Text("type"), Collections.<String, SearchHitField>emptyMap());
+        hit4.sourceRef(source);
+        SearchResponse searchResponse2 = mockSearchResponse(1, 1, 2, hit3, hit4);
+        SearchResponse searchResponse3 = mockSearchResponse(1, 1, 2);
+        when(clientProxy.searchScroll(anyString(), any(TimeValue.class))).thenReturn(searchResponse2, searchResponse3);
+
+        Watch watch1 = mock(Watch.class);
+        WatchStatus status = mock(WatchStatus.class);
+        when(watch1.status()).thenReturn(status);
+        Watch watch2 = mock(Watch.class);
+        when(watch2.status()).thenReturn(status);
+        Watch watch3 = mock(Watch.class);
+        when(watch3.status()).thenReturn(status);
+        Watch watch4 = mock(Watch.class);
+        when(watch4.status()).thenReturn(status);
+        when(parser.parse("_id1", true, source, true)).thenReturn(watch1);
+        when(parser.parse("_id2", true, source, true)).thenReturn(watch2);
+        when(parser.parse("_id3", true, source, true)).thenReturn(watch3);
+        when(parser.parse("_id4", true, source, true)).thenReturn(watch4);
+
+        when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 0));
+
+        ClusterState cs = csBuilder.build();
+        assertThat(watchStore.validate(cs), is(true));
+        watchStore.start(cs);
+        assertThat(watchStore.started(), is(true));
+        assertThat(watchStore.watches().size(), equalTo(4));
+        verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
+        verify(clientProxy, times(1)).search(any(SearchRequest.class), any(TimeValue.class));
+        verify(clientProxy, times(1)).clearScroll(anyString());
+    }
+
+    // the elasticsearch migration helper is doing reindex using aliases, so we have to
+    // make sure that the watch store supports only a single index in an alias
+    public void testThatWatchesIndexWithTwoAliasesFails() throws Exception {
+        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
+
+        MetaData.Builder metaDataBuilder = MetaData.builder();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        Settings settings = settings(Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build();
+        metaDataBuilder.put(IndexMetaData.builder("watches-alias").settings(settings).numberOfShards(1).numberOfReplicas(1)
+                .putAlias(new AliasMetaData.Builder(WatchStore.INDEX).build()));
+        metaDataBuilder.put(IndexMetaData.builder("whatever").settings(settings).numberOfShards(1).numberOfReplicas(1)
+                .putAlias(new AliasMetaData.Builder(WatchStore.INDEX).build()));
+
+        final Index index = metaDataBuilder.get("watches-alias").getIndex();
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+        indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(index, 0))
+                .addShard(TestShardRouting.newShardRouting("watches-alias", 0, "_node_id", null, true, ShardRoutingState.STARTED))
+                .build());
+        indexRoutingTableBuilder.addReplica();
+        final Index otherIndex = metaDataBuilder.get("whatever").getIndex();
+        IndexRoutingTable.Builder otherIndexRoutingTableBuilder = IndexRoutingTable.builder(otherIndex);
+        otherIndexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(index, 0))
+                .addShard(TestShardRouting.newShardRouting("whatever", 0, "_node_id", null, true, ShardRoutingState.STARTED))
+                .build());
+        otherIndexRoutingTableBuilder.addReplica();
+        routingTableBuilder.add(otherIndexRoutingTableBuilder.build());
+        csBuilder.metaData(metaDataBuilder);
+        csBuilder.routingTable(routingTableBuilder.build());
+
+        ClusterState cs = csBuilder.build();
+        assertThat(watchStore.validate(cs), is(false));
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> watchStore.start(cs));
+        assertThat(exception.getMessage(), is("Alias [.watches] points to more than one index"));
+    }
+
+    /*
+     * Creates the standard cluster state metadata for the watches index
+     * with shards/replicas being marked as started
+     */
+    private void createWatchIndexMetaData(ClusterState.Builder builder) {
+        MetaData.Builder metaDataBuilder = MetaData.builder();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        Settings settings = settings(Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build();
+        metaDataBuilder.put(IndexMetaData.builder(WatchStore.INDEX).settings(settings).numberOfShards(1).numberOfReplicas(1));
+        final Index index = metaDataBuilder.get(WatchStore.INDEX).getIndex();
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(index, 0))
                 .addShard(TestShardRouting.newShardRouting(WatchStore.INDEX, 0, "_node_id", null, true, ShardRoutingState.STARTED))
                 .build());
         indexRoutingTableBuilder.addReplica();
         routingTableBuilder.add(indexRoutingTableBuilder.build());
-        builder.metaData(metaDateBuilder);
+        builder.metaData(metaDataBuilder);
         builder.routingTable(routingTableBuilder.build());
     }
 

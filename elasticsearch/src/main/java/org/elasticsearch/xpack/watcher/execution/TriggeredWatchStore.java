@@ -25,11 +25,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
+import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -77,15 +79,13 @@ public class TriggeredWatchStore extends AbstractComponent {
     }
 
     public boolean validate(ClusterState state) {
-        IndexMetaData indexMetaData = state.getMetaData().index(INDEX_NAME);
-        if (indexMetaData != null) {
-            if (!state.routingTable().index(INDEX_NAME).allPrimaryShardsActive()) {
-                logger.debug("not all primary shards of the [{}] index are started, so we cannot load previous triggered watches",
-                        INDEX_NAME);
-                return false;
-            }
-        } else {
-            logger.debug("triggered watch index doesn't exist, so we can load");
+        try {
+            IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(INDEX_NAME, state.metaData());
+            return state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive();
+        } catch (IndexNotFoundException e) {
+        } catch (IllegalStateException e) {
+            logger.trace((Supplier<?>) () -> new ParameterizedMessage("error getting index meta data [{}]: ", INDEX_NAME), e);
+            return false;
         }
         return true;
     }
@@ -235,15 +235,16 @@ public class TriggeredWatchStore extends AbstractComponent {
     }
 
     public Collection<TriggeredWatch> loadTriggeredWatches(ClusterState state) {
-        IndexMetaData indexMetaData = state.getMetaData().index(INDEX_NAME);
-        if (indexMetaData == null) {
-            logger.debug("no .triggered_watches indices found. skipping loading awaiting triggered watches");
+        IndexMetaData indexMetaData;
+        try {
+            indexMetaData = WatchStoreUtils.getConcreteIndex(INDEX_NAME, state.metaData());
+        } catch (IndexNotFoundException e) {
             return Collections.emptySet();
         }
 
         int numPrimaryShards;
-        if (!state.routingTable().index(INDEX_NAME).allPrimaryShardsActive()) {
-            throw illegalState("not all primary shards of the [{}] index are started.", INDEX_NAME);
+        if (state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive() == false) {
+            throw illegalState("not all primary shards of the triggered watches index {} are started", indexMetaData.getIndex());
         } else {
             numPrimaryShards = indexMetaData.getNumberOfShards();
         }
@@ -267,7 +268,7 @@ public class TriggeredWatchStore extends AbstractComponent {
                     String id = sh.getId();
                     try {
                         TriggeredWatch triggeredWatch = triggeredWatchParser.parse(id, sh.version(), sh.getSourceRef());
-                        logger.debug("loaded triggered watch [{}/{}/{}]", sh.index(), sh.type(), sh.id());
+                        logger.trace("loaded triggered watch [{}/{}/{}]", sh.index(), sh.type(), sh.id());
                         triggeredWatches.add(triggeredWatch);
                     } catch (Exception e) {
                         logger.error(
@@ -279,6 +280,7 @@ public class TriggeredWatchStore extends AbstractComponent {
         } finally {
             client.clearScroll(response.getScrollId());
         }
+        logger.debug("loaded [{}] triggered watches", triggeredWatches.size());
         return triggeredWatches;
     }
 

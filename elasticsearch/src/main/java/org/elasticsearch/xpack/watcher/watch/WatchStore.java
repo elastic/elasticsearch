@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -86,35 +87,32 @@ public class WatchStore extends AbstractComponent {
             return;
         }
 
-        IndexMetaData watchesIndexMetaData = state.getMetaData().index(INDEX);
-        if (watchesIndexMetaData != null) {
-            try {
-                int count = loadWatches(watchesIndexMetaData.getNumberOfShards());
-                logger.debug("loaded [{}] watches from the watches index [{}]", count, INDEX);
-                started.set(true);
-            } catch (Exception e) {
-                logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to load watches for watch index [{}]", INDEX), e);
-                watches.clear();
-                throw e;
-            }
-        } else {
-            started.set(true);
+        try {
+            IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(INDEX, state.metaData());
+            int count = loadWatches(indexMetaData.getNumberOfShards());
+            logger.debug("loaded [{}] watches from the watches index [{}]", count, indexMetaData.getIndex().getName());
+        } catch (IndexNotFoundException e) {
+        } catch (Exception e) {
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to load watches for watch index [{}]", INDEX), e);
+            watches.clear();
+            throw e;
         }
+
+        started.set(true);
     }
 
     public boolean validate(ClusterState state) {
-        IndexMetaData watchesIndexMetaData = state.getMetaData().index(INDEX);
-        if (watchesIndexMetaData == null) {
-            logger.debug("index [{}] doesn't exist, so we can start", INDEX);
+        IndexMetaData watchesIndexMetaData;
+        try {
+            watchesIndexMetaData = WatchStoreUtils.getConcreteIndex(INDEX, state.metaData());
+        } catch (IndexNotFoundException e) {
             return true;
-        }
-        if (state.routingTable().index(INDEX).allPrimaryShardsActive()) {
-            logger.debug("index [{}] exists and all primary shards are started, so we can start", INDEX);
-            return true;
-        } else {
-            logger.debug("not all primary shards active for index [{}], so we cannot start", INDEX);
+        } catch (IllegalStateException e) {
+            logger.trace((Supplier<?>) () -> new ParameterizedMessage("error getting index meta data [{}]: ", INDEX), e);
             return false;
         }
+
+        return state.routingTable().index(watchesIndexMetaData.getIndex().getName()).allPrimaryShardsActive();
     }
 
     public boolean started() {
@@ -374,5 +372,4 @@ public class WatchStore extends AbstractComponent {
             return response;
         }
     }
-
 }

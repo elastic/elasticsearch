@@ -47,8 +47,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.joda.time.DateTimeZone.UTC;
 
-@TestLogging("org.elasticsearch.watcher:TRACE")
 public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
+
     @Override
     protected boolean timeWarped() {
         // timewarping isn't necessary here, because we aren't testing triggering or throttling
@@ -188,10 +188,11 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         DateTime now = DateTime.now(UTC);
         Wid wid = new Wid("_id", 1, now);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
+
         client().prepareIndex(TriggeredWatchStore.INDEX_NAME, TriggeredWatchStore.DOC_TYPE, wid.value())
                 .setSource(jsonBuilder().startObject()
                         .startObject(WatchRecord.Field.TRIGGER_EVENT.getPreferredName())
-                            .field(event.type(), event)
+                        .field(event.type(), event)
                         .endObject()
                         .endObject())
                 .setWaitForActiveShards(ActiveShardCount.ALL)

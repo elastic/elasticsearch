@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.watcher.test;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -15,12 +17,15 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -51,12 +56,14 @@ import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.support.clock.ClockMock;
+import org.elasticsearch.xpack.template.TemplateUtils;
 import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
 import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
+import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
@@ -64,6 +71,7 @@ import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.hamcrest.Matcher;
 import org.jboss.netty.util.internal.SystemPropertyUtil;
 import org.junit.After;
@@ -90,6 +98,7 @@ import java.util.function.Function;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME;
@@ -245,6 +254,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     public void _setup() throws Exception {
         setupTimeWarp();
         startWatcherIfNodesExist();
+        configureAliasesForWatcherIndices();
     }
 
     @After
@@ -301,6 +311,52 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         } else {
             logger.info("[{}#{}]: not starting watcher, because test cluster has no nodes",
                     getTestClass().getSimpleName(), getTestName());
+        }
+    }
+
+    /**
+     * In order to test, that .watches and .triggered-watches indices can also point to an alias, we will rarely create those
+     * after starting watcher
+     *
+     * The idea behind this is the possible use of the migration helper for upgrades, see
+     * https://github.com/elastic/elasticsearch-migration/
+     *
+     */
+    private void configureAliasesForWatcherIndices() throws Exception {
+        // alias for .watches, setting the index template to the same as well
+        if (rarely()) {
+            String newIndex = ".watches-alias-index";
+            BytesReference bytesReference = TemplateUtils.load("/watches.json");
+            try (XContentParser parser = JsonXContent.jsonXContent.createParser(bytesReference.toBytesRef().bytes)) {
+                Map<String, Object> parserMap = parser.map();
+                Map<String, Object> allMappings = (Map<String, Object>) parserMap.get("mappings");
+
+                CreateIndexResponse response = client().admin().indices().prepareCreate(newIndex)
+                        .setCause("Index to test aliases with .watches index")
+                        .addAlias(new Alias(WatchStore.INDEX))
+                        .setSettings((Map<String, Object>) parserMap.get("settings"))
+                        .addMapping("watch", (Map<String, Object>) allMappings.get("watch"))
+                        .get();
+                assertAcked(response);
+            }
+        }
+
+        // alias for .triggered-watches, ensuring the index template is set appropriately
+        if (rarely()) {
+            String newIndex = ".triggered-watches-alias-index";
+            BytesReference bytesReference = TemplateUtils.load("/triggered_watches.json");
+            try (XContentParser parser = JsonXContent.jsonXContent.createParser(bytesReference.toBytesRef().bytes)) {
+                Map<String, Object> parserMap = parser.map();
+                Map<String, Object> allMappings = (Map<String, Object>) parserMap.get("mappings");
+
+                CreateIndexResponse response = client().admin().indices().prepareCreate(newIndex)
+                        .setCause("Index to test aliases with .triggered-watches index")
+                        .addAlias(new Alias(TriggeredWatchStore.INDEX_NAME))
+                        .setSettings((Map<String, Object>) parserMap.get("settings"))
+                        .addMapping("triggered_watch", (Map<String, Object>) allMappings.get("triggered_watch"))
+                        .get();
+                assertAcked(response);
+            }
         }
     }
 

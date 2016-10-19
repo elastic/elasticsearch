@@ -416,7 +416,7 @@ class InstallPluginCommand extends SettingCommand {
         PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
         terminal.println(VERBOSE, info.toString());
 
-        // don't let luser install plugin as a module...
+        // don't let user install plugin as a module...
         // they might be unavoidably in maven central and are packaged up the same way)
         if (MODULES.contains(info.getName())) {
             throw new UserException(

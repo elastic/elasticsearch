@@ -623,7 +623,7 @@ public class TransportService extends AbstractLifecycleComponent {
      * Registers a new request handler
      *
      * @param action                The action the request handler is associated with
-     * @param request               The request class that will be used to constrcut new instances for streaming
+     * @param request               The request class that will be used to construct new instances for streaming
      * @param executor              The executor the request handling will be executed on
      * @param forceExecution        Force execution on the executor queue and never reject it
      * @param canTripCircuitBreaker Check the request size and raise an exception in case the limit is breached.

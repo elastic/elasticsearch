@@ -100,8 +100,11 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
                         emptyMap(), emptySet(), Version.CURRENT),
                         ClusterHealthStatus.GREEN, randomNodeInfo(), randomNodeStats(), randomShardStats())
         );
-        return new ClusterStatsResponse(Math.abs(randomLong()), ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY),
-                UUID.randomUUID().toString(), responses, Collections.emptyList());
+        return new ClusterStatsResponse(
+                Math.abs(randomLong()),
+                ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY),
+                responses,
+                Collections.emptyList());
     }
 
     /**

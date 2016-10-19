@@ -53,7 +53,6 @@ public class CryptoService extends AbstractComponent {
     static final String DEFAULT_ENCRYPTION_ALGORITHM = "AES/CTR/NoPadding";
     static final String DEFAULT_KEY_ALGORITH = "AES";
     static final String ENCRYPTED_TEXT_PREFIX = "::es_encrypted::";
-    static final byte[] ENCRYPTED_BYTE_PREFIX = ENCRYPTED_TEXT_PREFIX.getBytes(StandardCharsets.UTF_8);
     static final int DEFAULT_KEY_LENGTH = 128;
     static final int RANDOM_KEY_SIZE = 128;
 
@@ -105,7 +104,9 @@ public class CryptoService extends AbstractComponent {
         } catch (NoSuchAlgorithmException nsae) {
             throw new ElasticsearchException("failed to start crypto service. could not load encryption key", nsae);
         }
-        logger.info("system key [{}] has been loaded", keyFile.toAbsolutePath());
+        if (systemKey != null) {
+            logger.info("system key [{}] has been loaded", keyFile.toAbsolutePath());
+        }
     }
 
     public static byte[] generateKey() {

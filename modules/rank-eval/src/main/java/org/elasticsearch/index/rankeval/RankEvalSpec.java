@@ -76,7 +76,9 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
             ratedRequests.add(new RatedRequest(in));
         }
         metric = in.readNamedWriteable(RankedListQualityMetric.class);
-        script = new Script(in);
+        if (in.readBoolean()) {
+            script = new Script(in);
+        }
     }
 
     @Override
@@ -86,7 +88,12 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
             spec.writeTo(out);
         }
         out.writeNamedWriteable(metric);
-        script.writeTo(out);
+        if (script != null) {
+            out.writeBoolean(true);
+            script.writeTo(out);
+        } else {
+            out.writeBoolean(false);
+        }
     }
 
     public void setEval(RankedListQualityMetric eval) {

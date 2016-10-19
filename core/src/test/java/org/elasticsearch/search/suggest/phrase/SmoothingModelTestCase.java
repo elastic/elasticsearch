@@ -31,10 +31,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -55,8 +52,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public abstract class SmoothingModelTestCase extends ESTestCase {
 
@@ -117,7 +113,6 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
      */
     public void testBuildWordScorer() throws IOException {
         SmoothingModel testModel = createTestModel();
-
         Map<String, Analyzer> mapping = new HashMap<>();
         mapping.put("field", new WhitespaceAnalyzer());
         PerFieldAnalyzerWrapper wrapper = new PerFieldAnalyzerWrapper(new WhitespaceAnalyzer(), mapping);
@@ -142,7 +137,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
      */
     public void testSerialization() throws IOException {
         SmoothingModel testModel = createTestModel();
-        SmoothingModel deserializedModel = copyModel(testModel);
+        SmoothingModel deserializedModel = copy(testModel);
         assertEquals(testModel, deserializedModel);
         assertEquals(testModel.hashCode(), deserializedModel.hashCode());
         assertNotSame(testModel, deserializedModel);
@@ -151,42 +146,12 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
     /**
      * Test equality and hashCode properties
      */
-    @SuppressWarnings("unchecked")
     public void testEqualsAndHashcode() throws IOException {
-        SmoothingModel firstModel = createTestModel();
-        assertFalse("smoothing model is equal to null", firstModel.equals(null));
-        assertFalse("smoothing model is equal to incompatible type", firstModel.equals(""));
-        assertTrue("smoothing model is not equal to self", firstModel.equals(firstModel));
-        assertThat("same smoothing model's hashcode returns different values if called multiple times", firstModel.hashCode(),
-                equalTo(firstModel.hashCode()));
-        assertThat("different smoothing models should not be equal", createMutation(firstModel), not(equalTo(firstModel)));
-
-        SmoothingModel secondModel = copyModel(firstModel);
-        assertTrue("smoothing model is not equal to self", secondModel.equals(secondModel));
-        assertTrue("smoothing model is not equal to its copy", firstModel.equals(secondModel));
-        assertTrue("equals is not symmetric", secondModel.equals(firstModel));
-        assertThat("smoothing model copy's hashcode is different from original hashcode", secondModel.hashCode(),
-                equalTo(firstModel.hashCode()));
-
-        SmoothingModel thirdModel = copyModel(secondModel);
-        assertTrue("smoothing model is not equal to self", thirdModel.equals(thirdModel));
-        assertTrue("smoothing model is not equal to its copy", secondModel.equals(thirdModel));
-        assertThat("smoothing model copy's hashcode is different from original hashcode", secondModel.hashCode(),
-                equalTo(thirdModel.hashCode()));
-        assertTrue("equals is not transitive", firstModel.equals(thirdModel));
-        assertThat("smoothing model copy's hashcode is different from original hashcode", firstModel.hashCode(),
-                equalTo(thirdModel.hashCode()));
-        assertTrue("equals is not symmetric", thirdModel.equals(secondModel));
-        assertTrue("equals is not symmetric", thirdModel.equals(firstModel));
+        checkEqualsAndHashCode(createTestModel(), this::copy, this::createMutation);
     }
 
-    static SmoothingModel copyModel(SmoothingModel original) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                return namedWriteableRegistry.getReader(SmoothingModel.class, original.getWriteableName()).read(in);
-            }
-        }
+    private SmoothingModel copy(SmoothingModel original) throws IOException {
+        return ESTestCase.copyWriteable(original, namedWriteableRegistry,
+                namedWriteableRegistry.getReader(SmoothingModel.class, original.getWriteableName()));
     }
-
 }

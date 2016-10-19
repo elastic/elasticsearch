@@ -5,7 +5,6 @@
 # 4. Starts one node for zip package and checks:
 #    -- if x-pack plugin is loaded
 #    -- checks xpack info page, if response returns correct version and feature set info
-#    -- puts the local basic license to make sure that x-pack was put with the correct license
 #
 # USAGE:
 #
@@ -126,7 +125,7 @@ def smoke_test_release(release, files, release_hash):
         conn = HTTPConnection(host, timeout=20)
         
         # check if plugin is loaded
-        conn.request('GET', '/_nodes?plugin=true&pretty=true', headers=headers)
+        conn.request('GET', '/_nodes/plugins?pretty=true', headers=headers)
         res = conn.getresponse()
         if res.status == 200:
           nodes = json.loads(res.read().decode("utf-8"))['nodes']
@@ -138,28 +137,17 @@ def smoke_test_release(release, files, release_hash):
         else:
           raise RuntimeError('Expected HTTP 200 but got %s' % res.status)
 
-        # put the supplied license to ensure that system was built with 
-        license = read_fully(os.path.join(os.path.dirname(__file__), 'license.json'))
-        conn.request('PUT', '/_xpack/license?acknowledge=true', license, headers=headers)
-        res = conn.getresponse()
-        # reading the result, so we can execute the next request on the same connection
-        license_resp = json.loads(res.read().decode('utf-8'))
-        if res.status != 200:
-          raise RuntimeError('Could not PUT _xpack/license, got status %s' % res.status)
-        if license_resp['license_status'] != 'valid':
-          raise RuntimeError('Expected license to be valid, but was %s' % license_resp['license_status'])
-        
-        # check if license is the one we just PUT
-        #print('SLEEEEPING')
-        #time.sleep(300)
-        conn.request('GET', '/_xpack?pretty', headers=headers)
+        # check if license is the default one
+        # also sleep for few more seconds, as the initial license generation might take some time
+        time.sleep(5)
+        conn.request('GET', '/_xpack', headers=headers)
         res = conn.getresponse()
         if res.status == 200:
           xpack = json.loads(res.read().decode("utf-8"))
-          if xpack['license']['type'] != 'basic':
-            raise RuntimeError('expected license type to be basic, was %s' % xpack['license']['type'])
-          if xpack['license']['mode'] != 'basic':
-            raise RuntimeError('expected license mode to be basic, was %s' % xpack['license']['mode'])
+          if xpack['license']['type'] != 'trial':
+            raise RuntimeError('expected license type to be trial, was %s' % xpack['license']['type'])
+          if xpack['license']['mode'] != 'trial':
+            raise RuntimeError('expected license mode to be trial, was %s' % xpack['license']['mode'])
           if xpack['license']['status'] != 'active':
             raise RuntimeError('expected license status to be active, was %s' % xpack['license']['active'])
         else:
@@ -179,7 +167,6 @@ def smoke_test_release(release, files, release_hash):
 # console colors
 COLOR_OK = '\033[92m'
 COLOR_END = '\033[0m'
-COLOR_FAIL = '\033[91m'
 
 def run(command, env_vars=None):
   if env_vars:

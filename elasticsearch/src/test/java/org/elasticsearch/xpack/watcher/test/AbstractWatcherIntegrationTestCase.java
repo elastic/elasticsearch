@@ -323,39 +323,41 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
      *
      */
     private void configureAliasesForWatcherIndices() throws Exception {
-        // alias for .watches, setting the index template to the same as well
-        if (rarely()) {
-            String newIndex = ".watches-alias-index";
-            BytesReference bytesReference = TemplateUtils.load("/watches.json");
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(bytesReference.toBytesRef().bytes)) {
-                Map<String, Object> parserMap = parser.map();
-                Map<String, Object> allMappings = (Map<String, Object>) parserMap.get("mappings");
+        if (internalCluster().size() > 0) {
+            // alias for .watches, setting the index template to the same as well
+            if (rarely()) {
+                String newIndex = ".watches-alias-index";
+                BytesReference bytesReference = TemplateUtils.load("/watches.json");
+                try (XContentParser parser = JsonXContent.jsonXContent.createParser(bytesReference.toBytesRef().bytes)) {
+                    Map<String, Object> parserMap = parser.map();
+                    Map<String, Object> allMappings = (Map<String, Object>) parserMap.get("mappings");
 
-                CreateIndexResponse response = client().admin().indices().prepareCreate(newIndex)
-                        .setCause("Index to test aliases with .watches index")
-                        .addAlias(new Alias(WatchStore.INDEX))
-                        .setSettings((Map<String, Object>) parserMap.get("settings"))
-                        .addMapping("watch", (Map<String, Object>) allMappings.get("watch"))
-                        .get();
-                assertAcked(response);
+                    CreateIndexResponse response = client().admin().indices().prepareCreate(newIndex)
+                            .setCause("Index to test aliases with .watches index")
+                            .addAlias(new Alias(WatchStore.INDEX))
+                            .setSettings((Map<String, Object>) parserMap.get("settings"))
+                            .addMapping("watch", (Map<String, Object>) allMappings.get("watch"))
+                            .get();
+                    assertAcked(response);
+                }
             }
-        }
 
-        // alias for .triggered-watches, ensuring the index template is set appropriately
-        if (rarely()) {
-            String newIndex = ".triggered-watches-alias-index";
-            BytesReference bytesReference = TemplateUtils.load("/triggered_watches.json");
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(bytesReference.toBytesRef().bytes)) {
-                Map<String, Object> parserMap = parser.map();
-                Map<String, Object> allMappings = (Map<String, Object>) parserMap.get("mappings");
+            // alias for .triggered-watches, ensuring the index template is set appropriately
+            if (rarely()) {
+                String newIndex = ".triggered-watches-alias-index";
+                BytesReference bytesReference = TemplateUtils.load("/triggered_watches.json");
+                try (XContentParser parser = JsonXContent.jsonXContent.createParser(bytesReference.toBytesRef().bytes)) {
+                    Map<String, Object> parserMap = parser.map();
+                    Map<String, Object> allMappings = (Map<String, Object>) parserMap.get("mappings");
 
-                CreateIndexResponse response = client().admin().indices().prepareCreate(newIndex)
-                        .setCause("Index to test aliases with .triggered-watches index")
-                        .addAlias(new Alias(TriggeredWatchStore.INDEX_NAME))
-                        .setSettings((Map<String, Object>) parserMap.get("settings"))
-                        .addMapping("triggered_watch", (Map<String, Object>) allMappings.get("triggered_watch"))
-                        .get();
-                assertAcked(response);
+                    CreateIndexResponse response = client().admin().indices().prepareCreate(newIndex)
+                            .setCause("Index to test aliases with .triggered-watches index")
+                            .addAlias(new Alias(TriggeredWatchStore.INDEX_NAME))
+                            .setSettings((Map<String, Object>) parserMap.get("settings"))
+                            .addMapping("triggered_watch", (Map<String, Object>) allMappings.get("triggered_watch"))
+                            .get();
+                    assertAcked(response);
+                }
             }
         }
     }

@@ -19,14 +19,12 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -39,6 +37,7 @@ import java.util.List;
 import java.util.Objects;
 
 import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  * Defines a QA specification: All end user supplied query intents will be mapped to the search request specified in this search request
@@ -47,8 +46,6 @@ import java.util.Map;
  * The resulting document lists can then be compared against what was specified in the set of rated documents as part of a QAQuery.
  * */
 public class RatedRequest extends ToXContentToBytes implements Writeable {
-    private static final Logger logger = Loggers.getLogger(RatedRequest.class);
-
     private String specId;
     private SearchSourceBuilder testRequest;
     private List<String> indices = new ArrayList<>();
@@ -91,7 +88,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         for (int i = 0; i < intentSize; i++) {
             ratedDocs.add(new RatedDocument(in));
         }
-        this.params = in.readMap(StreamInput::readString, StreamInput::readString);
+        this.params = (Map) in.readMap();
         int summaryFieldsSize = in.readInt();
         summaryFields = new ArrayList<>(summaryFieldsSize);
         for (int i = 0; i < summaryFieldsSize; i++) {
@@ -195,7 +192,6 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         PARSER.declareStringArray(RatedRequest::setSummaryFields, FIELDS_FIELD);
         PARSER.declareObject(RatedRequest::setTestRequest, (p, c) -> {
             try {
-                logger.error("Building search source builder");
                 return SearchSourceBuilder.fromXContent(c.getParseContext(), c.getAggs(),  c.getSuggesters(), c.getSearchExtParsers());
             } catch (IOException ex) {
                 throw new ParsingException(p.getTokenLocation(), "error parsing request", ex);
@@ -248,11 +244,11 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         builder.field(ID_FIELD.getPreferredName(), this.specId);
         if (testRequest != null)
             builder.field(REQUEST_FIELD.getPreferredName(), this.testRequest);
-//        builder.startArray(PARAMS_FIELD.getPreferredName());
-//        for (Entry<String, Object> entry : this.params.entrySet()) {
-//            builder.field(entry.getKey(), entry.getValue());
-//        }
-//        builder.endArray();
+        builder.startObject(PARAMS_FIELD.getPreferredName());
+        for (Entry<String, String> entry : this.params.entrySet()) {
+            builder.field(entry.getKey(), entry.getValue());
+        }
+        builder.endObject();
         builder.startArray(RATINGS_FIELD.getPreferredName());
         for (RatedDocument doc : this.ratedDocs) {
             doc.toXContent(builder, params);
@@ -283,11 +279,12 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
                 Objects.equals(indices, other.indices) &&
                 Objects.equals(types, other.types) &&
                 Objects.equals(summaryFields, summaryFields) &&
-                Objects.equals(ratedDocs, other.ratedDocs);
+                Objects.equals(ratedDocs, other.ratedDocs) &&
+                Objects.equals(params, other.params);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(specId, testRequest, indices, types, summaryFields, ratedDocs);
+        return Objects.hash(specId, testRequest, indices, types, summaryFields, ratedDocs, params);
     }
 }

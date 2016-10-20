@@ -81,11 +81,11 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     }
 
     public void initialize(ExecutableScript executableScript) {
+        executableScript.setNextVar("_subset_freq", subsetDfHolder);
+        executableScript.setNextVar("_subset_size", subsetSizeHolder);
+        executableScript.setNextVar("_superset_freq", supersetDfHolder);
+        executableScript.setNextVar("_superset_size", supersetSizeHolder);
         this.executableScript = executableScript;
-        this.executableScript.setNextVar("_subset_freq", subsetDfHolder);
-        this.executableScript.setNextVar("_subset_size", subsetSizeHolder);
-        this.executableScript.setNextVar("_superset_freq", supersetDfHolder);
-        this.executableScript.setNextVar("_superset_size", supersetSizeHolder);
     }
 
     /**

@@ -38,7 +38,9 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 
@@ -80,6 +82,16 @@ public class RatedRequestsTests extends ESTestCase {
         }
 
         RatedRequest ratedRequest = new RatedRequest(specId, testRequest, indices, types, ratedDocs);
+
+
+        if (randomBoolean()) {
+            Map<String, String> params = new HashMap<String, String>();
+            int randomSize = randomInt();
+            for (int i = 0; i < randomSize; i++) {
+                params.put(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+            }
+            ratedRequest.setParams(params);
+        }
 
         List<String> summaryFields = new ArrayList<>();
         int numSummaryFields = randomIntBetween(0, 5);

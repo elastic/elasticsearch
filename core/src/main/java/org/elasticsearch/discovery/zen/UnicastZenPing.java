@@ -96,7 +96,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
     public static final int LIMIT_FOREIGN_PORTS_COUNT = 1;
     public static final int LIMIT_LOCAL_PORTS_COUNT = 5;
 
-
     private final ThreadPool threadPool;
     private final TransportService transportService;
     private final ClusterName clusterName;
@@ -120,7 +119,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
     // a list of temporal responses a node will return for a request (holds requests from other configuredTargetNodes)
     private final Queue<PingResponse> temporalResponses = ConcurrentCollections.newQueue();
 
-    private final CopyOnWriteArrayList<UnicastHostsProvider> hostsProviders = new CopyOnWriteArrayList<>();
+    private final UnicastHostsProvider hostsProvider;
 
     private final ExecutorService unicastConnectExecutor;
 
@@ -128,17 +127,13 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
 
     @Inject
     public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
-                          @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
+                          UnicastHostsProvider unicastHostsProviders) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
 
-        if (unicastHostsProviders != null) {
-            for (UnicastHostsProvider unicastHostsProvider : unicastHostsProviders) {
-                addHostsProvider(unicastHostsProvider);
-            }
-        }
+        this.hostsProvider = unicastHostsProviders;
 
         this.concurrentConnects = DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
         List<String> hosts = DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.get(settings);
@@ -211,10 +206,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
             throw new ElasticsearchException("Error wile closing send ping handlers", e);
         }
         closed = true;
-    }
-
-    public void addHostsProvider(UnicastHostsProvider provider) {
-        hostsProviders.add(provider);
     }
 
     @Override
@@ -345,10 +336,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
                 nodesToPingSet.add(temporalResponse.node());
             }
         }
-
-        for (UnicastHostsProvider provider : hostsProviders) {
-            nodesToPingSet.addAll(provider.buildDynamicNodes());
-        }
+        nodesToPingSet.addAll(hostsProvider.buildDynamicNodes());
 
         // add all possible master nodes that were active in the last known cluster configuration
         for (ObjectCursor<DiscoveryNode> masterNode : discoNodes.getMasterNodes().values()) {

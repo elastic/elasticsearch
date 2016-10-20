@@ -20,23 +20,26 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.plugins.DiscoveryPlugin;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.discovery.zen.ZenPingService;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * A module for loading classes for node discovery.
@@ -44,33 +47,31 @@ import java.util.function.Function;
 public class DiscoveryModule extends AbstractModule {
 
     public static final Setting<String> DISCOVERY_TYPE_SETTING =
-        new Setting<>("discovery.type", "zen", Function.identity(),
-            Property.NodeScope);
+        new Setting<>("discovery.type", "zen", Function.identity(), Property.NodeScope);
+    public static final Setting<String> DISCOVERY_HOSTS_PROVIDER_SETTING =
+        new Setting<>("discovery.zen.hosts_provider", DISCOVERY_TYPE_SETTING, Function.identity(), Property.NodeScope);
 
     private final Settings settings;
-    private final Map<String, List<Class<? extends UnicastHostsProvider>>> unicastHostProviders = new HashMap<>();
+    private final Map<String, Supplier<UnicastHostsProvider>> unicastHostProviders;
     private final ExtensionPoint.ClassSet<ZenPing> zenPings = new ExtensionPoint.ClassSet<>("zen_ping", ZenPing.class);
     private final Map<String, Class<? extends Discovery>> discoveryTypes = new HashMap<>();
 
-    public DiscoveryModule(Settings settings) {
+    public DiscoveryModule(Settings settings, TransportService transportService, NetworkService networkService,
+                           List<DiscoveryPlugin> plugins) {
         this.settings = settings;
         addDiscoveryType("none", NoneDiscovery.class);
         addDiscoveryType("zen", ZenDiscovery.class);
-    }
 
-    /**
-     * Adds a custom unicast hosts provider to build a dynamic list of unicast hosts list when doing unicast discovery.
-     *
-     * @param type discovery for which this provider is relevant
-     * @param unicastHostProvider the host provider
-     */
-    public void addUnicastHostProvider(String type, Class<? extends UnicastHostsProvider> unicastHostProvider) {
-        List<Class<? extends UnicastHostsProvider>> providerList = unicastHostProviders.get(type);
-        if (providerList == null) {
-            providerList = new ArrayList<>();
-            unicastHostProviders.put(type, providerList);
+        Map<String, Supplier<UnicastHostsProvider>> hostProviders = new HashMap<>();
+        hostProviders.put("zen", () -> Collections::emptyList);
+        for (DiscoveryPlugin plugin : plugins) {
+            plugin.getZenHostsProviders(transportService, networkService).entrySet().forEach(entry -> {
+                if (hostProviders.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Cannot specify zen hosts provider [" + entry.getKey() + "] twice");
+                }
+            });
         }
-        providerList.add(unicastHostProvider);
+        unicastHostProviders = Collections.unmodifiableMap(hostProviders);
     }
 
     /**
@@ -97,11 +98,13 @@ public class DiscoveryModule extends AbstractModule {
 
         if (discoveryType.equals("none") == false) {
             bind(ZenPingService.class).asEagerSingleton();
-            Multibinder<UnicastHostsProvider> unicastHostsProviderMultibinder = Multibinder.newSetBinder(binder(), UnicastHostsProvider.class);
-            for (Class<? extends UnicastHostsProvider> unicastHostProvider :
-                    unicastHostProviders.getOrDefault(discoveryType, Collections.emptyList())) {
-                unicastHostsProviderMultibinder.addBinding().to(unicastHostProvider);
+            String hostsProviderName = DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
+            Supplier<UnicastHostsProvider> hostsProviderSupplier = unicastHostProviders.get(hostsProviderName);
+            if (hostsProviderSupplier == null) {
+                throw new IllegalArgumentException("Unknown zen hosts provider [" + hostsProviderName + "]");
             }
+            UnicastHostsProvider hostsProvider = Objects.requireNonNull(hostsProviderSupplier.get());
+            bind(UnicastHostsProvider.class).toInstance(hostsProvider);
             if (zenPings.isEmpty()) {
                 zenPings.registerExtension(UnicastZenPing.class);
             }

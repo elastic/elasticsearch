@@ -331,7 +331,6 @@ public class Node implements Closeable {
             }
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             modules.add(new NodeModule(this, monitorService));
-            modules.add(new DiscoveryModule(this.settings));
             ClusterModule clusterModule = new ClusterModule(settings, clusterService,
                 pluginsService.filterPlugins(ClusterPlugin.class));
             modules.add(clusterModule);
@@ -344,7 +343,6 @@ public class Node implements Closeable {
             modules.add(actionModule);
             modules.add(new GatewayModule());
             modules.add(new RepositoriesModule(this.environment, pluginsService.filterPlugins(RepositoryPlugin.class)));
-            pluginsService.processModules(modules);
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);
@@ -395,6 +393,8 @@ public class Node implements Closeable {
                     b.bind(HttpServer.class).toProvider(Providers.of(null));
                 };
             }
+            modules.add(new DiscoveryModule(this.settings, transportService, networkService, pluginsService.filterPlugins(DiscoveryPlugin.class)));
+            pluginsService.processModules(modules);
             modules.add(b -> {
                     b.bind(IndicesQueriesRegistry.class).toInstance(searchModule.getQueryParserRegistry());
                     b.bind(SearchRequestParsers.class).toInstance(searchModule.getSearchRequestParsers());

@@ -19,26 +19,8 @@
 
 package org.elasticsearch.plugin.discovery.ec2;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cloud.aws.AwsEc2Service;
-import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
-import org.elasticsearch.cloud.aws.Ec2Module;
-import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.ec2.AwsEc2UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.plugins.DiscoveryPlugin;
-import org.elasticsearch.plugins.Plugin;
-
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -48,12 +30,33 @@ import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
-public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin {
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.cloud.aws.AwsEc2Service;
+import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
+import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.ec2.AwsEc2UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.DiscoveryPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.transport.TransportService;
+
+public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Closeable {
 
     private static Logger logger = Loggers.getLogger(Ec2DiscoveryPlugin.class);
 
@@ -80,35 +83,30 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin {
     }
 
     private Settings settings;
+    // stashed when created in order to properly close
+    private final SetOnce<AwsEc2ServiceImpl> ec2Service = new SetOnce<>();
 
     public Ec2DiscoveryPlugin(Settings settings) {
         this.settings = settings;
     }
 
-    @Override
-    public Collection<Module> createGuiceModules() {
-        Collection<Module> modules = new ArrayList<>();
-        modules.add(new Ec2Module());
-        return modules;
-    }
-
-    @Override
-    @SuppressWarnings("rawtypes") // Supertype uses rawtype
-    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
-        Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
-        services.add(AwsEc2ServiceImpl.class);
-        return services;
-    }
-
     public void onModule(DiscoveryModule discoveryModule) {
         discoveryModule.addDiscoveryType(EC2, ZenDiscovery.class);
-        discoveryModule.addUnicastHostProvider(EC2, AwsEc2UnicastHostsProvider.class);
     }
 
     @Override
     public NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
         logger.debug("Register _ec2_, _ec2:xxx_ network names");
         return new Ec2NameResolver(settings);
+    }
+
+    @Override
+    public Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
+                                                                            NetworkService networkService) {
+        return Collections.singletonMap(EC2, () -> {
+            ec2Service.set(new AwsEc2ServiceImpl(settings));
+            return new AwsEc2UnicastHostsProvider(settings, transportService, ec2Service.get());
+        });
     }
 
     @Override
@@ -186,5 +184,10 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin {
         }
 
         return attrs.build();
+    }
+
+    @Override
+    public void close() throws IOException {
+        IOUtils.close(ec2Service.get());
     }
 }

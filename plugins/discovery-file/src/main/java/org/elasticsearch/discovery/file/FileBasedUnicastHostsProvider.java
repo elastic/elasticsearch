@@ -55,7 +55,7 @@ import static org.elasticsearch.discovery.zen.UnicastZenPing.resolveDiscoveryNod
  * 67.81.244.11:9305
  * 67.81.244.15:9400
  */
-public class FileBasedUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
+class FileBasedUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
 
     static final String UNICAST_HOSTS_FILE = "unicast_hosts.txt";
     static final String UNICAST_HOST_PREFIX = "#zen_file_unicast_host_";
@@ -66,8 +66,7 @@ public class FileBasedUnicastHostsProvider extends AbstractComponent implements 
 
     private final AtomicLong nodeIdGenerator = new AtomicLong(); // generates unique ids for the node
 
-    @Inject
-    public FileBasedUnicastHostsProvider(Settings settings, TransportService transportService) {
+    FileBasedUnicastHostsProvider(Settings settings, TransportService transportService) {
         super(settings);
         this.transportService = transportService;
         this.unicastHostsFilePath = new Environment(settings).configFile().resolve("discovery-file").resolve(UNICAST_HOSTS_FILE);

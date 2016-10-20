@@ -60,6 +60,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class UnicastZenPingTests extends ESTestCase {
+    private static final UnicastHostsProvider EMPTY_HOSTS_PROVIDER = Collections::emptyList;
+
     public void testSimplePings() throws InterruptedException {
         int startPort = 11000 + randomIntBetween(0, 1000);
         int endPort = startPort + 10;
@@ -94,7 +96,7 @@ public class UnicastZenPingTests extends ESTestCase {
                 .build();
 
         Settings hostsSettingsMismatch = Settings.builder().put(hostsSettings).put(settingsMismatch).build();
-        UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, handleA.transportService, null);
+        UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, handleA.transportService, EMPTY_HOSTS_PROVIDER);
         zenPingA.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -108,7 +110,7 @@ public class UnicastZenPingTests extends ESTestCase {
         });
         zenPingA.start();
 
-        UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool, handleB.transportService, null);
+        UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool, handleB.transportService, EMPTY_HOSTS_PROVIDER);
         zenPingB.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -122,7 +124,7 @@ public class UnicastZenPingTests extends ESTestCase {
         });
         zenPingB.start();
 
-        UnicastZenPing zenPingC = new UnicastZenPing(hostsSettingsMismatch, threadPool, handleC.transportService, null) {
+        UnicastZenPing zenPingC = new UnicastZenPing(hostsSettingsMismatch, threadPool, handleC.transportService, EMPTY_HOSTS_PROVIDER) {
             @Override
             protected Version getVersion() {
                 return versionD;
@@ -141,7 +143,7 @@ public class UnicastZenPingTests extends ESTestCase {
         });
         zenPingC.start();
 
-        UnicastZenPing zenPingD = new UnicastZenPing(hostsSettingsMismatch, threadPool, handleD.transportService, null);
+        UnicastZenPing zenPingD = new UnicastZenPing(hostsSettingsMismatch, threadPool, handleD.transportService, EMPTY_HOSTS_PROVIDER);
         zenPingD.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {

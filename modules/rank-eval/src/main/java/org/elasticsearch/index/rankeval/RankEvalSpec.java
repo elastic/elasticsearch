@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -28,7 +27,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -52,8 +50,6 @@ import java.util.Map;
  * */
 
 public class RankEvalSpec extends ToXContentToBytes implements Writeable {
-    private static final Logger logger = Loggers.getLogger(RankEvalSpec.class);
-
     /** Collection of query specifications, that is e.g. search request templates to use for query translation. */
     private Collection<RatedRequest> ratedRequests = new ArrayList<>();
     /** Definition of the quality metric, e.g. precision at N */
@@ -161,11 +157,9 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
         RankEvalSpec spec = PARSER.parse(parser, context);
 
         if (templated) {
-            logger.trace("template: {}",  spec.template);
             for (RatedRequest query_spec : spec.getSpecifications()) {
                 @SuppressWarnings({ "unchecked", "rawtypes" })
                 Map<String, String> params = (Map) query_spec.getParams();
-                logger.trace("params: {}", params);
                 Script scriptWithParams = new Script(spec.template.getScript(), spec.template.getType(), spec.template.getLang(), params);
                 String resolvedRequest = 
                         ((BytesReference) 
@@ -190,7 +184,6 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
                 }
             }
         }
-        logger.trace("request received after parsing and potentially applying template: {}", spec.toString());
         return spec; 
     }
 

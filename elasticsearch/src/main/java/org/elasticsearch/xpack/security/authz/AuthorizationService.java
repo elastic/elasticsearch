@@ -126,6 +126,7 @@ public class AuthorizationService extends AbstractComponent {
         // get the roles of the authenticated user, which may be different than the effective
         Collection<Role> roles = roles(authentication.getUser());
         GlobalPermission permission = permission(roles);
+
         final boolean isRunAs = authentication.getUser() != authentication.getRunAsUser();
         // permission can be empty as it might be that the user's role is unknown
         if (permission.isEmpty()) {
@@ -270,7 +271,8 @@ public class AuthorizationService extends AbstractComponent {
         }
     }
 
-    private GlobalPermission permission(Collection<Role> roles) {
+    // pkg-private for testing
+    GlobalPermission permission(Collection<Role> roles) {
         GlobalPermission.Compound.Builder rolesBuilder = GlobalPermission.Compound.builder();
         for (Role role : roles) {
             rolesBuilder.add(role);
@@ -279,6 +281,19 @@ public class AuthorizationService extends AbstractComponent {
     }
 
     Collection<Role> roles(User user) {
+        // we need to special case the internal users in this method, if we apply the anonymous roles to every user including these system
+        // user accounts then we run into the chance of a deadlock because then we need to get a role that we may be trying to get as the
+        // internal user. The SystemUser is special cased as it has special privileges to execute internal actions and should never be
+        // passed into this method. The XPackUser has the Superuser role and we can simply return that
+        if (SystemUser.is(user)) {
+            throw new IllegalArgumentException("the user [" + user.principal() + "] is the system user and we should never try to get its" +
+                    " roles");
+        }
+        if (XPackUser.is(user)) {
+            assert XPackUser.INSTANCE.roles().length == 1 && SuperuserRole.NAME.equals(XPackUser.INSTANCE.roles()[0]);
+            return Collections.singleton(SuperuserRole.INSTANCE);
+        }
+
         Set<String> roleNames = new HashSet<>();
         Collections.addAll(roleNames, user.roles());
         if (isAnonymousEnabled && anonymousUser.equals(user) == false) {

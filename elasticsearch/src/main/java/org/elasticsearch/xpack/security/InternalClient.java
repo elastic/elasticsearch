@@ -61,7 +61,7 @@ public class InternalClient extends FilterClient {
             try {
                 Authentication authentication = new Authentication(XPackUser.INSTANCE,
                     new Authentication.RealmRef("__attach", "__attach", nodeName), null);
-                authentication.writeToContextIfMissing(threadPool().getThreadContext(), cryptoService, signUserHeader);
+                authentication.writeToContext(threadPool().getThreadContext(), cryptoService, signUserHeader);
             } catch (IOException ioe) {
                 throw new ElasticsearchException("failed to attach internal user to request", ioe);
             }

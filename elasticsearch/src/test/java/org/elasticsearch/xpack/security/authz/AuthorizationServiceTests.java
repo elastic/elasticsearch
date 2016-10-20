@@ -77,6 +77,8 @@ import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.security.authz.permission.DefaultRole;
+import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl.IndexAccessControl;
+import org.elasticsearch.xpack.security.authz.permission.GlobalPermission;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
@@ -94,11 +96,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAs;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -108,6 +113,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class AuthorizationServiceTests extends ESTestCase {
@@ -778,6 +784,59 @@ public class AuthorizationServiceTests extends ESTestCase {
         public List<? extends IndicesRequest> subRequests() {
             return Collections.singletonList(new MockIndicesRequest());
         }
+    }
+
+    public void testDoesNotUseRolesStoreForXPackUser() {
+        Collection<Role> roles = authorizationService.roles(XPackUser.INSTANCE);
+        assertThat(roles, contains(SuperuserRole.INSTANCE));
+        verifyZeroInteractions(rolesStore);
+    }
+
+    public void testPermissionIncludesAnonymousUserPermissions() {
+        Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "a_all").build();
+        final AnonymousUser anonymousUser = new AnonymousUser(settings);
+        authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
+                new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser);
+        final boolean roleExists = randomBoolean();
+        final Role anonymousRole = Role.builder("a_all").add(IndexPrivilege.ALL, "a").build();
+        if (roleExists) {
+            when(rolesStore.role("a_all")).thenReturn(anonymousRole);
+        }
+        final MetaData metaData = MetaData.builder()
+                .put(new IndexMetaData.Builder("a")
+                        .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                        .numberOfShards(1).numberOfReplicas(0).build(), true)
+                .build();
+
+        User user = new User("no_roles");
+        final Collection<Role> roles = authorizationService.roles(user);
+        GlobalPermission globalPermission = authorizationService.permission(roles);
+        verify(rolesStore).role("a_all");
+
+        if (roleExists) {
+            assertThat(roles, containsInAnyOrder(anonymousRole, DefaultRole.INSTANCE));
+            assertFalse(globalPermission.isEmpty());
+            // by default all users have a DefaultRole that grants cluster actions like change password
+            assertFalse(globalPermission.cluster().isEmpty());
+            assertFalse(globalPermission.indices().isEmpty());
+            Map<String, IndexAccessControl> authzMap =
+                    globalPermission.indices().authorize(SearchAction.NAME, Collections.singleton("a"), metaData);
+            assertTrue(authzMap.containsKey("a"));
+            assertTrue(authzMap.get("a").isGranted());
+            assertFalse(authzMap.get("a").getFieldPermissions().hasFieldLevelSecurity());
+            assertNull(authzMap.get("a").getQueries());
+        } else {
+            assertThat(roles, contains(DefaultRole.INSTANCE));
+            assertFalse(globalPermission.isEmpty());
+            // by default all users have a DefaultRole that grants cluster actions like change password
+            assertFalse(globalPermission.cluster().isEmpty());
+            assertTrue(globalPermission.indices().isEmpty());
+        }
+    }
+
+    public void testGetRolesForSystemUserThrowsException() {
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> authorizationService.roles(SystemUser.INSTANCE));
+        assertEquals("the user [_system] is the system user and we should never try to get its roles", iae.getMessage());
     }
 
     private static Authentication createAuthentication(User user) {

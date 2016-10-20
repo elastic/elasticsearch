@@ -97,7 +97,7 @@ public class Authentication {
         return authentication;
     }
 
-    public void writeToContextIfMissing(ThreadContext context, CryptoService cryptoService, boolean sign)
+    void writeToContextIfMissing(ThreadContext context, CryptoService cryptoService, boolean sign)
             throws IOException, IllegalArgumentException {
         if (context.getTransient(AUTHENTICATION_KEY) != null) {
             if (context.getHeader(AUTHENTICATION_KEY) == null) {
@@ -113,7 +113,11 @@ public class Authentication {
         }
     }
 
-    void writeToContext(ThreadContext ctx, CryptoService cryptoService, boolean sign)
+    /**
+     * Writes the authentication to the context. There must not be an existing authentication in the context and if there is an
+     * {@link IllegalStateException} will be thrown
+     */
+    public void writeToContext(ThreadContext ctx, CryptoService cryptoService, boolean sign)
             throws IOException, IllegalArgumentException {
         ensureContextDoesNotContainAuthentication(ctx);
         String header = encode();

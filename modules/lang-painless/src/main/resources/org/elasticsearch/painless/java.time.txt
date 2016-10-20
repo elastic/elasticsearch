@@ -29,6 +29,8 @@ class Clock -> java.time.Clock extends Object {
   ZoneId getZone()
   Instant instant()
   long millis()
+  Clock offset(Clock,Duration)
+  Clock tick(Clock,Duration)
 }
 
 class Duration -> java.time.Duration extends Comparable,TemporalAmount,Object {

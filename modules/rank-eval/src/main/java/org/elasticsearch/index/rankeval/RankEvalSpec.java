@@ -138,11 +138,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
             }
         } , METRIC_FIELD);
         PARSER.declareObject(RankEvalSpec::setTemplate, (p, c) -> {
-            try {
                 return Script.parse(p, c.getParseFieldMatcher(), "mustache");
-            } catch (IOException ex) {
-                throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
-            }
         }, TEMPLATE_FIELD);
         PARSER.declareObjectArray(RankEvalSpec::setSpecifications, (p, c) -> {
             try {

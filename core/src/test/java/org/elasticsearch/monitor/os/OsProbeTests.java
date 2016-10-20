@@ -66,12 +66,6 @@ public class OsProbeTests extends ESTestCase {
             assertThat(loadAverage[0], greaterThanOrEqualTo((double) 0));
             assertThat(loadAverage[1], greaterThanOrEqualTo((double) 0));
             assertThat(loadAverage[2], greaterThanOrEqualTo((double) 0));
-        } else if (Constants.FREE_BSD) {
-            // five- and fifteen-minute load averages not available if linprocfs is not mounted at /compat/linux/proc
-            assertNotNull(loadAverage);
-            assertThat(loadAverage[0], greaterThanOrEqualTo((double) 0));
-            assertThat(loadAverage[1], anyOf(equalTo((double) -1), greaterThanOrEqualTo((double) 0)));
-            assertThat(loadAverage[2], anyOf(equalTo((double) -1), greaterThanOrEqualTo((double) 0)));
         } else if (Constants.MAC_OS_X) {
             // one minute load average is available, but 10-minute and 15-minute load averages are not
             assertNotNull(loadAverage);
@@ -109,4 +103,26 @@ public class OsProbeTests extends ESTestCase {
             assertThat(stats.getSwap().getUsed().getBytes(), equalTo(0L));
         }
     }
+
+    public void testGetSystemLoadAverage() {
+        assumeTrue("test runs on Linux only", Constants.LINUX);
+
+        final OsProbe probe = new OsProbe() {
+            @Override
+            String readProcLoadavg() {
+                return "1.51 1.69 1.99 3/417 23251";
+            }
+        };
+
+        final double[] systemLoadAverage = probe.getSystemLoadAverage();
+
+        assertNotNull(systemLoadAverage);
+        assertThat(systemLoadAverage.length, equalTo(3));
+
+        // avoid silliness with representing doubles
+        assertThat(systemLoadAverage[0], equalTo(Double.parseDouble("1.51")));
+        assertThat(systemLoadAverage[1], equalTo(Double.parseDouble("1.69")));
+        assertThat(systemLoadAverage[2], equalTo(Double.parseDouble("1.99")));
+    }
+
 }

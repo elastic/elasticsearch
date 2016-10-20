@@ -24,10 +24,6 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -159,6 +155,8 @@ public final class QueryRescorer implements Rescorer {
             // incoming first pass hits, instead of allowing recoring of just the top subset:
             Arrays.sort(in.scoreDocs, SCORE_DOC_COMPARATOR);
         }
+        // update the max score after the resort
+        in.setMaxScore(in.scoreDocs[0].score);
         return in;
     }
 

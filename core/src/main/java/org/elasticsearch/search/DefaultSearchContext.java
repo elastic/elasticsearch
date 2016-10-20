@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
@@ -65,7 +64,6 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -295,7 +293,7 @@ final class DefaultSearchContext extends SearchContext {
             for (int i = 0; i < typesBytes.length; i++) {
                 typesBytes[i] = new BytesRef(types[i]);
             }
-            typesFilter = new TermsQuery(TypeFieldMapper.NAME, typesBytes);
+            typesFilter = new TypeFieldMapper.TypesQuery(typesBytes);
         }
 
         if (typesFilter == null && aliasFilter == null && hasNestedFields == false) {

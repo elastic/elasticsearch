@@ -68,7 +68,7 @@ This will yield the following result:
         "details" : [ ]
       }, {
         "value" : 1.0,
-        "description" : "_type:tweet, product of:",
+        "description" : "*:*, product of:",
         "details" : [
           { "value" : 1.0, "description" : "boost", "details" : [ ] },
           { "value" : 1.0, "description" : "queryNorm", "details" : [ ] }

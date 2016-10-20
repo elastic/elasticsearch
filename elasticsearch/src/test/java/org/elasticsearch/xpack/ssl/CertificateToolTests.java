@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.ssl;
 
+import com.google.common.jimfs.Configuration;
+import com.google.common.jimfs.Jimfs;
+import org.apache.lucene.util.IOUtils;
 import org.bouncycastle.asn1.ASN1String;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.pkcs.Attribute;
@@ -27,15 +30,19 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.ssl.CertificateTool.CAInfo;
 import org.elasticsearch.xpack.ssl.CertificateTool.CertificateInformation;
 import org.elasticsearch.xpack.ssl.CertificateTool.Name;
+import org.junit.After;
 
 import javax.security.auth.x500.X500Principal;
+import java.io.IOException;
 import java.io.Reader;
 import java.net.InetAddress;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
@@ -51,6 +58,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -62,6 +70,23 @@ import static org.hamcrest.Matchers.instanceOf;
  * Unit tests for the tool used to simplify SSL certificate generation
  */
 public class CertificateToolTests extends ESTestCase {
+
+    private FileSystem jimfs;
+
+    private Path initTempDir() throws Exception {
+        Configuration conf = Configuration.unix().toBuilder().setAttributeViews("posix").build();
+        jimfs = Jimfs.newFileSystem(conf);
+        Path tempDir = jimfs.getPath("temp");
+        IOUtils.rm(tempDir);
+        Files.createDirectories(tempDir);
+        return tempDir;
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        IOUtils.close(jimfs);
+        super.tearDown();
+    }
 
     public void testOutputDirectory() throws Exception {
         Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
@@ -138,7 +163,8 @@ public class CertificateToolTests extends ESTestCase {
     }
 
     public void testParsingFile() throws Exception {
-        Path instanceFile = getDataPath("instances.yml");
+        Path tempDir = initTempDir();
+        Path instanceFile = writeInstancesTo(tempDir.resolve("instances.yml"));
         Collection<CertificateInformation> certInfos = CertificateTool.parseFile(instanceFile);
         assertEquals(4, certInfos.size());
 
@@ -166,15 +192,20 @@ public class CertificateToolTests extends ESTestCase {
     }
 
     public void testGeneratingCsr() throws Exception {
-        Path tempDir = createTempDir();
+        Path tempDir = initTempDir();
         Path outputFile = tempDir.resolve("out.zip");
-        Path instanceFile = getDataPath("instances.yml");
+        Path instanceFile = writeInstancesTo(tempDir.resolve("instances.yml"));
         Collection<CertificateInformation> certInfos = CertificateTool.parseFile(instanceFile);
         assertEquals(4, certInfos.size());
 
         assertFalse(Files.exists(outputFile));
         CertificateTool.generateAndWriteCsrs(outputFile, certInfos, randomFrom(1024, 2048));
         assertTrue(Files.exists(outputFile));
+
+        Set<PosixFilePermission> perms = Files.getPosixFilePermissions(outputFile);
+        assertTrue(perms.toString(), perms.contains(PosixFilePermission.OWNER_READ));
+        assertTrue(perms.toString(), perms.contains(PosixFilePermission.OWNER_WRITE));
+        assertEquals(perms.toString(), 2, perms.size());
 
         FileSystem fileSystem = FileSystems.newFileSystem(new URI("jar:" + outputFile.toUri()), Collections.emptyMap());
         Path zipRoot = fileSystem.getPath("/");
@@ -201,9 +232,9 @@ public class CertificateToolTests extends ESTestCase {
     }
 
     public void testGeneratingSignedCertificates() throws Exception {
-        Path tempDir = createTempDir();
+        Path tempDir = initTempDir();
         Path outputFile = tempDir.resolve("out.zip");
-        Path instanceFile = getDataPath("instances.yml");
+        Path instanceFile = writeInstancesTo(tempDir.resolve("instances.yml"));
         Collection<CertificateInformation> certInfos = CertificateTool.parseFile(instanceFile);
         assertEquals(4, certInfos.size());
 
@@ -218,6 +249,11 @@ public class CertificateToolTests extends ESTestCase {
         CAInfo caInfo = new CAInfo(caCert, keyPair.getPrivate(), generatedCa, keyPassword);
         CertificateTool.generateAndWriteSignedCertificates(outputFile, certInfos, caInfo, keysize, days);
         assertTrue(Files.exists(outputFile));
+
+        Set<PosixFilePermission> perms = Files.getPosixFilePermissions(outputFile);
+        assertTrue(perms.toString(), perms.contains(PosixFilePermission.OWNER_READ));
+        assertTrue(perms.toString(), perms.contains(PosixFilePermission.OWNER_WRITE));
+        assertEquals(perms.toString(), 2, perms.size());
 
         FileSystem fileSystem = FileSystems.newFileSystem(new URI("jar:" + outputFile.toUri()), Collections.emptyMap());
         Path zipRoot = fileSystem.getPath("/");
@@ -420,5 +456,28 @@ public class CertificateToolTests extends ESTestCase {
             valid = Name.fromUserProvidedName(name, name).error == null;
         } while (valid == false);
         return name;
+    }
+
+    /**
+     * Writes the description of instances to a given {@link Path}
+     */
+    private Path writeInstancesTo(Path path) throws IOException {
+        Iterable<String> instances = Arrays.asList(
+                "instances:",
+                "  - name: \"node1\"",
+                "    ip:",
+                "      - \"127.0.0.1\"",
+                "    dns: \"localhost\"",
+                "  - name: \"node2\"",
+                "    filename: \"node2\"",
+                "    ip: \"::1\"",
+                "  - name: \"node3\"",
+                "    filename: \"node3\"",
+                "  - name: \"CN=different value\"",
+                "    filename: \"different file\"",
+                "    dns:",
+                "      - \"node4.mydomain.com\"");
+
+        return Files.write(path, instances, StandardCharsets.UTF_8);
     }
 }

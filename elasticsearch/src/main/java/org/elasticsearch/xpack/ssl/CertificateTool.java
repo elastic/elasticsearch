@@ -23,6 +23,7 @@ import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -34,6 +35,8 @@ import org.elasticsearch.xpack.XPackPlugin;
 import javax.security.auth.x500.X500Principal;
 import java.io.OutputStream;
 import java.io.Reader;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
 import java.security.cert.Certificate;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
@@ -371,10 +374,17 @@ public class CertificateTool extends SettingCommand {
              ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream, StandardCharsets.UTF_8);
              JcaPEMWriter pemWriter = new JcaPEMWriter(new OutputStreamWriter(zipOutputStream, StandardCharsets.UTF_8))) {
             writer.write(zipOutputStream, pemWriter);
+
+            // set permissions to 600
+            PosixFileAttributeView view = Files.getFileAttributeView(file, PosixFileAttributeView.class);
+            if (view != null) {
+                view.setPermissions(Sets.newHashSet(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE));
+            }
+
             success = true;
         } finally {
             if (success == false) {
-                Files.delete(file);
+                Files.deleteIfExists(file);
             }
         }
     }

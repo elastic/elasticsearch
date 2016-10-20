@@ -185,7 +185,7 @@ public class OsProbe {
         return Probes.getLoadAndScaleToPercent(getSystemCpuLoad, osMxBean);
     }
 
-    private Map<String, String> getCpuAccountingCGroup() {
+    private Map<String, String> getControlGroups() {
         try {
             final List<String> lines = readProcSelfCgroup();
             if (!lines.isEmpty()) {
@@ -332,7 +332,7 @@ public class OsProbe {
         final OsStats.Swap swap = new OsStats.Swap(getTotalSwapSpaceSize(), getFreeSwapSpaceSize());
         final OsStats.Cgroup cgroup;
         if (shouldReadCgroups()) {
-            final Map<String, String> controllerMap = getCpuAccountingCGroup();
+            final Map<String, String> controllerMap = getControlGroups();
             if (controllerMap.containsKey("cpu") && controllerMap.containsKey("cpuacct")) {
                 final String cpuAcctControlGroup = controllerMap.get("cpuacct");
                 final String cpuControlGroup = controllerMap.get("cpu");

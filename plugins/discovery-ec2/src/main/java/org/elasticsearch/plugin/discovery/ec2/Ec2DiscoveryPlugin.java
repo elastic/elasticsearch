@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugin.discovery.ec2;
 
+import com.amazonaws.util.json.Jackson;
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
@@ -62,8 +63,6 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
 
     public static final String EC2 = "ec2";
 
-    // ClientConfiguration clinit has some classloader problems
-    // TODO: fix that
     static {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -73,6 +72,10 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
             @Override
             public Void run() {
                 try {
+                    // kick jackson to do some static caching of declared members info
+                    Jackson.jsonNodeOf("{}");
+                    // ClientConfiguration clinit has some classloader problems
+                    // TODO: fix that
                     Class.forName("com.amazonaws.ClientConfiguration");
                 } catch (ClassNotFoundException e) {
                     throw new RuntimeException(e);

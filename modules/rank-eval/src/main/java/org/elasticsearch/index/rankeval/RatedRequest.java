@@ -57,7 +57,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     /** Collection of rated queries for this query QA specification.*/
     private List<RatedDocument> ratedDocs = new ArrayList<>();
     /** Map of parameters to use for filling a query template, can be used instead of providing testRequest. */
-    private Map<String, Object> params = new HashMap<>();
+    private Map<String, String> params = new HashMap<>();
 
     public RatedRequest() {
         // ctor that doesn't require all args to be present immediatly is easier to use with ObjectParser
@@ -91,7 +91,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         for (int i = 0; i < intentSize; i++) {
             ratedDocs.add(new RatedDocument(in));
         }
-        this.params = in.readMap();
+        this.params = in.readMap(StreamInput::readString, StreamInput::readString);
         int summaryFieldsSize = in.readInt();
         summaryFields = new ArrayList<>(summaryFieldsSize);
         for (int i = 0; i < summaryFieldsSize; i++) {
@@ -115,7 +115,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         for (RatedDocument ratedDoc : ratedDocs) {
             ratedDoc.writeTo(out);
         }
-        out.writeMap(params);
+        out.writeMap((Map) params);
         out.writeInt(summaryFields.size());
         for (String fieldName : summaryFields) {
             out.writeString(fieldName);
@@ -166,11 +166,11 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         this.ratedDocs = ratedDocs;
     }
     
-    public void setParams(Map<String, Object> params) {
+    public void setParams(Map<String, String> params) {
         this.params = params;
     }
     
-    public Map<String, Object> getParams() {
+    public Map<String, String> getParams() {
         return this.params;
     }
 
@@ -210,7 +210,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         }, RATINGS_FIELD);
         PARSER.declareObject(RatedRequest::setParams, (p, c) -> {
             try {
-                return p.map();
+                return (Map) p.map();
             } catch (IOException ex) {
                 throw new ParsingException(p.getTokenLocation(), "error parsing ratings", ex);
             }

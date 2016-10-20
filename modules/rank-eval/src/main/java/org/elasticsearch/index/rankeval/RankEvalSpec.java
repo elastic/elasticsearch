@@ -154,8 +154,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
 
         if (templated) {
             for (RatedRequest query_spec : spec.getSpecifications()) {
-                @SuppressWarnings({ "unchecked", "rawtypes" })
-                Map<String, String> params = (Map) query_spec.getParams();
+                Map<String, String> params = query_spec.getParams();
                 Script scriptWithParams = new Script(spec.template.getScript(), spec.template.getType(), spec.template.getLang(), params);
                 String resolvedRequest = 
                         ((BytesReference) 

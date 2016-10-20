@@ -19,11 +19,32 @@
 
 package org.elasticsearch.painless;
 
+import org.hamcrest.Matcher;
+
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
 
-/** Tests for or operator across all types */
-public class ArrayTests extends ScriptTestCase {
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
+
+/** Tests for working with arrays. */
+public class ArrayTests extends ArrayLikeObjectTestCase {
+    @Override
+    protected String declType(String valueType) {
+        return valueType + "[]";
+    }
+
+    @Override
+    protected String valueCtorCall(String valueType, int size) {
+        return "new " + valueType + "[" + size + "]";
+    }
+
+    @Override
+    protected Matcher<? super IndexOutOfBoundsException> outOfBoundsExceptionMatcher(int index, int size) {
+        return both(instanceOf(ArrayIndexOutOfBoundsException.class))
+                .and(hasToString("java.lang.ArrayIndexOutOfBoundsException: " + index));
+    }
 
     public void testArrayLengthHelper() throws Throwable {
         assertArrayLength(2, new int[2]);
@@ -43,29 +64,6 @@ public class ArrayTests extends ScriptTestCase {
         assertSame(array.getClass(), mh.type().parameterType(0));
         assertEquals(length, (int) mh.asType(MethodType.methodType(int.class, Object.class))
                 .invokeExact(array));
-    }
-
-    public void testArrayLoadStoreInt() {
-        assertEquals(5, exec("def x = new int[5]; return x.length"));
-        assertEquals(5, exec("def x = new int[4]; x[0] = 5; return x[0];"));
-    }
-
-    public void testArrayLoadStoreString() {
-        assertEquals(5, exec("def x = new String[5]; return x.length"));
-        assertEquals("foobar", exec("def x = new String[4]; x[0] = 'foobar'; return x[0];"));
-    }
-
-    public void testArrayLoadStoreDef() {
-        assertEquals(5, exec("def x = new def[5]; return x.length"));
-        assertEquals(5, exec("def x = new def[4]; x[0] = 5; return x[0];"));
-    }
-
-    public void testArrayCompoundInt() {
-        assertEquals(6, exec("int[] x = new int[5]; x[0] = 5; x[0]++; return x[0];"));
-    }
-
-    public void testArrayCompoundDef() {
-        assertEquals(6, exec("def x = new int[5]; x[0] = 5; x[0]++; return x[0];"));
     }
 
     public void testJacksCrazyExpression1() {

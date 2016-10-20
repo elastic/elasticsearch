@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen.ping.unicast;
+package org.elasticsearch.discovery.zen;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 

@@ -16,7 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.discovery.zen.publish;
+
+package org.elasticsearch.discovery.zen;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -34,10 +35,12 @@ import java.util.Objects;
  * <p>
  * The queue is bound by {@link #maxQueueSize}. When the queue is at capacity and a new cluster state is inserted
  * the oldest cluster state will be dropped. This is safe because:
- * 1) Under normal operations, master will publish &amp; commit a cluster state before processing another change (i.e., the queue length is 1)
+ * 1) Under normal operations, master will publish &amp; commit a cluster state before processing
+ *    another change (i.e., the queue length is 1)
  * 2) If the master fails to commit a change, it will step down, causing a master election, which will flush the queue.
  * 3) In general it's safe to process the incoming cluster state as a replacement to the cluster state that's dropped.
- * a) If the dropped cluster is from the same master as the incoming one is, it is likely to be superseded by the incoming state (or another state in the queue).
+ * a) If the dropped cluster is from the same master as the incoming one is, it is likely to be superseded by the
+ *    incoming state (or another state in the queue).
  * This is only not true in very extreme cases of out of order delivery.
  * b) If the dropping cluster state is not from the same master, it means that:
  * i) we are no longer following the master of the dropped cluster state but follow the incoming one
@@ -70,7 +73,8 @@ public class PendingClusterStatesQueue {
             ClusterStateContext context = pendingStates.remove(0);
             logger.warn("dropping pending state [{}]. more than [{}] pending states.", context, maxQueueSize);
             if (context.committed()) {
-                context.listener.onNewClusterStateFailed(new ElasticsearchException("too many pending states ([{}] pending)", maxQueueSize));
+                context.listener.onNewClusterStateFailed(new ElasticsearchException("too many pending states ([{}] pending)",
+                    maxQueueSize));
             }
         }
     }
@@ -82,11 +86,13 @@ public class PendingClusterStatesQueue {
     public synchronized ClusterState markAsCommitted(String stateUUID, StateProcessedListener listener) {
         final ClusterStateContext context = findState(stateUUID);
         if (context == null) {
-            listener.onNewClusterStateFailed(new IllegalStateException("can't resolve cluster state with uuid [" + stateUUID + "] to commit"));
+            listener.onNewClusterStateFailed(new IllegalStateException("can't resolve cluster state with uuid" +
+                " [" + stateUUID + "] to commit"));
             return null;
         }
         if (context.committed()) {
-            listener.onNewClusterStateFailed(new IllegalStateException("cluster state with uuid [" + stateUUID + "] is already committed"));
+            listener.onNewClusterStateFailed(new IllegalStateException("cluster state with uuid" +
+                " [" + stateUUID + "] is already committed"));
             return null;
         }
         context.markAsCommitted(listener);
@@ -94,13 +100,14 @@ public class PendingClusterStatesQueue {
     }
 
     /**
-     * mark that the processing of the given state has failed. All committed states that are {@link ClusterState#supersedes(ClusterState)}-ed
-     * by this failed state, will be failed as well
+     * mark that the processing of the given state has failed. All committed states that are
+     * {@link ClusterState#supersedes(ClusterState)}-ed by this failed state, will be failed as well
      */
     public synchronized void markAsFailed(ClusterState state, Exception reason) {
         final ClusterStateContext failedContext = findState(state.stateUUID());
         if (failedContext == null) {
-            throw new IllegalArgumentException("can't resolve failed cluster state with uuid [" + state.stateUUID() + "], version [" + state.version() + "]");
+            throw new IllegalArgumentException("can't resolve failed cluster state with uuid [" + state.stateUUID()
+                + "], version [" + state.version() + "]");
         }
         if (failedContext.committed() == false) {
             throw new IllegalArgumentException("failed cluster state is not committed " + state);
@@ -128,15 +135,16 @@ public class PendingClusterStatesQueue {
     }
 
     /**
-     * indicates that a cluster state was successfully processed. Any committed state that is {@link ClusterState#supersedes(ClusterState)}-ed
-     * by the processed state will be marked as processed as well.
+     * indicates that a cluster state was successfully processed. Any committed state that is
+     * {@link ClusterState#supersedes(ClusterState)}-ed by the processed state will be marked as processed as well.
      * <p>
-     * NOTE: successfully processing a state indicates we are following the master it came from. Any committed state from another master will
-     * be failed by this method
+     * NOTE: successfully processing a state indicates we are following the master it came from. Any committed state
+     * from another master will be failed by this method
      */
     public synchronized void markAsProcessed(ClusterState state) {
         if (findState(state.stateUUID()) == null) {
-            throw new IllegalStateException("can't resolve processed cluster state with uuid [" + state.stateUUID() + "], version [" + state.version() + "]");
+            throw new IllegalStateException("can't resolve processed cluster state with uuid [" + state.stateUUID()
+                + "], version [" + state.version() + "]");
         }
         final DiscoveryNode currentMaster = state.nodes().getMasterNode();
         assert currentMaster != null : "processed cluster state mast have a master. " + state;
@@ -152,17 +160,16 @@ public class PendingClusterStatesQueue {
                 contextsToRemove.add(pendingContext);
                 if (pendingContext.committed()) {
                     // this is a committed state , warn
-                    logger.warn("received a cluster state (uuid[{}]/v[{}]) from a different master than the current one, rejecting (received {}, current {})",
-                            pendingState.stateUUID(), pendingState.version(),
-                            pendingMasterNode, currentMaster);
+                    logger.warn("received a cluster state (uuid[{}]/v[{}]) from a different master than the current one,"
+                        + " rejecting (received {}, current {})",
+                            pendingState.stateUUID(), pendingState.version(), pendingMasterNode, currentMaster);
                     pendingContext.listener.onNewClusterStateFailed(
-                            new IllegalStateException("cluster state from a different master than the current one, rejecting (received " + pendingMasterNode + ", current " + currentMaster + ")")
-                    );
+                            new IllegalStateException("cluster state from a different master than the current one," +
+                                " rejecting (received " + pendingMasterNode + ", current " + currentMaster + ")"));
                 } else {
-                    logger.trace("removing non-committed state with uuid[{}]/v[{}] from [{}] - a state from [{}] was successfully processed",
-                            pendingState.stateUUID(), pendingState.version(), pendingMasterNode,
-                            currentMaster
-                    );
+                    logger.trace("removing non-committed state with uuid[{}]/v[{}] from [{}] - a state from" +
+                            " [{}] was successfully processed",
+                            pendingState.stateUUID(), pendingState.version(), pendingMasterNode, currentMaster);
                 }
             } else if (pendingState.stateUUID().equals(state.stateUUID())) {
                 assert pendingContext.committed() : "processed cluster state is not committed " + state;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen.ping;
+package org.elasticsearch.discovery.zen;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.ElectMasterService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -159,8 +158,8 @@ public interface ZenPing extends LifecycleComponent {
 
         @Override
         public String toString() {
-            return "ping_response{node [" + node + "], id[" + id + "], master [" + master + "], cluster_state_version [" + clusterStateVersion
-                + "], cluster_name[" + clusterName.value() + "]}";
+            return "ping_response{node [" + node + "], id[" + id + "], master [" + master + "]," +
+                   "cluster_state_version [" + clusterStateVersion + "], cluster_name[" + clusterName.value() + "]}";
         }
     }
 

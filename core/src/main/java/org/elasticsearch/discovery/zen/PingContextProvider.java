@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen.ping;
+package org.elasticsearch.discovery.zen;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;

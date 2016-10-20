@@ -46,7 +46,7 @@ import org.elasticsearch.discovery.BlockingClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
-import org.elasticsearch.discovery.zen.publish.PendingClusterStateStats;
+import org.elasticsearch.discovery.zen.PendingClusterStateStats;
 
 import java.util.HashSet;
 import java.util.Optional;

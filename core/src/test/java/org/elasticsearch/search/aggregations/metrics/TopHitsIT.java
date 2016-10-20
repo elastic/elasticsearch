@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -43,6 +44,7 @@ import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.highlight.HighlightField;
+import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -88,7 +90,7 @@ public class TopHitsIT extends ESIntegTestCase {
 
     private static final String TERMS_AGGS_FIELD = "terms";
     private static final String SORT_FIELD = "sort";
-    
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(MockScriptEngine.TestPlugin.class);
@@ -961,5 +963,101 @@ public class TopHitsIT extends ESIntegTestCase {
                 )
                 .get();
         assertNoFailures(response);
+    }
+
+    public void testWithRescore() {
+        // Rescore with default sort on relevancy (score)
+        {
+            SearchResponse response = client()
+                .prepareSearch("idx")
+                .addRescorer(
+                    RescoreBuilder.queryRescorer(new MatchAllQueryBuilder())
+                )
+                .setTypes("type")
+                .addAggregation(terms("terms")
+                    .field(TERMS_AGGS_FIELD)
+                    .subAggregation(
+                        topHits("hits")
+                    )
+                )
+                .get();
+            Terms terms = response.getAggregations().get("terms");
+            for (Terms.Bucket bucket : terms.getBuckets()) {
+                TopHits topHits = bucket.getAggregations().get("hits");
+                for (SearchHit hit : topHits.getHits().getHits()) {
+                    assertThat(hit.score(), equalTo(2.0f));
+                }
+            }
+        }
+
+        {
+            SearchResponse response = client()
+                .prepareSearch("idx")
+                .addRescorer(
+                    RescoreBuilder.queryRescorer(new MatchAllQueryBuilder())
+                )
+                .setTypes("type")
+                .addAggregation(terms("terms")
+                    .field(TERMS_AGGS_FIELD)
+                    .subAggregation(
+                        topHits("hits").addSort(SortBuilders.scoreSort())
+                    )
+                )
+                .get();
+            Terms terms = response.getAggregations().get("terms");
+            for (Terms.Bucket bucket : terms.getBuckets()) {
+                TopHits topHits = bucket.getAggregations().get("hits");
+                for (SearchHit hit : topHits.getHits().getHits()) {
+                    assertThat(hit.score(), equalTo(2.0f));
+                }
+            }
+        }
+
+        // Rescore should not be applied if the sort order is not relevancy
+        {
+            SearchResponse response = client()
+                .prepareSearch("idx")
+                .addRescorer(
+                    RescoreBuilder.queryRescorer(new MatchAllQueryBuilder())
+                )
+                .setTypes("type")
+                .addAggregation(terms("terms")
+                    .field(TERMS_AGGS_FIELD)
+                    .subAggregation(
+                        topHits("hits").addSort(SortBuilders.fieldSort("_type"))
+                    )
+                )
+                .get();
+            Terms terms = response.getAggregations().get("terms");
+            for (Terms.Bucket bucket : terms.getBuckets()) {
+                TopHits topHits = bucket.getAggregations().get("hits");
+                for (SearchHit hit : topHits.getHits().getHits()) {
+                    assertThat(hit.score(), equalTo(Float.NaN));
+                }
+            }
+        }
+
+        {
+            SearchResponse response = client()
+                .prepareSearch("idx")
+                .addRescorer(
+                    RescoreBuilder.queryRescorer(new MatchAllQueryBuilder())
+                )
+                .setTypes("type")
+                .addAggregation(terms("terms")
+                    .field(TERMS_AGGS_FIELD)
+                    .subAggregation(
+                        topHits("hits").addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_type"))
+                    )
+                )
+                .get();
+            Terms terms = response.getAggregations().get("terms");
+            for (Terms.Bucket bucket : terms.getBuckets()) {
+                TopHits topHits = bucket.getAggregations().get("hits");
+                for (SearchHit hit : topHits.getHits().getHits()) {
+                    assertThat(hit.score(), equalTo(Float.NaN));
+                }
+            }
+        }
     }
 }

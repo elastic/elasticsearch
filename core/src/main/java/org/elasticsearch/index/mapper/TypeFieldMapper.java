@@ -45,9 +45,11 @@ import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class TypeFieldMapper extends MetadataFieldMapper {
 
@@ -188,25 +190,28 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         public Query rewrite(IndexReader reader) throws IOException {
             final int threshold = Math.min(BOOLEAN_REWRITE_TERM_COUNT_THRESHOLD, BooleanQuery.getMaxClauseCount());
             if (types.length <= threshold) {
+                Set<BytesRef> uniqueTypes = new HashSet<>();
                 BooleanQuery.Builder bq = new BooleanQuery.Builder();
                 int totalDocFreq = 0;
                 for (BytesRef type : types) {
-                    Term term = new Term(CONTENT_TYPE, type);
-                    TermContext context = TermContext.build(reader.getContext(), term);
-                    if (context.docFreq() == 0) {
-                        // this _type is not present in the reader
-                        continue;
+                    if (uniqueTypes.add(type)) {
+                        Term term = new Term(CONTENT_TYPE, type);
+                        TermContext context = TermContext.build(reader.getContext(), term);
+                        if (context.docFreq() == 0) {
+                            // this _type is not present in the reader
+                            continue;
+                        }
+                        totalDocFreq += context.docFreq();
+                        // strict equality should be enough ?
+                        if (totalDocFreq >= reader.maxDoc()) {
+                            assert totalDocFreq == reader.maxDoc();
+                            // Matches all docs since _type is a single value field
+                            // Using a match_all query will help Lucene perform some optimizations
+                            // For instance, match_all queries as filter clauses are automatically removed
+                            return new MatchAllDocsQuery();
+                        }
+                        bq.add(new TermQuery(term, context), BooleanClause.Occur.SHOULD);
                     }
-                    totalDocFreq += context.docFreq();
-                    // strict equality should be enough ?
-                    if (totalDocFreq >= reader.maxDoc()) {
-                        assert totalDocFreq == reader.maxDoc();
-                        // Matches all docs since _type is a single value field
-                        // Using a match_all query will help Lucene perform some optimizations
-                        // For instance, match_all queries as filter clauses are automatically removed
-                        return new MatchAllDocsQuery();
-                    }
-                    bq.add(new TermQuery(term, context), BooleanClause.Occur.SHOULD);
                 }
                 return new ConstantScoreQuery(bq.build());
             }

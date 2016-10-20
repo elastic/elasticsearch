@@ -103,6 +103,17 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
         rewritten = query.rewrite(reader);
         assertEquals(expected, rewritten);
 
+        // make sure that redundant types does not rewrite to MatchAllDocsQuery
+        query = new TypeFieldMapper.TypesQuery(new BytesRef("my_type"), new BytesRef("my_type"), new BytesRef("my_type"));
+        expected =
+            new ConstantScoreQuery(
+                new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(TypeFieldMapper.CONTENT_TYPE, "my_type")), Occur.SHOULD)
+                    .build()
+            );
+        rewritten = query.rewrite(reader);
+        assertEquals(expected, rewritten);
+
         IOUtils.close(reader, w, dir);
     }
 

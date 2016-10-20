@@ -1234,7 +1234,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 // the final decision is NO (no node to move the shard to) and we are not in explain mode, return a cached version
                 return CACHED_CANNOT_MOVE_DECISION;
             } else {
-                assert ((assignedNodeId == null) == (finalDecision == Type.NO));
+                assert ((assignedNodeId == null) == (finalDecision != Type.YES));
                 return new MoveDecision(canRemainDecision, finalDecision, finalExplanation, assignedNodeId, nodeDecisions);
             }
         }

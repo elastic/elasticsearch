@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen.publish;
+package org.elasticsearch.discovery.zen;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -42,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
+import org.elasticsearch.discovery.zen.PublishClusterStateAction;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
@@ -100,21 +101,25 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         private final Logger logger;
 
-        public MockNode(DiscoveryNode discoveryNode, MockTransportService service, @Nullable ClusterStateListener listener, Logger logger) {
+        public MockNode(DiscoveryNode discoveryNode, MockTransportService service,
+                        @Nullable ClusterStateListener listener, Logger logger) {
             this.discoveryNode = discoveryNode;
             this.service = service;
             this.listener = listener;
             this.logger = logger;
-            this.clusterState = ClusterState.builder(CLUSTER_NAME).nodes(DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).build()).build();
+            this.clusterState = ClusterState.builder(CLUSTER_NAME).nodes(DiscoveryNodes.builder()
+                .add(discoveryNode).localNodeId(discoveryNode.getId()).build()).build();
         }
 
         public MockNode setAsMaster() {
-            this.clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).masterNodeId(discoveryNode.getId())).build();
+            this.clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
+                .masterNodeId(discoveryNode.getId())).build();
             return this;
         }
 
         public MockNode resetMasterId() {
-            this.clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).masterNodeId(null)).build();
+            this.clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
+                .masterNodeId(null)).build();
             return this;
         }
 
@@ -126,7 +131,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
         @Override
         public void onNewClusterState(String reason) {
             ClusterState newClusterState = action.pendingStatesQueue().getNextClusterStateToProcess();
-            logger.debug("[{}] received version [{}], uuid [{}]", discoveryNode.getName(), newClusterState.version(), newClusterState.stateUUID());
+            logger.debug("[{}] received version [{}], uuid [{}]",
+                discoveryNode.getName(), newClusterState.version(), newClusterState.stateUUID());
             if (listener != null) {
                 ClusterChangedEvent event = new ClusterChangedEvent("", newClusterState, clusterState);
                 listener.clusterChanged(event);
@@ -156,7 +162,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
                                           ThreadPool threadPool, Logger logger, Map<String, MockNode> nodes) throws Exception {
         final Settings settings = Settings.builder()
                 .put("name", name)
-                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "", TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "",
+                     TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                 .put(basSettings)
                 .build();
 
@@ -229,7 +236,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
     }
 
     private static MockTransportService buildTransportService(Settings settings, ThreadPool threadPool) {
-        MockTransportService transportService = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null   );
+        MockTransportService transportService = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null);
         transportService.start();
         transportService.acceptIncomingRequests();
         return transportService;
@@ -268,7 +275,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         // cluster state update - add block
         previousClusterState = clusterState;
-        clusterState = ClusterState.builder(clusterState).blocks(ClusterBlocks.builder().addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK)).incrementVersion().build();
+        clusterState = ClusterState.builder(clusterState).blocks(ClusterBlocks.builder()
+            .addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK)).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
         assertSameStateFromDiff(nodeB.clusterState, clusterState);
         assertThat(nodeB.clusterState.blocks().global().size(), equalTo(1));
@@ -295,7 +303,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         // cluster state update 4 - update settings
         previousClusterState = clusterState;
-        MetaData metaData = MetaData.builder(clusterState.metaData()).transientSettings(Settings.builder().put("foo", "bar").build()).build();
+        MetaData metaData = MetaData.builder(clusterState.metaData())
+            .transientSettings(Settings.builder().put("foo", "bar").build()).build();
         clusterState = ClusterState.builder(clusterState).metaData(metaData).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
         assertSameStateFromDiff(nodeB.clusterState, clusterState);
@@ -338,7 +347,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         MockNode nodeB = createMockNode("nodeB");
 
-        // Initial cluster state with both states - the second node still shouldn't get diff even though it's present in the previous cluster state
+        // Initial cluster state with both states - the second node still shouldn't
+        // get diff even though it's present in the previous cluster state
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(nodeA.nodes()).add(nodeB.discoveryNode).build();
         ClusterState previousClusterState = ClusterState.builder(CLUSTER_NAME).nodes(discoveryNodes).build();
         ClusterState clusterState = ClusterState.builder(previousClusterState).incrementVersion().build();
@@ -347,7 +357,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         // cluster state update - add block
         previousClusterState = clusterState;
-        clusterState = ClusterState.builder(clusterState).blocks(ClusterBlocks.builder().addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK)).incrementVersion().build();
+        clusterState = ClusterState.builder(clusterState).blocks(ClusterBlocks.builder()
+            .addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK)).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
         assertSameStateFromDiff(nodeB.clusterState, clusterState);
     }
@@ -370,7 +381,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
         });
 
         // Initial cluster state
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(nodeA.discoveryNode).localNodeId(nodeA.discoveryNode.getId()).masterNodeId(nodeA.discoveryNode.getId()).build();
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(nodeA.discoveryNode).localNodeId(nodeA.discoveryNode.getId()).masterNodeId(nodeA.discoveryNode.getId()).build();
         ClusterState clusterState = ClusterState.builder(CLUSTER_NAME).nodes(discoveryNodes).build();
 
         // cluster state update - add nodeB
@@ -381,7 +393,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         // cluster state update - add block
         previousClusterState = clusterState;
-        clusterState = ClusterState.builder(clusterState).blocks(ClusterBlocks.builder().addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK)).incrementVersion().build();
+        clusterState = ClusterState.builder(clusterState).blocks(ClusterBlocks.builder()
+            .addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK)).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
     }
 
@@ -446,7 +459,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         MockNode nodeB = createMockNode("nodeB");
 
-        // Initial cluster state with both states - the second node still shouldn't get diff even though it's present in the previous cluster state
+        // Initial cluster state with both states - the second node still shouldn't get
+        // diff even though it's present in the previous cluster state
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(nodeA.nodes()).add(nodeB.discoveryNode).build();
         ClusterState previousClusterState = ClusterState.builder(CLUSTER_NAME).nodes(discoveryNodes).build();
         ClusterState clusterState = ClusterState.builder(previousClusterState).incrementVersion().build();
@@ -455,7 +469,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         // cluster state update - add block
         previousClusterState = clusterState;
-        clusterState = ClusterState.builder(clusterState).blocks(ClusterBlocks.builder().addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK)).incrementVersion().build();
+        clusterState = ClusterState.builder(clusterState).blocks(ClusterBlocks.builder()
+            .addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK)).incrementVersion().build();
 
         ClusterState unserializableClusterState = new ClusterState(clusterState.version(), clusterState.stateUUID(), clusterState) {
             @Override
@@ -603,7 +618,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
         node.action.validateIncomingState(state, null);
 
         // now set a master node
-        node.clusterState = ClusterState.builder(node.clusterState).nodes(DiscoveryNodes.builder(node.nodes()).masterNodeId("master")).build();
+        node.clusterState = ClusterState.builder(node.clusterState)
+            .nodes(DiscoveryNodes.builder(node.nodes()).masterNodeId("master")).build();
         logger.info("--> testing rejection of another master");
         try {
             node.action.validateIncomingState(state, node.clusterState);
@@ -619,7 +635,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         logger.info("--> testing rejection of another cluster name");
         try {
-            node.action.validateIncomingState(ClusterState.builder(new ClusterName(randomAsciiOfLength(10))).nodes(node.nodes()).build(), node.clusterState);
+            node.action.validateIncomingState(ClusterState.builder(new ClusterName(randomAsciiOfLength(10)))
+                .nodes(node.nodes()).build(), node.clusterState);
             fail("node accepted state with another cluster name");
         } catch (IllegalStateException OK) {
             assertThat(OK.toString(), containsString("received state from a node that is not part of the cluster"));
@@ -687,8 +704,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
         logger.info("--> publishing states");
         for (ClusterState state : states) {
             node.action.handleIncomingClusterStateRequest(
-                    new BytesTransportRequest(PublishClusterStateAction.serializeFullClusterState(state, Version.CURRENT), Version.CURRENT),
-                    channel);
+                new BytesTransportRequest(PublishClusterStateAction.serializeFullClusterState(state, Version.CURRENT), Version.CURRENT),
+                channel);
             assertThat(channel.response.get(), equalTo((TransportResponse) TransportResponse.Empty.INSTANCE));
             assertThat(channel.error.get(), nullValue());
             channel.clear();
@@ -725,12 +742,14 @@ public class PublishClusterStateActionTests extends ESTestCase {
      */
     public void testTimeoutOrCommit() throws Exception {
         Settings settings = Settings.builder()
-                .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "1ms").build(); // short but so we will sometime commit sometime timeout
+            // short but so we will sometime commit sometime timeout
+            .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "1ms").build();
 
         MockNode master = createMockNode("master", settings, null);
         MockNode node = createMockNode("node", settings, null);
         ClusterState state = ClusterState.builder(master.clusterState)
-                .nodes(DiscoveryNodes.builder(master.clusterState.nodes()).add(node.discoveryNode).masterNodeId(master.discoveryNode.getId())).build();
+                .nodes(DiscoveryNodes.builder(master.clusterState.nodes())
+                    .add(node.discoveryNode).masterNodeId(master.discoveryNode.getId())).build();
 
         for (int i = 0; i < 10; i++) {
             state = ClusterState.builder(state).incrementVersion().build();
@@ -755,7 +774,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
     private MetaData buildMetaDataForVersion(MetaData metaData, long version) {
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.builder(metaData.indices());
-        indices.put("test" + version, IndexMetaData.builder("test" + version).settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+        indices.put("test" + version, IndexMetaData.builder("test" + version)
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards((int) version).numberOfReplicas(0).build());
         return MetaData.builder(metaData)
                 .transientSettings(Settings.builder().put("test", version).build())
@@ -772,16 +792,19 @@ public class PublishClusterStateActionTests extends ESTestCase {
         assertThat(metaData.transientSettings().get("test"), equalTo(Long.toString(version)));
     }
 
-    public void publishStateAndWait(PublishClusterStateAction action, ClusterState state, ClusterState previousState) throws InterruptedException {
+    public void publishStateAndWait(PublishClusterStateAction action, ClusterState state,
+                                    ClusterState previousState) throws InterruptedException {
         publishState(action, state, previousState).await(1, TimeUnit.SECONDS);
     }
 
-    public AssertingAckListener publishState(PublishClusterStateAction action, ClusterState state, ClusterState previousState) throws InterruptedException {
+    public AssertingAckListener publishState(PublishClusterStateAction action, ClusterState state,
+                                             ClusterState previousState) throws InterruptedException {
         final int minimumMasterNodes = randomIntBetween(-1, state.nodes().getMasterNodes().size());
         return publishState(action, state, previousState, minimumMasterNodes);
     }
 
-    public AssertingAckListener publishState(PublishClusterStateAction action, ClusterState state, ClusterState previousState, int minMasterNodes) throws InterruptedException {
+    public AssertingAckListener publishState(PublishClusterStateAction action, ClusterState state,
+                                             ClusterState previousState, int minMasterNodes) throws InterruptedException {
         AssertingAckListener assertingAckListener = new AssertingAckListener(state.nodes().getSize() - 1);
         ClusterChangedEvent changedEvent = new ClusterChangedEvent("test update", state, previousState);
         action.publish(changedEvent, minMasterNodes, assertingAckListener);
@@ -829,7 +852,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
     void assertSameState(ClusterState actual, ClusterState expected) {
         assertThat(actual, notNullValue());
-        final String reason = "\n--> actual ClusterState: " + actual.prettyPrint() + "\n--> expected ClusterState:" + expected.prettyPrint();
+        final String reason = "\n--> actual ClusterState: " + actual.prettyPrint() + "\n" +
+                                "--> expected ClusterState:" + expected.prettyPrint();
         assertThat("unequal UUIDs" + reason, actual.stateUUID(), equalTo(expected.stateUUID()));
         assertThat("unequal versions" + reason, actual.version(), equalTo(expected.version()));
     }
@@ -851,7 +875,9 @@ public class PublishClusterStateActionTests extends ESTestCase {
         AtomicBoolean timeoutOnCommit = new AtomicBoolean();
         AtomicBoolean errorOnCommit = new AtomicBoolean();
 
-        public MockPublishAction(Settings settings, TransportService transportService, Supplier<ClusterState> clusterStateSupplier, NewPendingClusterStateListener listener, DiscoverySettings discoverySettings, ClusterName clusterName) {
+        public MockPublishAction(Settings settings, TransportService transportService,
+                                 Supplier<ClusterState> clusterStateSupplier, NewPendingClusterStateListener listener,
+                                 DiscoverySettings discoverySettings, ClusterName clusterName) {
             super(settings, transportService, clusterStateSupplier, listener, discoverySettings, clusterName);
         }
 

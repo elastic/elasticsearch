@@ -52,7 +52,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
+import org.elasticsearch.discovery.zen.PublishClusterStateAction;
 
 import java.io.IOException;
 import java.util.EnumSet;

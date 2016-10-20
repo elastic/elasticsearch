@@ -25,12 +25,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
-import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.discovery.zen.ping.ZenPing;
-import org.elasticsearch.discovery.zen.ping.ZenPingService;
-import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
+import org.elasticsearch.discovery.zen.ZenPing;
+import org.elasticsearch.discovery.zen.ZenPingService;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.UnicastZenPing;
 
 import java.util.ArrayList;
 import java.util.Collections;

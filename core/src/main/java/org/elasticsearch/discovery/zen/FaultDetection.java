@@ -16,7 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.discovery.zen.fd;
+
+package org.elasticsearch.discovery.zen;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -32,7 +33,7 @@ import org.elasticsearch.transport.TransportService;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
- * A base class for {@link org.elasticsearch.discovery.zen.fd.MasterFaultDetection} &amp; {@link org.elasticsearch.discovery.zen.fd.NodesFaultDetection},
+ * A base class for {@link MasterFaultDetection} &amp; {@link NodesFaultDetection},
  * making sure both use the same setting.
  */
 public abstract class FaultDetection extends AbstractComponent {

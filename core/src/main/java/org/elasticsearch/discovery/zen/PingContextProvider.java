@@ -17,19 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen.ping.unicast;
+package org.elasticsearch.discovery.zen;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 
-import java.util.List;
+public interface PingContextProvider extends DiscoveryNodesProvider {
 
-/**
- * A pluggable provider of the list of unicast hosts to use for unicast discovery.
- */
-public interface UnicastHostsProvider {
+    /** return the current cluster state of the node */
+    ClusterState clusterState();
 
-    /**
-     * Builds the dynamic list of unicast hosts to be used for unicast discovery.
-     */
-    List<DiscoveryNode> buildDynamicNodes();
 }

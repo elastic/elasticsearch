@@ -29,6 +29,7 @@ import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.Reservation;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2;
@@ -42,6 +43,8 @@ import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.transport.TransportService;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -110,7 +113,17 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
             // NOTE: we don't filter by security group during the describe instances request for two reasons:
             // 1. differences in VPCs require different parameters during query (ID vs Name)
             // 2. We want to use two different strategies: (all security groups vs. any security groups)
-            descInstances = client.describeInstances(buildDescribeInstancesRequest());
+            SecurityManager sm = System.getSecurityManager();
+            if (sm != null) {
+                // unprivileged code such as scripts do not have SpecialPermission
+                sm.checkPermission(new SpecialPermission());
+            }
+            descInstances = AccessController.doPrivileged(new PrivilegedAction<DescribeInstancesResult>() {
+                @Override
+                public DescribeInstancesResult run() {
+                    return client.describeInstances(buildDescribeInstancesRequest());
+                }
+            });
         } catch (AmazonClientException e) {
             logger.info("Exception while retrieving instance list from AWS API: {}", e.getMessage());
             logger.debug("Full exception:", e);

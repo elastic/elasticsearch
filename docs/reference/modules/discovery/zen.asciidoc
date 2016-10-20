@@ -12,7 +12,7 @@ communication between nodes is done using the
 It is separated into several sub modules, which are explained below:
 
 [float]
-[[ping]]
+[[pinger]]
 ==== Ping
 
 This is the process where a node uses the discovery mechanisms to find
@@ -24,7 +24,7 @@ other nodes.
 
 The unicast discovery requires a list of hosts to use that will act
 as gossip routers. It provides the following settings with the
-`discovery.zen.ping.unicast` prefix:
+`discovery.zen.pinger.unicast` prefix:
 
 [cols="<,<",options="header",]
 |=======================================================================
@@ -42,13 +42,13 @@ perform the discovery.
 [[master-election]]
 ==== Master Election
 
-As part of the ping process a master of the cluster is either
+As part of the pinger process a master of the cluster is either
 elected or joined to. This is done automatically. The
 `discovery.zen.ping_timeout` (which defaults to `3s`) allows for the
 tweaking of election time to handle cases of slow or congested networks
 (higher values assure less chance of failure). Once a node joins, it
 will send a join request to the master (`discovery.zen.join_timeout`)
-with a timeout defaulting at 20 times the ping timeout.
+with a timeout defaulting at 20 times the pinger timeout.
 
 When the master node stops or has encountered a problem, the cluster nodes
 start pinging again and will elect a new master. This pinging round also
@@ -77,7 +77,7 @@ of either master node will result in an inoperable cluster.
 ==== Fault Detection
 
 There are two fault detection processes running. The first is by the
-master, to ping all the other nodes in the cluster and verify that they
+master, to pinger all the other nodes in the cluster and verify that they
 are alive. And on the other end, each node pings to master to verify if
 its still alive or an election process needs to be initiated.
 
@@ -89,10 +89,10 @@ The following settings control the fault detection process using the
 |Setting |Description
 |`ping_interval` |How often a node gets pinged. Defaults to `1s`.
 
-|`ping_timeout` |How long to wait for a ping response, defaults to
+|`ping_timeout` |How long to wait for a pinger response, defaults to
 `30s`.
 
-|`ping_retries` |How many ping failures / timeouts cause a node to be
+|`ping_retries` |How many pinger failures / timeouts cause a node to be
 considered failed. Defaults to `3`.
 |=======================================================================
 

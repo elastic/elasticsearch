@@ -2,7 +2,7 @@
 #
 setup:
   - do:
-      ping: {}
+      pinger: {}
 
 ---
 "Basic test":

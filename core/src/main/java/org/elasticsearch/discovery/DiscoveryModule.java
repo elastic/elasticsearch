@@ -19,20 +19,6 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.ExtensionPoint;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.plugins.DiscoveryPlugin;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.discovery.zen.ZenPing;
-import org.elasticsearch.discovery.zen.ZenPingService;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -40,6 +26,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.plugins.DiscoveryPlugin;
+import org.elasticsearch.transport.TransportService;
 
 /**
  * A module for loading classes for node discovery.
@@ -52,8 +48,7 @@ public class DiscoveryModule extends AbstractModule {
         new Setting<>("discovery.zen.hosts_provider", DISCOVERY_TYPE_SETTING, Function.identity(), Property.NodeScope);
 
     private final Settings settings;
-    private final Map<String, Supplier<UnicastHostsProvider>> unicastHostProviders;
-    private final ExtensionPoint.ClassSet<ZenPing> zenPings = new ExtensionPoint.ClassSet<>("zen_ping", ZenPing.class);
+    private final UnicastHostsProvider hostsProvider;
     private final Map<String, Class<? extends Discovery>> discoveryTypes = new HashMap<>();
 
     public DiscoveryModule(Settings settings, TransportService transportService, NetworkService networkService,
@@ -71,7 +66,16 @@ public class DiscoveryModule extends AbstractModule {
                 }
             });
         }
-        unicastHostProviders = Collections.unmodifiableMap(hostProviders);
+        String hostsProviderName = DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
+        Supplier<UnicastHostsProvider> hostsProviderSupplier = hostProviders.get(hostsProviderName);
+        if (hostsProviderSupplier == null) {
+            throw new IllegalArgumentException("Unknown zen hosts provider [" + hostsProviderName + "]");
+        }
+        hostsProvider = Objects.requireNonNull(hostsProviderSupplier.get());
+    }
+
+    public UnicastHostsProvider getHostsProvider() {
+        return hostsProvider;
     }
 
     /**
@@ -84,10 +88,6 @@ public class DiscoveryModule extends AbstractModule {
         discoveryTypes.put(type, clazz);
     }
 
-    public void addZenPing(Class<? extends ZenPing> clazz) {
-        zenPings.registerExtension(clazz);
-    }
-
     @Override
     protected void configure() {
         String discoveryType = DISCOVERY_TYPE_SETTING.get(settings);
@@ -97,18 +97,7 @@ public class DiscoveryModule extends AbstractModule {
         }
 
         if (discoveryType.equals("none") == false) {
-            bind(ZenPingService.class).asEagerSingleton();
-            String hostsProviderName = DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
-            Supplier<UnicastHostsProvider> hostsProviderSupplier = unicastHostProviders.get(hostsProviderName);
-            if (hostsProviderSupplier == null) {
-                throw new IllegalArgumentException("Unknown zen hosts provider [" + hostsProviderName + "]");
-            }
-            UnicastHostsProvider hostsProvider = Objects.requireNonNull(hostsProviderSupplier.get());
             bind(UnicastHostsProvider.class).toInstance(hostsProvider);
-            if (zenPings.isEmpty()) {
-                zenPings.registerExtension(UnicastZenPing.class);
-            }
-            zenPings.bind(binder());
         }
         bind(Discovery.class).to(discoveryClass).asEagerSingleton();
     }

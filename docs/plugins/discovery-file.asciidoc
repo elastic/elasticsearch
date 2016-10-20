@@ -52,7 +52,7 @@ known at node startup.
 
 Note that the file-based discovery plugin is meant to augment the unicast
 hosts list in `elasticsearch.yml` (if specified), not replace it.  Therefore,
-if there are valid unicast host entries in `discovery.zen.ping.unicast.hosts`,
+if there are valid unicast host entries in `discovery.zen.pinger.unicast.hosts`,
 they will be used in addition to those supplied in `unicast_hosts.txt`.
 
 Anytime a change is made to the `unicast_hosts.txt` file, even as Elasticsearch
@@ -89,5 +89,5 @@ running on the default port:
 ----------------------------------------------------------------
 
 Host names are allowed instead of IP addresses (similar to 
-`discovery.zen.ping.unicast.hosts`), and IPv6 addresses must be 
+`discovery.zen.pinger.unicast.hosts`), and IPv6 addresses must be
 specified in brackets with the port coming after the brackets. 

@@ -146,10 +146,10 @@ setup() {
 }
 
 @test "[RPM] reremove package" {
-    echo "# ping" >> "/etc/elasticsearch/elasticsearch.yml"
-    echo "# ping" >> "/etc/elasticsearch/jvm.options"
-    echo "# ping" >> "/etc/elasticsearch/log4j2.properties"
-    echo "# ping" >> "/etc/elasticsearch/scripts/script"
+    echo "# pinger" >> "/etc/elasticsearch/elasticsearch.yml"
+    echo "# pinger" >> "/etc/elasticsearch/jvm.options"
+    echo "# pinger" >> "/etc/elasticsearch/log4j2.properties"
+    echo "# pinger" >> "/etc/elasticsearch/scripts/script"
     rpm -e 'elasticsearch'
 }
 

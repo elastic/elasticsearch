@@ -42,6 +42,8 @@ import java.util.stream.Collectors;
  */
 public final class MockZenPing extends AbstractLifecycleComponent implements ZenPing {
 
+    public static class TestPlugin extends Plugin {}
+
     static final Map<ClusterName, Set<MockZenPing>> activeNodesPerCluster = ConcurrentCollections.newConcurrentMap();
 
     private volatile PingContextProvider contextProvider;
@@ -96,12 +98,5 @@ public final class MockZenPing extends AbstractLifecycleComponent implements Zen
     @Override
     protected void doClose() {
 
-    }
-
-    public static class TestPlugin extends Plugin implements DiscoveryPlugin {
-
-        public void onModule(DiscoveryModule discoveryModule) {
-            discoveryModule.addZenPing(MockZenPing.class);
-        }
     }
 }

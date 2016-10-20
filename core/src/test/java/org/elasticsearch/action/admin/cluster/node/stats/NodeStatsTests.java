@@ -79,8 +79,14 @@ public class NodeStatsTests extends ESTestCase {
                         nodeStats.getOs().getCgroup().getCpuAcctUsageNanos(),
                         deserializedNodeStats.getOs().getCgroup().getCpuAcctUsageNanos());
                     assertEquals(
+                        nodeStats.getOs().getCgroup().getCpuControlGroup(),
+                        deserializedNodeStats.getOs().getCgroup().getCpuControlGroup());
+                    assertEquals(
                         nodeStats.getOs().getCgroup().getCpuCfsPeriodMicros(),
                         deserializedNodeStats.getOs().getCgroup().getCpuCfsPeriodMicros());
+                    assertEquals(
+                        nodeStats.getOs().getCgroup().getCpuCfsQuotaMicros(),
+                        deserializedNodeStats.getOs().getCgroup().getCpuCfsQuotaMicros());
                     assertEquals(
                         nodeStats.getOs().getCgroup().getCpuStat().getNumberOfElapsedPeriods(),
                         deserializedNodeStats.getOs().getCgroup().getCpuStat().getNumberOfElapsedPeriods());

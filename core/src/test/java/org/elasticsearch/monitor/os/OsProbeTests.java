@@ -22,9 +22,7 @@ package org.elasticsearch.monitor.os;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.allOf;
@@ -146,14 +144,13 @@ public class OsProbeTests extends ESTestCase {
         assertThat(systemLoadAverage[2], equalTo(Double.parseDouble("1.99")));
     }
 
-    public void testCGroupProbe() {
-
+    public void testCgroupProbe() {
         final String hierarchy = randomAsciiOfLength(16);
 
         final OsProbe probe = new OsProbe() {
 
             @Override
-            List<String> readProcSelfCgroup() throws IOException {
+            List<String> readProcSelfCgroup() {
                 return Arrays.asList(
                     "11:freezer:/",
                     "10:net_cls,net_prio:/",
@@ -169,34 +166,29 @@ public class OsProbeTests extends ESTestCase {
             }
 
             @Override
-            List<String> readSysFsCgroupCpuAcctCpuAcctUsage(String path) throws IOException {
-                assertThat(path, equalTo("/" + hierarchy));
-                return Collections.singletonList("364869866063112");
+            String readSysFsCgroupCpuAcctCpuAcctUsage(String controlGroup) {
+                assertThat(controlGroup, equalTo("/" + hierarchy));
+                return "364869866063112";
             }
 
             @Override
-            List<String> readSysFsCgroupCpuAcctCpuCfsPeriod(String path) throws IOException {
-                assertThat(path, equalTo("/" + hierarchy));
-                return Collections.singletonList("100000");
+            String readSysFsCgroupCpuAcctCpuCfsPeriod(String controlGroup) {
+                assertThat(controlGroup, equalTo("/" + hierarchy));
+                return "100000";
             }
 
             @Override
-            List<String> readSysFsCgroupCpuAcctCpuAcctCfsQuota(String path) throws IOException {
-                assertThat(path, equalTo("/" + hierarchy));
-                return Collections.singletonList("50000");
+            String readSysFsCgroupCpuAcctCpuAcctCfsQuota(String controlGroup) {
+                assertThat(controlGroup, equalTo("/" + hierarchy));
+                return "50000";
             }
 
             @Override
-            List<String> readSysFsCgroupCpuAcctCpuStat(String path) throws IOException {
+            List<String> readSysFsCgroupCpuAcctCpuStat(String controlGroup) {
                 return Arrays.asList(
                     "nr_periods 17992",
                     "nr_throttled 1311",
                     "throttled_time 139298645489");
-            }
-
-            @Override
-            boolean shouldReadCgroups() {
-                return true;
             }
 
         };

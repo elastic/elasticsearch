@@ -274,35 +274,74 @@ public class OsStats implements Writeable, ToXContent {
         }
     }
 
+    /**
+     * Encapsulates basic cgroup statistics.
+     */
     public static class Cgroup implements Writeable, ToXContent {
 
         private final String cpuAcctControlGroup;
         private final long cpuAcctUsageNanos;
         private final String cpuControlGroup;
-        private final long cpuCfsPeriodMicros; // completely fair scheduler enforcement period
-        private final long cpuCfsQuotaMicros; // completely fair scheduler quota
+        private final long cpuCfsPeriodMicros;
+        private final long cpuCfsQuotaMicros;
         private final CpuStat cpuStat;
 
+        /**
+         * The control group for the {@code cpuacct} subsystem.
+         *
+         * @return the control group
+         */
         public String getCpuAcctControlGroup() {
             return cpuAcctControlGroup;
         }
 
+        /**
+         * The total CPU time consumed by all tasks in the
+         * {@code cpuacct} control group from
+         * {@link Cgroup#cpuAcctControlGroup}.
+         *
+         * @return the total CPU time in nanoseconds
+         */
         public long getCpuAcctUsageNanos() {
             return cpuAcctUsageNanos;
         }
 
+        /**
+         * The control group for the {@code cpu} subsystem.
+         *
+         * @return the control group
+         */
         public String getCpuControlGroup() {
             return cpuControlGroup;
         }
 
+        /**
+         * The period of time for how frequently the control group from
+         * {@link Cgroup#cpuControlGroup} has its access to CPU
+         * resources reallocated.
+         *
+         * @return the period of time in microseconds
+         */
         public long getCpuCfsPeriodMicros() {
             return cpuCfsPeriodMicros;
         }
 
+        /**
+         * The total amount of time for which all tasks in the control
+         * group from {@link Cgroup#cpuControlGroup} can run in one
+         * period as represented by {@link Cgroup#cpuCfsPeriodMicros}.
+         *
+         * @return the total amount of time in microseconds
+         */
         public long getCpuCfsQuotaMicros() {
             return cpuCfsQuotaMicros;
         }
 
+        /**
+         * The CPU time statistics. See {@link CpuStat}.
+         *
+         * @return the CPU time statistics.
+         */
         public CpuStat getCpuStat() {
             return cpuStat;
         }
@@ -336,7 +375,7 @@ public class OsStats implements Writeable, ToXContent {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public void writeTo(final StreamOutput out) throws IOException {
             out.writeString(cpuAcctControlGroup);
             out.writeLong(cpuAcctUsageNanos);
             out.writeString(cpuControlGroup);
@@ -351,7 +390,7 @@ public class OsStats implements Writeable, ToXContent {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
             builder.startObject("cgroup");
             {
                 builder.startObject("cpuacct");
@@ -373,20 +412,41 @@ public class OsStats implements Writeable, ToXContent {
             return builder;
         }
 
+        /**
+         * Encapsulates CPU time statistics.
+         */
         public static class CpuStat implements Writeable, ToXContent {
 
             private final long numberOfElapsedPeriods;
             private final long numberOfTimesThrottled;
             private final long timeThrottledNanos;
 
+            /**
+             * The number of elapsed periods.
+             *
+             * @return the number of elapsed periods as measured by
+             * {@code cpu.cfs_period_us}
+             */
             public long getNumberOfElapsedPeriods() {
                 return numberOfElapsedPeriods;
             }
 
+            /**
+             * The number of times tasks in the control group have been
+             * throttled.
+             *
+             * @return the number of times
+             */
             public long getNumberOfTimesThrottled() {
                 return numberOfTimesThrottled;
             }
 
+            /**
+             * The total time duration for which tasks in the control
+             * group have been throttled.
+             *
+             * @return the total time in nanoseconds
+             */
             public long getTimeThrottledNanos() {
                 return timeThrottledNanos;
             }

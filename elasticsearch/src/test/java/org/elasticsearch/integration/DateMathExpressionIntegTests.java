@@ -97,6 +97,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
         }
         GetResponse getResponse = client.prepareGet(expression, "type", response.getId()).setFetchSource(true).get();
         assertThat(getResponse.isExists(), is(true));
+        assertEquals("datemath-2016.10.01", getResponse.getIndex());
         assertThat(getResponse.getSourceAsMap().get("foo").toString(), is("bar"));
         assertThat(getResponse.getSourceAsMap().get("new").toString(), is("field"));
 
@@ -104,7 +105,10 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
         MultiGetResponse multiGetResponse = client.prepareMultiGet()
                 .add(expression, "type", response.getId())
                 .get();
-        assertThat(multiGetResponse.getResponses()[0].getFailure().getMessage(), is("no such index"));
+        assertFalse(multiGetResponse.getResponses()[0].isFailed());
+        assertTrue(multiGetResponse.getResponses()[0].getResponse().isExists());
+        assertEquals("datemath-2016.10.01", multiGetResponse.getResponses()[0].getResponse().getIndex());
+
 
         DeleteIndexResponse deleteIndexResponse = client.admin().indices().prepareDelete(expression).get();
         assertThat(deleteIndexResponse.isAcknowledged(), is(true));

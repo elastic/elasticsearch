@@ -109,7 +109,7 @@ public class RetryTests extends ESSingleNodeTestCase {
         // Enable http so we can test retries on reindex from remote. In this case the "remote" cluster is just this cluster.
         settings.put(NetworkModule.HTTP_ENABLED.getKey(), true);
         // Whitelist reindexing from the http host we're going to use
-        settings.put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "myself");
+        settings.put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*");
         if (useNetty3) {
             settings.put(NetworkModule.HTTP_TYPE_KEY, Netty3Plugin.NETTY_HTTP_TRANSPORT_NAME);
             settings.put(NetworkModule.TRANSPORT_TYPE_KEY, Netty3Plugin.NETTY_TRANSPORT_NAME);

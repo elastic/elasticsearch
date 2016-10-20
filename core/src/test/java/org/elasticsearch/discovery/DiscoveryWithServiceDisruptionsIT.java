@@ -128,6 +128,10 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
     private ClusterDiscoveryConfiguration discoveryConfig;
 
+    @Override
+    protected boolean addMockZenPings() {
+        return false;
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

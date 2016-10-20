@@ -107,10 +107,8 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
     private final String deploymentName;
     private final DeploymentSlot deploymentSlot;
 
-    @Inject
     public AzureUnicastHostsProvider(Settings settings, AzureComputeService azureComputeService,
-                                   TransportService transportService,
-                                   NetworkService networkService) {
+                                     TransportService transportService, NetworkService networkService) {
         super(settings);
         this.azureComputeService = azureComputeService;
         this.transportService = transportService;

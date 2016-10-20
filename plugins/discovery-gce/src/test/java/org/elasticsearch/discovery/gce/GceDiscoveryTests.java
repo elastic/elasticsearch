@@ -33,6 +33,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -98,9 +99,9 @@ public class GceDiscoveryTests extends ESTestCase {
     }
 
     @After
-    public void stopGceComputeService() {
+    public void stopGceComputeService() throws IOException {
         if (mock != null) {
-            mock.stop();
+            mock.close();
         }
     }
 

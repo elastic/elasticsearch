@@ -103,7 +103,7 @@ include:
 * `transport.bind_host`
 * `transport.publish_host`
 * `cluster.name`
-* `discovery.zen.pinger.unicast.hosts`
+* `discovery.zen.ping.unicast.hosts`
 
 [source,yaml]
 ------------------------

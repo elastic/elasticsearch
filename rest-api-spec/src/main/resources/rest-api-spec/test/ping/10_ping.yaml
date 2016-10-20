@@ -1,5 +1,5 @@
 ---
 "Ping":
-    - do:      { pinger: {}}
+    - do:      { ping: {}}
     - is_true: ''
 

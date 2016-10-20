@@ -26,7 +26,7 @@ of these.
 +
 Defaults to `_local_`.
 
-`discovery.zen.pinger.unicast.hosts`::
+`discovery.zen.ping.unicast.hosts`::
 
 In order to join a cluster, a node needs to know the hostname or IP address of
 at least some of the other nodes in the cluster.  This setting provides the

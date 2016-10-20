@@ -10,7 +10,7 @@ configured before going into production.
 * <<node.name,`node.name`>>
 * <<bootstrap.memory_lock,`bootstrap.memory_lock`>>
 * <<network.host,`network.host`>>
-* <<unicast.hosts,`discovery.zen.pinger.unicast.hosts`>>
+* <<unicast.hosts,`discovery.zen.ping.unicast.hosts`>>
 * <<minimum_master_nodes,`discovery.zen.minimum_master_nodes`>>
 * <<node.max_local_storage_nodes,`node.max_local_storage_nodes`>>
 
@@ -133,7 +133,7 @@ exceptions.  See <<dev-vs-prod>> for more information.
 
 [float]
 [[unicast.hosts]]
-=== `discovery.zen.pinger.unicast.hosts`
+=== `discovery.zen.ping.unicast.hosts`
 
 Out of the box, without any network configuration, Elasticsearch will bind to
 the available loopback addresses and will scan ports 9300 to 9305 to try to
@@ -146,7 +146,7 @@ live and contactable.  This can be specified as follows:
 
 [source,yaml]
 --------------------------------------------------
-discovery.zen.pinger.unicast.hosts:
+discovery.zen.ping.unicast.hosts:
    - 192.168.1.10:9300
    - 192.168.1.11 <1>
    - seeds.mydomain.com <2>

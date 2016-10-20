@@ -116,7 +116,7 @@ The following are a list of settings that can further control the discovery:
 `discovery.azure.host.type`::
 
     Either `public_ip` or `private_ip` (default). Azure discovery will use the
-    one you set to pinger other nodes.
+    one you set to ping other nodes.
 
 `discovery.azure.endpoint.name`::
 
